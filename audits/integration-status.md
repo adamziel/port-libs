@@ -119410,3 +119410,21 @@ Focused verification before root: syntax checks passed; `TMPDIR=$candidate/.tmp-
 Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32441 assertions, 0 failures`.
 
 Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T054557Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/worktrees/clean-integrator-libsqlite-btree-overflow-20260527T055605Z` was also preserved because root verification left repo-local `.tmp-root` scratch files.
+
+## Integration accepted - libsqlite VFS rollback journal commit application - 2026-05-27T06:14:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T060403Z.ready`.
+
+Base/guard evidence: local `refs/heads/main` and cache-busted live Pages both reported `7e509304f07e091c14a36b05796ada444a68feb6` before processing. Runtime gates were open: `df -Pk /` reported `86631056` KiB available, `/proc/loadavg` one-minute load was `1.26`, and no exact no-argument root harness was running.
+
+Decision: accepted by bounded replay in detached clean worktree `.tmux-team/tmp/clean-candidates/libsqlite-deps-20260527T060403Z-current` from current `main`. The marker was based on older `3241d3ae41befae99e855b53f0c2d16abf64ce65`; full `git apply --check` failed only in stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`. Implementation, test, example, and notes hunks applied cleanly after excluding stale status/manifest files, then manifest/status were reconciled from current `7e509304` evidence.
+
+Delta: adds `SQLiteRollbackJournalCommitPlan`, extends `SQLiteVfsFileWriter` with rollback-journal commit application, adds `wordpress-vfs-rollback-commit-apply.php`, and adds focused assertions for journal-before-database write ordering, sync policy, delete/truncate/persist journal modes, dirty-page writes, and copied WordPress database commit sidecars. Reconciled status records `phpPass` `784` and mapped coverage `439 / 1589`.
+
+Focused verification before root: syntax checks passed; `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 7428 assertions, 0 failures`; `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-rollback-commit-apply.php` emitted valid JSON with two durable syncs, one directory sync, and rollback-journal deletion after database commit; manifest/status JSON decoded; `git diff --check` passed.
+
+Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32593 assertions, 0 failures`.
+
+Commit: `3f02a4b4f829d3a28f63a250c36e40197a9742be` (`Integrate libsqlite rollback journal commit apply`).
+
+Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T060403Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-deps-20260527T060403Z-current` is preserved with the accepted commit checked out.

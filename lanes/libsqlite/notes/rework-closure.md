@@ -788,3 +788,41 @@ value coercion, and bounded SELECT planner arrays. Follow-up should wire these
 ranked decisions into broader parser/executor planning without repeating
 accepted expression ORDER BY, GROUP BY/HAVING, SQL text JOIN, or first-pass
 expression-index planner work.
+
+## 2026-05-27 VFS Rollback-Journal Commit Apply
+
+This isolated dependency/VFS slice does not repeat accepted hot rollback
+journal recovery, VFS file writer checkpoint application, locked writer,
+process locks, savepoint rollback, WAL byte truncation, or rollback-journal
+diagnostic-only planning. It adds the forward rollback-journal commit path:
+write and sync rollback-journal bytes before database pages, write dirty pages
+at page offsets, sync database pages, then delete, truncate, or persist-zero
+the rollback journal and persist the directory entry.
+
+Focused assertion delta: `SQLiteHeaderTest.php` passed at 7368 assertions,
+adding 92 assertions over the current accepted 7276 baseline. The new
+assertions cover operation ordering, payload routing by dirty page number,
+FULL/NORMAL/EXTRA/OFF sync modes, DELETE/TRUNCATE/PERSIST journal modes,
+actual local file bytes, sparse page offsets, dependency tags, read-only and
+immutable guards, malformed path/page/payload guards, and copied WordPress
+database commit smoke behavior.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRollbackJournalCommitPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-rollback-commit-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-rollback-commit-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS file-handle writer and rollback-journal durability evidence.
+Follow-up should broaden pager/VFS transaction application and durable sync
+policy without repeating accepted hot rollback-journal recovery, VFS file
+writer, locked writer, process locks, savepoint rollback, WAL byte truncation,
+or this rollback-journal commit path.

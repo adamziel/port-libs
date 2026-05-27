@@ -66,6 +66,7 @@ use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
+use PortLibs\LibSqlite\SQLiteRollbackJournalCommitPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
@@ -19364,6 +19365,164 @@ SQL;
             'dependencies' => [],
             'reason' => null,
         ], []));
+    },
+    'applies rollback journal commit writes with durable journal before database order' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-rollback-commit-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabase = $root . $databasePath;
+        $localJournal = $localDatabase . '-journal';
+        $pageSize = 512;
+        $journalBytes = str_pad('rollback journal before wp_options commit', $pageSize, "\0");
+        $pageOne = str_pad('SQLite format 3' . "\0" . 'schema after option insert', $pageSize, "\0");
+        $pageTwo = str_pad('wp_options row after plugin setting insert', $pageSize, "\0");
+        $pageFive = str_pad('autoload index after plugin setting insert', $pageSize, "\0");
+
+        $plan = SQLiteRollbackJournalCommitPlan::commit(
+            $databasePath,
+            $journalBytes,
+            [5 => $pageFive, 1 => $pageOne, 2 => $pageTwo],
+            $pageSize,
+            'full',
+            'delete'
+        );
+
+        $t->same($databasePath, $plan['database_path']);
+        $t->same($databasePath . '-journal', $plan['journal_path']);
+        $t->same($pageSize, $plan['page_size']);
+        $t->same('full', $plan['sync_mode']);
+        $t->same('delete', $plan['journal_mode']);
+        $t->same(false, $plan['read_only']);
+        $t->same(false, $plan['immutable']);
+        $t->same([1, 2, 5], $plan['database_pages']);
+        $t->same($pageSize * 3, $plan['database_bytes']);
+        $t->same($pageSize, $plan['journal_bytes']);
+        $t->same(8, count($plan['operations']));
+        $t->same('write', $plan['operations'][0]['op']);
+        $t->same($databasePath . '-journal', $plan['operations'][0]['path']);
+        $t->same($pageSize, $plan['operations'][0]['bytes']);
+        $t->same('write_rollback_journal_before_database_pages', $plan['operations'][0]['reason']);
+        $t->same('sync', $plan['operations'][1]['op']);
+        $t->same('sync_rollback_journal', $plan['operations'][1]['reason']);
+        $t->same('write', $plan['operations'][2]['op']);
+        $t->same($databasePath . '#page:1', $plan['operations'][2]['payload_key']);
+        $t->same(0, $plan['operations'][2]['offset']);
+        $t->same('write_dirty_database_page_1', $plan['operations'][2]['reason']);
+        $t->same($databasePath . '#page:2', $plan['operations'][3]['payload_key']);
+        $t->same(512, $plan['operations'][3]['offset']);
+        $t->same($databasePath . '#page:5', $plan['operations'][4]['payload_key']);
+        $t->same(2048, $plan['operations'][4]['offset']);
+        $t->same('sync', $plan['operations'][5]['op']);
+        $t->same('sync_committed_database_pages', $plan['operations'][5]['reason']);
+        $t->same('delete', $plan['operations'][6]['op']);
+        $t->same('delete_rollback_journal_after_commit', $plan['operations'][6]['reason']);
+        $t->same('sync_directory', $plan['operations'][7]['op']);
+        $t->same('/srv/www/wp-content/database', $plan['operations'][7]['path']);
+        $t->same(['sqlite-rollback-journal-commit', 'durable-journal-before-database-write', 'vfs-file-write-coordination'], $plan['dependencies']);
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applyRollbackJournalCommit(
+            $databasePath,
+            $journalBytes,
+            [5 => $pageFive, 1 => $pageOne, 2 => $pageTwo],
+            $pageSize,
+            'full',
+            'delete'
+        );
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same(8, $applied['applied']);
+        $t->same($pageSize * 4, $applied['bytes_written']);
+        $t->same(0, $applied['bytes_truncated']);
+        $t->same(1, $applied['files_deleted']);
+        $t->same(2, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(true, in_array('sqlite-rollback-journal-commit', $applied['dependencies'], true));
+        $t->same(true, in_array('durable-journal-before-database-write', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-write-application', $applied['dependencies'], true));
+        $t->same('write', $applied['operations'][0]['op']);
+        $t->same($localJournal, $applied['operations'][0]['local_path']);
+        $t->same('sync', $applied['operations'][1]['op']);
+        $t->same('write', $applied['operations'][2]['op']);
+        $t->same($localDatabase, $applied['operations'][2]['local_path']);
+        $t->same('write_dirty_database_page_1', $applied['operations'][2]['reason']);
+        $t->same('write_dirty_database_page_2', $applied['operations'][3]['reason']);
+        $t->same('write_dirty_database_page_5', $applied['operations'][4]['reason']);
+        $t->same('sync', $applied['operations'][5]['op']);
+        $t->same('delete', $applied['operations'][6]['op']);
+        $t->same('sync_directory', $applied['operations'][7]['op']);
+        $t->same(false, is_file($localJournal));
+        $t->same($pageSize * 5, filesize($localDatabase));
+        $databaseBytes = file_get_contents($localDatabase);
+        $t->same($pageOne, substr($databaseBytes, 0, $pageSize));
+        $t->same($pageTwo, substr($databaseBytes, $pageSize, $pageSize));
+        $t->same(str_repeat("\0", $pageSize), substr($databaseBytes, $pageSize * 2, $pageSize));
+        $t->same($pageFive, substr($databaseBytes, $pageSize * 4, $pageSize));
+        $t->same([1, 2, 5], $applied['commit']['database_pages']);
+
+        $truncateRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-rollback-commit-truncate-' . bin2hex(random_bytes(4));
+        $truncate = (new SQLiteVfsFileWriter($truncateRoot))->applyRollbackJournalCommit(
+            $databasePath,
+            $journalBytes,
+            [2 => $pageTwo],
+            $pageSize,
+            'normal',
+            'truncate'
+        );
+        $t->same('applied', $truncate['status']);
+        $t->same(6, $truncate['applied']);
+        $t->same(2, $truncate['durable_syncs']);
+        $t->same(1, $truncate['directory_syncs']);
+        $t->same(0, filesize($truncateRoot . $databasePath . '-journal'));
+        $t->same('truncate', $truncate['operations'][4]['op']);
+        $t->same('truncate_rollback_journal_after_commit', $truncate['operations'][4]['reason']);
+
+        $persistRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-rollback-commit-persist-' . bin2hex(random_bytes(4));
+        $persist = (new SQLiteVfsFileWriter($persistRoot))->applyRollbackJournalCommit(
+            $databasePath,
+            $journalBytes,
+            [2 => $pageTwo],
+            $pageSize,
+            'extra',
+            'persist'
+        );
+        $t->same('applied', $persist['status']);
+        $t->same(6, $persist['applied']);
+        $t->same('sync_rollback_journal_fullfsync', $persist['operations'][1]['reason']);
+        $t->same('write', $persist['operations'][4]['op']);
+        $t->same('zero_rollback_journal_header_after_commit', $persist['operations'][4]['reason']);
+        $t->same(28, $persist['operations'][4]['bytes']);
+        $t->same(str_repeat("\0", 28), substr(file_get_contents($persistRoot . $databasePath . '-journal'), 0, 28));
+        $t->same($pageSize, filesize($persistRoot . $databasePath . '-journal'));
+
+        $offRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-rollback-commit-off-' . bin2hex(random_bytes(4));
+        $off = (new SQLiteVfsFileWriter($offRoot))->applyRollbackJournalCommit(
+            $databasePath,
+            $journalBytes,
+            [2 => $pageTwo],
+            $pageSize,
+            'off',
+            'delete'
+        );
+        $t->same('applied', $off['status']);
+        $t->same(3, $off['applied']);
+        $t->same(0, $off['durable_syncs']);
+        $t->same(0, $off['directory_syncs']);
+        $t->same(['write', 'write', 'delete'], array_column($off['operations'], 'op'));
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applyRollbackJournalCommit($databasePath, $journalBytes, [1 => $pageOne], $pageSize));
+        $immutable = new SQLiteVfsFileWriter($root, false, true);
+        $t->throws(LogicException::class, static fn () => $immutable->applyRollbackJournalCommit($databasePath, $journalBytes, [1 => $pageOne], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit('', $journalBytes, [1 => $pageOne], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, '', [1 => $pageOne], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [0 => $pageOne], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => substr($pageOne, 1)], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => $pageOne], 500));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => $pageOne], $pageSize, 'bad'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => $pageOne], $pageSize, 'full', 'bad'));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyRollbackJournalCommit('../escape.sqlite', $journalBytes, [1 => $pageOne], $pageSize));
     },
     'applies sqlite vfs savepoint rollback images and wal truncation to local handles' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libsqlite-vfs-savepoint-' . bin2hex(random_bytes(4));

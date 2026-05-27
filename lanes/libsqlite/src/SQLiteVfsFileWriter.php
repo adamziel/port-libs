@@ -112,6 +112,43 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param array<int, string> $databasePages 1-indexed page numbers to page images.
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
+     */
+    public function applyRollbackJournalCommit(
+        string $databasePath,
+        string $journalBytes,
+        array $databasePages,
+        int $pageSize,
+        string $syncMode = 'full',
+        string $journalMode = 'delete',
+    ): array {
+        $plan = SQLiteRollbackJournalCommitPlan::commit(
+            $databasePath,
+            $journalBytes,
+            $databasePages,
+            $pageSize,
+            $syncMode,
+            $journalMode,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        $payloads = [$plan['journal_path'] => $journalBytes];
+        foreach ($databasePages as $pageNumber => $pageImage) {
+            $payloads[$databasePath . '#page:' . $pageNumber] = $pageImage;
+        }
+        if ($plan['journal_mode'] === 'persist') {
+            $payloads[$plan['journal_path'] . '#persist-header'] = str_repeat("\0", min(28, strlen($journalBytes)));
+        }
+
+        $applied = $this->applyOperations($plan['operations'], $payloads, $plan['dependencies']);
+        $applied['commit'] = $plan;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null}
      */
     public function applySavepointRollback(
@@ -237,10 +274,11 @@ final class SQLiteVfsFileWriter
             $localPath = $this->localPath($path);
             if ($op === 'write') {
                 $offset = $this->nonNegativeInt($operation['offset'] ?? 0, 'SQLite VFS write offset');
-                if (!array_key_exists($path, $payloads)) {
+                $payloadKey = isset($operation['payload_key']) ? (string) $operation['payload_key'] : $path;
+                if (!array_key_exists($payloadKey, $payloads)) {
                     throw new \InvalidArgumentException("SQLite VFS write payload is missing for {$path}");
                 }
-                $data = $payloads[$path];
+                $data = $payloads[$payloadKey];
                 $expected = $this->nonNegativeInt($operation['bytes'] ?? strlen($data), 'SQLite VFS write byte count');
                 if ($expected !== strlen($data)) {
                     throw new \InvalidArgumentException("SQLite VFS write payload length mismatch for {$path}");

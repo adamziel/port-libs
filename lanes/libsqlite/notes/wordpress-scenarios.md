@@ -4374,3 +4374,25 @@ lane-local table/index leaf encoders, overflow chain helpers, freeblock
 integrity reports, and secure-delete mutation path. Follow-up should connect
 the returned obsolete overflow pages to full freelist and auto-vacuum
 pointer-map application for arbitrary SQL DELETE.
+
+## VFS Rollback-Journal Commit Apply Scenario
+
+Copied WordPress import tooling can now apply the forward rollback-journal
+commit sequence through native PHP file handles. The smoke
+`examples/wordpress-vfs-rollback-commit-apply.php` reports rollback-journal
+bytes written and synced before dirty `wp_options` database pages, database
+pages synced before journal deletion, and directory-entry persistence without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated dependency/VFS slice: added
+`SQLiteRollbackJournalCommitPlan` and `SQLiteVfsFileWriter::applyRollbackJournalCommit()`
+for bounded rollback-journal commit ordering, sync mode, and journal mode
+application. Focused `SQLiteHeaderTest.php` passed at 7368 assertions, +92
+over the current accepted 7276 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS file-handle writer and rollback-journal durability evidence.
+Follow-up should broaden pager/VFS transaction application and durable sync
+policy without repeating accepted hot rollback-journal recovery, VFS file
+writer, locked writer, process locks, savepoint rollback, WAL byte truncation,
+or this rollback-journal commit path.
