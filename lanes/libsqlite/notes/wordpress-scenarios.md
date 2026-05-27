@@ -4537,3 +4537,26 @@ diagnostics, and pointer-map mutation machinery. Follow-up should broaden
 B-tree delete/rebalance materialization without repeating accepted root
 collapse, page relocation, index-interior merge, overflow freelist release,
 bulk overflow freeblocks, or this empty-leaf release path.
+
+## SELECT SQL JSON Dynamic Join Scenario
+
+Copied WordPress `wp_options` diagnostics can now execute bounded SELECT SQL
+where `json_each()` or `json_tree()` receives the current host row's
+`option_value` as its JSON argument. The smoke
+`examples/wordpress-select-sql-json-dynamic-join.php` reports plugin setting
+rows joined to row-correlated JSON table scans, preserving INNER JOIN, LEFT
+JOIN NULL-extension, CROSS JOIN, ORDER BY, grouping, and malformed dynamic-root
+guards without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated JSON table slice: added row-dependent JSON
+table JOIN sources in `SQLiteSelectSql` plus dynamic join application in
+`SQLiteSelectQuery`. Focused `SQLiteHeaderTest.php` passes at 8076 assertions
+with 0 failures; this slice adds 60 focused assertions over the 8016-assertion
+lane-status baseline.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser, JSON table planner/cursor rows, scalar
+expression evaluator, join executor, and copied WordPress option fixtures.
+Follow-up should broaden JSON planner/JSONB behavior without repeating
+accepted JSON hidden/visible constraints, parser-level JSON table SELECT
+sources, JSON cursor iteration, or this row-correlated dynamic JOIN path.

@@ -1035,3 +1035,37 @@ lane-local SELECT SQL parser, scalar function dispatcher, projection,
 predicate, grouped aggregate, and query-plan result pipeline. Follow-up should
 broaden SQL executor/planner correctness without repeating this scalar-operator
 path.
+
+## 2026-05-27 JSON Dynamic Table Joins
+
+This isolated JSON table slice does not repeat accepted parser-level
+json_each/json_tree SELECT source wiring, JSON table cursor iteration, hidden
+json/root constraint extraction, visible-column pushdown, JSON table host-row
+standalone materializers, JSON table LIMIT/OFFSET, or JSON table windows. It
+wires row-correlated JSON table-valued function arguments into SELECT JOIN
+execution, so `json_tree(o.option_value, '$.rules')` and
+`json_each(o.option_value, '$.rules')` are evaluated for each host row.
+
+Focused assertion delta: `SQLiteHeaderTest.php` adds 60 assertions over the
+8016-assertion lane-status baseline and passes at 8076 assertions. The
+assertions cover INNER, LEFT, and CROSS dynamic JSON table joins, qualified
+JSON table columns, dynamic right-row plan callbacks, grouped aggregate
+composition, NULL-extension for missing/NULL JSON rows, and malformed dynamic
+root guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectQuery.php
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser, JSON table planner/cursor rows, scalar
+expression evaluator, join executor, and copied WordPress option fixtures.

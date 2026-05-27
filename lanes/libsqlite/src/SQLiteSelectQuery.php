@@ -120,6 +120,14 @@ final class SQLiteSelectQuery
             }
 
             $type = strtoupper(self::requiredString($join, 'type', 'join'));
+            if (isset($join['dynamicRows'])) {
+                if (!is_callable($join['dynamicRows'])) {
+                    throw new \InvalidArgumentException('SQLite SELECT query dynamic join rows must be callable');
+                }
+                $rows = self::applyDynamicJoin($rows, $join, $type);
+                continue;
+            }
+
             $rightRows = self::rightRows($join);
             $rows = match ($type) {
                 'INNER' => SQLiteSelectResult::innerJoin($rows, $rightRows, self::requiredPredicate($join, 'INNER')),
@@ -131,6 +139,52 @@ final class SQLiteSelectQuery
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $join
+     * @return list<array<string,mixed>>
+     */
+    private static function applyDynamicJoin(array $rows, array $join, string $type): array
+    {
+        $dynamicRows = $join['dynamicRows'];
+        $predicate = $type === 'CROSS' ? null : self::requiredPredicate($join, $type);
+        $joined = [];
+        $rightColumns = self::rightColumns($join, []);
+
+        foreach ($rows as $left) {
+            $rightRows = $dynamicRows($left);
+            if (!is_array($rightRows) || !array_is_list($rightRows)) {
+                throw new \InvalidArgumentException('SQLite SELECT query dynamic join rows must return a list');
+            }
+
+            $matched = false;
+            foreach ($rightRows as $right) {
+                if (!is_array($right)) {
+                    throw new \InvalidArgumentException('SQLite SELECT query dynamic join rows must be arrays');
+                }
+                if ($type !== 'CROSS' && !$predicate($left, $right)) {
+                    continue;
+                }
+                $matched = true;
+                $joined[] = array_merge($left, $right);
+            }
+
+            if ($type === 'LEFT' && !$matched) {
+                $nulls = [];
+                foreach ($rightColumns as $column) {
+                    $nulls[$column] = null;
+                }
+                $joined[] = array_merge($left, $nulls);
+            }
+        }
+
+        if ($type === 'INNER' || $type === 'LEFT' || $type === 'CROSS') {
+            return $joined;
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT query join type {$type} is not supported");
     }
 
     /**

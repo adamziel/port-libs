@@ -119675,3 +119675,42 @@ Root evidence:
 - Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 33181 assertions, 0 failures`.
 
 Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
+## Integration accepted - libsqlite JSON table dynamic joins - 2026-05-27T08:29:31Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `276fafa015f2c63d166989e3c96f31bb6f95342d` (`Integrate libsqlite SELECT SQL CTEs`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `276fafa015f2c63d166989e3c96f31bb6f95342d`, `generated` `2026-05-27 08:18:52 UTC`, and `dashboardCommit` `d6236134bfc1bc7e03937ea9780f37bc5e7b2b8e`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Marker metadata was complete with `lane=libsqlite`, `base_sha=276fafa015f2c63d166989e3c96f31bb6f95342d`, patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.patch`, and metadata `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.md`.
+- Patch sha256 matched the ready marker: `9aee45dcafaaaa8807677b9e1355452bf1e9897a9003e41dc1c595461f7a1ace`.
+- Detached clean candidate `.tmux-team/tmp/clean-integrator-candidates/json-dynamic-join-20260527T081959Z` was based on current `276fafa0`; `git apply --check` passed and the patch applied cleanly.
+- Effective source delta is scoped to `lanes/libsqlite`: row-correlated `json_each`/`json_tree` dynamic SELECT joins, query-plan dynamic right rows, focused assertions, copied WordPress JSON dynamic-join smoke, manifest/status evidence, and lane notes.
+- This is non-overlapping with accepted parser-level JSON table SELECT sources/cursor/hidden/visible constraints, CTEs, scalar operators, subqueries, VFS sync apply, B-tree root collapse, empty-leaf freelist release, and prior SQL grouped/ORDER/JOIN/SELECT text clusters.
+
+Verification evidence:
+- `php -l` passed for `lanes/libsqlite/src/SQLiteSelectSql.php`, `lanes/libsqlite/src/SQLiteSelectQuery.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 8076 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-json-dynamic-join.php` emitted valid JSON with correlated priority rows and NULL-extended LEFT JOIN rows.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before focused checks: `df -Pk /` reported `82596236` KiB available, above the temporary `82000000` KiB floor; load was `0.83`; no exact no-argument root harness was active.
+
+Root evidence:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 33241 assertions, 0 failures`.
+
+Expected dashboard movement:
+- `SQLiteHeaderTest.php` focused assertions move from `8016` at `276fafa0` to `8076`.
+- Committed libsqlite `phpPass` remains `792`.
+- Mapped focused coverage moves from `443 / 1589` to `444 / 1589`.
+
+Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
+Cleanup:
+- Consumed accepted marker artifacts: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.ready`, `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.patch`, and `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.md`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T081959Z` still contains modified lane files from the handed-off patch, so it was preserved and left registered as cleanup debt rather than removed.

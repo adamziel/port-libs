@@ -316,6 +316,43 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL JSON table source supports one or two arguments');
         }
 
+        $alias = isset($match[3]) && $match[3] !== '' ? $match[3] : $function;
+        self::assertBareIdentifier($alias, 'SQLite SELECT SQL JSON table alias');
+
+        $hasDynamicArguments = false;
+        foreach ($argumentExpressions as $expression) {
+            if (($expression['type'] ?? null) !== 'literal') {
+                $hasDynamicArguments = true;
+                break;
+            }
+        }
+
+        if ($hasDynamicArguments) {
+            return [
+                'name' => $function,
+                'alias' => $alias,
+                'rows' => [],
+                'dynamicRows' => static function (array $row) use ($function, $alias, $argumentExpressions): array {
+                    $constraints = [
+                        [
+                            'column' => 'json',
+                            'operator' => '=',
+                            'value' => SQLiteSelectExpression::evaluate($row, $argumentExpressions[0]),
+                        ],
+                    ];
+                    if (isset($argumentExpressions[1])) {
+                        $constraints[] = [
+                            'column' => 'root',
+                            'operator' => '=',
+                            'value' => SQLiteSelectExpression::evaluate($row, $argumentExpressions[1]),
+                        ];
+                    }
+
+                    return self::qualifiedRows(SQLiteJsonTablePlan::visibleRows($function, $constraints), $alias);
+                },
+            ];
+        }
+
         $constraints = [
             ['column' => 'json', 'operator' => '=', 'value' => self::literalExpressionValue($argumentExpressions[0], 'JSON table source')],
         ];
@@ -326,9 +363,6 @@ final class SQLiteSelectSql
                 'value' => self::literalExpressionValue($argumentExpressions[1], 'JSON table root'),
             ];
         }
-
-        $alias = isset($match[3]) && $match[3] !== '' ? $match[3] : $function;
-        self::assertBareIdentifier($alias, 'SQLite SELECT SQL JSON table alias');
 
         return [
             'name' => $function,
@@ -507,11 +541,15 @@ final class SQLiteSelectSql
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
             $table = self::tableReference($tableSql, $tables);
-
-            return [[
+            $join = [
                 'type' => 'CROSS',
                 'rows' => self::qualifiedRows($table['rows'], $table['alias']),
-            ], $remaining];
+            ];
+            if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
+                $join['dynamicRows'] = $table['dynamicRows'];
+            }
+
+            return [$join, $remaining];
         }
         if ($boundary === null) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
@@ -527,6 +565,12 @@ final class SQLiteSelectSql
             'type' => $type,
             'rows' => self::qualifiedRows($table['rows'], $table['alias']),
         ];
+        if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
+            $join['dynamicRows'] = $table['dynamicRows'];
+            if ($table['name'] === 'json_each' || $table['name'] === 'json_tree') {
+                $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
+            }
+        }
 
         if (preg_match('/^using\s*\((.*)\)$/i', $condition, $using) === 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING is not supported for qualified SQL text rows');
