@@ -327,20 +327,45 @@ final class SQLiteVdbeWindowAggregateCursor
     public function currentSummary(): array
     {
         $this->requireCurrentRow();
-        $indexes = $this->currentFrameIndexes();
+
+        return $this->summaryAt($this->position);
+    }
+
+    /**
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}|null
+     */
+    public function peekNextSummary(): ?array
+    {
+        if ($this->position + 1 >= count($this->orderedRows)) {
+            return null;
+        }
+
+        return $this->summaryAt($this->position + 1);
+    }
+
+    /**
+     * @return array{current:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool},next:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}|null,advanced:bool}
+     */
+    public function currentNextSummary(): array
+    {
+        return [
+            'current' => $this->currentSummary(),
+            'next' => $this->peekNextSummary(),
+            'advanced' => false,
+        ];
+    }
+
+    /**
+     * @return array{current:list<array<string,mixed>>,next:list<array<string,mixed>>|null,advanced:bool}
+     */
+    public function currentNextFrameRows(bool $applyFilter = false): array
+    {
+        $this->requireCurrentRow();
 
         return [
-            'position' => $this->position,
-            'partitionKey' => $this->currentPartitionKey(),
-            'orderKey' => $this->currentOrderKey(),
-            'frameStart' => $indexes[0] ?? null,
-            'frameEnd' => $indexes[count($indexes) - 1] ?? null,
-            'frameRows' => count($indexes),
-            'filteredRows' => count($this->currentFrameRows(true)),
-            'currentFilterPassed' => $this->currentFilterPassed(),
-            'nextPartitionKey' => $this->peekNextPartitionKey(),
-            'nextOrderKey' => $this->peekNextOrderKey(),
-            'eof' => false,
+            'current' => $this->frameRowsAt($this->position, $applyFilter),
+            'next' => $this->position + 1 < count($this->orderedRows) ? $this->frameRowsAt($this->position + 1, $applyFilter) : null,
+            'advanced' => false,
         ];
     }
 
@@ -449,9 +474,79 @@ final class SQLiteVdbeWindowAggregateCursor
      */
     private function currentFrameIndexes(): array
     {
+        return $this->frameIndexesAt($this->position);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function frameRowsAt(int $position, bool $applyFilter = false): array
+    {
+        $rows = array_map(
+            fn (int $index): array => $this->orderedRows[$index],
+            $this->frameIndexesAt($position)
+        );
+        if (!$applyFilter || $this->filterColumn === null) {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, fn (array $row): bool => self::isSqlTrue($row[$this->filterColumn])));
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function frameIndexesAt(int $position): array
+    {
+        return $this->withPosition($position, fn (): array => $this->currentFrameIndexesForCurrentPosition());
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function currentFrameIndexesForCurrentPosition(): array
+    {
         [$start, $end] = $this->currentFrameRange();
 
         return $this->applyExcludeMode(range($start, $end));
+    }
+
+    /**
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}
+     */
+    private function summaryAt(int $position): array
+    {
+        return $this->withPosition($position, function (): array {
+            $indexes = $this->currentFrameIndexesForCurrentPosition();
+
+            return [
+                'position' => $this->position,
+                'partitionKey' => $this->currentPartitionKey(),
+                'orderKey' => $this->currentOrderKey(),
+                'frameStart' => $indexes[0] ?? null,
+                'frameEnd' => $indexes[count($indexes) - 1] ?? null,
+                'frameRows' => count($indexes),
+                'filteredRows' => count($this->currentFrameRows(true)),
+                'currentFilterPassed' => $this->currentFilterPassed(),
+                'nextPartitionKey' => $this->peekNextPartitionKey(),
+                'nextOrderKey' => $this->peekNextOrderKey(),
+                'eof' => false,
+            ];
+        });
+    }
+
+    private function withPosition(int $position, callable $callback): mixed
+    {
+        if (!array_key_exists($position, $this->orderedRows)) {
+            throw new \OutOfBoundsException('SQLite VDBE window aggregate cursor position is out of range');
+        }
+        $original = $this->position;
+        $this->position = $position;
+        try {
+            return $callback();
+        } finally {
+            $this->position = $original;
+        }
     }
 
     /**

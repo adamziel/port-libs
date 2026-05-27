@@ -387,6 +387,213 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int, array<string, mixed>> $currentArtifacts
+     * @param array<string, array<string, mixed>> $nextTargets
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamGapMapCurrentNext49(
+        array $currentArtifacts,
+        array $nextTargets,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap map requires current and next accepted HEAD values');
+        }
+        if ($nextTargets === []) {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap map requires at least one next target');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $currentByTestset = [];
+        $currentScriptSet = [];
+        $currentCountable = 0;
+        $currentBlocked = 0;
+        foreach ($currentArtifacts as $artifact) {
+            if (!is_array($artifact)) {
+                $currentBlocked++;
+                continue;
+            }
+
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : 'unknown';
+            $patterns = is_array($requested['patterns'] ?? null) ? $requested['patterns'] : [];
+            $isCurrentHead = ($artifact['repository_head'] ?? null) === $currentAcceptedHead;
+            $isPassed = ($artifact['status'] ?? null) === 'passed'
+                && (int) ($results['errors'] ?? 1) === 0
+                && (int) ($results['exit'] ?? 1) === 0;
+
+            if ($isCurrentHead && $isPassed) {
+                $currentCountable++;
+                $currentByTestset[$testset] = ($currentByTestset[$testset] ?? 0) + 1;
+                foreach ($patterns as $pattern) {
+                    if (is_string($pattern) && str_ends_with($pattern, '.test')) {
+                        $currentScriptSet[$pattern] = true;
+                    }
+                }
+            } else {
+                $currentBlocked++;
+            }
+        }
+
+        $rows = [];
+        $readyLabels = [];
+        $blockedLabels = [];
+        $coveredLabels = [];
+        $targetScripts = [];
+        foreach ($nextTargets as $label => $target) {
+            if (!is_string($label) || $label === '') {
+                $label = 'target-' . count($rows);
+            }
+            $testset = is_string($target['testset'] ?? null) ? $target['testset'] : 'veryquick';
+            $scripts = array_values(array_filter(
+                is_array($target['scripts'] ?? null) ? $target['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && str_ends_with($script, '.test')
+            ));
+            sort($scripts);
+            foreach ($scripts as $script) {
+                $targetScripts[$script] = true;
+            }
+
+            $priority = is_string($target['priority'] ?? null) ? $target['priority'] : 'normal';
+            $reason = is_string($target['reason'] ?? null) ? $target['reason'] : 'focused upstream runner target';
+            $hasCurrentReleaseTier = ($currentByTestset['release'] ?? 0) > 0 || ($currentByTestset['all'] ?? 0) > 0;
+            $coveredScripts = array_values(array_filter(
+                $scripts,
+                static fn (string $script): bool => isset($currentScriptSet[$script])
+            ));
+            $missingScripts = array_values(array_diff($scripts, $coveredScripts));
+            $scriptCoverage = $scripts === [] ? 'empty' : ($missingScripts === [] ? 'covered' : ($coveredScripts === [] ? 'uncovered' : 'partial'));
+
+            $blockers = [];
+            if ($scripts === []) {
+                $blockers[] = 'target-has-no-concrete-scripts';
+            }
+            if (!$hasCurrentReleaseTier && in_array($testset, ['release', 'all'], true)) {
+                $blockers[] = 'current-release-tier-baseline-missing';
+            }
+            if (($target['hydrated'] ?? true) !== true) {
+                $blockers[] = 'target-scripts-not-hydrated';
+            }
+            if (($target['next_artifact_present'] ?? false) === true) {
+                $blockers[] = 'next-artifact-already-present';
+            }
+
+            $status = 'ready-for-next-focused-runner';
+            if ($blockers !== []) {
+                $status = 'blocked';
+                $blockedLabels[] = $label;
+            } elseif ($scriptCoverage === 'covered') {
+                $status = 'current-artifact-already-covers-target';
+                $coveredLabels[] = $label;
+            } else {
+                $readyLabels[] = $label;
+            }
+
+            $rows[] = [
+                'label' => $label,
+                'status' => $status,
+                'testset' => $testset,
+                'priority' => $priority,
+                'reason' => $reason,
+                'script_count' => count($scripts),
+                'scripts' => $scripts,
+                'covered_script_count' => count($coveredScripts),
+                'covered_scripts' => $coveredScripts,
+                'missing_script_count' => count($missingScripts),
+                'missing_scripts' => $missingScripts,
+                'script_coverage' => $scriptCoverage,
+                'blocker_ids' => $blockers,
+                'command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error '
+                    . $testset
+                    . ($scripts === [] ? '' : ' ' . implode(' ', $scripts)),
+            ];
+        }
+
+        sort($readyLabels);
+        sort($blockedLabels);
+        sort($coveredLabels);
+        $targetScripts = array_keys($targetScripts);
+        sort($targetScripts);
+
+        $globalBlockers = [];
+        if ($currentCountable < 1) {
+            $globalBlockers[] = [
+                'id' => 'current-countable-artifact-missing',
+                'evidence' => 'no passed current accepted upstream artifact anchors the next49 gap map',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $globalBlockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $globalBlockers[] = [
+                'id' => 'php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $status = 'blocked';
+        if ($globalBlockers === [] && $blockedLabels === [] && $readyLabels !== []) {
+            $status = 'current-next49-gap-map-ready';
+        } elseif ($globalBlockers === [] && $readyLabels === [] && $coveredLabels !== []) {
+            $status = 'current-next49-targets-already-covered';
+        } elseif ($globalBlockers === []) {
+            $status = 'current-next49-gap-map-partial';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'current_countable_artifact_count' => $currentCountable,
+            'current_blocked_artifact_count' => $currentBlocked,
+            'current_testset_counts' => $currentByTestset,
+            'target_count' => count($rows),
+            'target_script_count' => count($targetScripts),
+            'target_scripts' => $targetScripts,
+            'ready_target_count' => count($readyLabels),
+            'ready_target_labels' => $readyLabels,
+            'blocked_target_count' => count($blockedLabels),
+            'blocked_target_labels' => $blockedLabels,
+            'covered_target_count' => count($coveredLabels),
+            'covered_target_labels' => $coveredLabels,
+            'targets' => $rows,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'global_blocker_count' => count($globalBlockers),
+            'global_blockers' => $globalBlockers,
+            'ready_to_launch_next_guarded_runner' => $status === 'current-next49-gap-map-ready',
+            'counts_as_release_parity' => false,
+            'counts_as_gap_map' => $status === 'current-next49-gap-map-ready',
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next49-gap-map-ready'
+                ? 'launch only the ready focused next49 target commands under the guarded runner; keep release/all parity uncounted until zero-error next-source artifacts exist'
+                : 'preserve the current artifact map and repair blocked targets, duplicate-runner state, or focused PHP admission before launching next49',
+            'dependency_closure' => 'no new support component needed; current-next49 gap map composes bounded artifact records, explicit focused target scripts, duplicate-runner gates, and local TestRunner phpPass admission only',
+        ];
+    }
+
+    /**
      * @param array<string, list<string>> $focusedGroups
      * @return array<string, mixed>
      */

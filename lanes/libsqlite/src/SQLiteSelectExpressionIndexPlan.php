@@ -21,7 +21,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
      * @param list<array<string,string>> $neededExpressions
      * @return null|array<string,mixed>
@@ -36,7 +36,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
      * @param list<array<string,string>> $neededExpressions
      * @return list<array<string,mixed>>
@@ -52,7 +52,7 @@ final class SQLiteSelectExpressionIndexPlan
      *
      * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
      * @param list<array<string,string>> $neededExpressions
      * @return null|array<string,mixed>
@@ -127,7 +127,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
      * @param array<string,mixed> $predicate
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
      * @param list<array<string,string>> $neededExpressions
      * @return list<array<string,mixed>>
@@ -172,7 +172,7 @@ final class SQLiteSelectExpressionIndexPlan
                 $estimated = self::estimatedRows($index, $constraint);
                 $estimatedRows = $estimated['rows'];
                 $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
-                $orderCompatible = self::orderCompatible($expression, $trailingColumns, $constraint, $orderBy);
+                $orderCompatible = self::orderCompatible($expression, $constraint['type'], $trailingColumns, $constraint, $orderBy);
                 $covering = self::covering($index, $expression, $constraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
                 $estimatedCost = self::estimatedCost($constraint, $estimatedRows, $expression->partial, $orderCompatible, $covering);
 
@@ -1038,27 +1038,67 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<SQLiteIndexColumn> $trailingColumns
      * @param array{operator:string} $constraint
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,string>> $orderBy
      */
-    private static function orderCompatible(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, array $trailingColumns, array $constraint, array $orderBy): bool
+    private static function orderCompatible(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $trailingColumns, array $constraint, array $orderBy): bool
     {
         if ($orderBy === []) {
             return false;
         }
-        if (count($orderBy) === 1) {
-            $order = $orderBy[0];
-            $column = $order['column'] ?? null;
-            if (is_string($column) && strcasecmp($column, $expression->columnName) === 0) {
-                $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
-                if ($direction !== 'ASC' && $direction !== 'DESC') {
-                    throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
-                }
-
-                return $expression->descending === ($direction === 'DESC');
+        $firstOrder = $orderBy[0] ?? null;
+        if (is_array($firstOrder) && self::orderTermMatchesExpression($firstOrder, $expression, $expressionType)) {
+            $direction = self::orderDirection($firstOrder);
+            if ($expression->descending !== ($direction === 'DESC')) {
+                return false;
             }
+            $firstOrderIsExpression = self::expressionOperand($firstOrder) !== null;
+            if (count($orderBy) === 1) {
+                return true;
+            }
+            if (!$firstOrderIsExpression) {
+                return false;
+            }
+
+            return self::trailingOrderCompatible($trailingColumns, array_slice($orderBy, 1));
         }
 
         if ($constraint['operator'] !== 'point' || count($orderBy) > count($trailingColumns)) {
+            return false;
+        }
+
+        return self::trailingOrderCompatible($trailingColumns, $orderBy);
+    }
+
+    /**
+     * @param array<string,string> $order
+     */
+    private static function orderTermMatchesExpression(array $order, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType): bool
+    {
+        $operand = self::expressionOperand($order);
+        if ($operand !== null) {
+            if (strcasecmp($operand['column'], $expression->columnName) !== 0) {
+                return false;
+            }
+            if ($expression instanceof SQLiteJsonExtractIndexExpression) {
+                return ($operand['path'] ?? null) === $expression->path
+                    && self::jsonExpressionKindMatches($operand['type'], $expression->functionName);
+            }
+
+            return strcasecmp($operand['type'], $expressionType) === 0;
+        }
+
+        $column = $order['column'] ?? null;
+
+        return is_string($column) && strcasecmp($column, $expression->columnName) === 0;
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $trailingColumns
+     * @param list<array<string,string>> $orderBy
+     */
+    private static function trailingOrderCompatible(array $trailingColumns, array $orderBy): bool
+    {
+        if (count($orderBy) > count($trailingColumns)) {
             return false;
         }
 
@@ -1068,10 +1108,7 @@ final class SQLiteSelectExpressionIndexPlan
                 throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY column must be a column name');
             }
 
-            $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
-            if ($direction !== 'ASC' && $direction !== 'DESC') {
-                throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
-            }
+            $direction = self::orderDirection($order);
 
             $indexColumn = $trailingColumns[$offset] ?? null;
             if ($indexColumn === null || strcasecmp($indexColumn->columnName, $column) !== 0) {
@@ -1083,6 +1120,19 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string,string> $order
+     */
+    private static function orderDirection(array $order): string
+    {
+        $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
+        if ($direction !== 'ASC' && $direction !== 'DESC') {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
+        }
+
+        return $direction;
     }
 
     /**

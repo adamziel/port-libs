@@ -9,6 +9,138 @@ final class SQLiteWalAppendPlan
     /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,savepoint:string,mode:string,database_path:string,wal_path:string,rollback:array<string,mixed>,checkpoint:array<string,mixed>,append:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,retained_frame_count:int,discarded_frame_count:int,current_uses_rollback_wal_prefix:bool,next_uses_checkpoint_database:bool,next_uses_appended_wal:bool,images_match:bool,operations:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function savepointRestartCheckpointCurrentNext(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $readerEndFrame = null,
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint current/next requires at least one page number');
+        }
+        if ($walBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint requires WAL bytes');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint requires a database path');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint requires restart or truncate mode');
+        }
+
+        $rollback = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $currentWal = SQLiteWal::parse($currentWalBytes, $wal->header->pageSize, true);
+        $currentReaderEndFrame = $readerEndFrame ?? $currentWal->frameCount();
+        if ($currentReaderEndFrame > $currentWal->frameCount()) {
+            $currentReaderEndFrame = $currentWal->frameCount();
+        }
+
+        $checkpoint = $currentWal->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
+        if ($checkpoint['busy']) {
+            return [
+                'status' => 'busy',
+                'reason' => $checkpoint['reason'],
+                'savepoint' => $savepoint,
+                'mode' => $mode,
+                'database_path' => $databasePath,
+                'wal_path' => $databasePath . '-wal',
+                'rollback' => $rollback,
+                'checkpoint' => $checkpoint,
+                'append' => [],
+                'current_reader_end_frame' => $currentReaderEndFrame,
+                'next_reader_end_frame' => 0,
+                'current_reader' => [],
+                'next_reader' => [],
+                'current_reader_sources' => [],
+                'next_reader_sources' => [],
+                'current_reader_frame_indexes' => [],
+                'next_reader_frame_indexes' => [],
+                'current_reader_errors' => [],
+                'next_reader_errors' => [],
+                'retained_frame_count' => $rollback['retained_frame_count'],
+                'discarded_frame_count' => $rollback['discarded_frame_count'],
+                'current_uses_rollback_wal_prefix' => $rollback['discarded_frame_count'] > 0,
+                'next_uses_checkpoint_database' => false,
+                'next_uses_appended_wal' => false,
+                'images_match' => false,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge(
+                    $checkpoint['dependencies'],
+                    ['sqlite-wal-savepoint-restart-checkpoint-current-next']
+                ))),
+            ];
+        }
+
+        $checkpointWal = self::walAfterCheckpoint($currentWal, $checkpoint);
+        $append = self::appendTransactions($checkpointWal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $nextWal = SQLiteWal::parse($append['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $append['last_commit_frame'] ?? $nextWal->frameCount();
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint current/next pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($currentWal, $databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = self::safeReaderVisibility($nextWal, $checkpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        return [
+            'status' => 'planned',
+            'reason' => 'savepoint_rollback_restart_checkpoint_then_append_current_next_visibility',
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'database_path' => $databasePath,
+            'wal_path' => $databasePath . '-wal',
+            'rollback' => $rollback,
+            'checkpoint' => $checkpoint,
+            'append' => $append,
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'retained_frame_count' => $rollback['retained_frame_count'],
+            'discarded_frame_count' => $rollback['discarded_frame_count'],
+            'current_uses_rollback_wal_prefix' => $rollback['discarded_frame_count'] > 0,
+            'next_uses_checkpoint_database' => $checkpoint['database_bytes'] !== $databaseBytes,
+            'next_uses_appended_wal' => $nextWal->frameCount() > 0,
+            'images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'operations' => $append['operations'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                $append['dependencies'],
+                ['sqlite-wal-savepoint-restart-checkpoint-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,mode:string,database_path:string,wal_path:string,checkpoint:array<string,mixed>,append:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_stable_after_checkpoint:bool,next_uses_checkpoint_database:bool,next_uses_appended_wal:bool,operations:list<array<string,mixed>>,dependencies:list<string>}
      */
     public static function checkpointAppendCurrentNext(
