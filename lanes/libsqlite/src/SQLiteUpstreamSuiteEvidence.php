@@ -477,6 +477,76 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function upstreamExpressionEvidenceMatrix(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        $groups = [
+            'core-expression' => ['expr.test', 'e_expr.test', 'func.test', 'func2.test'],
+            'affinity-cast-collation' => ['cast.test', 'types2.test', 'collate1.test', 'collate2.test'],
+            'predicate-pattern' => ['where.test', 'where2.test', 'like.test', 'in.test'],
+            'case-null-rowvalue' => ['case.test', 'null.test', 'rowvalue.test'],
+        ];
+
+        $coverage = $this->runnerCoverageAudit();
+        $ledger = $this->focusedResultLedger();
+        $plans = $this->focusedSubsetMatrix($groups, $jobs, $repoRoot);
+        $recordedScripts = array_flip($coverage['selected_scripts']);
+        $ledgerScripts = array_flip($ledger['unique_scripts']);
+
+        $matrix = [];
+        $totalScripts = 0;
+        $recordedHits = 0;
+        $ledgerHits = 0;
+        $runnableGroups = 0;
+        foreach ($groups as $group => $scripts) {
+            $groupRecorded = [];
+            $groupLedger = [];
+            foreach ($scripts as $script) {
+                if (isset($recordedScripts[$script])) {
+                    $groupRecorded[] = $script;
+                }
+                if (isset($ledgerScripts[$script])) {
+                    $groupLedger[] = $script;
+                }
+            }
+
+            $plan = $plans[$group];
+            $runnable = ($plan['runnable'] ?? false) === true;
+            if ($runnable) {
+                $runnableGroups++;
+            }
+
+            $recordedHits += count($groupRecorded);
+            $ledgerHits += count($groupLedger);
+            $totalScripts += count($scripts);
+            $matrix[$group] = [
+                'scripts' => $scripts,
+                'script_count' => count($scripts),
+                'command' => $plan['command'],
+                'runnable' => $runnable,
+                'skip_reason' => $plan['skip_reason'],
+                'recorded_runner_scripts' => $groupRecorded,
+                'focused_ledger_scripts' => $groupLedger,
+            ];
+        }
+
+        return [
+            'status' => $runnableGroups === count($groups) ? 'ready' : 'blocked-missing-upstream-cache',
+            'group_count' => count($groups),
+            'runnable_groups' => $runnableGroups,
+            'script_count' => $totalScripts,
+            'recorded_runner_script_hits' => $recordedHits,
+            'focused_ledger_script_hits' => $ledgerHits,
+            'groups' => $matrix,
+            'next_acceptance_gate' => $runnableGroups === count($groups)
+                ? 'run the expression-focused upstream subset and replace missing-cache skip records with parsed zero-error artifacts'
+                : 'hydrate .upstream-cache/libsqlite and build .upstream-cache/libsqlite-build-port-libsqlite/testfixture before rerunning expression-focused upstream subsets',
+            'dependency_closure' => 'no new support component needed; expression evidence reuses SQLite testfixture subset planning and lane-local manifest ledgers',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function releaseTierMatrix(int $jobs = 1, ?string $repoRoot = null): array
     {
         if ($jobs < 1) {
@@ -1070,6 +1140,100 @@ final class SQLiteUpstreamSuiteEvidence
                 ? 'bounded runner commands are hydrated; launch only through supervisor-approved duplicate-runner gates and count resulting artifacts by provenance'
                 : 'hydrate the missing upstream source/build inputs before claiming release/all runner readiness',
             'dependency_closure' => 'no new support component needed; hydration gate uses only filesystem readiness for the existing SQLite checkout, build tree, testfixture, and harness files',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function guardedRunnerPreflightRecord(
+        string $runnerOutput,
+        string $processSnapshot,
+        bool $supervisorApproved,
+        int $jobs = 1,
+        ?string $repoRoot = null
+    ): array {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite guarded runner preflight jobs must be at least 1');
+        }
+
+        $launch = $this->broadSuiteLaunchGate($processSnapshot, $supervisorApproved, $jobs, $repoRoot);
+        $active = is_array($launch['active_gate'] ?? null) ? $launch['active_gate'] : [];
+        $commandManifestStatus = is_string($launch['command_manifest_status'] ?? null)
+            ? $launch['command_manifest_status']
+            : 'unknown';
+
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\R/', $runnerOutput) ?: []), static fn (string $line): bool => $line !== ''));
+        $started = false;
+        $diskBlocker = null;
+        $runnerLabel = null;
+        foreach ($lines as $line) {
+            if (preg_match('/\]\s+([A-Za-z0-9_.:-]+)\s+start$/', $line, $match) === 1) {
+                $started = true;
+                $runnerLabel = $match[1];
+            }
+            if (preg_match('/stop:\s+root free\s+(\d+)\s+KiB\s+<\s+(\d+)\s+GiB/', $line, $match) === 1) {
+                $freeKiB = (int) $match[1];
+                $requiredGiB = (int) $match[2];
+                $requiredKiB = $requiredGiB * 1024 * 1024;
+                $diskBlocker = [
+                    'id' => 'disk-gate-root-free-space',
+                    'evidence' => $line,
+                    'root_free_kib' => $freeKiB,
+                    'required_gib' => $requiredGiB,
+                    'required_kib' => $requiredKiB,
+                    'shortfall_kib' => max(0, $requiredKiB - $freeKiB),
+                ];
+            }
+        }
+
+        $blockers = [];
+        foreach (is_array($launch['blockers'] ?? null) ? $launch['blockers'] : [] as $blocker) {
+            if (is_array($blocker)) {
+                $blockers[] = $blocker;
+            }
+        }
+        if ($diskBlocker !== null) {
+            array_unshift($blockers, $diskBlocker);
+        }
+        if ($runnerOutput === '') {
+            $blockers[] = [
+                'id' => 'runner-output-missing',
+                'evidence' => 'guarded runner preflight output is required before classifying launch countability',
+            ];
+        }
+
+        $status = 'blocked';
+        if ($diskBlocker !== null) {
+            $status = 'blocked-disk-gate';
+        } elseif (($launch['launch_allowed'] ?? false) === true) {
+            $status = 'launch-ready';
+        }
+
+        return [
+            'status' => $status,
+            'runner_label' => $runnerLabel,
+            'started' => $started,
+            'supervisor_approved' => $supervisorApproved,
+            'jobs' => $jobs,
+            'line_count' => count($lines),
+            'disk_gate' => $diskBlocker,
+            'active_gate_status' => $active['status'] ?? 'unknown',
+            'active_count' => $active['active_count'] ?? 0,
+            'command_manifest_status' => $commandManifestStatus,
+            'command_count' => $launch['command_count'] ?? 0,
+            'runnable_command_count' => $launch['runnable_command_count'] ?? 0,
+            'blocked_command_count' => $launch['blocked_command_count'] ?? 0,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'launch_gate' => $launch,
+            'counts_as_release_parity' => false,
+            'next_gate' => match ($status) {
+                'blocked-disk-gate' => 'free enough root disk for the guarded runner threshold, then rerun the same accepted-HEAD countability command; do not count a skipped preflight as SQLite release parity',
+                'launch-ready' => 'launch one guarded runner and count only the resulting zero-error audit/log artifact through provenance gates',
+                default => 'resolve guarded-runner preflight blockers before launching or counting upstream suite evidence',
+            },
+            'dependency_closure' => 'no new support component needed; guarded runner preflight countability parses launcher output and composes existing launch, active-runner, and command-manifest gates only',
         ];
     }
 

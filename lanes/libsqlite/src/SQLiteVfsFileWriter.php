@@ -216,6 +216,28 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,append:array<string, mixed>}
+     */
+    public function applyWalAppendTransactions(
+        SQLiteWal $wal,
+        string $databasePath,
+        array $transactions,
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        $plan = SQLiteWalAppendPlan::appendTransactions($wal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $applied = $this->applyOperations(
+            $plan['operations'],
+            [$plan['wal_path'] => $plan['append_bytes']],
+            $plan['dependencies']
+        );
+        $applied['append'] = $plan;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>}
      */
     public function applyHotRollbackJournal(

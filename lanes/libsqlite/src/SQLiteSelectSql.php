@@ -1021,6 +1021,11 @@ final class SQLiteSelectSql
             return $valuesTable;
         }
 
+        $derivedTable = self::derivedTableReference($sql, $tables);
+        if ($derivedTable !== null) {
+            return $derivedTable;
+        }
+
         $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
         if ($jsonTable !== null) {
             return $jsonTable;
@@ -1108,6 +1113,53 @@ final class SQLiteSelectSql
             'name' => 'values',
             'alias' => $alias,
             'rows' => self::executeValuesClause(trim($body)),
+        ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function derivedTableReference(string $sql, array $tables): ?array
+    {
+        $sql = trim($sql);
+        if (!str_starts_with($sql, '(')) {
+            return null;
+        }
+
+        [$body, $offset] = self::consumeParenthesized($sql, 0);
+        $body = trim($body);
+        if (preg_match('/^select\s+/i', $body) !== 1 && preg_match('/^with\s+/i', $body) !== 1) {
+            return null;
+        }
+
+        $aliasSql = trim(substr($sql, $offset));
+        if ($aliasSql === '') {
+            $alias = 'derived';
+        } else {
+            $parts = preg_split('/\s+/', $aliasSql);
+            if ($parts === false || $parts === []) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+            }
+
+            if (strcasecmp($parts[0], 'AS') === 0) {
+                if (count($parts) !== 2) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+                }
+                $alias = $parts[1];
+            } else {
+                if (count($parts) !== 1) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+                }
+                $alias = $parts[0];
+            }
+            self::assertBareIdentifier($alias, 'SQLite SELECT SQL derived table alias');
+        }
+
+        return [
+            'name' => 'derived',
+            'alias' => $alias,
+            'rows' => self::execute($body, $tables),
         ];
     }
 

@@ -408,9 +408,26 @@ final class SQLiteCoveringIndexPlan
             )) {
                 return true;
             }
+            if (str_starts_with($constraint['operator'], 'range-') && self::rangeConstraintImpliesPartialPredicate($predicate, $constraint)) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /**
+     * @param array{column:string,operator:string,values:mixed} $constraint
+     */
+    private static function rangeConstraintImpliesPartialPredicate(SQLiteIndexPredicate $predicate, array $constraint): bool
+    {
+        return match ($constraint['operator']) {
+            'range->' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, false),
+            'range->=' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, true),
+            'range-<' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], false),
+            'range-<=' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], true),
+            default => false,
+        };
     }
 
     private static function hasNonNullValue(mixed $value): bool
