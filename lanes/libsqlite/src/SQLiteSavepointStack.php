@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteSavepointStack
 {
     /**
-     * @var list<array{name:string,transaction:bool,pages:array<int,true>,wal_start_frame:int,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}>
+     * @var list<array{name:string,transaction:bool,pages:array<int,true>,page_images:array<int,string>,wal_start_frame:int,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}>
      */
     private array $frames = [];
     private int $maxWalFrame = 0;
@@ -22,6 +22,7 @@ final class SQLiteSavepointStack
             'name' => $name,
             'transaction' => true,
             'pages' => [],
+            'page_images' => [],
             'wal_start_frame' => $this->maxWalFrame,
             'wal_frames' => [],
         ];
@@ -42,6 +43,7 @@ final class SQLiteSavepointStack
             'name' => $name,
             'transaction' => false,
             'pages' => [],
+            'page_images' => [],
             'wal_start_frame' => $this->maxWalFrame,
             'wal_frames' => [],
         ];
@@ -58,6 +60,19 @@ final class SQLiteSavepointStack
         }
 
         $this->frames[array_key_last($this->frames)]['pages'][$pageNumber] = true;
+    }
+
+    public function recordPageImageWrite(int $pageNumber, string $beforeImage): void
+    {
+        if ($beforeImage === '') {
+            throw new \InvalidArgumentException('SQLite savepoint page images must not be empty');
+        }
+
+        $this->recordPageWrite($pageNumber);
+        $lastKey = array_key_last($this->frames);
+        if (!isset($this->frames[$lastKey]['page_images'][$pageNumber])) {
+            $this->frames[$lastKey]['page_images'][$pageNumber] = $beforeImage;
+        }
     }
 
     public function recordWalFrameWrite(int $frameIndex, int $pageNumber, bool $commitFrame = false): void
@@ -91,6 +106,7 @@ final class SQLiteSavepointStack
         $this->maxWalFrame = $this->frames[$index]['wal_start_frame'];
         $this->frames = array_slice($this->frames, 0, $index + 1);
         $this->frames[$index]['pages'] = [];
+        $this->frames[$index]['page_images'] = [];
         $this->frames[$index]['wal_frames'] = [];
     }
 
@@ -193,6 +209,11 @@ final class SQLiteSavepointStack
         foreach ($releasedFrames as $frame) {
             foreach ($frame['wal_frames'] as $walFrameIndex => $walFrame) {
                 $this->frames[array_key_last($this->frames)]['wal_frames'][$walFrameIndex] = $walFrame;
+            }
+            foreach ($frame['page_images'] as $pageNumber => $pageImage) {
+                if (!isset($this->frames[array_key_last($this->frames)]['page_images'][$pageNumber])) {
+                    $this->frames[array_key_last($this->frames)]['page_images'][$pageNumber] = $pageImage;
+                }
             }
         }
     }
@@ -408,6 +429,91 @@ final class SQLiteSavepointStack
         sort($frameIndexes, SORT_NUMERIC);
 
         return $frameIndexes;
+    }
+
+    /**
+     * @return array{savepoint:string,found_index:int,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int,source_frame:string}>,missing_page_numbers:list<int>,transaction_active_after:bool}
+     */
+    public function rollbackToImagePlan(string $name, int $pageSize): array
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+
+        $index = $this->findFrame($name);
+        $restoreImages = $this->rollbackToPageImages($name);
+        $restorePages = [];
+        foreach ($restoreImages as $pageNumber => $restore) {
+            if (strlen($restore['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint image for page {$pageNumber} does not match the page size");
+            }
+            $restorePages[] = [
+                'page_number' => $pageNumber,
+                'database_offset' => ($pageNumber - 1) * $pageSize,
+                'bytes' => $pageSize,
+                'source_frame' => $restore['frame'],
+            ];
+        }
+
+        $missing = array_values(array_diff($this->rollbackToPageNumbers($name), array_keys($restoreImages)));
+        sort($missing, SORT_NUMERIC);
+
+        return [
+            'savepoint' => $name,
+            'found_index' => $index,
+            'page_size' => $pageSize,
+            'restored_page_numbers' => array_keys($restoreImages),
+            'restore_pages' => $restorePages,
+            'missing_page_numbers' => $missing,
+            'transaction_active_after' => true,
+        ];
+    }
+
+    public function rollbackToDatabaseImage(string $name, string $databaseBytes, int $pageSize): string
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite savepoint rollback requires a database image aligned to the page size');
+        }
+
+        $restoreImages = $this->rollbackToPageImages($name);
+        $rolledBack = $databaseBytes;
+        foreach ($restoreImages as $pageNumber => $restore) {
+            if (strlen($restore['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint image for page {$pageNumber} does not match the page size");
+            }
+            $offset = ($pageNumber - 1) * $pageSize;
+            if ($offset + $pageSize > strlen($rolledBack)) {
+                continue;
+            }
+            $rolledBack = substr_replace($rolledBack, $restore['image'], $offset, $pageSize);
+        }
+
+        return $rolledBack;
+    }
+
+    /**
+     * @return array<int,array{image:string,frame:string}>
+     */
+    public function rollbackToPageImages(string $name): array
+    {
+        $index = $this->findFrame($name);
+        $images = [];
+        for ($frameIndex = $index; $frameIndex < count($this->frames); $frameIndex++) {
+            foreach ($this->frames[$frameIndex]['page_images'] as $pageNumber => $pageImage) {
+                if (!isset($images[$pageNumber])) {
+                    $images[$pageNumber] = [
+                        'image' => $pageImage,
+                        'frame' => $this->frames[$frameIndex]['name'],
+                    ];
+                }
+            }
+        }
+        ksort($images, SORT_NUMERIC);
+
+        return $images;
     }
 
     /**

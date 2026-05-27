@@ -118594,3 +118594,40 @@ Root verification and final commit evidence:
 Cleanup:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T021700Z` still contained modified/added lane files matching the handoff, so it was preserved and left registered as cleanup debt.
 - Accepted ready marker, patch, and metadata may be removed after this commit; worker log preserved as evidence.
+
+## Integration accepted - libsqlite WAL savepoint page-image rollback - 2026-05-27T02:45:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T022948Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `e58d38b28d7f4df9b2d0b6d655f47e539c1e4544` (`Integrate libsqlite SELECT GROUP BY pipeline`).
+- Cache-busted live Pages reported the same `sourceCommit` `e58d38b28d7f4df9b2d0b6d655f47e539c1e4544`, generated `2026-05-27 02:34:50 UTC`, dashboard commit `b23965a5f7b4856771b0e4851788919245309bb8`.
+
+Candidate decision:
+- Chosen from the recent libsqlite sample because SQL GROUP BY and B-tree interior redistribution markers overlapped already accepted commits, while this WAL marker adds non-overlapping savepoint page-image rollback behavior with a WordPress smoke and the strongest processable behavior delta in the sample.
+- The marker was based on `b803d38fd2519736400a0a9860e89a99ebf68187`; direct apply to current `main` conflicted only in `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Replayed implementation, test, example, and notes hunks cleanly into a detached current-source worktree, then reconciled manifest/status counters and `latestCommit` from current accepted source evidence.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`: passed.
+- JSON decode for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 5477 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`: passed and emitted valid JSON.
+- `git diff --check`: passed before the serialized root run.
+
+Runtime gate evidence before root:
+- `/` reported `111595396` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.14`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before focused verification.
+
+Root verification and final commit evidence:
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: passed, `215 test files, 30642 assertions, 0 failures`.
+- Accepted commit: this commit (`Integrate libsqlite savepoint image rollback`); exact hash is recorded in the completion report.
+
+Cleanup:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T022948Z` still contained modified lane files matching the handoff, so it was preserved and left registered as cleanup debt.
+- Accepted ready marker, patch, and metadata may be removed after this commit; worker log preserved as evidence.

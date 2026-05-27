@@ -3890,3 +3890,27 @@ lane-local table interior cell/page assembly, b-tree header parsing, database
 page access, and pointer-map mutation helpers. Follow-up should wire the plan
 into native delete/rebalance page-image application or add table-interior merge
 materialization with freelist release.
+
+## WAL Savepoint Page-Image Rollback Scenario
+
+Copied WordPress database import tooling can now preview nested savepoint
+rollback as bounded page-image application, not only dirty page numbers or WAL
+frame truncation boundaries. The updated
+`examples/wordpress-savepoint-option-import-diagnostics.php` smoke reports
+first pre-write page images captured per savepoint frame, database-image bytes
+restored by `ROLLBACK TO`, and image propagation through `RELEASE` into an
+outer transaction rollback preview for copied `wp_options` import pages.
+
+Status delta 2026-05-27 isolated WAL rollback/savepoint slice: extended
+`SQLiteSavepointStack` with 57 focused assertions covering first-image capture,
+duplicate page writes across nested frames, missing image diagnostics, aligned
+database image restoration, pages beyond the current database image, RELEASE
+image merging, outer rollback previews, and malformed page-size/image guards.
+Focused `SQLiteHeaderTest.php` passed at 5397 assertions, up from the
+lane-status recorded 5340 baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local savepoint state, rollback journal page-image conventions, WAL frame
+boundary diagnostics, and copied WordPress import smokes. Follow-up should
+apply these page-image rollback previews through bounded native VFS/file
+handles or connect them to durable pager write/truncate operations.

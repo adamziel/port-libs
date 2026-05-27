@@ -71,6 +71,27 @@ $walReleasePlan = $walSavepoints->releasePlan('plugin_settings_wal');
 $walReleaseWithPlan = $walSavepoints->releaseWithPlan('plugin_settings_wal');
 $walAfterRelease = $walSavepoints->walFrameState();
 
+$pageSize = 512;
+$pageOneBefore = str_pad('wp-options-before-import', $pageSize, "\0");
+$pageTwoBefore = str_pad('autoload-index-before-import', $pageSize, "\0");
+$settingsBeforePlugin = str_pad('plugin-settings-before-batch', $pageSize, "\0");
+$singleOptionBeforeRow = str_pad('single-option-before-row', $pageSize, "\0");
+$dirtyDatabase = str_pad('wp-options-dirty-root', $pageSize, "\0")
+    . str_pad('autoload-index-dirty', $pageSize, "\0")
+    . str_pad('plugin-settings-dirty', $pageSize, "\0")
+    . str_pad('single-option-dirty', $pageSize, "\0");
+
+$imageSavepoints = new SQLiteSavepointStack();
+$imageSavepoints->beginTransaction('wp_option_image_import');
+$imageSavepoints->recordPageImageWrite(1, $pageOneBefore);
+$imageSavepoints->recordPageImageWrite(2, $pageTwoBefore);
+$imageSavepoints->savepoint('plugin_settings_image');
+$imageSavepoints->recordPageImageWrite(3, $settingsBeforePlugin);
+$imageSavepoints->savepoint('single_option_image');
+$imageSavepoints->recordPageImageWrite(4, $singleOptionBeforeRow);
+$imageRollbackPlan = $imageSavepoints->rollbackToImagePlan('plugin_settings_image', $pageSize);
+$imageRollbackPreview = $imageSavepoints->rollbackToDatabaseImage('plugin_settings_image', $dirtyDatabase, $pageSize);
+
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
     'rollbackToPluginSettingsPlan' => $rollbackPlan,
@@ -115,7 +136,15 @@ echo json_encode([
     'walReleasePluginSettingsPlan' => $walReleasePlan,
     'walReleasePluginSettingsWithPlan' => $walReleaseWithPlan,
     'walFrameStateAfterRelease' => $walAfterRelease,
+    'pageImageRollbackToPluginSettingsPlan' => $imageRollbackPlan,
+    'pageImageRollbackPreview' => [
+        'page1Prefix' => rtrim(substr($imageRollbackPreview, 0, 64), "\0"),
+        'page2Prefix' => rtrim(substr($imageRollbackPreview, $pageSize, 64), "\0"),
+        'page3Prefix' => rtrim(substr($imageRollbackPreview, $pageSize * 2, 64), "\0"),
+        'page4Prefix' => rtrim(substr($imageRollbackPreview, $pageSize * 3, 64), "\0"),
+        'bytes' => strlen($imageRollbackPreview),
+    ],
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
-    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, and WAL frame truncation boundaries for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
+    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, WAL frame truncation boundaries, and bounded pre-write page-image restoration for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
