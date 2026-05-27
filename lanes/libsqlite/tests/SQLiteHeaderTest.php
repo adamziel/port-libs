@@ -11062,6 +11062,7 @@ SQL;
         $columns = SQLiteCreateTable::automaticIndexColumnMetadata($sql);
 
         $t->same([
+            ['option_id'],
             ['option_name'],
             ['autoload', 'option_name'],
         ], array_map(
@@ -11070,12 +11071,14 @@ SQL;
         ));
         $t->same([
             ['BINARY'],
+            ['BINARY'],
             ['BINARY', 'NOCASE'],
         ], array_map(
             static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): string => $column->collation, $indexColumns),
             $columns,
         ));
         $t->same([
+            [false],
             [false],
             [false, true],
         ], array_map(
@@ -11102,6 +11105,7 @@ SQL;
             'autoload',
         ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_name text UNIQUE PRIMARY KEY, autoload text UNIQUE)'));
         $t->same([
+            'option_name',
             'autoload',
         ], SQLiteCreateTable::automaticIndexFirstColumns('CREATE TABLE wp_options(option_name text PRIMARY KEY, autoload text UNIQUE) WITHOUT ROWID'));
     },

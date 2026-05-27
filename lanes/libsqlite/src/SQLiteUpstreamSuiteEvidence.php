@@ -2348,6 +2348,74 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function boundedRunnerArtifactDirectoryRecord(
+        string $artifactDirectory,
+        string $acceptedRepositoryHead,
+        string $processSnapshot = ''
+    ): array {
+        if (!is_dir($artifactDirectory)) {
+            return [
+                'status' => 'blocked-missing-artifact-directory',
+                'artifact_directory' => $artifactDirectory,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'artifact_count' => 0,
+                'countable_count' => 0,
+                'blocked_count' => 0,
+                'missing_log_count' => 0,
+                'entries' => [],
+                'next_gate' => 'wait for the guarded bounded-runner artifact directory, then scan audit/log pairs before counting release/all evidence',
+                'dependency_closure' => 'no new support component needed; directory record scans bounded runner audit/log artifacts only',
+            ];
+        }
+
+        $auditPaths = glob(rtrim($artifactDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.md');
+        if ($auditPaths === false) {
+            $auditPaths = [];
+        }
+        sort($auditPaths);
+
+        $artifactSet = [];
+        $missingLogs = [];
+        foreach ($auditPaths as $auditPath) {
+            if (!is_file($auditPath)) {
+                continue;
+            }
+
+            $auditText = file_get_contents($auditPath);
+            if ($auditText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+            }
+
+            $label = $this->extractMarkdownHeadingLabel($auditText) ?? pathinfo($auditPath, PATHINFO_FILENAME);
+            $stdoutPath = $this->pairedRunnerLogPath($auditText, $auditPath, $artifactDirectory);
+            if ($stdoutPath === null) {
+                $missingLogs[] = $label;
+            }
+
+            $artifactSet[$label] = [
+                'audit' => $auditPath,
+                'stdout' => $stdoutPath,
+                'process_snapshot' => $processSnapshot,
+            ];
+        }
+
+        $set = $this->boundedRunnerArtifactSetRecord($artifactSet, $acceptedRepositoryHead);
+        $set['artifact_directory'] = $artifactDirectory;
+        $set['missing_log_count'] = count($missingLogs);
+        $set['missing_log_labels'] = $missingLogs;
+        $set['next_gate'] = ($set['countable_count'] ?? 0) > 0
+            ? 'publish the countable zero-error artifact entries discovered from this directory; keep missing logs and blocked entries explicit'
+            : (($set['artifact_count'] ?? 0) === 0
+                ? 'place guarded bounded-runner audit Markdown files in the artifact directory before counting release/all evidence'
+                : 'rerun or repair the discovered bounded-runner artifacts until at least one zero-error accepted-HEAD entry is countable');
+        $set['dependency_closure'] = 'no new support component needed; directory record discovers bounded runner audit/log pairs and reuses countability gates only';
+
+        return $set;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function selectedScriptInventory(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
@@ -2663,6 +2731,27 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $matches[1];
+    }
+
+    private function pairedRunnerLogPath(string $auditText, string $auditPath, string $artifactDirectory): ?string
+    {
+        $candidates = [];
+        $logField = $this->extractBacktickField($auditText, 'Log');
+        if (is_string($logField) && $logField !== '') {
+            $candidates[] = $logField;
+            $candidates[] = $artifactDirectory . DIRECTORY_SEPARATOR . basename($logField);
+        }
+
+        $candidates[] = preg_replace('/\.md$/', '.log', $auditPath) ?? ($auditPath . '.log');
+        $candidates[] = dirname($auditPath) . DIRECTORY_SEPARATOR . pathinfo($auditPath, PATHINFO_FILENAME) . '.log';
+
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

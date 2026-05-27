@@ -96,7 +96,7 @@ final class SQLiteCreateTable
             if ($includePrimaryKey && self::startsWithPrimaryKey($constraint)) {
                 $list = self::parenthesizedBodyAfterPrimaryKey($constraint);
                 $primaryKeyColumns = $list === null ? [] : self::indexedColumnsInList($list, $columnCollations);
-                if (!$withoutRowid && !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
+                if ($withoutRowid || !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
                     $addConstraint($primaryKeyColumns);
                 }
 
@@ -123,9 +123,8 @@ final class SQLiteCreateTable
             }
             if (
                 $includePrimaryKey
-                && !$withoutRowid
                 && self::containsTopLevelPrimaryKey($tail)
-                && !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail)
+                && ($withoutRowid || !self::isRowidAliasColumnPrimaryKey($definition, $column[1], $tail))
             ) {
                 $addConstraint([
                     self::indexedColumnForDeclaredColumn(
