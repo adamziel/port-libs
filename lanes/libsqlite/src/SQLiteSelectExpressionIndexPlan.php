@@ -79,8 +79,9 @@ final class SQLiteSelectExpressionIndexPlan
                 }
 
                 $estimatedRows = self::estimatedRows($index, $constraint);
-                $orderCompatible = self::orderCompatible($expression, $orderBy);
-                $covering = self::covering($index, $neededColumns);
+                $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
+                $orderCompatible = self::orderCompatible($expression, $trailingColumns, $constraint, $orderBy);
+                $covering = self::covering($index, $neededColumns, $trailingColumns);
                 $estimatedCost = self::estimatedCost($constraint, $estimatedRows, $expression->partial, $orderCompatible, $covering);
 
                 $plans[] = [
@@ -99,6 +100,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'estimatedCost' => $estimatedCost,
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
+                    'trailingColumns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $trailingColumns),
                 ];
             }
         }
@@ -655,41 +657,69 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
+     * @param list<SQLiteIndexColumn> $trailingColumns
+     * @param array{operator:string} $constraint
      * @param list<array{column:string,direction?:string}> $orderBy
      */
-    private static function orderCompatible(SQLiteIndexColumn $expression, array $orderBy): bool
+    private static function orderCompatible(SQLiteIndexColumn $expression, array $trailingColumns, array $constraint, array $orderBy): bool
     {
         if ($orderBy === []) {
             return false;
         }
-        if (count($orderBy) !== 1) {
+        if (count($orderBy) === 1) {
+            $order = $orderBy[0];
+            $column = $order['column'] ?? null;
+            if (is_string($column) && strcasecmp($column, $expression->columnName) === 0) {
+                $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
+                if ($direction !== 'ASC' && $direction !== 'DESC') {
+                    throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
+                }
+
+                return $expression->descending === ($direction === 'DESC');
+            }
+        }
+
+        if ($constraint['operator'] !== 'point' || count($orderBy) > count($trailingColumns)) {
             return false;
         }
 
-        $order = $orderBy[0];
-        $column = $order['column'] ?? null;
-        if (!is_string($column) || strcasecmp($column, $expression->columnName) !== 0) {
-            return false;
+        foreach ($orderBy as $offset => $order) {
+            $column = $order['column'] ?? null;
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY column must be a column name');
+            }
+
+            $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
+            }
+
+            $indexColumn = $trailingColumns[$offset] ?? null;
+            if ($indexColumn === null || strcasecmp($indexColumn->columnName, $column) !== 0) {
+                return false;
+            }
+            if ($indexColumn->descending !== ($direction === 'DESC')) {
+                return false;
+            }
         }
 
-        $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
-        if ($direction !== 'ASC' && $direction !== 'DESC') {
-            throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
-        }
-
-        return $expression->descending === ($direction === 'DESC');
+        return true;
     }
 
     /**
      * @param array{coveringColumns?:list<string>} $index
      * @param list<string> $neededColumns
+     * @param list<SQLiteIndexColumn> $trailingColumns
      */
-    private static function covering(array $index, array $neededColumns): bool
+    private static function covering(array $index, array $neededColumns, array $trailingColumns): bool
     {
         if ($neededColumns === []) {
             return false;
         }
-        $columns = $index['coveringColumns'] ?? [];
+        $columns = $index['coveringColumns'] ?? array_map(
+            static fn (SQLiteIndexColumn $column): string => $column->columnName,
+            $trailingColumns,
+        );
         if (!is_array($columns) || !array_is_list($columns)) {
             throw new \InvalidArgumentException('SQLite SELECT expression-index coveringColumns must be a list');
         }

@@ -61,6 +61,8 @@ $cases = [
     'plan records exclude mode' => [static fn (): mixed => SQLiteSelectSql::plan('SELECT sum(bytes) OVER (ORDER BY bytes GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING EXCLUDE TIES) AS window_sum FROM wp_options', ['wp_options' => $options])['select'][0]['frame']['exclude'], 'TIES'],
     'query executes aggregate frame plan directly' => [static fn (): mixed => array_column(SQLiteSelectQuery::execute(['from' => $options, 'select' => [['type' => 'window', 'function' => 'sum', 'arguments' => [['type' => 'column', 'name' => 'bytes']], 'orderBy' => [['expression' => ['type' => 'column', 'name' => 'bytes'], 'direction' => 'ASC']], 'frame' => ['unit' => 'GROUPS', 'preceding' => 0, 'following' => 1, 'exclude' => 'NO OTHERS'], 'alias' => 'window_sum']]]), 'window_sum'), [40, 40, 80, 100, 100, 40]],
     'query direct count wildcard plan' => [static fn (): mixed => array_column(SQLiteSelectQuery::execute(['from' => $options, 'select' => [['type' => 'window', 'function' => 'count', 'arguments' => [['type' => 'wildcard']], 'orderBy' => [['expression' => ['type' => 'column', 'name' => 'bytes'], 'direction' => 'ASC']], 'frame' => ['unit' => 'RANGE', 'preceding' => 0, 'following' => 10, 'exclude' => 'NO OTHERS'], 'alias' => 'window_count']]]), 'window_count'), [3, 3, 3, 3, 3, 1]],
+    'groups preceding current sum peers' => [static fn (): mixed => $column('SELECT sum(bytes) OVER (ORDER BY bytes GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS window_sum FROM wp_options ORDER BY option_id', 'window_sum'), [20, 20, 40, 80, 80, 100]],
+    'plan records preceding offset' => [static fn (): mixed => SQLiteSelectSql::plan('SELECT sum(bytes) OVER (ORDER BY bytes GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS window_sum FROM wp_options', ['wp_options' => $options])['select'][0]['frame']['preceding'], 1],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
@@ -71,10 +73,6 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $tests['upstream corpus window groups range current next18 rejects frame without order'] = static function (TestRunner $t) use ($options): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options', ['wp_options' => $options]));
-};
-
-$tests['upstream corpus window groups range current next18 rejects unsupported preceding frame'] = static function (TestRunner $t) use ($options): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY bytes GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM wp_options', ['wp_options' => $options]));
 };
 
 $tests['upstream corpus window groups range current next18 rejects nonnumeric range key'] = static function (TestRunner $t) use ($options): void {

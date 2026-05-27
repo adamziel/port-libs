@@ -3145,8 +3145,17 @@ final class SQLiteUpstreamSuiteEvidence
                 'artifact_count' => 0,
                 'countable_count' => 0,
                 'blocked_count' => 0,
+                'missing_count' => 1,
+                'active_count' => 0,
+                'failed_count' => 0,
+                'timed_out_count' => 0,
                 'missing_log_count' => 0,
+                'unreadable_audit_files' => [],
+                'countable_labels' => [],
+                'blocked_labels' => [],
                 'entries' => [],
+                'tests_total' => 0,
+                'errors_total' => 0,
                 'next_gate' => 'wait for the guarded bounded-runner artifact directory, then scan audit/log pairs before counting release/all evidence',
                 'dependency_closure' => 'no new support component needed; directory record scans bounded runner audit/log artifacts only',
             ];
@@ -3185,6 +3194,8 @@ final class SQLiteUpstreamSuiteEvidence
 
         $set = $this->boundedRunnerArtifactSetRecord($artifactSet, $acceptedRepositoryHead);
         $set['artifact_directory'] = $artifactDirectory;
+        $set['audit_file_count'] = count($auditPaths);
+        $set['unreadable_audit_files'] = [];
         $set['missing_log_count'] = count($missingLogs);
         $set['missing_log_labels'] = $missingLogs;
         $set['next_gate'] = ($set['countable_count'] ?? 0) > 0
