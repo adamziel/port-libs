@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Interior Redistribute Pointer-Map Current Next32 Scenario
+
+`examples/wordpress-btree-interior-redistribute-pointermap-current-next32.php`
+reports a copied `wp_options` option-name index interior sibling
+redistribution applied to current page images, including parent divider
+replacement and auto-vacuum pointer-map parent rewrites for moved child pages
+without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteBTreeInteriorRedistributionApplyPlan` and focused
+`SQLiteBTreeInteriorRedistributePointerMapCurrentNext32Test.php` with 62
+passing assertions over table and index interior redistribution application,
+post-apply child lists, parent divider page images, pointer-map page images,
+and malformed/non-auto-vacuum guards. This does not repeat the accepted
+standalone redistribution plan, page relocation, index-interior merge, root
+collapse, or overflow freelist release clusters.
+
 ## Expression Collation/Affinity CASE Scenario
 
 Copied `wp_options` diagnostics can now classify option names through simple

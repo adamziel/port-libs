@@ -351,6 +351,54 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $partitionBy
+     * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null,partitionKey:string,currentIndex:int,nextIndex:int|null,currentRank:int,nextRank:int|null,samePeer:bool,samePartition:bool}>
+     */
+    public static function rankedCurrentNextRows(
+        string $function,
+        array $constraints,
+        array $orderBy,
+        array $partitionBy = [],
+        int $ntileBuckets = 1,
+        string $valueColumn = 'atom',
+    ): array {
+        $rows = self::windowedRows($function, $constraints, $orderBy, $partitionBy, $ntileBuckets, $valueColumn);
+        if ($rows === []) {
+            return [];
+        }
+
+        $normalizedPartitionBy = array_map(
+            static fn (string $column): string => strtolower($column),
+            $partitionBy,
+        );
+        $pairs = [];
+        foreach ($rows as $index => $row) {
+            $next = $rows[$index + 1] ?? null;
+            $partitionKey = self::partitionKey($row, $normalizedPartitionBy);
+            $nextPartitionKey = $next === null ? null : self::partitionKey($next, $normalizedPartitionBy);
+            $samePartition = $next !== null && $partitionKey === $nextPartitionKey;
+            $currentRank = (int) $row['window_rank'];
+            $nextRank = $samePartition ? (int) $next['window_rank'] : null;
+
+            $pairs[] = [
+                'current' => $row,
+                'next' => $samePartition ? $next : null,
+                'partitionKey' => $partitionKey,
+                'currentIndex' => $index,
+                'nextIndex' => $samePartition ? $index + 1 : null,
+                'currentRank' => $currentRank,
+                'nextRank' => $nextRank,
+                'samePeer' => $nextRank !== null && $currentRank === $nextRank,
+                'samePartition' => $samePartition,
+            ];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array<string,mixed>>
      */
     public static function visibleRows(string $function, array $constraints): array
