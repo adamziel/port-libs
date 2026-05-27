@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteBusyHandler;
@@ -1709,6 +1710,118 @@ return [
             str_repeat("\0", $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
             substr($compactedPage, $header->cellPointerArrayEnd(), $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
         );
+    },
+    'plans sqlite table leaf sibling merges after delete underflow' => static function (TestRunner $t): void {
+        $leftPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'autoload_a', 'yes', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'autoload_b', 'yes', 'yes'])),
+        ]);
+        $rightPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'autoload_c', 'yes', 'yes'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'autoload_d', 'yes', 'yes'])),
+        ]);
+
+        $plan = SQLiteBTreeLeafMergePlan::tableLeaf($leftPage, $rightPage, 8, 9, 2);
+        $mergedHeader = SQLiteBTreePageHeader::parsePage($plan->mergedPage, 512);
+        $mergedCells = SQLiteTableLeafCell::parsePageCells($plan->mergedPage, $mergedHeader);
+        $action = $plan->mergeAction();
+        $freeAction = $plan->freePageAction();
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteBTreeLeafMergePlan::class, get_class($plan));
+        $t->same('table-leaf', $plan->pageType);
+        $t->same(8, $plan->leftPageNumber);
+        $t->same(9, $plan->rightPageNumber);
+        $t->same(2, $plan->parentPageNumber);
+        $t->same(512, $plan->pageSize);
+        $t->same(512, $plan->usableSize);
+        $t->same([1, 2], $plan->leftKeys);
+        $t->same([3, 4], $plan->rightKeys);
+        $t->same([1, 2, 3, 4], $plan->mergedKeys);
+        $t->same(4, count($plan->mergedCells));
+        $t->same('table-leaf', $mergedHeader->pageType);
+        $t->same(4, $mergedHeader->cellCount);
+        $t->same([1, 2, 3, 4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $mergedCells));
+        $t->same(['autoload_a', 'autoload_b', 'autoload_c', 'autoload_d'], array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $mergedCells));
+        $t->same('remove-parent-divider', $plan->divider['action']);
+        $t->same(3, $plan->divider['old_separator_key']);
+        $t->same(1, $plan->divider['new_separator_key']);
+        $t->same('table-leaf-sibling-merge', $action['action']);
+        $t->same(8, $action['page']);
+        $t->same(2, $action['before_cells']);
+        $t->same(4, $action['after_cells']);
+        $t->same([8, 9], $action['merged_from_pages']);
+        $t->same(9, $action['obsolete_page']);
+        $t->same(2, $action['parent_page']);
+        $t->same($plan->afterFreeSpaceBytes - $plan->beforeLeftFreeSpaceBytes, $action['delta_free_space_bytes']);
+        $t->same('free-page', $freeAction['action']);
+        $t->same(9, $freeAction['page']);
+        $t->same(2, $freeAction['parent_page']);
+        $t->same('right_sibling_merged_into_left', $freeAction['reason']);
+        $t->same('table-leaf', $summary['page_type']);
+        $t->same(4, $summary['merged_cell_count']);
+        $t->same(9, $summary['obsolete_page']);
+        $t->same(2, count($summary['actions']));
+        $t->true($summary['after_free_space_bytes'] < $summary['before_free_space_bytes']['left']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::tableLeaf($rightPage, $leftPage, 9, 8, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::tableLeaf($leftPage, $rightPage, 8, 8, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::tableLeaf(SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 1])),
+        ]), $rightPage, 8, 9, 2));
+    },
+    'plans sqlite index leaf sibling merges after delete underflow' => static function (TestRunner $t): void {
+        $leftPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cache_a', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_a', 2])),
+        ]);
+        $rightPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_b', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_c', 4])),
+        ]);
+
+        $plan = SQLiteBTreeLeafMergePlan::indexLeaf($leftPage, $rightPage, 11, 12, 3);
+        $mergedHeader = SQLiteBTreePageHeader::parsePage($plan->mergedPage, 512);
+        $mergedCells = SQLiteIndexCell::parsePageCells($plan->mergedPage, $mergedHeader);
+        $mergedValues = array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $mergedCells);
+        $summary = $plan->toArray();
+
+        $t->same('index-leaf', $plan->pageType);
+        $t->same(11, $plan->leftPageNumber);
+        $t->same(12, $plan->rightPageNumber);
+        $t->same(3, $plan->parentPageNumber);
+        $t->same([0, 1], $plan->leftKeys);
+        $t->same([0, 1], $plan->rightKeys);
+        $t->same([0, 1, 2, 3], $plan->mergedKeys);
+        $t->same(4, count($plan->mergedCells));
+        $t->same('index-leaf', $mergedHeader->pageType);
+        $t->same(4, $mergedHeader->cellCount);
+        $t->same([
+            ['no', 'cache_a', 1],
+            ['yes', 'autoload_a', 2],
+            ['yes', 'autoload_b', 3],
+            ['yes', 'autoload_c', 4],
+        ], $mergedValues);
+        $t->same('remove-parent-divider', $plan->divider['action']);
+        $t->same(['yes', 'autoload_b', 3], $plan->divider['old_separator_record']);
+        $t->same(['no', 'cache_a', 1], $plan->divider['new_separator_record']);
+        $t->same('index-leaf-sibling-merge', $plan->mergeAction()['action']);
+        $t->same(11, $plan->mergeAction()['page']);
+        $t->same(2, $plan->mergeAction()['before_cells']);
+        $t->same(4, $plan->mergeAction()['after_cells']);
+        $t->same([11, 12], $plan->mergeAction()['merged_from_pages']);
+        $t->same(12, $plan->mergeAction()['obsolete_page']);
+        $t->same('free-page', $plan->freePageAction()['action']);
+        $t->same(12, $plan->freePageAction()['page']);
+        $t->same('index-leaf', $summary['page_type']);
+        $t->same(4, $summary['merged_cell_count']);
+        $t->same(12, $summary['obsolete_page']);
+        $t->same(2, count($summary['actions']));
+        $t->true($summary['after_free_space_bytes'] < $summary['before_free_space_bytes']['left']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::indexLeaf($rightPage, $leftPage, 12, 11, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::indexLeaf($leftPage, $rightPage, 0, 12, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::indexLeaf(SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ]), $rightPage, 11, 12, 3));
     },
     'inserts sqlite table leaf cells into reusable freeblocks after delete' => static function (TestRunner $t): void {
         $page = SQLiteTableLeafPage::assemble([

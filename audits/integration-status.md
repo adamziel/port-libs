@@ -118048,3 +118048,30 @@ Publication:
 - Accepted marker artifacts removed after `refs/heads/main` advanced.
 - Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T000538Z` still contains exported lane modifications, so it was preserved rather than removed.
 - The source-moving guard will close after commit until the dashboard publishes the new source.
+## Integration accepted - libsqlite B-tree leaf merge materialization - 2026-05-27T00:29:14Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260527T002327Z.ready`.
+
+Decision: accepted one current-base libsqlite behavior marker from clean detached worktree `.tmux-team/tmp/clean-integrator-candidate-libsqlite-closure-20260527T002327Z`.
+
+Dashboard guard evidence:
+- Local `refs/heads/main` before candidate verification was `394176c506d021d22c96cec03187121354766f33` (`Integrate libsqlite JSON object aggregate windows`).
+- Cache-busted live Pages reported the same `sourceCommit` `394176c506d021d22c96cec03187121354766f33`, generated `2026-05-27 00:25:07 UTC`, with dashboard commit `7562b9229a6c87f1507c16d29875b6748578854b`.
+
+Candidate evidence:
+- Marker lane/base were `libsqlite` and `394176c506d021d22c96cec03187121354766f33`; patch sha256 matched `1546cc097ff64e487b7b73db87587292a339213540cc71177b376a35054e50ce`.
+- Patch adds `SQLiteBTreeLeafMergePlan`, a copied wp_options B-tree leaf merge smoke, and focused table/index leaf sibling merge assertions.
+- Focused `SQLiteHeaderTest.php` passed at `1 test files, 4628 assertions, 0 failures`.
+- WordPress B-tree leaf merge smoke emitted valid JSON and exited 0.
+- Syntax checks passed for the new source, focused test, and smoke.
+- JSON validation passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check` passed in the clean candidate before root.
+- Serialized no-argument root passed with `215 test files, 29762 assertions, 0 failures`.
+- `latestCommit` was reconciled to start with accepted source `394176c506d021d22c96cec03187121354766f33`, per status hygiene instructions, as part of this real behavior acceptance.
+
+Runtime gate evidence before serialized root:
+- `df -Pk /` and load/root-run gates were checked before candidate intake; root gate will be rechecked immediately before the no-argument root harness.
+
+Cleanup note:
+- Accepted marker ready/patch/metadata artifacts were removed after the commit was safely on `main`.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-closure-20260527T002327Z` still has modified/added libsqlite files, so it was preserved as cleanup debt and not removed.

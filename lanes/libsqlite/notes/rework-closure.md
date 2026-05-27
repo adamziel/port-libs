@@ -108,3 +108,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses existing
 lane-local JSON table planning, JSON path validation, JSONB/BLOB wrappers, and
 residual predicate evaluation.
+
+## 2026-05-27 B-tree Leaf Sibling Merge Materialization
+
+This isolated planner/WAL/B-tree closure slice adds bounded B-tree leaf sibling
+merge planning after delete underflow without repeating the accepted rebalance
+summary-only work. `SQLiteBTreeLeafMergePlan` materializes merged table-leaf
+and index-leaf pages from sibling page images, preserves rowid/record order,
+reports the parent divider removal, and emits the obsolete right-sibling
+free-page action for later freelist/pointer-map application.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4628 assertions,
+up from the lane-status recorded 4560 baseline (`+68`). The new assertions
+cover table leaf merge page materialization, index leaf merge page
+materialization, merged row/record order, free-space deltas, parent divider
+metadata, obsolete sibling page actions, and malformed unordered/type/page
+number guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeLeafMergePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-btree-leaf-merge-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-btree-leaf-merge-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses existing
+lane-local B-tree page headers, table/index leaf page assemblers, cell parsers,
+record encoding, and free-space accounting; pointer-map/freelist application is
+left as the next B-tree storage slice.
