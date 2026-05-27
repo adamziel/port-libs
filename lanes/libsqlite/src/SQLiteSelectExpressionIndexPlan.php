@@ -71,7 +71,7 @@ final class SQLiteSelectExpressionIndexPlan
                 if ($expression === null || strcasecmp($expression->columnName, $constraint['column']) !== 0) {
                     continue;
                 }
-                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint)) {
+                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint, $terms)) {
                     continue;
                 }
                 if (!self::constraintCompatibleWithType($constraint, $expression->collation)) {
@@ -266,15 +266,184 @@ final class SQLiteSelectExpressionIndexPlan
 
     /**
      * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     * @param list<array<string,mixed>> $terms
      */
-    private static function constraintImpliesPartialPredicate(?SQLiteIndexPredicate $predicate, array $constraint): bool
+    private static function constraintImpliesPartialPredicate(?SQLiteIndexPredicate $predicate, array $constraint, array $terms): bool
     {
         if ($predicate === null) {
             return false;
         }
 
-        return self::partialPredicateIsSafeNonNull($predicate, $constraint['column'])
-            && self::constraintHasNonNullSearchValue($constraint['values']);
+        return self::partialPredicateImpliedByAvailableConstraints($predicate, $constraint, $terms);
+    }
+
+    /**
+     * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     * @param list<array<string,mixed>> $terms
+     */
+    private static function partialPredicateImpliedByAvailableConstraints(SQLiteIndexPredicate $predicate, array $constraint, array $terms): bool
+    {
+        if ($predicate->operator === SQLiteIndexPredicate::AND) {
+            if (!is_array($predicate->value) || $predicate->value === []) {
+                return false;
+            }
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    !$subPredicate instanceof SQLiteIndexPredicate
+                    || !self::partialPredicateImpliedByAvailableConstraints($subPredicate, $constraint, $terms)
+                ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR) {
+            if (!is_array($predicate->value)) {
+                return false;
+            }
+            foreach ($predicate->value as $subPredicate) {
+                if (
+                    $subPredicate instanceof SQLiteIndexPredicate
+                    && self::partialPredicateImpliedByAvailableConstraints($subPredicate, $constraint, $terms)
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (
+            self::partialPredicateIsSafeNonNull($predicate, $constraint['column'])
+            && self::constraintHasNonNullSearchValue($constraint['values'])
+        ) {
+            return true;
+        }
+        foreach ($terms as $term) {
+            $ordinaryConstraint = self::ordinaryConstraintFromPredicate($term);
+            if ($ordinaryConstraint !== null && self::ordinaryConstraintImpliesPartialPredicate($predicate, $ordinaryConstraint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return null|array{column:string,operator:string,values:mixed}
+     */
+    private static function ordinaryConstraintFromPredicate(array $predicate): ?array
+    {
+        $operator = strtoupper(self::requiredString($predicate, 'operator', 'SQLite SELECT expression-index predicate'));
+        if ($operator === '=' || $operator === '==') {
+            return self::ordinaryBinaryConstraint($predicate, 'point');
+        }
+        if (in_array($operator, ['<', '<=', '>', '>='], true)) {
+            return self::ordinaryBinaryConstraint($predicate, 'range-' . $operator);
+        }
+        if ($operator === 'IN') {
+            $left = self::columnOperand($predicate['left'] ?? null);
+            $values = $predicate['values'] ?? null;
+            if ($left === null || !is_array($values) || !array_is_list($values)) {
+                return null;
+            }
+
+            return [
+                'column' => $left,
+                'operator' => 'IN',
+                'values' => self::literalList($values),
+            ];
+        }
+        if ($operator === 'BETWEEN') {
+            $left = self::columnOperand($predicate['left'] ?? null);
+            if ($left === null || !array_key_exists('lower', $predicate) || !array_key_exists('upper', $predicate)) {
+                return null;
+            }
+
+            return [
+                'column' => $left,
+                'operator' => 'BETWEEN',
+                'values' => [
+                    'lower' => self::literalValue($predicate['lower']),
+                    'upper' => self::literalValue($predicate['upper']),
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{column:string,operator:string,values:mixed}
+     */
+    private static function ordinaryBinaryConstraint(array $predicate, string $operator): ?array
+    {
+        $left = self::columnOperand($predicate['left'] ?? null);
+        $right = self::columnOperand($predicate['right'] ?? null);
+        if ($left !== null && $right === null && array_key_exists('right', $predicate)) {
+            return [
+                'column' => $left,
+                'operator' => $operator,
+                'values' => self::literalValue($predicate['right']),
+            ];
+        }
+        if ($right !== null && $left === null && array_key_exists('left', $predicate)) {
+            return [
+                'column' => $right,
+                'operator' => self::reverseRangeOperator($operator),
+                'values' => self::literalValue($predicate['left']),
+            ];
+        }
+
+        return null;
+    }
+
+    private static function columnOperand(mixed $operand): ?string
+    {
+        if (!is_array($operand) || array_key_exists('function', $operand)) {
+            return null;
+        }
+
+        $column = $operand['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            return null;
+        }
+
+        return $column;
+    }
+
+    /**
+     * @param array{column:string,operator:string,values:mixed} $constraint
+     */
+    private static function ordinaryConstraintImpliesPartialPredicate(SQLiteIndexPredicate $predicate, array $constraint): bool
+    {
+        if ($constraint['operator'] === 'point') {
+            return $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values']);
+        }
+        if ($constraint['operator'] === 'IN' && is_array($constraint['values'])) {
+            return $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values']);
+        }
+        if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
+            return $predicate->isImpliedByRangeLookup(
+                $constraint['column'],
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+                true
+            );
+        }
+        if (str_starts_with($constraint['operator'], 'range-')) {
+            return match ($constraint['operator']) {
+                'range->' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, false),
+                'range->=' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, true),
+                'range-<' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], false),
+                'range-<=' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], true),
+                default => false,
+            };
+        }
+
+        return false;
     }
 
     private static function partialPredicateIsSafeNonNull(SQLiteIndexPredicate $predicate, string $column): bool

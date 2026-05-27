@@ -189,10 +189,7 @@ final class SQLitePragmaSchemaCatalog
             $constraint = self::stripLeadingConstraint($definition);
             if (self::startsWithKeyword($constraint, 'PRIMARY')) {
                 $list = self::parenthesizedBody($constraint);
-                $tablePrimaryKeys = $list === null ? [] : array_map(
-                    static fn (string $part): string => strtolower(self::unquoteIdentifier(strtok(trim($part), " \t\r\n") ?: '')),
-                    self::splitTopLevel($list, ','),
-                );
+                $tablePrimaryKeys = $list === null ? [] : self::tablePrimaryKeyColumns($list);
                 continue;
             }
             if (
@@ -227,6 +224,22 @@ final class SQLitePragmaSchemaCatalog
                 if ($column['primaryKey']) {
                     $column['notNull'] = true;
                 }
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function tablePrimaryKeyColumns(string $list): array
+    {
+        $columns = [];
+        foreach (self::splitTopLevel($list, ',') as $part) {
+            $identifier = self::readIdentifier(trim($part), 0);
+            if ($identifier !== null) {
+                $columns[] = strtolower($identifier['identifier']);
             }
         }
 
@@ -405,7 +418,7 @@ final class SQLitePragmaSchemaCatalog
 
     private static function generatedHiddenCode(string $tail): int
     {
-        if (!self::containsTopLevelKeyword($tail, 'GENERATED')) {
+        if (!self::containsTopLevelKeyword($tail, 'GENERATED') && !self::containsTopLevelKeyword($tail, 'AS')) {
             return 0;
         }
         if (self::containsTopLevelKeyword($tail, 'STORED')) {

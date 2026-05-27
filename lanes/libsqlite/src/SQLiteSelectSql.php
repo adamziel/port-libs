@@ -910,14 +910,21 @@ final class SQLiteSelectSql
         if (!isset($predicate['left'], $predicate['right']) || !is_array($predicate['left']) || !is_array($predicate['right'])) {
             return null;
         }
-        if (($predicate['right']['type'] ?? null) !== 'literal' || !array_key_exists('value', $predicate['right'])) {
+
+        $columnExpression = $predicate['left'];
+        $literalExpression = $predicate['right'];
+        if (($columnExpression['type'] ?? null) !== 'column' || !isset($columnExpression['name']) || !is_string($columnExpression['name'])) {
+            $columnExpression = $predicate['right'];
+            $literalExpression = $predicate['left'];
+        }
+        if (($columnExpression['type'] ?? null) !== 'column' || !isset($columnExpression['name']) || !is_string($columnExpression['name'])) {
             return null;
         }
-        if (($predicate['left']['type'] ?? null) !== 'column' || !isset($predicate['left']['name']) || !is_string($predicate['left']['name'])) {
+        if (($literalExpression['type'] ?? null) !== 'literal' || !array_key_exists('value', $literalExpression)) {
             return null;
         }
 
-        $column = strtolower($predicate['left']['name']);
+        $column = strtolower($columnExpression['name']);
         if (str_contains($column, '.')) {
             $column = substr($column, strrpos($column, '.') + 1);
         }
@@ -928,7 +935,7 @@ final class SQLiteSelectSql
         return [
             'column' => $column,
             'operator' => '=',
-            'value' => $predicate['right']['value'],
+            'value' => $literalExpression['value'],
             'usable' => true,
         ];
     }

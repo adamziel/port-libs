@@ -127,8 +127,8 @@ $tests = [
 
         $indexInfo = $catalog->execute('PRAGMA index_info("sqlite_autoindex_wp site options_1")');
         $t->same(2, count($indexInfo['rows']));
-        $t->same(['seqno' => 0, 'cid' => 1, 'name' => 'option_name'], $indexInfo['rows'][0]);
-        $t->same(['seqno' => 1, 'cid' => 0, 'name' => 'blog_id'], $indexInfo['rows'][1]);
+        $t->same(['seqno' => 0, 'cid' => 0, 'name' => 'blog_id'], $indexInfo['rows'][0]);
+        $t->same(['seqno' => 1, 'cid' => 1, 'name' => 'option_name'], $indexInfo['rows'][1]);
 
         $schemaQualified = $catalog->execute('PRAGMA temp.table_xinfo("wp site options")');
         $t->same('temp', $schemaQualified['schema']);

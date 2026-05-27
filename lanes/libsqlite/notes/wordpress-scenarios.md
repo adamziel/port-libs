@@ -5101,3 +5101,7 @@ JSON table constraints, VFS sync/write/lock application, WAL rollback/checkpoint
 application, B-tree page relocation/root collapse/overflow freelist release, or
 Unicode GLOB work. Dependency closure: no new support component is needed; the
 slice reuses lane-local SELECT planner arrays and native PHP stat parsing only.
+
+## FTS5 Option Search
+
+`examples/wordpress-fts5-option-search.php` previews copied `wp_options` text through bounded FTS5-style MATCH ranking and snippet diagnostics. It reports selected option ids, highlighted snippets, and ascending bm25-like ranks for `search cache` without requiring `ext/sqlite`.
