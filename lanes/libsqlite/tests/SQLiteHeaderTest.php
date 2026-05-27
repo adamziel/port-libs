@@ -23025,6 +23025,108 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
     },
+    'executes bounded sqlite compound select sql text' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'option_value' => 'plugins', 'autoload' => 'no', 'bytes' => 110],
+            ['option_id' => 6, 'option_name' => 'orphaned', 'option_value' => null, 'autoload' => null, 'bytes' => 3],
+        ];
+        $network = [
+            ['option_id' => 10, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 30],
+            ['option_id' => 11, 'option_name' => 'upload_path', 'autoload' => 'no', 'bytes' => 8],
+            ['option_id' => 12, 'option_name' => 'network_admin_email', 'autoload' => 'yes', 'bytes' => 20],
+        ];
+
+        $unionRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, autoload FROM wp_options WHERE option_id <= 3 UNION SELECT option_name AS name, autoload FROM network_options WHERE autoload = 'yes' ORDER BY name ASC LIMIT 5",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(4, count($unionRows));
+        $t->same(['blogname', 'home', 'network_admin_email', 'siteurl'], array_column($unionRows, 'name'));
+        $t->same(['yes', 'yes', 'yes', 'yes'], array_column($unionRows, 'autoload'));
+        $t->same(['name', 'autoload'], array_keys($unionRows[0]));
+        $t->same('blogname', $unionRows[0]['name']);
+        $t->same('network_admin_email', $unionRows[2]['name']);
+        $t->same('siteurl', $unionRows[3]['name']);
+
+        $unionAllRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, bytes FROM wp_options WHERE option_name = 'siteurl' UNION ALL SELECT option_name AS name, bytes FROM network_options WHERE option_name = 'siteurl' ORDER BY 2 DESC, name ASC",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(2, count($unionAllRows));
+        $t->same(['siteurl', 'siteurl'], array_column($unionAllRows, 'name'));
+        $t->same([30, 24], array_column($unionAllRows, 'bytes'));
+        $t->same(['name', 'bytes'], array_keys($unionAllRows[0]));
+        $t->same(30, $unionAllRows[0]['bytes']);
+        $t->same(24, $unionAllRows[1]['bytes']);
+
+        $intersectRows = SQLiteSelectSql::execute(
+            "SELECT autoload FROM wp_options WHERE autoload IS NOT NULL INTERSECT SELECT autoload FROM network_options ORDER BY autoload DESC",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(2, count($intersectRows));
+        $t->same(['yes', 'no'], array_column($intersectRows, 'autoload'));
+        $t->same(['autoload'], array_keys($intersectRows[0]));
+        $t->same('yes', $intersectRows[0]['autoload']);
+        $t->same('no', $intersectRows[1]['autoload']);
+
+        $exceptRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_name AS name FROM network_options ORDER BY name ASC",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(2, count($exceptRows));
+        $t->same(['blogname', 'home'], array_column($exceptRows, 'name'));
+        $t->same(['name'], array_keys($exceptRows[0]));
+        $t->same('blogname', $exceptRows[0]['name']);
+        $t->same('home', $exceptRows[1]['name']);
+
+        $chainRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, bytes FROM wp_options WHERE option_id <= 2 UNION ALL SELECT option_name AS name, bytes FROM network_options WHERE autoload = 'yes' UNION SELECT option_name AS name, bytes FROM wp_options WHERE option_name = 'blogname' ORDER BY bytes DESC LIMIT 2, 3",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(3, count($chainRows));
+        $t->same(['home', 'network_admin_email', 'blogname'], array_column($chainRows, 'name'));
+        $t->same([24, 20, 9], array_column($chainRows, 'bytes'));
+        $t->same(['name', 'bytes'], array_keys($chainRows[0]));
+        $t->same('home', $chainRows[0]['name']);
+        $t->same(24, $chainRows[0]['bytes']);
+        $t->same('blogname', $chainRows[2]['name']);
+
+        $withRows = SQLiteSelectSql::execute(
+            "WITH local_names AS (SELECT option_name AS name, bytes FROM wp_options WHERE autoload = 'yes') SELECT name, bytes FROM local_names UNION SELECT option_name AS name, bytes FROM network_options WHERE autoload = 'yes' ORDER BY name ASC",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(5, count($withRows));
+        $t->same(['blogname', 'home', 'network_admin_email', 'siteurl', 'siteurl'], array_column($withRows, 'name'));
+        $t->same([9, 24, 20, 24, 30], array_column($withRows, 'bytes'));
+        $t->same(['name', 'bytes'], array_keys($withRows[0]));
+        $t->same('blogname', $withRows[0]['name']);
+        $t->same('siteurl', $withRows[4]['name']);
+
+        $plan = SQLiteSelectSql::plan(
+            "SELECT option_name AS name, bytes FROM wp_options WHERE autoload = 'yes' UNION ALL SELECT option_name AS name, bytes FROM network_options ORDER BY 2 DESC LIMIT 1 OFFSET 2",
+            ['wp_options' => $options, 'network_options' => $network],
+        );
+        $t->same(['compound'], array_keys($plan));
+        $t->same(['UNION ALL'], $plan['compound']['operators']);
+        $t->same(2, count($plan['compound']['arms']));
+        $t->same([['column' => 'bytes', 'direction' => 'DESC']], $plan['compound']['orderBy']);
+        $t->same(1, $plan['compound']['limit']);
+        $t->same(2, $plan['compound']['offset']);
+        $t->same(['from', 'select', 'where'], array_keys($plan['compound']['arms'][0]));
+        $t->same(['from', 'select'], array_keys($plan['compound']['arms'][1]));
+        $t->same('option_name', $plan['compound']['arms'][0]['select'][0]['name']);
+        $t->same('name', $plan['compound']['arms'][0]['select'][0]['alias']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name, autoload FROM network_options", ['wp_options' => $options, 'network_options' => $network]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options UNION ORDER BY name", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY 2", ['wp_options' => $options, 'network_options' => $network]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY missing", ['wp_options' => $options, 'network_options' => $network]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options UNION SELECT option_name AS name FROM network_options LIMIT one", ['wp_options' => $options, 'network_options' => $network]));
+    },
     'executes bounded sqlite select sql text with common table expressions' => static function (TestRunner $t): void {
         $options = [
             ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],

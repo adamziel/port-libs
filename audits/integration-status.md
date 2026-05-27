@@ -119780,6 +119780,35 @@ Decision: accepted. Commit exactly this source-moving slice, consume the ready m
 Cleanup debt:
 - Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.
 
+## Integration accepted - libsqlite SELECT SQL compound text - 2026-05-27T09:35:00Z
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` and detached candidate base are `b5aa5439b84de033239e7442db3ace676f0cd53d` (`Integrate libsqlite VFS file handle primitive`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `b5aa5439b84de033239e7442db3ace676f0cd53d`.
+- The dashboard guard is open for exactly one source-moving marker; no Pages-outage exception was used.
+
+Candidate evidence:
+- Selected `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T092101Z.ready` from the bounded recent libsqlite sample because it adds non-overlapping parser-level compound SELECT text execution beyond accepted scalar, subquery, CTE, JOIN, GROUP BY, expression ORDER BY, JSON, WAL, B-tree, and VFS clusters.
+- Marker metadata was complete: `lane=libsqlite`, `patch=...port-dev-libsqlite-sql-exec-20260527T092101Z.patch`, `metadata=...port-dev-libsqlite-sql-exec-20260527T092101Z.md`, and `patch_sha256=ef937195534661f4d6c4c75996728667562b24cb22585859f38e20a24c046076`.
+- Whole-patch replay on current `b5aa5439` was stale only in `lanes/libsqlite/lane-status.json`; implementation, test, example, manifest, and note hunks applied cleanly with the status file reconciled from the current accepted source.
+- Effective behavior delta adds `SQLiteSelectSql` planning/execution for top-level `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT`, including final compound `ORDER BY`, `LIMIT`, `OFFSET`, ordinal order terms, chained compounds, and CTE-fed compound arms.
+
+Verification completed in detached candidate `.tmux-team/tmp/clean-integrator-candidates/sql-compound-20260527T092101Z`:
+- Syntax passed for `lanes/libsqlite/src/SQLiteSelectSql.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-select-sql-compound.php`.
+- JSON decode passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 8404 assertions, 0 failures`.
+- WordPress compound SELECT smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-compound.php` passed and emitted valid JSON.
+- `TMPDIR=$candidate/.tmp-root git diff --check -- lanes/libsqlite` passed.
+
+Runtime gate evidence before root:
+- Initial sample before candidate work: `/` had `80178668` KiB available, load was `1.53`, and no exact no-argument root harness was active.
+- Pre-root protected gate: `/` had `79932956` KiB available, load was `0.92`, and no exact no-argument root harness was active.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 33569 assertions, 0 failures`.
+
+Decision: accepted. Commit this single source-moving slice, remove only the accepted marker artifacts after the commit is safely on `refs/heads/main`, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
 ## Integration accepted - libsqlite VFS file-handle primitive - 2026-05-27T09:24:00Z
 
 Priority lane: `libsqlite`.

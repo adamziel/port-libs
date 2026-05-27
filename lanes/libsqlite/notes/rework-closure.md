@@ -1,5 +1,42 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT SQL Compound Text Dispatch
+
+This isolated SQL execution/planner slice adds parser-level compound SELECT
+text dispatch for `SQLiteSelectSql` without repeating accepted standalone
+`SQLiteSelectCompound` row-array helpers, single-table SELECT text, JOIN text,
+subquery text, expression `ORDER BY`, grouped SELECT text, comma `LIMIT`, CTE
+materialization, JSON table sources, VFS/WAL/B-tree storage work, or scalar-only
+helpers. Top-level `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT` arms are
+planned through the existing SELECT SQL executor, combined with accepted
+compound row semantics, and then finished with compound-level `ORDER BY`,
+`LIMIT`, and `OFFSET`.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 8324 assertions,
+up from the current lane-status focused baseline of 8273 assertions (`+51`).
+The new assertions cover UNION duplicate removal, UNION ALL duplicate
+retention, INTERSECT, EXCEPT, chained compounds, ordinal final ORDER BY,
+comma-form compound LIMIT/OFFSET, CTE-fed compound arms, plan-shape evidence,
+and malformed compound guards. WordPress smoke:
+`examples/wordpress-select-sql-compound.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-compound.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-compound.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SELECT SQL parser, query-plan executor, compound row combiner,
+projection/predicate/result helpers, CTE materialization, scalar dispatch, and
+pure PHP row arrays.
+
 ## 2026-05-27 SELECT SQL WITH CTE Materialization
 
 This isolated SQL execution/planner slice adds bounded non-recursive

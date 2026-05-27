@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT SQL Compound Scenario
+
+Copied single-site and network `wp_options` previews can now execute bounded
+compound SQLite SELECT text through the native PHP planner. The smoke
+`examples/wordpress-select-sql-compound.php` reports `UNION` duplicate
+removal, `UNION ALL` duplicate retention, `INTERSECT`, local-only `EXCEPT`
+rows, final `ORDER BY`, `LIMIT`/`OFFSET`, and CTE-fed compound arms without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated SQL-exec slice: updated `SQLiteSelectSql` to
+recognize top-level compound SELECT operators, execute each arm through the
+existing SELECT SQL planner, combine rows through the accepted compound helper,
+and apply final compound ordering and limits. Focused `SQLiteHeaderTest.php`
+passed at 8324 assertions, up from the current lane-status focused baseline of
+8273 (`+51`). Lane `phpPass` moves from 795 to 796 and mapped coverage moves
+from 446 to 447. Dependency closure: no new support component is needed; this
+reuses lane-local SELECT SQL parsing, query-plan execution, compound row
+combination, CTE materialization, scalar dispatch, and pure PHP row arrays.
+
 ## SELECT SQL Comma LIMIT Scenario
 
 Copied WordPress option previews can now execute bounded SQLite SELECT text that

@@ -13,6 +13,10 @@ final class SQLiteSelectSql
     public static function execute(string $sql, array $tables): array
     {
         $plan = self::plan($sql, $tables);
+        if (isset($plan['compound']) && is_array($plan['compound'])) {
+            return self::executeCompoundPlan($plan);
+        }
+
         $rows = SQLiteSelectQuery::execute($plan);
 
         return self::stripHiddenOrderColumns($rows, $plan);
@@ -32,6 +36,11 @@ final class SQLiteSelectSql
         }
         if (!preg_match('/^select\s+/i', $sql)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT');
+        }
+
+        $compound = self::compoundSqlPlan($sql, $tables, $cteNames);
+        if ($compound !== null) {
+            return $compound;
         }
 
         $fromOffset = self::keywordOffset($sql, 'FROM');
@@ -100,6 +109,232 @@ final class SQLiteSelectSql
         }
 
         return $plan;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $cteNames
+     * @return array<string,mixed>|null
+     */
+    private static function compoundSqlPlan(string $sql, array $tables, array $cteNames): ?array
+    {
+        $parts = self::splitCompoundSql($sql);
+        if ($parts === null) {
+            return null;
+        }
+
+        $lastIndex = count($parts['arms']) - 1;
+        [$lastSql, $orderSql, $limitSql] = self::stripCompoundTailClauses($parts['arms'][$lastIndex]);
+        $parts['arms'][$lastIndex] = $lastSql;
+
+        $arms = [];
+        foreach ($parts['arms'] as $armSql) {
+            if (self::splitCompoundSql($armSql) !== null) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound arms cannot contain nested compound SELECT text');
+            }
+            $arms[] = self::plan($armSql, $tables);
+        }
+
+        $plan = [
+            'compound' => [
+                'operators' => $parts['operators'],
+                'arms' => $arms,
+            ],
+        ];
+        if ($orderSql !== null) {
+            $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, $arms[0]['select'] ?? []);
+        }
+        if ($limitSql !== null) {
+            [$limit, $offset] = self::limitOffset($limitSql);
+            $plan['compound']['limit'] = $limit;
+            $plan['compound']['offset'] = $offset;
+        }
+        if ($cteNames !== []) {
+            $plan['with'] = $cteNames;
+        }
+
+        return $plan;
+    }
+
+    /**
+     * @return array{arms:list<string>,operators:list<string>}|null
+     */
+    private static function splitCompoundSql(string $sql): ?array
+    {
+        $arms = [];
+        $operators = [];
+        $start = 0;
+        $length = strlen($sql);
+        $depth = 0;
+        $quote = false;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach (['UNION ALL', 'UNION', 'INTERSECT', 'EXCEPT'] as $operator) {
+                if (strncasecmp(substr($sql, $i), $operator, strlen($operator)) !== 0 || !self::keywordBounded($sql, $i, strlen($operator))) {
+                    continue;
+                }
+                $arm = trim(substr($sql, $start, $i - $start));
+                if ($arm === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL compound arm cannot be empty');
+                }
+                $arms[] = $arm;
+                $operators[] = $operator;
+                $start = $i + strlen($operator);
+                $i = $start - 1;
+                continue 2;
+            }
+        }
+        if ($operators === []) {
+            return null;
+        }
+
+        $finalArm = trim(substr($sql, $start));
+        if ($finalArm === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound arm cannot be empty');
+        }
+        $arms[] = $finalArm;
+
+        return ['arms' => $arms, 'operators' => $operators];
+    }
+
+    /**
+     * @return array{0:string,1:?string,2:?string}
+     */
+    private static function stripCompoundTailClauses(string $sql): array
+    {
+        $orderOffset = self::keywordOffset($sql, 'ORDER BY');
+        $limitOffset = self::keywordOffset($sql, 'LIMIT');
+        $cut = null;
+        if ($orderOffset !== null) {
+            $cut = $orderOffset;
+        }
+        if ($limitOffset !== null && ($cut === null || $limitOffset < $cut)) {
+            $cut = $limitOffset;
+        }
+        if ($cut === null) {
+            return [$sql, null, null];
+        }
+
+        $tail = trim(substr($sql, $cut));
+        $arm = trim(substr($sql, 0, $cut));
+        if ($arm === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound final arm cannot be empty');
+        }
+        $offsets = [];
+        foreach (['ORDER BY', 'LIMIT'] as $keyword) {
+            $offset = self::keywordOffset($tail, $keyword);
+            if ($offset !== null) {
+                $offsets[$keyword] = $offset;
+            }
+        }
+        asort($offsets);
+
+        return [
+            $arm,
+            isset($offsets['ORDER BY']) ? self::clauseText($tail, $offsets, 'ORDER BY') : null,
+            isset($offsets['LIMIT']) ? self::clauseText($tail, $offsets, 'LIMIT') : null,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array{column:string,direction?:string}>
+     */
+    private static function compoundOrderBy(string $sql, array $select): array
+    {
+        $columns = [];
+        foreach ($select as $index => $term) {
+            if (isset($term['alias']) && is_string($term['alias'])) {
+                $columns[$index + 1] = $term['alias'];
+                continue;
+            }
+            if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name'])) {
+                $name = $term['name'];
+                $columns[$index + 1] = str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
+            }
+        }
+
+        $orderBy = [];
+        foreach (self::splitTopLevel($sql, ',') as $term) {
+            [$expression, $direction] = self::orderByExpressionDirection($term);
+            if (preg_match('/^[1-9][0-9]*$/', $expression) === 1) {
+                $ordinal = (int) $expression;
+                if (!isset($columns[$ordinal])) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL compound ORDER BY ordinal is out of range');
+                }
+                $column = $columns[$ordinal];
+            } else {
+                self::assertIdentifier($expression, 'SQLite SELECT SQL compound ORDER BY column');
+                $column = $expression;
+            }
+
+            $entry = ['column' => $column];
+            if ($direction !== null) {
+                $entry['direction'] = $direction;
+            }
+            $orderBy[] = $entry;
+        }
+
+        return $orderBy;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return list<array<string,mixed>>
+     */
+    private static function executeCompoundPlan(array $plan): array
+    {
+        $compound = $plan['compound'];
+        if (!is_array($compound) || !isset($compound['arms'], $compound['operators']) || !is_array($compound['arms']) || !is_array($compound['operators'])) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound plan is malformed');
+        }
+        if (count($compound['arms']) !== count($compound['operators']) + 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound plan arm count is malformed');
+        }
+
+        $rows = null;
+        foreach ($compound['arms'] as $index => $arm) {
+            if (!is_array($arm)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound arm plan is malformed');
+            }
+            $armRows = self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($arm), $arm);
+            if ($rows === null) {
+                $rows = $armRows;
+                continue;
+            }
+            $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1]);
+        }
+
+        return SQLiteSelectResult::execute(
+            $rows ?? [],
+            null,
+            isset($compound['orderBy']) && is_array($compound['orderBy']) ? $compound['orderBy'] : [],
+            isset($compound['limit']) && is_int($compound['limit']) ? $compound['limit'] : null,
+            isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0,
+        );
     }
 
     /**
