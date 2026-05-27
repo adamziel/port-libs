@@ -5,7 +5,9 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBusyHandler;
+use PortLibs\LibSqlite\SQLiteLockByteRangePlan;
 use PortLibs\LibSqlite\SQLiteLockCoordinator;
+use PortLibs\LibSqlite\SQLiteOpenPlan;
 
 $locks = new SQLiteLockCoordinator([
     'wp-import-reader' => 'shared',
@@ -40,10 +42,19 @@ $newReaderPlan = $locks->openPlan(
 
 $locks->release('wp-import-reader');
 $exclusivePlan = $locks->plan('wp-cron-writer', 'exclusive');
+$rwOpen = $writerPlan['open'];
+$writerByteRanges = SQLiteLockByteRangePlan::forOpenPlan($rwOpen, 'reserved', 'wp-admin-update', 19);
+$exclusiveByteRanges = SQLiteLockByteRangePlan::forOpenPlan($rwOpen, 'exclusive', 'wp-cron-writer');
+$nolockOpen = SQLiteOpenPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&nolock=1', true, true);
+$nolockByteRanges = SQLiteLockByteRangePlan::forOpenPlan(
+    $nolockOpen,
+    'shared',
+    'repair-copy'
+);
 
 echo json_encode([
     'scenario' => 'wordpress-lock-coordination-preflight',
-    'wordpressUse' => 'Model SQLite shared/reserved/pending/exclusive lock admission for copied WordPress databases before a full VFS/process-lock implementation is activated.',
+    'wordpressUse' => 'Model SQLite shared/reserved/pending/exclusive lock admission and the pending/reserved/shared byte ranges required for copied WordPress database VFS locks before a full process-lock implementation is activated.',
     'locks' => [
         'initialReadOnlyOpen' => [
             'status' => $readerPlan['status'],
@@ -69,6 +80,23 @@ echo json_encode([
             'canAcquire' => $exclusivePlan['can_acquire'],
             'requestedLock' => $exclusivePlan['requested'],
             'holders' => $exclusivePlan['holders'],
+        ],
+    ],
+    'byteRangeLocks' => [
+        'constants' => SQLiteLockByteRangePlan::constants(),
+        'reservedWriter' => [
+            'canLock' => $writerByteRanges['can_lock'],
+            'ranges' => $writerByteRanges['ranges'],
+            'dependencies' => $writerByteRanges['dependencies'],
+        ],
+        'exclusiveWriter' => [
+            'canLock' => $exclusiveByteRanges['can_lock'],
+            'ranges' => $exclusiveByteRanges['ranges'],
+        ],
+        'nolockReader' => [
+            'canLock' => $nolockByteRanges['can_lock'],
+            'reason' => $nolockByteRanges['reason'],
+            'dependencies' => $nolockByteRanges['dependencies'],
         ],
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

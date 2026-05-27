@@ -10567,6 +10567,41 @@ It reuses lane-local file URI parsing and open planning. A real shared VFS
 file-control implementation remains a future activation gate requiring native
 file write, sync, mmap, and file-control execution evidence.
 
+## Focused Native Mapping: VFS Lock Byte Ranges
+
+Date: 2026-05-27
+
+This isolated dependency/open micro-slice maps one additional focused VFS
+locking behavior row. The new `SQLiteLockByteRangePlan` helper records
+SQLite's pending byte, reserved byte, shared lock range, per-reader shared
+slot, exclusive shared-range coverage, `nolock` suppression, and composition
+with accepted open-admission dependencies for copied WordPress database paths.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 419 to 420 by adding `focusedVfsLockByteRangePlan=1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+launched from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteLockByteRangePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite vfs lock byte ranges for open handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+```
+
+Result: selected focused PHP passed with 67 assertions and 0 failures. The
+WordPress lock coordination smoke passed and reports copied database lock-byte
+diagnostics without requiring ext/sqlite.
+
+Dependency closure: no new shared support component is needed for this bounded
+slice. It reuses lane-local file URI/open admission and lock coordination
+evidence. A real native VFS file-lock executor remains a future activation gate
+requiring process/file-handle lock acquisition and release evidence for these
+byte ranges.
+
 ## Focused Native Mapping: WAL Checkpoint File-Write Coordination
 
 Date: 2026-05-27

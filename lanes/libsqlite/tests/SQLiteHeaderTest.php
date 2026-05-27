@@ -52,6 +52,7 @@ use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteNumericAggregate;
 use PortLibs\LibSqlite\SQLiteNumericAggregateState;
 use PortLibs\LibSqlite\SQLiteLockCoordinator;
+use PortLibs\LibSqlite\SQLiteLockByteRangePlan;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
 use PortLibs\LibSqlite\SQLitePageCache;
@@ -16781,6 +16782,98 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'extra'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, -1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, null, -1));
+    },
+    'plans sqlite vfs lock byte ranges for open handles' => static function (TestRunner $t): void {
+        $constants = SQLiteLockByteRangePlan::constants();
+        $t->same(1073741824, $constants['pending']);
+        $t->same(1073741825, $constants['reserved']);
+        $t->same(1073741826, $constants['shared_first']);
+        $t->same(510, $constants['shared_size']);
+        $t->same(1073742335, $constants['shared_last']);
+
+        $shared = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'shared', false, 'wp-reader', 17);
+        $t->same('shared', $shared['level']);
+        $t->true($shared['can_lock']);
+        $t->same(false, $shared['nolock']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $shared['path']);
+        $t->same('wp-reader', $shared['connection']);
+        $t->same(['sqlite-lock-byte-range', 'vfs-file-lock'], $shared['dependencies']);
+        $t->same(null, $shared['reason']);
+        $t->same(1, count($shared['ranges']));
+        $t->same('shared', $shared['ranges'][0]['name']);
+        $t->same(1073741843, $shared['ranges'][0]['offset']);
+        $t->same(1, $shared['ranges'][0]['length']);
+        $t->same('shared', $shared['ranges'][0]['mode']);
+
+        $reserved = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'reserved', false, 'wp-cron', 509);
+        $t->same('reserved', $reserved['level']);
+        $t->same(2, count($reserved['ranges']));
+        $t->same('shared', $reserved['ranges'][0]['name']);
+        $t->same(1073742335, $reserved['ranges'][0]['offset']);
+        $t->same('reserved', $reserved['ranges'][1]['name']);
+        $t->same(1073741825, $reserved['ranges'][1]['offset']);
+        $t->same('exclusive', $reserved['ranges'][1]['mode']);
+
+        $pending = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'pending', false, 'wp-cron');
+        $t->same('pending', $pending['level']);
+        $t->same(2, count($pending['ranges']));
+        $t->same('pending', $pending['ranges'][0]['name']);
+        $t->same(1073741824, $pending['ranges'][0]['offset']);
+        $t->same('exclusive', $pending['ranges'][0]['mode']);
+        $t->same('reserved', $pending['ranges'][1]['name']);
+        $t->same(1073741825, $pending['ranges'][1]['offset']);
+
+        $exclusive = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'exclusive', false, 'wp-cron');
+        $t->same('exclusive', $exclusive['level']);
+        $t->same(3, count($exclusive['ranges']));
+        $t->same('pending', $exclusive['ranges'][0]['name']);
+        $t->same('reserved', $exclusive['ranges'][1]['name']);
+        $t->same('shared', $exclusive['ranges'][2]['name']);
+        $t->same(1073741826, $exclusive['ranges'][2]['offset']);
+        $t->same(510, $exclusive['ranges'][2]['length']);
+        $t->same('exclusive', $exclusive['ranges'][2]['mode']);
+
+        $none = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'none');
+        $t->same('none', $none['level']);
+        $t->true($none['can_lock']);
+        $t->same([], $none['ranges']);
+        $t->same(null, $none['connection']);
+
+        $noLock = SQLiteLockByteRangePlan::forLevel('/srv/www/wp-content/database/.ht.sqlite', 'shared', true, 'repair-copy');
+        $t->same('shared', $noLock['level']);
+        $t->same(false, $noLock['can_lock']);
+        $t->same(true, $noLock['nolock']);
+        $t->same([], $noLock['ranges']);
+        $t->same(['sqlite-lock-byte-range', 'nolock-open'], $noLock['dependencies']);
+        $t->same('nolock VFS disables POSIX byte-range locking', $noLock['reason']);
+
+        $open = SQLiteOpenPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared', true, true);
+        $openPlan = SQLiteLockByteRangePlan::forOpenPlan($open, 'reserved', 'wp-admin', 3);
+        $t->same('reserved', $openPlan['level']);
+        $t->true($openPlan['can_lock']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $openPlan['path']);
+        $t->same('wp-admin', $openPlan['connection']);
+        $t->same(1073741829, $openPlan['ranges'][0]['offset']);
+        $t->same(['file-uri-parser', 'shared-cache-coordination', 'sqlite-lock-byte-range', 'vfs-file-lock'], $openPlan['dependencies']);
+
+        $nolockOpen = SQLiteOpenPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&nolock=1', true, true);
+        $nolockPlan = SQLiteLockByteRangePlan::forOpenPlan($nolockOpen, 'reserved', 'wp-repair');
+        $t->same(false, $nolockPlan['can_lock']);
+        $t->same(true, $nolockPlan['nolock']);
+        $t->same('nolock VFS disables POSIX byte-range locking', $nolockPlan['reason']);
+        $t->same(['file-uri-parser', 'nolock-open', 'sqlite-lock-byte-range'], $nolockPlan['dependencies']);
+
+        $missingOpen = SQLiteOpenPlan::forFilename('file:/srv/www/wp-content/database/missing.sqlite?mode=ro', false, false);
+        $missingPlan = SQLiteLockByteRangePlan::forOpenPlan($missingOpen, 'shared', 'wp-cli');
+        $t->same(false, $missingPlan['can_lock']);
+        $t->same('open admission failed before byte-range locking', $missingPlan['reason']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('', 'shared', false, 'wp'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'bogus', false, 'wp'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, 'wp', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, 'wp', 510));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

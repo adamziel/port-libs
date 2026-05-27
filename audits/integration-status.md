@@ -118669,3 +118669,30 @@ Root verification and final commit evidence:
 Cleanup:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T022948Z` still contained modified lane files matching the handoff, so it was preserved and left registered as cleanup debt.
 - Accepted ready marker, patch, and metadata may be removed after this commit; worker log preserved as evidence.
+
+## Integration accepted - libsqlite VFS lock byte ranges - 2026-05-27T02:55:38Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T024737Z.ready`.
+
+Decision: accepted after bounded older-base replay onto current `refs/heads/main` `5d93c28fa517426356ac39875148b2a9f91f1824` (`Integrate libsqlite composite GROUP BY execution`). Full patch failed only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`; implementation, example, notes, and test hunks applied cleanly with those stale files excluded, then manifest/status were reconciled from current source evidence.
+
+Scope accepted:
+- Added `SQLiteLockByteRangePlan` for SQLite pending/reserved/shared byte offsets, shared-slot bounds, exclusive shared-range coverage, `nolock` suppression, and open-plan dependency composition.
+- Extended the WordPress lock coordination smoke with byte-range lock diagnostics.
+- Added one focused `SQLiteHeaderTest.php` case with 67 assertions.
+- Reconciled libsqlite status from current `5d93c28f`, moving `phpPass` from `757` to `758` for this distinct mapped native pass.
+
+Focused verification:
+- Runtime gates before focused checks: `/` available `108801020` KiB, load `2.17`, no exact no-argument root harness active.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteLockByteRangePlan.php`: passed.
+- Selected focused command for `plans sqlite vfs lock byte ranges for open handles`: `67 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php`: valid JSON with keys `scenario,wordpressUse,locks,byteRangeLocks`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 5597 assertions, 0 failures`.
+
+Final gates:
+- `git diff --check`: passed.
+- Serialized no-argument root with `TMPDIR=$candidate/.tmp-root php tools/run-tests.php`: `215 test files, 30762 assertions, 0 failures`.
+- Accepted commit: `79448901682f37871c7a8fa3e89bf3cd70b3e522` (`Integrate libsqlite VFS lock byte ranges`).
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T024737Z` still contains modified lane files, so it was preserved as cleanup debt instead of removed.
+
+Dashboard publication should run next because `refs/heads/main` moved from live source `5d93c28fa517426356ac39875148b2a9f91f1824` to accepted source `79448901682f37871c7a8fa3e89bf3cd70b3e522`.

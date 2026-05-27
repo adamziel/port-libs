@@ -3868,6 +3868,28 @@ the WordPress WAL diagnostic smoke. A future native VFS writer remains gated on
 actually applying these ordered writes, syncs, and truncations to filesystem
 handles.
 
+## VFS Lock Byte-Range Scenario
+
+Copied WordPress database tooling can now preview the exact SQLite byte ranges
+needed for shared, reserved, pending, and exclusive file locks before a native
+process-lock executor is activated. The updated
+`examples/wordpress-lock-coordination-preflight.php` smoke reports the
+pending byte, reserved byte, shared lock range, selected shared-reader slot,
+exclusive coverage of the full shared range, and `nolock` suppression for a
+repair-copy open.
+
+Status delta 2026-05-27 isolated dependency/open slice: added
+`SQLiteLockByteRangePlan` with 67 focused assertions covering lock constants,
+shared/reserved/pending/exclusive ranges, shared-slot boundaries, open-plan
+dependency composition, failed-open preservation, `nolock` suppression, and
+malformed input guards. Selected focused `SQLiteHeaderTest.php` passed with 67
+assertions and 0 failures.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local file URI/open planning and lock coordination evidence. Follow-up
+should apply these byte-range plans through bounded native file handles and
+record lock acquire/release evidence.
+
 ## Table-Interior Delete Rebalance Scenario
 
 Copied WordPress database repair tooling can now preview table b-tree interior
