@@ -101,6 +101,114 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
     }
 
     /**
+     * @param list<array{name?:string,sql:string,rootPage?:int,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<string> $generatedColumnSql
+     * @param list<array<string,mixed>> $currentRows
+     * @param array<int|string,array<string,mixed>> $updates
+     * @return array{updated_rows:list<array<string,mixed>>,delete_entries:list<array<string,mixed>>,insert_entries:list<array<string,mixed>>,unchanged_entries:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>}
+     */
+    public static function planUpdateIndexEntries(
+        array $indexDefinitions,
+        array $generatedColumnSql,
+        array $currentRows,
+        array $updates,
+        string $rowidColumn = 'rowid',
+    ): array {
+        $generatedColumns = self::generatedColumns($generatedColumnSql);
+        $indexes = self::jsonbPatchIndexes($indexDefinitions, $generatedColumns);
+        $updatedRows = [];
+        $deleteEntries = [];
+        $insertEntries = [];
+        $unchangedEntries = [];
+        $skippedRows = [];
+
+        foreach ($currentRows as $row) {
+            if (!array_key_exists($rowidColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite JSONB generated UPDATE rows need {$rowidColumn}");
+            }
+
+            $rowid = $row[$rowidColumn];
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException("SQLite JSONB generated UPDATE {$rowidColumn} must be integer or text");
+            }
+            if (!array_key_exists($rowid, $updates)) {
+                $skippedRows[] = ['rowid' => $rowid, 'reason' => 'no update assignment'];
+                continue;
+            }
+
+            $nextRow = $row;
+            foreach ($updates[$rowid] as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite JSONB generated UPDATE assignment columns must be non-empty strings');
+                }
+                $nextRow[$column] = $value;
+            }
+
+            $rowChanges = [];
+            foreach ($indexes as $index) {
+                $currentActive = self::partialRowMatches($row, $index['partialPredicate']);
+                $nextActive = self::partialRowMatches($nextRow, $index['partialPredicate']);
+                $currentValue = $currentActive ? self::evaluateIndexValue($index, $row) : null;
+                $nextValue = $nextActive ? self::evaluateIndexValue($index, $nextRow) : null;
+                $changed = $currentActive !== $nextActive || self::indexValueKey($currentValue) !== self::indexValueKey($nextValue);
+
+                $entryBase = [
+                    'index' => $index['name'],
+                    'rootPage' => $index['rootPage'],
+                    'rowid' => $rowid,
+                    'generatedColumn' => $index['generatedColumn'],
+                    'sourceColumn' => $index['sourceColumn'],
+                    'path' => $index['path'],
+                    'partial' => $index['partialPredicate'] !== null,
+                ];
+
+                if (!$changed) {
+                    $unchangedEntries[] = $entryBase + [
+                        'currentActive' => $currentActive,
+                        'nextActive' => $nextActive,
+                        'value' => $currentValue,
+                    ];
+                    continue;
+                }
+
+                if ($currentActive) {
+                    $deleteEntries[] = $entryBase + [
+                        'operation' => 'delete-current',
+                        'value' => $currentValue,
+                    ];
+                }
+                if ($nextActive) {
+                    $insertEntries[] = $entryBase + [
+                        'operation' => 'insert-next',
+                        'value' => $nextValue,
+                    ];
+                }
+                $rowChanges[] = $entryBase + [
+                    'currentActive' => $currentActive,
+                    'nextActive' => $nextActive,
+                    'currentValue' => $currentValue,
+                    'nextValue' => $nextValue,
+                ];
+            }
+
+            $updatedRows[] = [
+                'rowid' => $rowid,
+                'current' => $row,
+                'next' => $nextRow,
+                'index_changes' => $rowChanges,
+            ];
+        }
+
+        return [
+            'updated_rows' => $updatedRows,
+            'delete_entries' => $deleteEntries,
+            'insert_entries' => $insertEntries,
+            'unchanged_entries' => $unchangedEntries,
+            'skipped_rows' => $skippedRows,
+        ];
+    }
+
+    /**
      * @param list<string> $generatedColumnSql
      * @return array<string,array{generatedColumn:string,sourceColumn:string,patchJson:string,path:string}>
      */
@@ -169,6 +277,35 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
             'partialPredicate' => $partialPredicate,
             'descending' => $descending,
         ];
+    }
+
+    /**
+     * @param list<array{name?:string,sql:string,rootPage?:int,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param array<string,array{generatedColumn:string,sourceColumn:string,patchJson:string,path:string}> $generatedColumns
+     * @return list<array{ name:?string,rootPage:?int,generatedColumn:?string,sourceColumn:string,patchJson:string,path:string,partialPredicate:?array{column:string,value:mixed},descending:bool}>
+     */
+    private static function jsonbPatchIndexes(array $indexDefinitions, array $generatedColumns): array
+    {
+        $indexes = [];
+        foreach ($indexDefinitions as $definition) {
+            $index = self::indexExpression($definition['sql'], $generatedColumns);
+            if ($index === null) {
+                continue;
+            }
+
+            $indexes[] = [
+                'name' => $definition['name'] ?? null,
+                'rootPage' => isset($definition['rootPage']) ? (int) $definition['rootPage'] : null,
+                'generatedColumn' => $index['generatedColumn'],
+                'sourceColumn' => $index['sourceColumn'],
+                'patchJson' => $index['patchJson'],
+                'path' => $index['path'],
+                'partialPredicate' => $index['partialPredicate'],
+                'descending' => $index['descending'],
+            ];
+        }
+
+        return $indexes;
     }
 
     /**
@@ -346,6 +483,54 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
         }
 
         return false;
+    }
+
+    /**
+     * @param null|array{column:string,value:mixed} $partialPredicate
+     * @param array<string,mixed> $row
+     */
+    private static function partialRowMatches(array $row, ?array $partialPredicate): bool
+    {
+        if ($partialPredicate === null) {
+            return true;
+        }
+
+        foreach ($row as $column => $value) {
+            if (strcasecmp((string) $column, $partialPredicate['column']) === 0) {
+                return $value === $partialPredicate['value'];
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{sourceColumn:string,patchJson:string,path:string} $index
+     * @param array<string,mixed> $row
+     */
+    private static function evaluateIndexValue(array $index, array $row): mixed
+    {
+        $sourceColumn = $index['sourceColumn'];
+        if (!array_key_exists($sourceColumn, $row)) {
+            throw new \InvalidArgumentException("SQLite JSONB generated UPDATE row is missing source column {$sourceColumn}");
+        }
+
+        $source = $row[$sourceColumn];
+        if ($source !== null && !$source instanceof SQLiteBlobValue && !is_string($source) && !is_int($source) && !is_float($source) && !is_bool($source)) {
+            throw new \InvalidArgumentException("SQLite JSONB generated UPDATE source column {$sourceColumn} must be JSON text, JSONB, scalar, or NULL");
+        }
+
+        $patched = SQLiteJsonPatch::patchSqlFunction('jsonb_patch', $source, $index['patchJson']);
+        return SQLiteJsonExtract::extractSqlFunction('json_extract', $patched, $index['path']);
+    }
+
+    private static function indexValueKey(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . bin2hex($value->bytes);
+        }
+
+        return get_debug_type($value) . ':' . json_encode($value, JSON_UNESCAPED_SLASHES);
     }
 
     private static function compatibleValues(string $operator, mixed $values): bool

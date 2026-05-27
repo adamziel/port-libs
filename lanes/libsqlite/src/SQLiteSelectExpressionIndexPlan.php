@@ -19,7 +19,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -34,7 +34,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -50,7 +50,7 @@ final class SQLiteSelectExpressionIndexPlan
      * Build a bounded SQLite OR-clause plan where every OR arm is independently
      * usable through a partial covering expression index.
      *
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -169,7 +169,8 @@ final class SQLiteSelectExpressionIndexPlan
                     continue;
                 }
 
-                $estimatedRows = self::estimatedRows($index, $constraint);
+                $estimated = self::estimatedRows($index, $constraint);
+                $estimatedRows = $estimated['rows'];
                 $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
                 $orderCompatible = self::orderCompatible($expression, $trailingColumns, $constraint, $orderBy);
                 $covering = self::covering($index, $expression, $constraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
@@ -190,6 +191,9 @@ final class SQLiteSelectExpressionIndexPlan
                     'residualPredicateRequired' => $constraint['residualPredicateRequired'],
                     'estimatedRows' => $estimatedRows,
                     'estimatedCost' => $estimatedCost,
+                    'stat4Used' => $estimated['stat4Used'],
+                    'stat4Estimate' => $estimated['stat4Estimate'],
+                    'stat4CurrentNext' => $estimated['stat4CurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
                     'coveringExpressions' => self::coveredExpressionNames($expression, $constraint['type'], $neededExpressions),
@@ -805,17 +809,204 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param array{estimatedRows?:int} $index
+     * @param array{estimatedRows?:int,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>} $index
      * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
      */
-    private static function estimatedRows(array $index, array $constraint): int
+    private static function estimatedRows(array $index, array $constraint): array
     {
         $baseRows = $index['estimatedRows'] ?? 1000;
         if (!is_int($baseRows) || $baseRows < 1) {
             throw new \InvalidArgumentException('SQLite SELECT expression-index estimatedRows must be a positive integer');
         }
 
-        return max(1, min($baseRows, (int) ceil($baseRows * self::selectivity($constraint))));
+        $fallback = max(1, min($baseRows, (int) ceil($baseRows * self::selectivity($constraint))));
+        $stat4 = self::stat4Estimate($index['stat4Samples'] ?? [], $constraint, $baseRows);
+        if ($stat4 === null) {
+            return [
+                'rows' => $fallback,
+                'stat4Used' => false,
+                'stat4Estimate' => null,
+                'stat4CurrentNext' => [],
+            ];
+        }
+
+        return [
+            'rows' => max(1, min($baseRows, $stat4['rows'])),
+            'stat4Used' => true,
+            'stat4Estimate' => $stat4['rows'],
+            'stat4CurrentNext' => $stat4['currentNext'],
+        ];
+    }
+
+    /**
+     * @param mixed $samples
+     * @param array{operator:string,values:mixed} $constraint
+     * @return null|array{rows:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
+     */
+    private static function stat4Estimate(mixed $samples, array $constraint, int $baseRows): ?array
+    {
+        if ($samples === [] || $samples === null) {
+            return null;
+        }
+        if (!is_array($samples) || !array_is_list($samples)) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index stat4Samples must be a list');
+        }
+
+        $normalized = [];
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index stat4Samples rows must be arrays');
+            }
+            $sampleValues = $sample['sample'] ?? null;
+            if (!is_array($sampleValues) || !array_is_list($sampleValues) || $sampleValues === []) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index stat4 sample must contain at least one key value');
+            }
+            $key = self::literalValue($sampleValues[0]);
+            $normalized[] = [
+                'key' => $key,
+                'neq' => self::stat4FirstInteger($sample['neq'] ?? null, 'neq'),
+                'nlt' => self::stat4FirstInteger($sample['nlt'] ?? null, 'nlt', true),
+                'ndlt' => self::stat4FirstInteger($sample['ndlt'] ?? 0, 'ndlt', true),
+                'sample' => $sampleValues,
+            ];
+        }
+
+        usort($normalized, static fn (array $left, array $right): int => self::compareStat4Keys($left['key'], $right['key']));
+        $currentNext = self::stat4CurrentNext($normalized);
+        $operator = $constraint['operator'];
+        $values = $constraint['values'];
+
+        if ($operator === 'point') {
+            return ['rows' => self::stat4EqualityRows($normalized, $values, $baseRows), 'currentNext' => $currentNext];
+        }
+        if ($operator === 'IN') {
+            $rows = 0;
+            $seen = [];
+            foreach (is_array($values) ? $values : [] as $value) {
+                if ($value === null) {
+                    continue;
+                }
+                $key = serialize($value);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $rows += self::stat4EqualityRows($normalized, $value, $baseRows);
+            }
+
+            return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+        }
+        if ($operator === 'BETWEEN' && is_array($values)) {
+            $lower = $values['lower'] ?? null;
+            $upper = $values['upper'] ?? null;
+            $rows = self::stat4LessThanRows($normalized, $upper, true, $baseRows)
+                - self::stat4LessThanRows($normalized, $lower, false, $baseRows);
+
+            return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+        }
+        if (str_starts_with($operator, 'range-')) {
+            $rows = match ($operator) {
+                'range-<' => self::stat4LessThanRows($normalized, $values, false, $baseRows),
+                'range-<=' => self::stat4LessThanRows($normalized, $values, true, $baseRows),
+                'range->' => $baseRows - self::stat4LessThanRows($normalized, $values, true, $baseRows),
+                'range->=' => $baseRows - self::stat4LessThanRows($normalized, $values, false, $baseRows),
+                default => null,
+            };
+            if ($rows !== null) {
+                return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+            }
+        }
+
+        return null;
+    }
+
+    private static function stat4FirstInteger(mixed $value, string $field, bool $allowZero = false): int
+    {
+        if (is_string($value) && preg_match('/^\d+(?:\s+\d+)*$/', trim($value)) === 1) {
+            $parts = preg_split('/\s+/', trim($value));
+            $value = (int) ($parts[0] ?? 0);
+        } elseif (is_array($value) && array_is_list($value)) {
+            $value = $value[0] ?? null;
+        }
+        if (!is_int($value) || $value < ($allowZero ? 0 : 1)) {
+            $kind = $allowZero ? 'unsigned integer' : 'positive integer';
+            throw new \InvalidArgumentException("SQLite SELECT expression-index stat4 {$field} must start with a {$kind}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     */
+    private static function stat4EqualityRows(array $samples, mixed $value, int $baseRows): int
+    {
+        foreach ($samples as $sample) {
+            if (self::compareStat4Keys($sample['key'], $value) === 0) {
+                return $sample['neq'];
+            }
+        }
+
+        $distinct = max(1, max(array_map(static fn (array $sample): int => $sample['ndlt'], $samples)) + 1);
+
+        return max(1, (int) ceil($baseRows / $distinct));
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     */
+    private static function stat4LessThanRows(array $samples, mixed $value, bool $inclusive, int $baseRows): int
+    {
+        $previous = 0;
+        foreach ($samples as $sample) {
+            $comparison = self::compareStat4Keys($sample['key'], $value);
+            if ($comparison > 0 || ($comparison === 0 && !$inclusive)) {
+                return max(0, min($baseRows, $sample['nlt']));
+            }
+            $previous = $sample['nlt'] + $sample['neq'];
+            if ($comparison === 0) {
+                return max(0, min($baseRows, $inclusive ? $previous : $sample['nlt']));
+            }
+        }
+
+        return max(0, min($baseRows, $previous));
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null}>
+     */
+    private static function stat4CurrentNext(array $samples): array
+    {
+        $pairs = [];
+        foreach ($samples as $offset => $sample) {
+            $pairs[] = [
+                'current' => [
+                    'key' => $sample['key'],
+                    'neq' => $sample['neq'],
+                    'nlt' => $sample['nlt'],
+                    'ndlt' => $sample['ndlt'],
+                ],
+                'next' => isset($samples[$offset + 1]) ? [
+                    'key' => $samples[$offset + 1]['key'],
+                    'neq' => $samples[$offset + 1]['neq'],
+                    'nlt' => $samples[$offset + 1]['nlt'],
+                    'ndlt' => $samples[$offset + 1]['ndlt'],
+                ] : null,
+            ];
+        }
+
+        return $pairs;
+    }
+
+    private static function compareStat4Keys(mixed $left, mixed $right): int
+    {
+        if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
+            return ((float) $left) <=> ((float) $right);
+        }
+
+        return strcmp((string) $left, (string) $right);
     }
 
     /**

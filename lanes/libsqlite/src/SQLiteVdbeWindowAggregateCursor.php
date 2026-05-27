@@ -57,7 +57,8 @@ final class SQLiteVdbeWindowAggregateCursor
         if ($unit === 'RANGE' && count($orderColumns) !== 1) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires one ORDER BY column');
         }
-        if (!in_array(strtoupper(trim($excludeMode)), ['NO OTHERS', 'CURRENT ROW'], true)) {
+        $exclude = strtoupper(trim($excludeMode));
+        if (!in_array($exclude, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate EXCLUDE mode is not supported');
         }
         self::assertColumnList($partitionColumns, true, 'partition');
@@ -380,11 +381,31 @@ final class SQLiteVdbeWindowAggregateCursor
      */
     private function applyExcludeMode(array $indexes): array
     {
-        if (strtoupper(trim($this->excludeMode)) !== 'CURRENT ROW') {
+        return $this->applyExclude($indexes);
+    }
+
+    /**
+     * @param list<int> $indexes
+     * @return list<int>
+     */
+    private function applyExclude(array $indexes): array
+    {
+        $exclude = strtoupper(trim($this->excludeMode));
+        if ($exclude === 'NO OTHERS') {
             return $indexes;
         }
 
-        return array_values(array_filter($indexes, fn (int $index): bool => $index !== $this->position));
+        return array_values(array_filter($indexes, function (int $index) use ($exclude): bool {
+            $current = $index === $this->position;
+            $peer = $this->sameOrderPeer($index, $this->position);
+
+            return match ($exclude) {
+                'CURRENT ROW' => !$current,
+                'GROUP' => !$peer,
+                'TIES' => !$peer || $current,
+                default => true,
+            };
+        }));
     }
 
     /**
@@ -450,6 +471,18 @@ final class SQLiteVdbeWindowAggregateCursor
                 $this->orderDescending,
                 $this->orderNulls
             ) === 0;
+    }
+
+    private function sameOrderPeer(int $left, int $right): bool
+    {
+        return SQLiteVdbeSortCompare::compareRecords(
+            $this->record($this->orderedRows[$left], $this->orderColumns),
+            $this->record($this->orderedRows[$right], $this->orderColumns),
+            $this->orderAffinities,
+            $this->orderCollations,
+            $this->orderDescending,
+            $this->orderNulls
+        ) === 0;
     }
 
     private function numericRangeKey(mixed $value): float

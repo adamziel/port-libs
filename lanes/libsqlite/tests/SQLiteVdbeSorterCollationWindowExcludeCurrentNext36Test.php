@@ -212,7 +212,7 @@ $tests['vdbe sorter window exclude current range descending preceding excludes c
 };
 
 $tests['vdbe sorter window exclude current rejects unsupported exclude mode'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVdbeWindowAggregateCursor([], 'v', [], ['ord'], null, 0, 0, [], [], [], [], [], [], 'ROWS', 'TIES'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVdbeWindowAggregateCursor([], 'v', [], ['ord'], null, 0, 0, [], [], [], [], [], [], 'ROWS', 'SIDEWAYS'));
 };
 
 $tests['vdbe sorter window exclude current accepts lowercase exclude mode'] = static function (TestRunner $t): void {

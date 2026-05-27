@@ -183,6 +183,22 @@ final class SQLitePragmaIntegrityCheck
             if ($entry->type !== SQLitePointerMapEntry::FREE_PAGE && $entry->parentPageNumber > $database->pageCount()) {
                 self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for page {$pageNumber} is beyond the database image");
             }
+            if (!in_array($entry->type, [
+                SQLitePointerMapEntry::ROOT_PAGE,
+                SQLitePointerMapEntry::FREE_PAGE,
+                SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE,
+                SQLitePointerMapEntry::OVERFLOW_PAGE,
+                SQLitePointerMapEntry::BTREE_PAGE,
+            ], true)) {
+                self::append($errors, $limit, "pointer-map type unknown for page {$pageNumber} is not valid");
+                continue;
+            }
+            if (($entry->type === SQLitePointerMapEntry::ROOT_PAGE || ($entry->type === SQLitePointerMapEntry::FREE_PAGE && !isset($freePages[$pageNumber]))) && $entry->parentPageNumber !== 0) {
+                self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for {$entry->typeName()} page {$pageNumber} does not match expected parent 0");
+            }
+            if (($entry->type === SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE || $entry->type === SQLitePointerMapEntry::OVERFLOW_PAGE || $entry->type === SQLitePointerMapEntry::BTREE_PAGE) && $entry->parentPageNumber === 0) {
+                self::append($errors, $limit, "pointer-map parent page 0 for {$entry->typeName()} page {$pageNumber} is not valid");
+            }
             if ($entry->type === SQLitePointerMapEntry::FREE_PAGE && !isset($freePages[$pageNumber]) && ord($database->page($pageNumber)[0]) === 0) {
                 self::append($errors, $limit, "pointer-map marks page {$pageNumber} free but the page is not reachable from the freelist");
             }
