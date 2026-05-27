@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 02:27:54 UTC",
-    "sourceCommit": "b803d38fd2519736400a0a9860e89a99ebf68187",
-    "sourceCommitShort": "b803d38fd251",
+    "generated": "2026-05-27 02:34:50 UTC",
+    "sourceCommit": "e58d38b28d7f4df9b2d0b6d655f47e539c1e4544",
+    "sourceCommitShort": "e58d38b28d7f",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "0c97c11cf2caad338eb9b07e462a4126fed0c9c7",
-    "dashboardCommitShort": "0c97c11cf2ca",
+    "dashboardCommit": "b23965a5f7b4856771b0e4851788919245309bb8",
+    "dashboardCommitShort": "b23965a5f7b4",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "416",
-            "coverage": "416 / 1589",
-            "php": "754 pass / 0 fail",
+            "mapped": "418",
+            "coverage": "418 / 1589",
+            "php": "755 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated B-tree delete/rebalance slice re...",
-            "currentWork": "Latest B-tree work adds SQLiteBTreeInteriorRedistributionPlan for table-interior sibling...",
-            "nextTarget": "Next B-tree gap: apply table-interior redistribution through native delete/rebalance page...",
+            "audit": "isolated SQL execution/planner GROUP BY s...",
+            "currentWork": "Latest SQL execution/planner work wires SQLiteSelectQuery GROUP BY/HAVING aggregate dispa...",
+            "nextTarget": "Next libsqlite gap: wire parser-level SELECT/VDBE execution, range-cost planner decisions...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "131b316"
+            "commit": "b803d38"
         },
         {
             "library": "LightningCSS",
