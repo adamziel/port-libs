@@ -118212,3 +118212,33 @@ Root result update for the B-tree leaf redistribution acceptance:
 
 Cleanup debt:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T005334Z` still contains modified and added libsqlite files after the accepted commit, so it was preserved and left registered. Accepted ready/patch/metadata marker files were removed after the amended commit advanced `refs/heads/main`.
+## Integration accepted pending commit - libsqlite JSON table subtype handoff - 2026-05-27T01:11:11Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T010012Z.ready`.
+
+Decision: accepted for serialized root verification from a detached clean worktree based on `c8c5bb34c1ccc139381ae730c3a74863ef33f980` (`Integrate libsqlite B-tree leaf redistribution`).
+
+Dashboard guard evidence:
+- Cache-busted live Pages `porting-summary.json` reported `sourceCommit` `c8c5bb34c1ccc139381ae730c3a74863ef33f980`, generated `2026-05-27 01:06:50 UTC`, dashboard commit `b02f6770fe8089aafebc44c0786c88e47728775d`.
+- Local `refs/heads/main` matched the same source before candidate replay.
+
+Candidate evidence:
+- Original marker base was `c5a54adc0e036c703f44cfb321bc269b4564f757`; direct clean apply against current source failed only on `lanes/libsqlite/lane-status.json`.
+- Bounded replay applied the implementation, test, example, manifest, and note hunks; `lane-status.json` was reconciled from current `c8c5bb34` status.
+- The slice is non-overlapping with accepted JSON projection, duplicate hidden constraints, malformed JSONB, LIKE residual, reverse-root metadata, and JSON object aggregate/window work. It adds JSON subtype handoff support for `json_each()` / `json_tree()` hidden `json` constraints.
+
+Focused verification:
+- Runtime gates before focused checks: disk `125605392` KiB available, load `1.11`, no exact no-argument root harness process.
+- Syntax checks passed for `SQLiteJsonEach.php`, `SQLiteJsonTree.php`, `SQLiteJsonInspection.php`, `SQLiteJsonTablePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-json-table-subtype-handoff.php`.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4952 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-subtype-handoff.php` passed and emitted valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed: `215 test files, 30086 assertions, 0 failures`.
+- The only post-root edit is this audit-result line under `audits/**`; `lanes/libsqlite/**` was unchanged after root.
+
+Cleanup:
+- The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T010012Z` still contains modified lane files, so it was preserved and left registered.
+- Cleanup debt: remove that worker worktree only after its owner confirms the dirty files are no longer needed or it becomes clean.

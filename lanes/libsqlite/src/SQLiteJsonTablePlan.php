@@ -209,11 +209,11 @@ final class SQLiteJsonTablePlan
 
     private static function assertJsonValue(mixed $value): void
     {
-        if ($value instanceof SQLiteBlobValue || $value === null || is_string($value)) {
+        if ($value instanceof SQLiteBlobValue || $value instanceof SQLiteJsonSubtypeValue || $value === null || is_string($value)) {
             return;
         }
 
-        throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+        throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, JSON subtype, or NULL');
     }
 
     /**
@@ -226,6 +226,19 @@ final class SQLiteJsonTablePlan
                 'jsonValid' => null,
                 'jsonError' => null,
                 'jsonInputKind' => 'sql-null',
+            ];
+        }
+
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            $validSubtype = SQLiteJsonValidity::jsonValid(
+                $value->json,
+                SQLiteJsonValidity::FLAG_STRICT_TEXT | SQLiteJsonValidity::FLAG_JSON5_TEXT,
+            );
+
+            return [
+                'jsonValid' => $validSubtype,
+                'jsonError' => $validSubtype ? null : 'malformed JSON subtype',
+                'jsonInputKind' => 'json-subtype',
             ];
         }
 
@@ -257,7 +270,7 @@ final class SQLiteJsonTablePlan
         }
 
         if (!is_string($value)) {
-            throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+            throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, JSON subtype, or NULL');
         }
 
         $validText = SQLiteJsonValidity::jsonValid(

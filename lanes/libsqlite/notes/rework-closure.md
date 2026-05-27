@@ -1,5 +1,42 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 JSON Table Subtype Handoff
+
+This isolated JSON table/window slice does not reuse stale May 25 rework
+markers and does not repeat accepted JSON projection, duplicate hidden
+constraints, malformed JSONB planning, residual LIKE/ESCAPE, reverse-root
+metadata, or JSON object aggregate/window behavior. It adds one bounded
+table-valued behavior cluster: `json_each()` and `json_tree()` hidden `json`
+constraints now accept `SQLiteJsonSubtypeValue` inputs produced by JSON
+constructors and aggregates.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4890 assertions,
+up from the lane-status recorded 4823 baseline (`+67`). The new assertions
+cover subtype validation metadata, constructor subtype rows, `json_each`
+projection, `json_tree` residual filtering, aggregate-produced subtype
+expansion, reverse-root subtype paths, malformed subtype planning, and
+inspection helper handoff for `json_type()`, `json_array_length()`, and path
+location.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/src/SQLiteJsonInspection.php
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-subtype-handoff.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-table-subtype-handoff.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON subtype wrappers, JSON constructors, JSON aggregate output, JSON
+inspection/path decoding, JSON table planning, and residual predicate helpers.
+
 ## 2026-05-27 JSON Table Reverse-Root Metadata
 
 This isolated JSON table/window slice does not reuse the stale May 25 rework

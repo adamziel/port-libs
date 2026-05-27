@@ -7,9 +7,9 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonEach
 {
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
-    public static function jsonEachSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
+    public static function jsonEachSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
     {
         if (strcasecmp($function, 'json_each') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON table-valued function must be json_each');
@@ -20,7 +20,7 @@ final class SQLiteJsonEach
 
     /**
      * @param list<mixed> $arguments
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
     public static function jsonEachSqlFunctionArguments(string $function, array $arguments): array
     {
@@ -29,8 +29,8 @@ final class SQLiteJsonEach
         }
 
         $value = $arguments[0];
-        if (!$value instanceof SQLiteBlobValue && $value !== null && !is_string($value)) {
-            throw new \InvalidArgumentException('SQLite json_each() JSON argument must be text, BLOB, or NULL');
+        if (!$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue && $value !== null && !is_string($value)) {
+            throw new \InvalidArgumentException('SQLite json_each() JSON argument must be text, BLOB, JSON subtype, or NULL');
         }
 
         $path = $arguments[1] ?? '$';
@@ -42,9 +42,9 @@ final class SQLiteJsonEach
     }
 
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
-    public static function jsonEach(string|SQLiteBlobValue|null $value, string $path = '$'): array
+    public static function jsonEach(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
     {
         if ($value === null) {
             return [];
@@ -79,9 +79,9 @@ final class SQLiteJsonEach
     }
 
     /**
-     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}
+     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}
      */
-    private static function row(int|string|null $key, mixed $value, int $id, null $parent, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root): array
+    private static function row(int|string|null $key, mixed $value, int $id, null $parent, string $fullkey, string $path, string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $root): array
     {
         $type = self::typeName($value);
 

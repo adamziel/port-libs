@@ -7,9 +7,9 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonTree
 {
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
-    public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
+    public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
     {
         if (strcasecmp($function, 'json_tree') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON table-valued function must be json_tree');
@@ -20,7 +20,7 @@ final class SQLiteJsonTree
 
     /**
      * @param list<mixed> $arguments
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
     public static function jsonTreeSqlFunctionArguments(string $function, array $arguments): array
     {
@@ -29,8 +29,8 @@ final class SQLiteJsonTree
         }
 
         $value = $arguments[0];
-        if (!$value instanceof SQLiteBlobValue && $value !== null && !is_string($value)) {
-            throw new \InvalidArgumentException('SQLite json_tree() JSON argument must be text, BLOB, or NULL');
+        if (!$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue && $value !== null && !is_string($value)) {
+            throw new \InvalidArgumentException('SQLite json_tree() JSON argument must be text, BLOB, JSON subtype, or NULL');
         }
 
         $path = $arguments[1] ?? '$';
@@ -42,9 +42,9 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}>
      */
-    public static function jsonTree(string|SQLiteBlobValue|null $value, string $path = '$'): array
+    public static function jsonTree(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
     {
         if ($value === null) {
             return [];
@@ -64,9 +64,9 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}> $rows
+     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}> $rows
      */
-    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root, ?int $parent = null): void
+    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $root, ?int $parent = null): void
     {
         $id = $nextId++;
         $rows[] = self::row($key, $value, $id, $parent, $fullkey, $path, $json, $root);
@@ -87,9 +87,9 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}
+     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue|SQLiteJsonSubtypeValue,root:string}
      */
-    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root): array
+    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path, string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $root): array
     {
         return [
             'key' => $key,
@@ -179,7 +179,7 @@ final class SQLiteJsonTree
     /**
      * @return array{key:int|string|null,path:string}
      */
-    private static function rootLocation(string|SQLiteBlobValue $json, string $path): array
+    private static function rootLocation(string|SQLiteBlobValue|SQLiteJsonSubtypeValue $json, string $path): array
     {
         if ($path === '$') {
             return ['key' => null, 'path' => '$'];

@@ -6219,6 +6219,114 @@ return [
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
         ]));
 
+        $constructedSubtype = new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject(
+            'plugin',
+            new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject(
+                'rules',
+                new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonArray(
+                    new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject('name', 'seo', 'priority', 2)),
+                    new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject('name', 'cache', 'priority', 7)),
+                )),
+                'enabled',
+                true,
+            )),
+        ));
+        $subtypePlan = SQLiteJsonTablePlan::validatedPlan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => '>=', 'value' => 7],
+        ]);
+        $t->same(true, $subtypePlan['runnable']);
+        $t->same(true, $subtypePlan['jsonValid']);
+        $t->same(null, $subtypePlan['jsonError']);
+        $t->same('json-subtype', $subtypePlan['jsonInputKind']);
+        $t->same([$constructedSubtype, '$.plugin.rules'], $subtypePlan['arguments']);
+        $t->same(['json', 'root'], array_column($subtypePlan['used'], 'column'));
+        $t->same(['atom'], array_column($subtypePlan['residual'], 'column'));
+        $t->same(20, $subtypePlan['estimatedCost']);
+        $t->same(10, $subtypePlan['estimatedRows']);
+
+        $subtypeRows = SQLiteJsonTablePlan::rows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ]);
+        $t->same(['rules', 0, 'name', 'priority', 1, 'name', 'priority'], array_column($subtypeRows, 'key'));
+        $t->same(['array', 'object', 'text', 'integer', 'object', 'text', 'integer'], array_column($subtypeRows, 'type'));
+        $t->same(['[{"name":"seo","priority":2},{"name":"cache","priority":7}]', '{"name":"seo","priority":2}', 'seo', 2, '{"name":"cache","priority":7}', 'cache', 7], array_column($subtypeRows, 'value'));
+        $t->same([null, 0, 1, 1, 0, 4, 4], array_column($subtypeRows, 'parent'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[0].name', '$.plugin.rules[0].priority', '$.plugin.rules[1]', '$.plugin.rules[1].name', '$.plugin.rules[1].priority'], array_column($subtypeRows, 'fullkey'));
+        $t->same(['$.plugin', '$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[0]', '$.plugin.rules', '$.plugin.rules[1]', '$.plugin.rules[1]'], array_column($subtypeRows, 'path'));
+        $t->same([$constructedSubtype, $constructedSubtype, $constructedSubtype, $constructedSubtype, $constructedSubtype, $constructedSubtype, $constructedSubtype], array_column($subtypeRows, 'json'));
+
+        $subtypeFilteredRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+            ['column' => 'atom', 'operator' => '>=', 'value' => 7],
+        ]);
+        $t->same(['priority'], array_column($subtypeFilteredRows, 'key'));
+        $t->same([7], array_column($subtypeFilteredRows, 'atom'));
+        $t->same(['$.plugin.rules[1].priority'], array_column($subtypeFilteredRows, 'fullkey'));
+
+        $subtypeEachRows = SQLiteJsonTablePlan::projectedRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], ['rowid', 'key', 'type', 'value', 'atom', 'path', 'root']);
+        $t->same(['rowid', 'key', 'type', 'value', 'atom', 'path', 'root'], array_keys($subtypeEachRows[0]));
+        $t->same([1, 2], array_column($subtypeEachRows, 'rowid'));
+        $t->same([0, 1], array_column($subtypeEachRows, 'key'));
+        $t->same(['object', 'object'], array_column($subtypeEachRows, 'type'));
+        $t->same(['{"name":"seo","priority":2}', '{"name":"cache","priority":7}'], array_column($subtypeEachRows, 'value'));
+        $t->same([null, null], array_column($subtypeEachRows, 'atom'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($subtypeEachRows, 'path'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($subtypeEachRows, 'root'));
+
+        $aggregateSubtype = new SQLiteJsonSubtypeValue(SQLiteJsonAggregate::jsonGroupObject([
+            ['seo', new SQLiteJsonSubtypeValue('{"hits":2,"autoload":true}')],
+            ['cache', new SQLiteJsonSubtypeValue('{"hits":7,"autoload":false}')],
+        ]));
+        $aggregateRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $aggregateSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'key', 'operator' => 'IN', 'value' => ['hits', 'autoload']],
+        ], [
+            ['column' => 'atom', 'direction' => 'DESC'],
+            ['column' => 'fullkey', 'direction' => 'ASC'],
+        ], 3);
+        $t->same(['hits', 'hits', 'autoload'], array_column($aggregateRows, 'key'));
+        $t->same([7, 2, 1], array_column($aggregateRows, 'atom'));
+        $t->same(['$.cache.hits', '$.seo.hits', '$.seo.autoload'], array_column($aggregateRows, 'fullkey'));
+        $t->same(['integer', 'integer', 'true'], array_column($aggregateRows, 'type'));
+
+        $subtypeRootPlan = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+        ]);
+        $t->same([$constructedSubtype, '$.plugin.rules[#-1]'], $subtypeRootPlan['arguments']);
+        $t->same(['type'], array_column($subtypeRootPlan['residual'], 'column'));
+        $subtypeReverseRows = SQLiteJsonTablePlan::filteredRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $constructedSubtype],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+        ]);
+        $t->same(['priority'], array_column($subtypeReverseRows, 'key'));
+        $t->same([7], array_column($subtypeReverseRows, 'atom'));
+        $t->same(['$.plugin.rules[#-1]'], array_column($subtypeReverseRows, 'path'));
+
+        $malformedSubtypePlan = SQLiteJsonTablePlan::validatedPlan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteJsonSubtypeValue('{plugin:,,}')],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+        ]);
+        $t->same(false, $malformedSubtypePlan['runnable']);
+        $t->same(false, $malformedSubtypePlan['jsonValid']);
+        $t->same('malformed JSON subtype', $malformedSubtypePlan['jsonError']);
+        $t->same('json-subtype', $malformedSubtypePlan['jsonInputKind']);
+
+        $t->same('array', SQLiteJsonInspection::jsonType($constructedSubtype, '$.plugin.rules'));
+        $t->same(2, SQLiteJsonInspection::jsonArrayLength($constructedSubtype, '$.plugin.rules'));
+        $t->same(['found' => true, 'value' => 'cache'], SQLiteJsonInspection::locatePath($constructedSubtype, '$.plugin.rules[#-1].name'));
+
         $t->same([], SQLiteJsonTablePlan::rows('json_each', [
             ['column' => 'json', 'operator' => '=', 'value' => null],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],

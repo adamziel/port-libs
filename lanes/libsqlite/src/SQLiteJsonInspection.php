@@ -8,7 +8,7 @@ final class SQLiteJsonInspection
 {
     public static function inspectionSqlFunction(
         string $function,
-        string|SQLiteBlobValue|null $value,
+        string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value,
         ?string $path = '$',
     ): string|int|null {
         if (strcasecmp($function, 'json_type') === 0) {
@@ -22,7 +22,7 @@ final class SQLiteJsonInspection
     }
 
     /**
-     * @param list<string|SQLiteBlobValue|null> $arguments
+     * @param list<string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
      */
     public static function inspectionSqlFunctionArguments(string $function, array $arguments): string|int|null
     {
@@ -39,10 +39,14 @@ final class SQLiteJsonInspection
         return self::inspectionSqlFunction($function, $arguments[0], $path);
     }
 
-    public static function jsonType(string|SQLiteBlobValue|null $value, ?string $path = '$'): ?string
+    public static function jsonType(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, ?string $path = '$'): ?string
     {
         if ($value === null || $path === null) {
             return null;
+        }
+
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            $value = $value->json;
         }
 
         if ($value instanceof SQLiteBlobValue && SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
@@ -54,10 +58,14 @@ final class SQLiteJsonInspection
         return $located['found'] ? self::typeName($located['value']) : null;
     }
 
-    public static function jsonArrayLength(string|SQLiteBlobValue|null $value, ?string $path = '$'): ?int
+    public static function jsonArrayLength(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, ?string $path = '$'): ?int
     {
         if ($value === null || $path === null) {
             return null;
+        }
+
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            $value = $value->json;
         }
 
         if ($value instanceof SQLiteBlobValue && SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
@@ -77,10 +85,14 @@ final class SQLiteJsonInspection
     /**
      * @return array{found:bool,value:mixed}
      */
-    public static function locatePath(string|SQLiteBlobValue|null $value, string $path = '$'): array
+    public static function locatePath(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string $path = '$'): array
     {
         if ($value === null) {
             return ['found' => false, 'value' => null];
+        }
+
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            $value = $value->json;
         }
 
         if ($value instanceof SQLiteBlobValue && SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
