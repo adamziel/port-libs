@@ -95,6 +95,7 @@ use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
+use PortLibs\LibSqlite\SQLiteVfsFileControlState;
 use PortLibs\LibSqlite\SQLiteVfsFileHandle;
 use PortLibs\LibSqlite\SQLiteVfsFileLock;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
@@ -19294,6 +19295,108 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'extra'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, -1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, null, -1));
+    },
+    'applies sqlite vfs file-control state for open handles' => static function (TestRunner $t): void {
+        $capability = SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared&vfs=unix&psow=1', true, true, 4096, ['safe_append', 'powersafe_overwrite'], 'full', false, 8192, 0);
+        $state = SQLiteVfsFileControlState::fromCapabilityPlan($capability);
+        $initial = $state->snapshot();
+
+        $t->same('ready', $initial['status']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $initial['path']);
+        $t->same(false, $initial['read_only']);
+        $t->same(false, $initial['immutable']);
+        $t->same(false, $initial['memory']);
+        $t->same(false, $initial['nolock']);
+        $t->same(false, $initial['controls']['persist_wal']);
+        $t->same(8192, $initial['controls']['chunk_size']);
+        $t->same(0, $initial['controls']['mmap_size']);
+        $t->same(true, $initial['controls']['powersafe_overwrite']);
+        $t->same(4096, $initial['controls']['sector_size']);
+        $t->same(['vfs-file-control-state', 'vfs-xfilecontrol'], $initial['dependencies']);
+        $t->same('unix', $initial['open']['vfs']);
+
+        $batch = $state->applyMany([
+            'persist_wal' => true,
+            'chunk_size' => 32768,
+            'mmap_size' => 65536,
+            ['op' => 'name_hint', 'value' => 'wp-options-import'],
+            ['op' => 'size_hint', 'value' => 131072],
+            'tempfile' => null,
+            'sector_size' => null,
+            'device_characteristics' => null,
+            'unsupported_wordpress_control' => 1,
+        ]);
+
+        $t->same('ok', $batch['status']);
+        $t->same(8, $batch['applied']);
+        $t->same(4, $batch['changed']);
+        $t->same(true, $batch['controls']['persist_wal']);
+        $t->same(32768, $batch['controls']['chunk_size']);
+        $t->same(65536, $batch['controls']['mmap_size']);
+        $t->same('wp-options-import', $batch['controls']['name_hint']);
+        $t->same(false, $batch['controls']['tempfile']);
+        $t->same('ok', $batch['results'][0]['status']);
+        $t->same(true, $batch['results'][0]['changed']);
+        $t->same(false, $batch['results'][0]['previous']);
+        $t->same(true, $batch['results'][0]['value']);
+        $t->same('chunk_size', $batch['results'][1]['op']);
+        $t->same(8192, $batch['results'][1]['previous']);
+        $t->same(32768, $batch['results'][1]['value']);
+        $t->same('mmap_size', $batch['results'][2]['op']);
+        $t->same(65536, $batch['results'][2]['value']);
+        $t->same('name_hint', $batch['results'][3]['op']);
+        $t->same(null, $batch['results'][3]['previous']);
+        $t->same('size_hint', $batch['results'][4]['op']);
+        $t->same(false, $batch['results'][4]['changed']);
+        $t->same('caller_may_preallocate_file', $batch['results'][4]['reason']);
+        $t->same('tempfile', $batch['results'][5]['op']);
+        $t->same(false, $batch['results'][5]['value']);
+        $t->same(4096, $batch['results'][6]['value']);
+        $t->true($batch['results'][7]['value'] > 0);
+        $t->same('notfound', $batch['results'][8]['status']);
+        $t->same('unsupported_file_control', $batch['results'][8]['reason']);
+        $t->same(['vfs-file-control-state', 'vfs-xfilecontrol'], $batch['dependencies']);
+
+        $archive = SQLiteVfsFileControlState::fromCapabilityPlan(SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1&vfs=unix-none', true, false, 512, [], 'normal', true, null, 1048576));
+        $archivePersist = $archive->apply('persist-wal', 'off');
+        $archiveChunk = $archive->apply('chunk_size', 4096);
+        $archiveMmap = $archive->apply('mmap-size', 1048576);
+
+        $t->same('ok', $archivePersist['status']);
+        $t->same(false, $archivePersist['value']);
+        $t->same(true, $archivePersist['previous']);
+        $t->same('ignored', $archiveChunk['status']);
+        $t->same('chunk_size_requires_writable_file_handle', $archiveChunk['reason']);
+        $t->same(null, $archiveChunk['value']);
+        $t->same('ignored', $archiveMmap['status']);
+        $t->same(0, $archiveMmap['value']);
+        $t->same('mmap_requires_lockable_mutable_file', $archiveMmap['reason']);
+        $t->same(['vfs-file-control-state', 'vfs-xfilecontrol', 'readonly-open', 'immutable-readonly-open'], $archiveMmap['dependencies']);
+
+        $memory = SQLiteVfsFileControlState::fromCapabilityPlan(SQLiteVfsCapabilityPlan::forFilename('file::memory:?mode=memory', false, true, 512, [], 'off', true, 1024, 2048));
+        $memoryPersist = $memory->apply('persist_wal', true);
+        $memoryTemp = $memory->apply('tempfile');
+
+        $t->same('ignored', $memoryPersist['status']);
+        $t->same('memory_handle_has_no_file_control_side_effect', $memoryPersist['reason']);
+        $t->same(false, $memoryPersist['value']);
+        $t->same('ok', $memoryTemp['status']);
+        $t->same(true, $memoryTemp['value']);
+        $t->same(['vfs-file-control-state', 'vfs-xfilecontrol', 'memory-open'], $memoryTemp['dependencies']);
+
+        $nolock = SQLiteVfsFileControlState::fromCapabilityPlan(SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/nolock.sqlite?nolock=1', true, true, 512, [], 'normal', false, null, 2048));
+        $nolockMmap = $nolock->apply('mmap_size', 2048);
+        $t->same('ignored', $nolockMmap['status']);
+        $t->same(0, $nolockMmap['value']);
+        $t->same(['vfs-file-control-state', 'vfs-xfilecontrol', 'nolock-open'], $nolockMmap['dependencies']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVfsFileControlState(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->apply('', null));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->apply('chunk_size', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->apply('mmap_size', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->apply('persist_wal', 'maybe'));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->apply('name_hint', ''));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->applyMany([['value' => 1]]));
     },
     'plans sqlite vfs xsync flags and durable sync sequences' => static function (TestRunner $t): void {
         $database = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/.ht.sqlite', 'database', 'full');

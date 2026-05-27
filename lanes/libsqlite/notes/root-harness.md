@@ -2003,3 +2003,31 @@ diagnostics, secure-delete clearing, and pointer-map mutation machinery.
 Follow-up should broaden B-tree delete/rebalance materialization without
 repeating page relocation, root collapse, overflow freelist release,
 single-leaf empty release, or this batch free path.
+
+## Dependency/Open VFS File-Control State Slice
+
+Focused lane verification for the dependency/open VFS file-control state slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileControlState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-file-control-state.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs file-control state for open handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-file-control-state.php
+```
+
+Result: syntax checks passed; the selected VFS file-control state test passed
+with 68 assertions and 0 failures; full focused `SQLiteHeaderTest.php` passed
+with 8472 assertions and 0 failures, adding 68 focused assertions over the
+8404-assertion pre-slice worktree count. The WordPress smoke reported copied
+`wp_options` import file-control state applying persist-WAL, chunk-size,
+mmap-size, name-hint, and size-hint controls while immutable archive mmap
+requests are ignored with `mmap_requires_lockable_mutable_file`.
+
+Dependency closure: no new shared support component is needed. This reuses the
+accepted open/capability planner and lane-local VFS file-handle state, without
+repeating VFS lock byte ranges, lock state, process locks, locked writer, sync
+apply, rollback-journal apply, or file-writer application. Follow-up should
+wire this state into broader pager/open execution or durable transaction
+coordination.
