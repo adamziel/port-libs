@@ -6030,7 +6030,7 @@ return [
         $t->same(null, SQLiteJsonValidity::jsonValidSqlFunctionArguments('JSON_VALID', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunctionArguments('JSON_VALID', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunctionArguments('JSON_VALID', [$strictJson, 1, 1]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunctionArguments('JSON_VALID', [$strictJson, '1']));
+        $t->true(SQLiteJsonValidity::jsonValidSqlFunctionArguments('JSON_VALID', [$strictJson, '1']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $strictJson, null));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_error_position', $strictJson));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $strictJson, 16));
@@ -22162,7 +22162,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lag([1], 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lead([1], 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::nthValue([1], 0));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::rank([['bad']]));
+        $t->same([1, 1, 3], SQLiteWindowFunction::rank([[1, 'a'], [1, 'a'], [1, 'b']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::rank([[new stdClass()], [1]]));
     },
     'summarizes grouped aggregate result rows with having and order by semantics' => static function (TestRunner $t): void {
         $rows = [

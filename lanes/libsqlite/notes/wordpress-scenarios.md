@@ -5270,3 +5270,28 @@ and a WordPress smoke. No mapped denominator change is claimed.
 Dependency closure: no new shared support component is needed. This reuses
 lane-local `SQLiteIndexPredicate` proof logic and the existing skip-scan
 current/next row materializer.
+
+## JSON Validity SQL Scalar and Flag Coercion current next29 Scenario
+
+`examples/wordpress-json-validity-current-next29.php` previews copied
+`wp_options` plugin settings validated through `json_valid(option_value,
+flag_value)` where the option value may be JSON5 text, a JSONB BLOB, a
+generated JSON subtype value, or a numeric SQL scalar. Row-provided flags use
+SQLite-current coercion such as decimal strings, digit BLOBs, booleans, and
+numeric prefixes before the `1..15` validity mask is applied, without requiring
+`ext/sqlite`.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-jsonb-subtype-validity-current-next29` slice: added current
+SQLite SQL-scalar JSON validity and flag coercion in `SQLiteJsonValidity`,
+wired the expanded input set through `SQLiteSelectExpression`, added
+`SQLiteJsonValidityCurrentNext29Test.php` with 44 focused PASS cases, and added
+the WordPress smoke. `lane-status.json` `phpPass` moved from 10028 to 10072.
+Mapped upstream denominator coverage is unchanged because this is focused
+native PHP behavior growth, not a newly hydrated upstream inventory unit.
+
+Dependency closure: no new shared support component is needed. This slice
+reuses lane-local JSON validity, JSONB, JSON subtype, and SELECT expression
+helpers. Follow-up should target non-overlapping JSON planner/JSONB behavior
+rather than accepted JSON subtype admission, JSON table cursor/source/hidden or
+visible constraints, or this `json_valid()` scalar/flag coercion boundary.

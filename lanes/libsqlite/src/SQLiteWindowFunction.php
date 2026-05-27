@@ -553,6 +553,17 @@ final class SQLiteWindowFunction
         if ($left === null || $right === null) {
             return 0;
         }
+        if (is_array($left) && is_array($right)) {
+            $count = min(count($left), count($right));
+            for ($index = 0; $index < $count; $index++) {
+                $comparison = self::compareSqlValues($left[$index] ?? null, $right[$index] ?? null);
+                if ($comparison !== 0) {
+                    return $comparison;
+                }
+            }
+
+            return count($left) <=> count($right);
+        }
         if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
             return strcmp($left->bytes, $right->bytes);
         }
@@ -619,6 +630,7 @@ final class SQLiteWindowFunction
             is_int($value) || is_float($value) || is_bool($value) => 1,
             is_string($value) => 2,
             $value instanceof SQLiteBlobValue => 3,
+            is_array($value) => 4,
             default => throw new \InvalidArgumentException('SQLite window ORDER BY values must be scalar, BLOB, or NULL'),
         };
     }
