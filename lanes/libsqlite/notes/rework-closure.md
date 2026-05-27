@@ -1,5 +1,41 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 B-tree Overflow Vacuum Current Next16
+
+This isolated B-tree/vacuum slice adds
+`SQLiteOverflowVacuumTruncatePlan`, composing existing overflow freelist
+release with the next incremental-vacuum tail truncation pass on the current
+page image. It avoids accepted standalone overflow freelist release, bulk
+overflow freeblock materialization, page relocation, root collapse, and VFS/WAL
+apply clusters by proving the post-release freelist image is immediately fed
+into tail truncation and that truncated overflow pages disappear from the final
+page-image set.
+
+Focused evidence:
+
+```text
+php -l lanes/libsqlite/src/SQLiteOverflowVacuumTruncatePlan.php
+php -l lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumCurrentNext16Test.php
+php -l lanes/libsqlite/examples/wordpress-overflow-vacuum-current-next.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumCurrentNext16Test.php
+Focused test run: 1 selected test files (root lock skipped)
+...
+1 test files, 53 assertions, 0 failures
+php lanes/libsqlite/examples/wordpress-overflow-vacuum-current-next.php
+```
+
+The focused run adds 50 new `TestRunner` PASS lines. `lane-status.json`
+therefore raises `phpPass` from 5433 to 5483 without changing mapped upstream
+coverage. The WordPress smoke reports copied `wp_options` transient table and
+`option_name` index overflow tails released into the freelist, then removed by
+the current vacuum truncation pass with final page count and updated pointer-map
+page evidence.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+SQLite database page readers, overflow freelist release planning, freelist
+trunk parsing/assembly, pointer-map mutation, and incremental-vacuum tail
+truncation.
+
 ## 2026-05-27 B-tree Overflow Next-pointer Release
 
 This isolated B-tree slice adds native overflow-chain tracing through

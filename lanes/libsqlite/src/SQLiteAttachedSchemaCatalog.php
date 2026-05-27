@@ -98,6 +98,11 @@ final class SQLiteAttachedSchemaCatalog
      */
     public function resolveTable(string $name): ?array
     {
+        $schemaTable = $this->resolveSchemaTable($name);
+        if ($schemaTable !== null) {
+            return $schemaTable;
+        }
+
         return $this->resolveObject($name, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'table' || $record->type === 'view');
     }
 
@@ -137,12 +142,22 @@ final class SQLiteAttachedSchemaCatalog
      */
     public function executeSchemaPragma(string $sql): array
     {
+        if (preg_match('/^pragma\s+database_list\s*;?$/i', trim($sql)) === 1) {
+            return [
+                'status' => 'ok',
+                'pragma' => 'database_list',
+                'schema' => 'main',
+                'target' => '',
+                'rows' => $this->databaseList(),
+            ];
+        }
+
         $parsed = SQLitePragmaSchemaCatalog::parsePragma($sql);
         $schemaName = $parsed['schema'];
 
         if ($schemaName === null) {
             $resolved = match ($parsed['pragma']) {
-                'table_info', 'table_xinfo', 'index_list' => $this->resolveTable($parsed['target']),
+                'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
             };
             $schemaName = $resolved['schema'] ?? 'main';
@@ -203,6 +218,49 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return null;
+    }
+
+    /**
+     * Resolve SQLite's built-in schema table aliases. Unlike ordinary
+     * unqualified table names, bare sqlite_schema/sqlite_master refer to main,
+     * while sqlite_temp_schema/sqlite_temp_master refer to temp.
+     *
+     * @return array{schema: string, record: SQLiteSchemaRecord}|null
+     */
+    private function resolveSchemaTable(string $name): ?array
+    {
+        $qualified = self::splitQualifiedName($name);
+        $object = strtolower($qualified['name']);
+        $schemaName = $qualified['schema'];
+
+        if ($schemaName === '' && ($object === 'sqlite_temp_schema' || $object === 'sqlite_temp_master')) {
+            return ['schema' => 'temp', 'record' => $this->schemaTableRecord('temp')];
+        }
+
+        if ($object !== 'sqlite_schema' && $object !== 'sqlite_master') {
+            return null;
+        }
+
+        if ($schemaName === '') {
+            $schemaName = 'main';
+        }
+        if (!isset($this->schemas[$schemaName])) {
+            throw new \InvalidArgumentException("SQLite schema {$schemaName} is not attached");
+        }
+
+        return ['schema' => $schemaName, 'record' => $this->schemaTableRecord($schemaName)];
+    }
+
+    private function schemaTableRecord(string $schemaName): SQLiteSchemaRecord
+    {
+        return new SQLiteSchemaRecord(
+            'table',
+            'sqlite_schema',
+            'sqlite_schema',
+            1,
+            'CREATE TABLE sqlite_schema(type text,name text,tbl_name text,rootpage int,sql text)',
+            1,
+        );
     }
 
     private static function normalizeSchemaName(string $name): string

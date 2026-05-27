@@ -138,7 +138,7 @@ $tests = [
     'rejects unsupported schema PRAGMA SQL shapes' => static function (TestRunner $t): void {
         $catalog = new SQLitePragmaSchemaCatalog([]);
 
-        $t->throws(InvalidArgumentException::class, static fn () => $catalog->execute('PRAGMA foreign_key_list(wp_options)'));
+        $t->same([], $catalog->execute('PRAGMA foreign_key_list(wp_options)')['rows']);
         $t->throws(InvalidArgumentException::class, static fn () => $catalog->execute('SELECT PRAGMA table_info(wp_options)'));
         $t->throws(InvalidArgumentException::class, static fn () => $catalog->execute('PRAGMA table_info(wp_options'));
     },

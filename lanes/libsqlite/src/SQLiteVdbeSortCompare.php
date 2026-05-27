@@ -12,13 +12,15 @@ final class SQLiteVdbeSortCompare
      * @param list<string>|string $affinities
      * @param list<string> $collations
      * @param list<bool> $descending
+     * @param list<string|null> $nulls
      */
     public static function compareRecords(
         array $left,
         array $right,
         array|string $affinities = [],
         array $collations = [],
-        array $descending = []
+        array $descending = [],
+        array $nulls = []
     ): int {
         if (!array_is_list($left) || !array_is_list($right)) {
             throw new \InvalidArgumentException('SQLite VDBE comparison records must be lists');
@@ -38,7 +40,14 @@ final class SQLiteVdbeSortCompare
                 'NONE',
                 $collation
             );
-            $comparison ??= self::compareNulls($leftValue, $right[$index]);
+            $explicitNullComparison = self::compareExplicitNulls($leftValue, $rightValue, $nulls[$index] ?? null);
+            if ($explicitNullComparison !== null) {
+                $comparison = $explicitNullComparison;
+                if ($comparison !== 0) {
+                    return $comparison;
+                }
+            }
+            $comparison ??= self::compareNulls($leftValue, $rightValue);
             if ($comparison !== 0) {
                 return ($descending[$index] ?? false) ? -$comparison : $comparison;
             }
@@ -53,6 +62,7 @@ final class SQLiteVdbeSortCompare
      * @param list<string>|string $affinities
      * @param list<string> $collations
      * @param list<bool> $descending
+     * @param list<string|null> $nulls
      * @return list<array<string,mixed>>
      */
     public static function sortRows(
@@ -60,7 +70,8 @@ final class SQLiteVdbeSortCompare
         array $columns,
         array|string $affinities = [],
         array $collations = [],
-        array $descending = []
+        array $descending = [],
+        array $nulls = []
     ): array {
         if ($columns === [] || !array_is_list($columns)) {
             throw new \InvalidArgumentException('SQLite VDBE sort columns must be a non-empty list');
@@ -78,13 +89,32 @@ final class SQLiteVdbeSortCompare
             $ordered[] = [$row, $record, $index];
         }
 
-        usort($ordered, static function (array $left, array $right) use ($affinities, $collations, $descending): int {
-            $comparison = self::compareRecords($left[1], $right[1], $affinities, $collations, $descending);
+        usort($ordered, static function (array $left, array $right) use ($affinities, $collations, $descending, $nulls): int {
+            $comparison = self::compareRecords($left[1], $right[1], $affinities, $collations, $descending, $nulls);
 
             return $comparison !== 0 ? $comparison : $left[2] <=> $right[2];
         });
 
         return array_column($ordered, 0);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @param list<string>|string $affinities
+     * @param list<string> $collations
+     * @param list<bool> $descending
+     * @param list<string|null> $nulls
+     */
+    public static function cursor(
+        array $rows,
+        array $columns,
+        array|string $affinities = [],
+        array $collations = [],
+        array $descending = [],
+        array $nulls = []
+    ): SQLiteVdbeSorterCursor {
+        return new SQLiteVdbeSorterCursor(self::sortRows($rows, $columns, $affinities, $collations, $descending, $nulls));
     }
 
     /**
@@ -150,5 +180,27 @@ final class SQLiteVdbeSortCompare
         }
 
         throw new \InvalidArgumentException('SQLite VDBE NULL comparison called for non-NULL values');
+    }
+
+    private static function compareExplicitNulls(mixed $left, mixed $right, ?string $placement): ?int
+    {
+        if ($left !== null && $right !== null) {
+            return null;
+        }
+        if ($placement === null || $placement === '') {
+            return null;
+        }
+
+        $placement = strtoupper($placement);
+        if ($placement !== 'FIRST' && $placement !== 'LAST') {
+            throw new \InvalidArgumentException('SQLite VDBE NULL placement must be FIRST, LAST, or NULL');
+        }
+        if ($left === null && $right === null) {
+            return 0;
+        }
+
+        return $left === null
+            ? ($placement === 'FIRST' ? -1 : 1)
+            : ($placement === 'FIRST' ? 1 : -1);
     }
 }
