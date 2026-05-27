@@ -774,6 +774,13 @@ final class SQLiteSelectSql
             }
             $offset += 2;
             $offset = self::skipWhitespace($sql, $offset);
+            foreach (['MATERIALIZED', 'NOT MATERIALIZED'] as $hint) {
+                if (self::keywordAt($sql, $offset, $hint)) {
+                    $offset += strlen($hint);
+                    $offset = self::skipWhitespace($sql, $offset);
+                    break;
+                }
+            }
             if (($sql[$offset] ?? null) !== '(') {
                 throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} needs a parenthesized SELECT");
             }
@@ -896,6 +903,13 @@ final class SQLiteSelectSql
                 $joins[] = $join;
                 $currentRows = [array_fill_keys(array_merge(self::collectColumns($currentRows), self::collectColumns($join['rows'])), null)];
             }
+        }
+
+        if ($joins === [] && isset($base['dynamicRows']) && is_callable($base['dynamicRows'])) {
+            return [
+                'from' => self::unqualifiedRows($base['dynamicRows']([]), $base['alias']),
+                'joins' => [],
+            ];
         }
 
         return [
@@ -1205,6 +1219,31 @@ final class SQLiteSelectSql
         }
 
         return $qualified;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function unqualifiedRows(array $rows, string $prefix): array
+    {
+        $unqualified = [];
+        $prefix .= '.';
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL table rows must be arrays');
+            }
+            $unqualifiedRow = [];
+            foreach ($row as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL table rows must have named columns');
+                }
+                $unqualifiedRow[str_starts_with($column, $prefix) ? substr($column, strlen($prefix)) : $column] = $value;
+            }
+            $unqualified[] = $unqualifiedRow;
+        }
+
+        return $unqualified;
     }
 
     /**

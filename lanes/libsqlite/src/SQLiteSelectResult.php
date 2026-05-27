@@ -371,7 +371,7 @@ final class SQLiteSelectResult
             return strcmp($left->bytes, $right->bytes);
         }
         if ((is_int($left) || is_float($left) || is_bool($left)) && (is_int($right) || is_float($right) || is_bool($right))) {
-            return ((float) $left) <=> ((float) $right);
+            return self::compareNumericValues($left, $right);
         }
 
         if (is_string($left) && is_string($right)) {
@@ -399,6 +399,28 @@ final class SQLiteSelectResult
         }
 
         return $left === null ? 1 : -1;
+    }
+
+    private static function compareNumericValues(bool|int|float $left, bool|int|float $right): int
+    {
+        if (is_int($left) && is_float($right)) {
+            if ($right >= 9223372036854775808.0) {
+                return -1;
+            }
+            if ($right < -9223372036854775808.0) {
+                return 1;
+            }
+        }
+        if (is_float($left) && is_int($right)) {
+            if ($left >= 9223372036854775808.0) {
+                return 1;
+            }
+            if ($left < -9223372036854775808.0) {
+                return -1;
+            }
+        }
+
+        return ((float) $left) <=> ((float) $right);
     }
 
     private static function asciiLower(string $value): string

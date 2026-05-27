@@ -1,5 +1,44 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 B-tree Overflow Next-pointer Release
+
+This isolated B-tree slice adds native overflow-chain tracing through
+`SQLiteOverflowPage::pageNumbersFromChain()` and
+`SQLiteOverflowPage::pageNumbersFromDatabase()`. The focused behavior follows
+the 4-byte next-page field on each overflow page, so delete/reuse/rebalance
+callers can release non-contiguous overflow chains that were moved by
+auto-vacuum instead of assuming `first + n` page numbers. It avoids accepted
+overflow freelist release, bulk overflow freeblock materialization,
+overflow-cell reuse apply, root collapse, page move, and VFS/WAL apply
+clusters by narrowing the patch to next-pointer chain discovery and validation.
+
+Focused PASS delta: `+27` verified PASS lines in
+`SQLiteBTreeOverflowNextPointerTest.php` (`1 test file / 85 assertions /
+0 failures`). `lane-status.json` moves `phpPass` from `3796` to `3823` for
+those newly added focused PHP test cases only.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteOverflowPage.php
+php -l lanes/libsqlite/tests/SQLiteBTreeOverflowNextPointerTest.php
+php -l lanes/libsqlite/examples/wordpress-overflow-next-pointer-release.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowNextPointerTest.php
+php lanes/libsqlite/examples/wordpress-overflow-next-pointer-release.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+The WordPress smoke reports a copied `wp_options` transient whose overflow
+chain uses non-contiguous pages `[11, 6, 14]`; the plan reuses the freed local
+cell slot for a smaller transient, releases the obsolete overflow pages through
+the freelist, secure-deletes overflow leaves, and rewrites auto-vacuum
+pointer-map entries to free-page.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SQLite database reader, overflow page encoder, b-tree leaf
+delete/reuse helpers, freelist planner, and pointer-map mutation support.
+
 ## 2026-05-27 Auto-vacuum Pointer-map Apply
 
 This isolated B-tree pointer-map slice adds

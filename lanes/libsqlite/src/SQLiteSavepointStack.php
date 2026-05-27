@@ -11,6 +11,10 @@ final class SQLiteSavepointStack
      */
     private array $frames = [];
     private int $maxWalFrame = 0;
+    /**
+     * @var array<string,array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}>
+     */
+    private array $statementJournals = [];
 
     public function beginTransaction(string $name = 'transaction'): void
     {
@@ -108,6 +112,7 @@ final class SQLiteSavepointStack
         $this->frames[$index]['pages'] = [];
         $this->frames[$index]['page_images'] = [];
         $this->frames[$index]['wal_frames'] = [];
+        $this->clearStatementJournalsFromFrame($index);
     }
 
     /**
@@ -240,6 +245,7 @@ final class SQLiteSavepointStack
     {
         $index = $this->findFrame($name);
         $releasedFrames = array_splice($this->frames, $index);
+        $this->clearStatementJournalsFromFrame($index);
         $releasedPages = [];
         foreach ($releasedFrames as $frame) {
             foreach ($frame['pages'] as $pageNumber => $_) {
@@ -249,6 +255,7 @@ final class SQLiteSavepointStack
 
         if ($this->frames === []) {
             $this->maxWalFrame = 0;
+            $this->statementJournals = [];
             return;
         }
 
@@ -334,6 +341,7 @@ final class SQLiteSavepointStack
 
         $this->frames = [];
         $this->maxWalFrame = 0;
+        $this->statementJournals = [];
     }
 
     public function rollback(): void
@@ -344,6 +352,7 @@ final class SQLiteSavepointStack
 
         $this->frames = [];
         $this->maxWalFrame = 0;
+        $this->statementJournals = [];
     }
 
     /**
@@ -543,6 +552,177 @@ final class SQLiteSavepointStack
         return $rolledBack;
     }
 
+    public function beginStatementJournal(string $name): void
+    {
+        if ($name === '') {
+            throw new \InvalidArgumentException('SQLite statement journal name must not be empty');
+        }
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite statement journal requires an active transaction');
+        }
+        if (isset($this->statementJournals[$name])) {
+            throw new \LogicException("SQLite statement journal is already active: {$name}");
+        }
+
+        $frameIndex = array_key_last($this->frames);
+        $this->statementJournals[$name] = [
+            'name' => $name,
+            'frame_index' => $frameIndex,
+            'savepoint_name' => $this->frames[$frameIndex]['name'],
+            'wal_start_frame' => $this->maxWalFrame,
+            'page_images' => [],
+            'wal_frames' => [],
+        ];
+    }
+
+    public function recordStatementPageImageWrite(string $statementName, int $pageNumber, string $beforeImage): void
+    {
+        if (!isset($this->statementJournals[$statementName])) {
+            throw new \InvalidArgumentException("SQLite statement journal does not exist: {$statementName}");
+        }
+        if ($pageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+        if ($beforeImage === '') {
+            throw new \InvalidArgumentException('SQLite statement journal page images must not be empty');
+        }
+
+        $this->recordPageWrite($pageNumber);
+        if (!isset($this->statementJournals[$statementName]['page_images'][$pageNumber])) {
+            $this->statementJournals[$statementName]['page_images'][$pageNumber] = $beforeImage;
+        }
+    }
+
+    public function recordStatementWalFrameWrite(string $statementName, int $frameIndex, int $pageNumber, bool $commitFrame = false): void
+    {
+        if (!isset($this->statementJournals[$statementName])) {
+            throw new \InvalidArgumentException("SQLite statement journal does not exist: {$statementName}");
+        }
+
+        $this->recordWalFrameWrite($frameIndex, $pageNumber, $commitFrame);
+        $this->statementJournals[$statementName]['wal_frames'][$frameIndex] = [
+            'page_number' => $pageNumber,
+            'commit_frame' => $commitFrame,
+        ];
+    }
+
+    /**
+     * @return array{statement:string,savepoint:string,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int}>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,transaction_active_after:bool,savepoint_active_after:bool,statement_journal_cleared:bool}
+     */
+    public function statementRollbackPlan(string $statementName, int $pageSize): array
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        $journal = $this->statementJournal($statementName);
+
+        $restorePages = [];
+        $restoredPageNumbers = array_keys($journal['page_images']);
+        sort($restoredPageNumbers, SORT_NUMERIC);
+        foreach ($restoredPageNumbers as $pageNumber) {
+            $pageImage = $journal['page_images'][$pageNumber];
+            if (strlen($pageImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite statement journal image for page {$pageNumber} does not match the page size");
+            }
+            $restorePages[] = [
+                'page_number' => $pageNumber,
+                'database_offset' => ($pageNumber - 1) * $pageSize,
+                'bytes' => $pageSize,
+            ];
+        }
+
+        $discardedWalFrames = [];
+        foreach ($journal['wal_frames'] as $frameIndex => $walFrame) {
+            $discardedWalFrames[] = [
+                'frame_index' => $frameIndex,
+                'page_number' => $walFrame['page_number'],
+                'commit_frame' => $walFrame['commit_frame'],
+            ];
+        }
+        usort($discardedWalFrames, static fn (array $left, array $right): int => $left['frame_index'] <=> $right['frame_index']);
+
+        return [
+            'statement' => $statementName,
+            'savepoint' => $journal['savepoint_name'],
+            'page_size' => $pageSize,
+            'restored_page_numbers' => $restoredPageNumbers,
+            'restore_pages' => $restorePages,
+            'rollback_to_wal_frame' => $journal['wal_start_frame'],
+            'discarded_wal_frames' => $discardedWalFrames,
+            'transaction_active_after' => true,
+            'savepoint_active_after' => isset($this->frames[$journal['frame_index']]),
+            'statement_journal_cleared' => true,
+        ];
+    }
+
+    public function rollbackStatementDatabaseImage(string $statementName, string $databaseBytes, int $pageSize): string
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite statement rollback requires a database image aligned to the page size');
+        }
+
+        $journal = $this->statementJournal($statementName);
+        $rolledBack = $databaseBytes;
+        foreach ($journal['page_images'] as $pageNumber => $pageImage) {
+            if (strlen($pageImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite statement journal image for page {$pageNumber} does not match the page size");
+            }
+            $offset = ($pageNumber - 1) * $pageSize;
+            if ($offset + $pageSize > strlen($rolledBack)) {
+                continue;
+            }
+            $rolledBack = substr_replace($rolledBack, $pageImage, $offset, $pageSize);
+        }
+
+        return $rolledBack;
+    }
+
+    /**
+     * @return array{statement:string,savepoint:string,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int}>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,transaction_active_after:bool,savepoint_active_after:bool,statement_journal_cleared:bool}
+     */
+    public function rollbackStatementOnErrorWithPlan(string $statementName, int $pageSize): array
+    {
+        $plan = $this->statementRollbackPlan($statementName, $pageSize);
+        $journal = $this->statementJournal($statementName);
+        foreach ($this->frames as $frameIndex => $frame) {
+            foreach ($frame['wal_frames'] as $walFrameIndex => $_) {
+                if ($walFrameIndex > $journal['wal_start_frame']) {
+                    unset($this->frames[$frameIndex]['wal_frames'][$walFrameIndex]);
+                }
+            }
+        }
+        $this->maxWalFrame = $journal['wal_start_frame'];
+        unset($this->statementJournals[$statementName]);
+
+        return $plan;
+    }
+
+    /**
+     * @return list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>
+     */
+    public function statementJournalState(): array
+    {
+        $state = [];
+        foreach ($this->statementJournals as $journal) {
+            $pageNumbers = array_keys($journal['page_images']);
+            sort($pageNumbers, SORT_NUMERIC);
+            $walFrameIndexes = array_keys($journal['wal_frames']);
+            sort($walFrameIndexes, SORT_NUMERIC);
+            $state[] = [
+                'name' => $journal['name'],
+                'savepoint' => $journal['savepoint_name'],
+                'wal_start_frame' => $journal['wal_start_frame'],
+                'page_numbers' => $pageNumbers,
+                'wal_frame_indexes' => $walFrameIndexes,
+            ];
+        }
+
+        return $state;
+    }
+
     /**
      * @return array{page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int,source_frame:string}>,missing_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
      */
@@ -700,5 +880,26 @@ final class SQLiteSavepointStack
         }
 
         throw new \InvalidArgumentException("SQLite savepoint does not exist: {$name}");
+    }
+
+    /**
+     * @return array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}
+     */
+    private function statementJournal(string $statementName): array
+    {
+        if (!isset($this->statementJournals[$statementName])) {
+            throw new \InvalidArgumentException("SQLite statement journal does not exist: {$statementName}");
+        }
+
+        return $this->statementJournals[$statementName];
+    }
+
+    private function clearStatementJournalsFromFrame(int $frameIndex): void
+    {
+        foreach ($this->statementJournals as $statementName => $journal) {
+            if ($journal['frame_index'] >= $frameIndex) {
+                unset($this->statementJournals[$statementName]);
+            }
+        }
     }
 }

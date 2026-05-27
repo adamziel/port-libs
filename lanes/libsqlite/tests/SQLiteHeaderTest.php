@@ -9119,7 +9119,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunction('json_patch', $json, '$.plugin'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunctionArguments('json_patch', [$json, '$.plugin']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunctionArguments('json_remove', []));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunctionArguments('json_remove', [7, '$.plugin']));
+        $t->same('7', SQLiteJsonRemove::removeSqlFunctionArguments('json_remove', [7, '$.plugin']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunctionArguments('json_remove', [$json, 7]));
     },
     'dispatches sqlite json patch sql functions with text or jsonb result typing' => static function (TestRunner $t): void {
@@ -9277,7 +9277,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, '$.plugin']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, '$.plugin', true, '$.x']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, 1, true]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [1, '$.plugin', true]));
+        $t->same('1', SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [1, '$.plugin', true]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin', true, '$.x'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin.raw', new SQLiteBlobValue("not-jsonb")));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', '{"plugin":,}', '$.plugin.enabled', true));

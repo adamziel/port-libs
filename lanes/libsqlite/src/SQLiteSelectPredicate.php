@@ -133,7 +133,7 @@ final class SQLiteSelectPredicate
             return $distinct ? $matched : !$matched;
         }
 
-        $comparison = self::compareValues($left, $right, true);
+        $comparison = self::compareValues($left, $right, true, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
         $matched = $comparison !== 0;
 
         return $distinct ? $matched : !$matched;
@@ -152,7 +152,7 @@ final class SQLiteSelectPredicate
             return $nullsEqual ? $accept($left === $right ? 0 : 1) : null;
         }
 
-        $comparison = self::compareValues($left, $right, $nullsEqual);
+        $comparison = self::compareValues($left, $right, $nullsEqual, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
         if ($comparison === null && $nullsEqual) {
             return $accept(1);
         }
@@ -173,8 +173,12 @@ final class SQLiteSelectPredicate
             return null;
         }
 
-        $lowerComparison = self::compareValues($value, $lower);
-        $upperComparison = self::compareValues($value, $upper);
+        $collation = self::expressionCollations($predicate['left'] ?? null)
+            ?? self::expressionCollation($predicate['left'] ?? null)
+            ?? self::expressionCollation($predicate['lower'] ?? null)
+            ?? self::expressionCollation($predicate['upper'] ?? null);
+        $lowerComparison = self::compareValues($value, $lower, false, $collation);
+        $upperComparison = self::compareValues($value, $upper, false, $collation);
         if ($lowerComparison === null || $upperComparison === null) {
             return null;
         }
@@ -201,9 +205,14 @@ final class SQLiteSelectPredicate
         if (!is_array($values) || !array_is_list($values)) {
             throw new \InvalidArgumentException('SQLite SELECT IN predicate needs a list of values');
         }
+        if ($values === []) {
+            return $negate;
+        }
 
         $sawNull = false;
         $matched = false;
+        $collation = self::expressionCollations($predicate['left'] ?? null)
+            ?? self::expressionCollation($predicate['left'] ?? null);
         foreach ($values as $candidateExpression) {
             $candidate = is_array($candidateExpression) && array_is_list($candidateExpression)
                 ? $candidateExpression
@@ -212,7 +221,10 @@ final class SQLiteSelectPredicate
                 $sawNull = true;
                 continue;
             }
-            $comparison = $value === null ? null : self::compareValues($value, $candidate);
+            $candidateCollation = $collation
+                ?? self::expressionCollations($candidateExpression)
+                ?? self::expressionCollation($candidateExpression);
+            $comparison = $value === null ? null : self::compareValues($value, $candidate, false, $candidateCollation);
             if ($comparison === 0) {
                 $matched = true;
                 break;
@@ -333,7 +345,8 @@ final class SQLiteSelectPredicate
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
                 'function', 'cast', 'unary', 'binary', 'row', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, cast, unary, binary, row, or subquery'),
+                'collate' => self::collateExpression($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, cast, unary, binary, row, subquery, or collate'),
             };
         }
 
@@ -377,10 +390,24 @@ final class SQLiteSelectPredicate
         throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
     }
 
-    private static function compareValues(mixed $left, mixed $right, bool $nullsEqual = false): ?int
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function collateExpression(array $row, array $expression): mixed
+    {
+        $operand = $expression['operand'] ?? null;
+        if (!is_array($operand)) {
+            throw new \InvalidArgumentException('SQLite SELECT predicate COLLATE expression needs an operand');
+        }
+
+        return self::valueExpression($row, $operand);
+    }
+
+    private static function compareValues(mixed $left, mixed $right, bool $nullsEqual = false, string|array|null $collation = null): ?int
     {
         if (is_array($left) || is_array($right)) {
-            return self::compareRowValues($left, $right, $nullsEqual);
+            return self::compareRowValues($left, $right, $nullsEqual, is_array($collation) ? $collation : null);
         }
 
         self::assertValue($left);
@@ -391,13 +418,75 @@ final class SQLiteSelectPredicate
             return $leftRank <=> $rightRank;
         }
         if ($leftRank === 1) {
-            return ((float) $left) <=> ((float) $right);
+            return self::compareNumericValues($left, $right);
         }
 
         $leftText = $left instanceof SQLiteBlobValue ? $left->bytes : (string) $left;
         $rightText = $right instanceof SQLiteBlobValue ? $right->bytes : (string) $right;
 
-        return strcmp($leftText, $rightText);
+        return self::compareText($leftText, $rightText, is_string($collation) ? $collation : 'BINARY');
+    }
+
+    private static function compareText(string $left, string $right, string $collation): int
+    {
+        return match (strtoupper($collation)) {
+            'BINARY' => strcmp($left, $right),
+            'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
+            'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+            default => throw new \InvalidArgumentException("Unsupported SQLite SELECT predicate collation: {$collation}"),
+        };
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     */
+    private static function predicateCollation(array $predicate): ?string
+    {
+        $left = self::expressionCollation($predicate['left'] ?? null)
+            ?? self::expressionCollation($predicate['right'] ?? null);
+        return $left;
+    }
+
+    /**
+     * @return list<?string>|null
+     */
+    private static function predicateCollations(array $predicate): ?array
+    {
+        return self::expressionCollations($predicate['left'] ?? null)
+            ?? self::expressionCollations($predicate['right'] ?? null);
+    }
+
+    /**
+     * @return list<?string>|null
+     */
+    private static function expressionCollations(mixed $expression): ?array
+    {
+        if (!is_array($expression) || ($expression['type'] ?? null) !== 'row' || !isset($expression['values']) || !is_array($expression['values'])) {
+            return null;
+        }
+
+        return array_map(self::expressionCollation(...), $expression['values']);
+    }
+
+    private static function expressionCollation(mixed $expression): ?string
+    {
+        if (!is_array($expression)) {
+            return null;
+        }
+        if (($expression['type'] ?? null) === 'collate') {
+            $collation = $expression['collation'] ?? null;
+            if (!is_string($collation) || $collation === '') {
+                throw new \InvalidArgumentException('SQLite SELECT COLLATE expression needs a collation');
+            }
+
+            return strtoupper($collation);
+        }
+        return null;
     }
 
     private static function sortRank(mixed $value): int
@@ -415,10 +504,35 @@ final class SQLiteSelectPredicate
         throw new \InvalidArgumentException('SQLite SELECT comparison values must be scalar, BLOB, or NULL');
     }
 
+    private static function compareNumericValues(bool|int|float $left, bool|int|float $right): int
+    {
+        if (is_int($left) && is_float($right)) {
+            if ($right >= 9223372036854775808.0) {
+                return -1;
+            }
+            if ($right < -9223372036854775808.0) {
+                return 1;
+            }
+        }
+        if (is_float($left) && is_int($right)) {
+            if ($left >= 9223372036854775808.0) {
+                return 1;
+            }
+            if ($left < -9223372036854775808.0) {
+                return -1;
+            }
+        }
+
+        return ((float) $left) <=> ((float) $right);
+    }
+
     /**
      * @return ?int 0 for equality, -1/1 for a known ordering, null for SQL NULL/unknown
      */
-    private static function compareRowValues(mixed $left, mixed $right, bool $nullsEqual): ?int
+    /**
+     * @param list<?string>|null $collations
+     */
+    private static function compareRowValues(mixed $left, mixed $right, bool $nullsEqual, ?array $collations = null): ?int
     {
         if (!is_array($left) || !is_array($right) || !array_is_list($left) || !array_is_list($right)) {
             throw new \InvalidArgumentException('SQLite SELECT row-value comparisons need row operands on both sides');
@@ -440,7 +554,7 @@ final class SQLiteSelectPredicate
                 continue;
             }
 
-            $comparison = self::compareValues($leftValue, $rightValue, $nullsEqual);
+            $comparison = self::compareValues($leftValue, $rightValue, $nullsEqual, $collations[$index] ?? null);
             if ($comparison === null) {
                 return null;
             }

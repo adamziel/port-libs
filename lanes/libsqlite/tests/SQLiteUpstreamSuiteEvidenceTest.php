@@ -388,7 +388,10 @@ return [
             $t->same([], $tiers['release-all']['missing']);
             $t->contains('--jobs 3 --stop-on-error all', $tiers['release-all']['command']);
             $t->same('blocked-needs-suite-map', $tiers['permutation-suites']['status']);
-            $t->same(['concrete permutation suite command map'], $tiers['permutation-suites']['missing']);
+            $t->same([
+                '.upstream-cache/libsqlite/test/permutations.test',
+                'all declared permutation suites mapped from permutations.test',
+            ], $tiers['permutation-suites']['missing']);
             $t->same('ready', $tiers['make-test']['status']);
             $t->same('ready', $tiers['mptest']['status']);
         } finally {
@@ -479,6 +482,143 @@ return [
             @unlink($testDirectory . '/permutations.test');
             @rmdir($testDirectory);
             @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
+    'builds concrete permutation suite runner commands from hydrated upstream harness sources' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-command-map-' . bin2hex(random_bytes(4));
+        $buildDirectory = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($buildDirectory, 0777, true);
+        mkdir($testDirectory, 0777, true);
+        file_put_contents($buildDirectory . '/testfixture', '#!/bin/sh');
+        file_put_contents($testDirectory . '/testrunner.tcl', '# focused permutation command fixture');
+
+        $source = '';
+        for ($i = 1; $i <= 58; $i++) {
+            $source .= sprintf("test_suite \"suite%02d\" -description {fixture}\n", $i);
+        }
+        file_put_contents($testDirectory . '/permutations.test', $source);
+
+        try {
+            $map = $evidence->permutationSuiteCommandMap(3, $root);
+
+            $t->same('ready', $map['status']);
+            $t->same(3, $map['jobs']);
+            $t->same(58, $map['declared_suite_count']);
+            $t->same(58, $map['mapped_suite_count']);
+            $t->same(58, $map['command_count']);
+            $t->same(58, $map['runnable_command_count']);
+            $t->same('.upstream-cache/libsqlite-build-port-libsqlite', $map['build_directory']);
+            $t->same('.upstream-cache/libsqlite/test/permutations.test', $map['source']);
+            $t->same([], $map['missing']);
+            $t->same('suite01', $map['suites'][0]);
+            $t->same('suite58', $map['suites'][57]);
+            $t->same('suite01', $map['commands'][0]['suite']);
+            $t->same(true, $map['commands'][0]['runnable']);
+            $t->same(3, $map['commands'][0]['jobs']);
+            $t->contains("--jobs 3 --stop-on-error 'suite01'", $map['commands'][0]['command']);
+            $t->contains("--jobs 3 --stop-on-error 'suite58'", $map['commands'][57]['command']);
+            $t->contains('run each parsed permutation suite command', $map['next_gate']);
+            $t->contains('no new support component needed', $map['dependency_closure']);
+        } finally {
+            foreach (glob($testDirectory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @unlink($buildDirectory . '/testfixture');
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($buildDirectory);
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
+    'blocks permutation suite command map until harness and declarations are complete' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-command-blocked-' . bin2hex(random_bytes(4));
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($testDirectory, 0777, true);
+        file_put_contents($testDirectory . '/permutations.test', "test_suite quick\npermutation memsubsys1\n");
+
+        try {
+            $map = $evidence->permutationSuiteCommandMap(2, $root);
+
+            $t->same('blocked', $map['status']);
+            $t->same(2, $map['jobs']);
+            $t->same(58, $map['declared_suite_count']);
+            $t->same(2, $map['mapped_suite_count']);
+            $t->same(0, $map['command_count']);
+            $t->same(0, $map['runnable_command_count']);
+            $t->same([], $map['commands']);
+            $t->true(in_array('.upstream-cache/libsqlite-build-port-libsqlite', $map['missing'], true), 'Expected missing build directory');
+            $t->true(in_array('.upstream-cache/libsqlite-build-port-libsqlite/testfixture', $map['missing'], true), 'Expected missing testfixture');
+            $t->true(in_array('all declared permutation suites mapped from permutations.test', $map['missing'], true), 'Expected unmapped suite blocker');
+            $t->contains('hydrate testfixture plus permutations.test', $map['next_gate']);
+            $t->contains('no new support component needed', $map['dependency_closure']);
+        } finally {
+            @unlink($testDirectory . '/permutations.test');
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
+    'promotes permutation release tier and command manifest when all declared suites are mapped' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-release-tier-' . bin2hex(random_bytes(4));
+        $buildDirectory = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        $mptestDirectory = $root . '/.upstream-cache/libsqlite/mptest';
+        mkdir($buildDirectory, 0777, true);
+        mkdir($testDirectory, 0777, true);
+        mkdir($mptestDirectory, 0777, true);
+        file_put_contents($buildDirectory . '/testfixture', '#!/bin/sh');
+        file_put_contents($buildDirectory . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
+        file_put_contents($testDirectory . '/testrunner.tcl', '# focused permutation release fixture');
+
+        $source = '';
+        for ($i = 1; $i <= 58; $i++) {
+            $source .= sprintf("test_suite \"suite%02d\"\n", $i);
+        }
+        file_put_contents($testDirectory . '/permutations.test', $source);
+
+        try {
+            $release = $evidence->releaseTierMatrix(4, $root);
+            $manifest = $evidence->fullSuiteCommandManifest(4, $root);
+            $releaseTiers = [];
+            foreach ($release['tiers'] as $tier) {
+                $releaseTiers[$tier['id']] = $tier;
+            }
+            $commands = [];
+            foreach ($manifest['commands'] as $command) {
+                $commands[$command['id']] = $command;
+            }
+
+            $t->same('ready', $releaseTiers['permutation-suites']['status']);
+            $t->same(true, $releaseTiers['permutation-suites']['runnable']);
+            $t->same([], $releaseTiers['permutation-suites']['missing']);
+            $t->same(58, count($releaseTiers['permutation-suites']['permutation_suite_commands']));
+            $t->contains("--jobs 4 --stop-on-error 'suite01'", $releaseTiers['permutation-suites']['permutation_suite_commands'][0]['command']);
+            $t->same('ready', $commands['permutation-suite-commands']['status']);
+            $t->same(true, $commands['permutation-suite-commands']['runnable']);
+            $t->same([], $commands['permutation-suite-commands']['missing']);
+            $t->same(58, $commands['permutation-suite-commands']['inventory_units']);
+            $t->same(58, count($commands['permutation-suite-commands']['permutation_suite_commands']));
+            $t->same('upstream-runner', $commands['permutation-suite-commands']['kind']);
+            $t->same('permutation-suite-command-map', $commands['permutation-suite-commands']['evidence_source']);
+        } finally {
+            foreach (glob($testDirectory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            foreach (glob($buildDirectory . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($mptestDirectory);
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($buildDirectory);
             @rmdir($root . '/.upstream-cache');
             @rmdir($root);
         }
@@ -603,9 +743,9 @@ return [
         $t->same(2, $manifest['jobs']);
         $t->same(1, count($manifest['accepted_baseline']));
         $t->same('veryquick', $manifest['accepted_baseline'][0]['id']);
-        $t->same(6, $manifest['command_count']);
+        $t->same(7, $manifest['command_count']);
         $t->same(0, $manifest['runnable_command_count']);
-        $t->same(6, $manifest['blocked_command_count']);
+        $t->same(7, $manifest['blocked_command_count']);
         $t->contains('hydrate .upstream-cache/libsqlite', $manifest['next_gate']);
         $t->contains('no new support component needed', $manifest['dependency_closure']);
 
@@ -621,6 +761,7 @@ return [
             'mptest',
             'wildcard-expansion',
             'permutation-suite-map',
+            'permutation-suite-commands',
         ], array_keys($commands));
         $t->same('upstream-runner', $commands['release-all']['kind']);
         $t->same('release-tier-matrix', $commands['release-all']['evidence_source']);
@@ -631,6 +772,15 @@ return [
         $t->same(false, $commands['wildcard-expansion']['runnable']);
         $t->same('permutation-suite-map', $commands['permutation-suite-map']['evidence_source']);
         $t->same(['.upstream-cache/libsqlite/test/permutations.test'], $commands['permutation-suite-map']['missing']);
+        $t->same('permutation-suite-command-map', $commands['permutation-suite-commands']['evidence_source']);
+        $t->same(false, $commands['permutation-suite-commands']['runnable']);
+        $t->same([
+            '.upstream-cache/libsqlite-build-port-libsqlite',
+            '.upstream-cache/libsqlite-build-port-libsqlite/testfixture',
+            '.upstream-cache/libsqlite/test/testrunner.tcl',
+            '.upstream-cache/libsqlite/test/permutations.test',
+            'all declared permutation suites mapped from permutations.test',
+        ], $commands['permutation-suite-commands']['missing']);
     },
     'marks full upstream suite command manifest commands runnable against local harness fixtures' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
@@ -665,8 +815,10 @@ return [
             $t->same(true, $commands['wildcard-expansion']['runnable']);
             $t->same(false, $commands['permutation-suites']['runnable']);
             $t->same(false, $commands['permutation-suite-map']['runnable']);
-            $t->same(['concrete permutation suite command map'], $commands['permutation-suites']['missing']);
+            $t->same(false, $commands['permutation-suite-commands']['runnable']);
+            $t->same(['all declared permutation suites mapped from permutations.test'], $commands['permutation-suites']['missing']);
             $t->same(['unmapped permutation suites'], $commands['permutation-suite-map']['missing']);
+            $t->same(['all declared permutation suites mapped from permutations.test'], $commands['permutation-suite-commands']['missing']);
         } finally {
             foreach (glob($testDirectory . '/*.test') ?: [] as $file) {
                 unlink($file);
@@ -2482,7 +2634,7 @@ MD);
 
             $t->same('blocked', $readiness['status']);
             $t->true($readiness['ready_count'] >= 4, 'Expected release, make, mptest, wildcard, and permutation readiness records to be available');
-            $t->true(in_array('permutation-suite-map', array_column($readiness['ready'], 'id'), true), 'Expected parsed permutation suite map to be ready');
+            $t->true(in_array('permutation-suite-commands', array_column($readiness['ready'], 'id'), true), 'Expected parsed permutation suite commands to be ready');
             $t->same(false, in_array('permutation-suites', array_column($readiness['blocked'], 'id'), true), 'Parsed permutation map should satisfy the release-tier suite-map blocker');
         } finally {
             foreach (glob($test . '/*') ?: [] as $file) {

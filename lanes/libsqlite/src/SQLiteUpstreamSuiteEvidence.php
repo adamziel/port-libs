@@ -495,6 +495,7 @@ final class SQLiteUpstreamSuiteEvidence
             ? $denominator['inventory']
             : [];
 
+        $permutationCommands = $this->permutationSuiteCommandMap($jobs, $repoRoot);
         $root = $repoRoot ?? dirname(__DIR__, 3);
         $absoluteBuildDirectory = $root . '/' . $buildDirectory;
         $testfixture = $absoluteBuildDirectory . '/testfixture';
@@ -519,11 +520,16 @@ final class SQLiteUpstreamSuiteEvidence
             [
                 'id' => 'permutation-suites',
                 'label' => 'declared permutation suites',
-                'status' => $missingTestfixture === [] ? 'blocked-needs-suite-map' : 'blocked-missing-cache',
-                'command' => null,
-                'runnable' => false,
-                'missing' => $missingTestfixture === [] ? ['concrete permutation suite command map'] : $missingTestfixture,
+                'status' => $missingTestfixture === []
+                    ? (($permutationCommands['status'] ?? null) === 'ready' ? 'ready' : 'blocked-needs-suite-map')
+                    : 'blocked-missing-cache',
+                'command' => ($permutationCommands['status'] ?? null) === 'ready' ? 'see permutation_suite_commands' : null,
+                'runnable' => $missingTestfixture === [] && ($permutationCommands['status'] ?? null) === 'ready',
+                'missing' => $missingTestfixture === []
+                    ? (($permutationCommands['status'] ?? null) === 'ready' ? [] : ($permutationCommands['missing'] ?? ['concrete permutation suite command map']))
+                    : $missingTestfixture,
                 'inventory_units' => (int) ($inventory['permutationSuitesDeclared'] ?? 0),
+                'permutation_suite_commands' => ($permutationCommands['status'] ?? null) === 'ready' ? $permutationCommands['commands'] : [],
             ],
             [
                 'id' => 'make-test',
@@ -628,6 +634,79 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function permutationSuiteCommandMap(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite permutation suite command jobs must be at least 1');
+        }
+
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $buildDirectory = is_string($runner['buildDirectory'] ?? null)
+            ? $runner['buildDirectory']
+            : '.upstream-cache/libsqlite-build-port-libsqlite';
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $absoluteBuildDirectory = $root . '/' . $buildDirectory;
+        $testfixture = $absoluteBuildDirectory . '/testfixture';
+        $testrunner = $root . '/.upstream-cache/libsqlite/test/testrunner.tcl';
+        $permutationMap = $this->permutationSuiteMap($repoRoot);
+        $missing = $this->missingRunnerInputs($absoluteBuildDirectory, $testfixture, $testrunner, $buildDirectory);
+
+        if (($permutationMap['source_ready'] ?? false) !== true) {
+            $missing[] = $permutationMap['source'] ?? '.upstream-cache/libsqlite/test/permutations.test';
+        }
+        if (($permutationMap['status'] ?? null) !== 'ready') {
+            $missing[] = 'all declared permutation suites mapped from permutations.test';
+        }
+
+        $missing = array_values(array_unique($missing));
+        $suites = is_array($permutationMap['suites'] ?? null) ? $permutationMap['suites'] : [];
+        $commands = [];
+        if ($missing === []) {
+            foreach ($suites as $suite) {
+                if (!is_string($suite) || !preg_match('/^[A-Za-z0-9_.${}-]+$/', $suite)) {
+                    $missing[] = 'safe permutation suite names';
+                    continue;
+                }
+
+                $commands[] = [
+                    'suite' => $suite,
+                    'command' => 'cd ' . $buildDirectory . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error ' . escapeshellarg($suite),
+                    'jobs' => $jobs,
+                    'runnable' => true,
+                ];
+            }
+        }
+
+        if ($missing !== []) {
+            $commands = [];
+        }
+
+        return [
+            'status' => $missing === [] ? 'ready' : 'blocked',
+            'jobs' => $jobs,
+            'declared_suite_count' => (int) ($permutationMap['declared_suite_count'] ?? 0),
+            'mapped_suite_count' => (int) ($permutationMap['mapped_suite_count'] ?? 0),
+            'command_count' => count($commands),
+            'runnable_command_count' => count($commands),
+            'build_directory' => $buildDirectory,
+            'source' => $permutationMap['source'] ?? '.upstream-cache/libsqlite/test/permutations.test',
+            'missing' => $missing,
+            'suites' => $suites,
+            'commands' => $commands,
+            'next_gate' => $missing === []
+                ? 'run each parsed permutation suite command and replace command-map readiness with parsed zero-error artifacts'
+                : 'hydrate testfixture plus permutations.test and map every declared suite before counting permutation release tiers',
+            'dependency_closure' => 'no new support component needed; permutation command map uses hydrated SQLite test harness sources and the existing testfixture runner only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function fullSuiteReadinessRecord(int $jobs = 1, ?string $repoRoot = null): array
     {
         if ($jobs < 1) {
@@ -640,6 +719,7 @@ final class SQLiteUpstreamSuiteEvidence
         $closure = $this->suiteClosureGapReport();
         $release = $this->releaseTierMatrix($jobs, $repoRoot);
         $permutations = $this->permutationSuiteMap($repoRoot);
+        $permutationCommands = $this->permutationSuiteCommandMap($jobs, $repoRoot);
         $wildcards = $this->wildcardExpansionPlan($repoRoot);
 
         $accepted = [];
@@ -672,11 +752,11 @@ final class SQLiteUpstreamSuiteEvidence
             ];
         }
 
-        if (($permutations['status'] ?? null) === 'ready') {
+        if (($permutationCommands['status'] ?? null) === 'ready') {
             $ready[] = [
-                'id' => 'permutation-suite-map',
-                'command' => 'turn parsed permutation suite names into explicit testfixture run records',
-                'inventory_units' => $permutations['mapped_suite_count'],
+                'id' => 'permutation-suite-commands',
+                'command' => 'run parsed permutation suite testfixture commands',
+                'inventory_units' => $permutationCommands['command_count'],
             ];
         }
 
@@ -712,6 +792,13 @@ final class SQLiteUpstreamSuiteEvidence
                 'status' => $permutations['status'],
                 'missing' => $permutations['source_ready'] ? ['unmapped permutation suites'] : [$permutations['source']],
                 'next_gate' => $permutations['next_gate'],
+            ];
+        } elseif (($permutationCommands['status'] ?? null) !== 'ready') {
+            $blocked[] = [
+                'id' => 'permutation-suite-commands',
+                'status' => $permutationCommands['status'],
+                'missing' => $permutationCommands['missing'],
+                'next_gate' => $permutationCommands['next_gate'],
             ];
         }
 
@@ -753,6 +840,7 @@ final class SQLiteUpstreamSuiteEvidence
         $release = $this->releaseTierMatrix($jobs, $repoRoot);
         $wildcards = $this->wildcardExpansionPlan($repoRoot);
         $permutations = $this->permutationSuiteMap($repoRoot);
+        $permutationCommands = $this->permutationSuiteCommandMap($jobs, $repoRoot);
 
         $commands = [];
         foreach ($release['tiers'] as $tier) {
@@ -794,6 +882,18 @@ final class SQLiteUpstreamSuiteEvidence
                 : ($permutations['source_ready'] ?? false ? ['unmapped permutation suites'] : [$permutations['source'] ?? '.upstream-cache/libsqlite/test/permutations.test']),
             'inventory_units' => (int) ($permutations['mapped_suite_count'] ?? 0),
             'evidence_source' => 'permutation-suite-map',
+        ];
+
+        $commands[] = [
+            'id' => 'permutation-suite-commands',
+            'kind' => 'upstream-runner',
+            'command' => ($permutationCommands['status'] ?? null) === 'ready' ? 'see commands[].permutation_suite_commands' : null,
+            'runnable' => ($permutationCommands['status'] ?? null) === 'ready',
+            'status' => $permutationCommands['status'] ?? 'unknown',
+            'missing' => ($permutationCommands['status'] ?? null) === 'ready' ? [] : ($permutationCommands['missing'] ?? []),
+            'inventory_units' => (int) ($permutationCommands['command_count'] ?? 0),
+            'evidence_source' => 'permutation-suite-command-map',
+            'permutation_suite_commands' => ($permutationCommands['status'] ?? null) === 'ready' ? $permutationCommands['commands'] : [],
         ];
 
         $runnable = 0;
@@ -1113,6 +1213,131 @@ final class SQLiteUpstreamSuiteEvidence
         $record['dependency_closure'] = 'no new support component needed; artifact-file records read bounded runner audit/log files only';
 
         return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
+    public function boundedRunnerProgressAudit(array $artifactRecords): array
+    {
+        $entries = [];
+        $passed = [];
+        $failed = [];
+        $active = [];
+        $timedOut = [];
+        $incomplete = [];
+        $releaseLike = [];
+        $focused = [];
+        $completedTotal = 0;
+        $plannedTotal = 0;
+        $testsTotal = 0;
+        $errorsTotal = 0;
+        $maxProgressPercent = null;
+
+        foreach ($artifactRecords as $label => $artifact) {
+            if (!is_array($artifact)) {
+                continue;
+            }
+
+            $entryLabel = is_string($label) ? $label : 'artifact-' . (string) count($entries);
+            $status = is_string($artifact['status'] ?? null) ? $artifact['status'] : 'unknown';
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $progress = is_array($artifact['progress'] ?? null) ? $artifact['progress'] : [];
+            $patterns = array_values(array_filter(
+                is_array($requested['patterns'] ?? null) ? $requested['patterns'] : [],
+                'is_string'
+            ));
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : null;
+            $completed = is_int($progress['completed'] ?? null) ? $progress['completed'] : null;
+            $total = is_int($progress['total'] ?? null) ? $progress['total'] : null;
+            $tests = is_int($results['tests'] ?? null) ? $results['tests'] : null;
+            $errors = is_int($results['errors'] ?? null) ? $results['errors'] : null;
+
+            if ($completed !== null && $total !== null && $total > 0) {
+                $completedTotal += $completed;
+                $plannedTotal += $total;
+                $percent = round(($completed / $total) * 100, 2);
+                $maxProgressPercent = $maxProgressPercent === null ? $percent : max($maxProgressPercent, $percent);
+            } else {
+                $percent = null;
+            }
+
+            if ($status === 'passed') {
+                $passed[] = $entryLabel;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+            } elseif ($status === 'failed') {
+                $failed[] = $entryLabel;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+            } elseif ($status === 'active-runner-in-progress') {
+                $active[] = $entryLabel;
+            } elseif ($status === 'timed-out-incomplete') {
+                $timedOut[] = $entryLabel;
+            } else {
+                $incomplete[] = $entryLabel;
+            }
+
+            $kind = $patterns !== [] ? 'focused' : (in_array($testset, ['all', 'release'], true) ? 'release-like' : 'unselected');
+            if ($kind === 'focused') {
+                $focused[] = $entryLabel;
+            } elseif ($kind === 'release-like') {
+                $releaseLike[] = $entryLabel;
+            }
+
+            $entries[] = [
+                'label' => $entryLabel,
+                'status' => $status,
+                'kind' => $kind,
+                'testset' => $testset,
+                'patterns' => $patterns,
+                'tests' => $tests,
+                'errors' => $errors,
+                'progress_completed' => $completed,
+                'progress_total' => $total,
+                'progress_percent' => $percent,
+                'last_progress_line' => is_string($progress['last_line'] ?? null) ? $progress['last_line'] : null,
+            ];
+        }
+
+        $status = 'blocked-no-artifacts';
+        if ($entries !== []) {
+            $status = ($active !== [] || $timedOut !== [] || $incomplete !== [])
+                ? 'blocked-progress-only'
+                : ($failed !== [] ? 'failed-progress-recorded' : 'passed-progress-recorded');
+        }
+
+        return [
+            'status' => $status,
+            'artifact_count' => count($entries),
+            'passed_count' => count($passed),
+            'failed_count' => count($failed),
+            'active_count' => count($active),
+            'timed_out_count' => count($timedOut),
+            'incomplete_count' => count($incomplete),
+            'release_like_count' => count($releaseLike),
+            'focused_count' => count($focused),
+            'completed_progress_total' => $completedTotal,
+            'planned_progress_total' => $plannedTotal,
+            'max_progress_percent' => $maxProgressPercent,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'passed_labels' => $passed,
+            'failed_labels' => $failed,
+            'active_labels' => $active,
+            'timed_out_labels' => $timedOut,
+            'incomplete_labels' => $incomplete,
+            'release_like_labels' => $releaseLike,
+            'focused_labels' => $focused,
+            'entries' => $entries,
+            'counts_as_release_parity' => false,
+            'next_gate' => $status === 'passed-progress-recorded'
+                ? 'send passed artifacts through provenance and release countability gates before counting release/all parity'
+                : 'keep release/all parity uncounted; use recorded progress to decide whether to resume, rerun, or wait for guarded runner artifacts',
+            'dependency_closure' => 'no new support component needed; progress audit summarizes already parsed bounded-runner artifacts only',
+        ];
     }
 
     /**

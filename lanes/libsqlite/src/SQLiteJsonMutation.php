@@ -8,7 +8,7 @@ final class SQLiteJsonMutation
 {
     public static function mutateSqlFunction(
         string $function,
-        string|SQLiteBlobValue|null $value,
+        string|int|float|bool|SQLiteBlobValue|null $value,
         string $path,
         mixed $replacement,
         mixed ...$pathValuePairs,
@@ -57,8 +57,8 @@ final class SQLiteJsonMutation
         }
 
         $value = array_shift($arguments);
-        if ($value !== null && !$value instanceof SQLiteBlobValue && !is_string($value)) {
-            throw new \InvalidArgumentException('SQLite JSON mutation input must be text, BLOB, or NULL');
+        if ($value !== null && !$value instanceof SQLiteBlobValue && !is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
+            throw new \InvalidArgumentException('SQLite JSON mutation input must be text, numeric, BLOB, or NULL');
         }
 
         $path = array_shift($arguments);
@@ -79,7 +79,7 @@ final class SQLiteJsonMutation
         };
     }
 
-    private static function jsonbBytes(string|SQLiteBlobValue $value): string
+    private static function jsonbBytes(string|int|float|bool|SQLiteBlobValue $value): string
     {
         if ($value instanceof SQLiteBlobValue) {
             if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
@@ -91,7 +91,7 @@ final class SQLiteJsonMutation
             return SQLiteJsonB::encode(self::decodeJsonText($value->bytes));
         }
 
-        return SQLiteJsonB::encode(self::decodeJsonText($value));
+        return SQLiteJsonB::encode(self::decodeJsonInput($value));
     }
 
     private static function jsonMutationValue(mixed $value): mixed
@@ -111,6 +111,25 @@ final class SQLiteJsonMutation
         }
 
         throw new \InvalidArgumentException('SQLite JSON mutation value must be a SQL scalar, JSON subtype value, or JSONB BLOB value');
+    }
+
+    private static function decodeJsonInput(string|int|float|bool $json): mixed
+    {
+        if (is_int($json)) {
+            return $json;
+        }
+        if (is_float($json)) {
+            if (!is_finite($json)) {
+                throw new \InvalidArgumentException('SQLite JSON numeric input must be finite');
+            }
+
+            return $json;
+        }
+        if (is_bool($json)) {
+            return $json ? 1 : 0;
+        }
+
+        return self::decodeJsonText($json);
     }
 
     private static function decodeJsonText(string $json): mixed
