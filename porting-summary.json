@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 02:22:01 UTC",
-    "sourceCommit": "131b31693047579eb155516588982b76198a6ce6",
-    "sourceCommitShort": "131b31693047",
+    "generated": "2026-05-27 02:27:54 UTC",
+    "sourceCommit": "b803d38fd2519736400a0a9860e89a99ebf68187",
+    "sourceCommitShort": "b803d38fd251",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "97fc47a36c38982e0bd24dc89c95290001ee586e",
-    "dashboardCommitShort": "97fc47a36c38",
+    "dashboardCommit": "0c97c11cf2caad338eb9b07e462a4126fed0c9c7",
+    "dashboardCommitShort": "0c97c11cf2ca",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "416",
             "coverage": "416 / 1589",
-            "php": "753 pass / 0 fail",
+            "php": "754 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated JSON table/window slice replayed...",
-            "currentWork": "Latest JSON table/window work adds SQLiteJsonTablePlan::windowedRows() for ordered json_e...",
-            "nextTarget": "Next libsqlite gap: wire another non-overlapping native behavior slice from JSON planner/...",
+            "audit": "isolated B-tree delete/rebalance slice re...",
+            "currentWork": "Latest B-tree work adds SQLiteBTreeInteriorRedistributionPlan for table-interior sibling...",
+            "nextTarget": "Next B-tree gap: apply table-interior redistribution through native delete/rebalance page...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "9742a80"
+            "commit": "131b316"
         },
         {
             "library": "LightningCSS",
