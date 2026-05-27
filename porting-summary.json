@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 03:37:33 UTC",
-    "sourceCommit": "8cfee60141c60e378d4f5583dcd1943c1ca61bf9",
-    "sourceCommitShort": "8cfee60141c6",
+    "generated": "2026-05-27 03:42:55 UTC",
+    "sourceCommit": "a8b2b074ca812dd9c043eac8d2953a70d5c82716",
+    "sourceCommitShort": "a8b2b074ca81",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "06e1244ca1493c42806e25bfeada4c97bd033b0c",
-    "dashboardCommitShort": "06e1244ca149",
+    "dashboardCommit": "7b859830d460d8318857911634a8b7907d9c84b9",
+    "dashboardCommitShort": "7b859830d460",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "421",
             "coverage": "421 / 1589",
-            "php": "763 pass / 0 fail",
+            "php": "764 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded current-source WAL savepoint byte...",
-            "currentWork": "Latest WAL/savepoint slice materializes ROLLBACK TO as concrete WAL sidecar byte truncati...",
-            "nextTarget": "Next WAL/storage gap: apply accepted savepoint WAL byte truncation through bounded native...",
+            "audit": "bounded current-source VFS file-writer re...",
+            "currentWork": "Latest VFS/storage slice applies accepted WAL checkpoint write plans through bounded nati...",
+            "nextTarget": "Next WAL/storage gap: compose the bounded VFS file writer with durable fsync/locking and...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "076e640"
+            "commit": "8cfee60"
         },
         {
             "library": "LightningCSS",
