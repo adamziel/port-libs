@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 23:50:41 UTC",
-    "sourceCommit": "5192240e9b085655a364ee60c45d703fc07113ea",
-    "sourceCommitShort": "5192240e9b08",
+    "generated": "2026-05-27 23:56:05 UTC",
+    "sourceCommit": "780667738bab1f6a6ea4cd9cc61f21967e38803c",
+    "sourceCommitShort": "780667738bab",
     "sourceBranch": "main",
-    "dashboardCommit": "5192240e9b085655a364ee60c45d703fc07113ea",
-    "dashboardCommitShort": "5192240e9b08",
+    "dashboardCommit": "780667738bab1f6a6ea4cd9cc61f21967e38803c",
+    "dashboardCommitShort": "780667738bab",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "463",
             "coverage": "463 / 1589",
-            "php": "21435 pass / 0 fail",
+            "php": "22215 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch52 libsqlite current-next coverage plus A...",
-            "audit": "Batch52 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch52 closure over ATTACH temp WAL schema-trigger planning, B-tree pointer-map...",
-            "nextTarget": "Publish batch52 dashboard status, consume accepted batch52 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch52 subset: focused, targeted regression,...",
-            "commit": "98941a9"
+            "phase": "accepted batch53 libsqlite current-next coverage plus A...",
+            "audit": "Batch53 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch53 closure over ATTACH temp WAL schema-cache SQL reprepare planning, overfl...",
+            "nextTarget": "Publish batch53 dashboard status, consume accepted batch53 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch53 subset: focused, full libsqlite, and...",
+            "commit": "6a19f6c"
         },
         {
             "library": "LightningCSS",
