@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 00:38:26 UTC",
-    "sourceCommit": "4c14eb89dfb9ea9032321f07859a3d1d11e6279a",
-    "sourceCommitShort": "4c14eb89dfb9",
+    "generated": "2026-05-27 00:44:14 UTC",
+    "sourceCommit": "a17fb234ab6d3eb2619a7936fa4b955066e30246",
+    "sourceCommitShort": "a17fb234ab6d",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "2e0c56a6454ee35b43f35afb53c6fc3f698d7730",
-    "dashboardCommitShort": "2e0c56a6454e",
+    "dashboardCommit": "27f31d1c51c7cc0762b60cd43f0a09aad0bbf0f4",
+    "dashboardCommitShort": "27f31d1c51c7",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "405",
             "coverage": "405 / 1589",
-            "php": "742 pass / 0 fail",
+            "php": "743 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded-rebased dependency/open VFS sidec...",
-            "currentWork": "Latest dependency/open work adds SQLiteVfsSidecarPlan for copied WordPress database main,...",
+            "audit": "bounded-rebased B-tree leaf merge applica...",
+            "currentWork": "Latest B-tree work adds SQLiteBTreeLeafMergeApplicationPlan for copied wp_options table/i...",
             "nextTarget": "Next dependency/open gap: actual VFS/page-cache/WAL-open behavior beyond sidecar path pla...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "a391c8e"
+            "commit": "4c14eb8"
         },
         {
             "library": "LightningCSS",
