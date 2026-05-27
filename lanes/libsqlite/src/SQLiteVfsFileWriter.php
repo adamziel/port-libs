@@ -365,6 +365,85 @@ final class SQLiteVfsFileWriter
         ];
     }
 
+    /**
+     * @param list<array{status:string,path:string,target:string,mode:string,flags:int,flag_names:list<string>,durable:bool,data_only:bool,directory:bool,allowed:bool,reason:string|null,dependencies:list<string>}> $plans
+     * @return array{status:string,root:string,applied:int,skipped:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
+     */
+    public function applySyncPlans(array $plans, array $dependencies = []): array
+    {
+        if ($this->readOnly || $this->immutable) {
+            throw new \LogicException('SQLite VFS sync application requires a writable handle');
+        }
+        if ($plans === []) {
+            throw new \InvalidArgumentException('SQLite VFS sync application requires at least one sync plan');
+        }
+
+        $operations = [];
+        $allDependencies = $dependencies;
+        $durableSyncs = 0;
+        $directorySyncs = 0;
+        $skipped = 0;
+
+        foreach ($plans as $index => $plan) {
+            $path = isset($plan['path']) ? (string) $plan['path'] : '';
+            if ($path === '') {
+                throw new \InvalidArgumentException('SQLite VFS sync plan requires a path');
+            }
+
+            $allowed = (bool) ($plan['allowed'] ?? false);
+            $status = isset($plan['status']) ? (string) $plan['status'] : '';
+            $directory = (bool) ($plan['directory'] ?? false);
+            $localPath = $this->localPath($path);
+            foreach (($plan['dependencies'] ?? []) as $dependency) {
+                $dependency = (string) $dependency;
+                if ($dependency !== '') {
+                    $allDependencies[] = $dependency;
+                }
+            }
+
+            if ($status === 'skipped' || !$allowed) {
+                $skipped++;
+                $operations[] = $this->appliedSyncPlan($index, $plan, $localPath, 'skipped', 0);
+                continue;
+            }
+            if ($status !== 'planned') {
+                throw new \InvalidArgumentException("Unsupported SQLite VFS sync plan status: {$status}");
+            }
+
+            if ($directory) {
+                if (!is_dir($localPath)) {
+                    throw new \RuntimeException("SQLite VFS directory sync target does not exist: {$path}");
+                }
+                $directorySyncs++;
+                $operations[] = $this->appliedSyncPlan($index, $plan, $localPath, 'sync_directory', 0);
+                continue;
+            }
+
+            if (!is_file($localPath)) {
+                throw new \RuntimeException("SQLite VFS sync target does not exist: {$path}");
+            }
+            $handle = @fopen($localPath, 'c+b');
+            if (!is_resource($handle)) {
+                throw new \RuntimeException("SQLite VFS sync target is not writable: {$path}");
+            }
+            fflush($handle);
+            fclose($handle);
+            $durableSyncs++;
+            $operations[] = $this->appliedSyncPlan($index, $plan, $localPath, 'sync', filesize($localPath) ?: 0);
+        }
+
+        return [
+            'status' => 'applied',
+            'root' => $this->rootDirectory,
+            'applied' => count($operations) - $skipped,
+            'skipped' => $skipped,
+            'durable_syncs' => $durableSyncs,
+            'directory_syncs' => $directorySyncs,
+            'operations' => $operations,
+            'dependencies' => array_values(array_unique(array_merge($allDependencies, ['vfs-sync-plan-application', 'vfs-file-handle-sync']))),
+        ];
+    }
+
     private function localPath(string $path): string
     {
         if (str_contains($path, "\0")) {
@@ -446,6 +525,29 @@ final class SQLiteVfsFileWriter
             'bytes' => $bytes,
             'durable' => (bool) ($operation['durable'] ?? false),
             'reason' => isset($operation['reason']) ? (string) $operation['reason'] : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $plan
+     * @return array<string, mixed>
+     */
+    private function appliedSyncPlan(int $index, array $plan, string $localPath, string $op, int $bytes): array
+    {
+        return [
+            'index' => $index,
+            'op' => $op,
+            'path' => (string) $plan['path'],
+            'local_path' => $localPath,
+            'bytes' => $bytes,
+            'target' => (string) ($plan['target'] ?? ''),
+            'mode' => (string) ($plan['mode'] ?? ''),
+            'flags' => (int) ($plan['flags'] ?? 0),
+            'flag_names' => array_values(array_map('strval', $plan['flag_names'] ?? [])),
+            'data_only' => (bool) ($plan['data_only'] ?? false),
+            'directory' => (bool) ($plan['directory'] ?? false),
+            'durable' => (bool) ($plan['durable'] ?? false),
+            'reason' => isset($plan['reason']) ? (string) $plan['reason'] : null,
         ];
     }
 }

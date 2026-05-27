@@ -19119,6 +19119,114 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('/srv/www/db.sqlite', 'directory', 'normal', false, true));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::rollbackCommitSequence('', 'full'));
     },
+    'applies sqlite vfs sync plans through file handles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-sync-apply-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $journalPath = $databasePath . '-journal';
+        $walPath = $databasePath . '-wal';
+        $localDatabase = $root . $databasePath;
+        $localJournal = $root . $journalPath;
+        $localWal = $root . $walPath;
+        $localDirectory = dirname($localDatabase);
+
+        mkdir($localDirectory, 0777, true);
+        file_put_contents($localDatabase, 'wp option rows after commit');
+        file_put_contents($localJournal, 'rollback journal header and pages');
+        file_put_contents($localWal, 'wal frames after checkpoint');
+
+        $plans = SQLiteVfsSyncPlan::rollbackCommitSequence($databasePath, 'full', true, false);
+        $plans[] = SQLiteVfsSyncPlan::forPath($walPath, 'wal', 'normal', true);
+        $plans[] = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/archive.sqlite', 'database', 'full', false, false, true);
+        $plans[] = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/:memory:', 'temp', 'normal', false, false, false, false, true);
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applySyncPlans($plans, ['wordpress-option-import']);
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same(5, $applied['applied']);
+        $t->same(2, $applied['skipped']);
+        $t->same(4, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(true, in_array('wordpress-option-import', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-xsync-flags', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-sync', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-sync-plan-application', $applied['dependencies'], true));
+
+        $t->same('sync', $applied['operations'][0]['op']);
+        $t->same($journalPath, $applied['operations'][0]['path']);
+        $t->same($localJournal, $applied['operations'][0]['local_path']);
+        $t->same('rollback_journal', $applied['operations'][0]['target']);
+        $t->same('full', $applied['operations'][0]['mode']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL, $applied['operations'][0]['flags']);
+        $t->same(['full'], $applied['operations'][0]['flag_names']);
+        $t->same(false, $applied['operations'][0]['data_only']);
+        $t->same(false, $applied['operations'][0]['directory']);
+        $t->same(true, $applied['operations'][0]['durable']);
+        $t->same(strlen('rollback journal header and pages'), $applied['operations'][0]['bytes']);
+
+        $t->same('sync', $applied['operations'][1]['op']);
+        $t->same($databasePath, $applied['operations'][1]['path']);
+        $t->same($localDatabase, $applied['operations'][1]['local_path']);
+        $t->same('database', $applied['operations'][1]['target']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $applied['operations'][1]['flags']);
+        $t->same(['full', 'dataonly'], $applied['operations'][1]['flag_names']);
+        $t->same(true, $applied['operations'][1]['data_only']);
+        $t->same(false, $applied['operations'][1]['directory']);
+        $t->same(strlen('wp option rows after commit'), $applied['operations'][1]['bytes']);
+
+        $t->same('sync', $applied['operations'][2]['op']);
+        $t->same('rollback_journal_header', $applied['operations'][2]['target']);
+        $t->same($journalPath, $applied['operations'][2]['path']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $applied['operations'][2]['flags']);
+        $t->same(true, $applied['operations'][2]['data_only']);
+
+        $t->same('sync_directory', $applied['operations'][3]['op']);
+        $t->same(dirname($databasePath), $applied['operations'][3]['path']);
+        $t->same($localDirectory, $applied['operations'][3]['local_path']);
+        $t->same('directory', $applied['operations'][3]['target']);
+        $t->same(true, $applied['operations'][3]['directory']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL, $applied['operations'][3]['flags']);
+
+        $t->same('sync', $applied['operations'][4]['op']);
+        $t->same($walPath, $applied['operations'][4]['path']);
+        $t->same($localWal, $applied['operations'][4]['local_path']);
+        $t->same('wal', $applied['operations'][4]['target']);
+        $t->same('normal', $applied['operations'][4]['mode']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $applied['operations'][4]['flags']);
+        $t->same(['normal', 'dataonly'], $applied['operations'][4]['flag_names']);
+        $t->same(true, $applied['operations'][4]['data_only']);
+
+        $t->same('skipped', $applied['operations'][5]['op']);
+        $t->same('/srv/www/wp-content/database/archive.sqlite', $applied['operations'][5]['path']);
+        $t->same('database', $applied['operations'][5]['target']);
+        $t->same('readonly_handle', $applied['operations'][5]['reason']);
+        $t->same(false, $applied['operations'][5]['durable']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL, $applied['operations'][5]['flags']);
+
+        $t->same('skipped', $applied['operations'][6]['op']);
+        $t->same('/srv/www/wp-content/database/:memory:', $applied['operations'][6]['path']);
+        $t->same('temp', $applied['operations'][6]['target']);
+        $t->same('memory_database', $applied['operations'][6]['reason']);
+        $t->same(false, $applied['operations'][6]['durable']);
+
+        $t->same('wp option rows after commit', file_get_contents($localDatabase));
+        $t->same('rollback journal header and pages', file_get_contents($localJournal));
+        $t->same('wal frames after checkpoint', file_get_contents($localWal));
+
+        $missingRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-sync-missing-' . bin2hex(random_bytes(4));
+        mkdir($missingRoot . dirname($databasePath), 0777, true);
+        $missingWriter = new SQLiteVfsFileWriter($missingRoot);
+        $t->throws(RuntimeException::class, static fn () => $missingWriter->applySyncPlans([SQLiteVfsSyncPlan::forPath($databasePath, 'database', 'full')]));
+        $missingDirectoryRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-sync-missing-dir-' . bin2hex(random_bytes(4));
+        $missingDirectoryWriter = new SQLiteVfsFileWriter($missingDirectoryRoot);
+        $t->throws(RuntimeException::class, static fn () => $missingDirectoryWriter->applySyncPlans([SQLiteVfsSyncPlan::forPath(dirname($databasePath), 'directory', 'normal', false, true)]));
+        $t->throws(LogicException::class, static fn () => (new SQLiteVfsFileWriter($root, true))->applySyncPlans([SQLiteVfsSyncPlan::forPath($databasePath, 'database', 'full')]));
+        $t->throws(LogicException::class, static fn () => (new SQLiteVfsFileWriter($root, false, true))->applySyncPlans([SQLiteVfsSyncPlan::forPath($databasePath, 'database', 'full')]));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySyncPlans([]));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySyncPlans([['status' => 'planned', 'path' => '', 'target' => 'database', 'mode' => 'full', 'flags' => 3, 'flag_names' => ['full'], 'durable' => true, 'data_only' => false, 'directory' => false, 'allowed' => true, 'reason' => null, 'dependencies' => []]]));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySyncPlans([['status' => 'unknown', 'path' => $databasePath, 'target' => 'database', 'mode' => 'full', 'flags' => 3, 'flag_names' => ['full'], 'durable' => true, 'data_only' => false, 'directory' => false, 'allowed' => true, 'reason' => null, 'dependencies' => []]]));
+    },
     'plans sqlite vfs lock byte ranges for open handles' => static function (TestRunner $t): void {
         $constants = SQLiteLockByteRangePlan::constants();
         $t->same(1073741824, $constants['pending']);

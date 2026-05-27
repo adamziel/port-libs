@@ -4447,6 +4447,28 @@ for rollback-journal commit paths before applying file-handle writes. The smoke
 directory, read-only, memory, powersafe-overwrite, and persist-journal sync
 steps with FULL/NORMAL/DATAONLY flag names and durable dependency tags without
 requiring ext/sqlite.
+
+## VFS Sync Apply Scenario
+
+Copied WordPress database import tooling can now apply planned SQLite xSync
+barriers through native PHP file handles. The smoke
+`examples/wordpress-vfs-sync-apply.php` reports rollback-journal, database,
+persisted journal-header, directory, and WAL sync application, including
+FULL/NORMAL/DATAONLY flag evidence and skipped read-only handles, without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated dependency/VFS slice: added
+`SQLiteVfsFileWriter::applySyncPlans()` for bounded file-handle application of
+previously planned xSync barriers. Focused `SQLiteHeaderTest.php` passes at
+7901 assertions with 0 failures; this slice adds 70 focused assertions over
+the accepted 7831 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS sync planner, file-handle writer, and rollback/WAL durability
+evidence. Follow-up should connect these sync barriers into broader pager
+transaction apply paths without repeating accepted VFS file writer, locked
+writer, rollback-journal commit, super-journal commit, savepoint rollback,
+rollback-journal recovery, or this sync-application path.
 ## SELECT SQL Scalar Operators Scenario
 
 Copied WordPress option diagnostics can now execute bounded SELECT SQL scalar

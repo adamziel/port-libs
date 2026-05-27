@@ -929,6 +929,39 @@ Dependency closure: no new shared support component is needed. This reuses
 lane-local VFS file-handle and rollback-journal durability evidence. Follow-up
 should wire the plan into broader pager/VFS transaction application without
 repeating this planning-only path.
+
+## 2026-05-27 VFS Sync Apply
+
+This isolated dependency/VFS slice does not repeat accepted VFS sync planning,
+rollback-journal commit, super-journal commit, hot rollback recovery,
+savepoint rollback, WAL byte truncation, locked writer, process locks, or
+generic file-writer application. It applies accepted xSync plans through native
+PHP file handles while preserving SQLite FULL/NORMAL/DATAONLY flag evidence,
+directory sync accounting, skipped read-only/memory sync plans, and missing
+target guards.
+
+Focused assertion delta: `SQLiteHeaderTest.php` adds 70 assertions over the
+accepted 7831 assertion baseline and passes at 7901 assertions. The assertions
+cover rollback-journal, database, persist-journal-header, directory, WAL,
+read-only, memory, missing file/directory, read-only writer, immutable writer,
+empty plan, missing path, and malformed status cases.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-sync-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-sync-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS sync planner, file-handle writer, and rollback/WAL durability
+evidence. Follow-up should wire sync application into broader pager
+transaction apply paths without repeating this sync-application helper.
 ## 2026-05-27 SELECT SQL Scalar Operators
 
 This bounded SQL execution/planner slice does not repeat accepted comma-LIMIT,

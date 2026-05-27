@@ -119581,3 +119581,25 @@ Root verification:
 Cleanup:
 - Accepted marker artifacts were removed after commit: `.ready`, `.patch`, and `.md`.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T071725Z` still contains modified/added lane files from the accepted handoff and was preserved as cleanup debt; no force removal or destructive cleanup was performed.
+## Integration accepted - libsqlite VFS sync apply - 2026-05-27T07:50:00Z
+
+Priority lane: `libsqlite`.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T073941Z.ready`.
+
+Guard evidence:
+- Current `refs/heads/main` before candidate verification was `920647e34c1b89994935892dbc81469924a09406` (`Integrate libsqlite B-tree root collapse apply`).
+- Cache-busted live Pages reported exact matching `sourceCommit` `920647e34c1b89994935892dbc81469924a09406`, generated `2026-05-27 07:33:48 UTC`, so the dashboard guard was open.
+- Runtime gate before focused checks: `/` free space `86632216` KiB, load `3.12`, and no exact `php tools/run-tests.php` root process.
+
+Candidate evidence:
+- The marker is current-base on `920647e34c1b89994935892dbc81469924a09406` and non-overlapping with the accepted VFS sync-plan wrapper because it applies planned xSync barriers through native file handles.
+- The clean detached candidate worktree `.tmux-team/tmp/clean-integrator-port-dev-libsqlite-deps-20260527T073941Z` contained only `lanes/libsqlite/**` implementation, test, smoke, manifest/status/notes changes before this audit note.
+- Focused verification passed with repo-local `TMPDIR`: `SQLiteHeaderTest.php` `1 test files, 7901 assertions, 0 failures`.
+- WordPress smoke `lanes/libsqlite/examples/wordpress-vfs-sync-apply.php` passed and emitted valid JSON with `applied=5`, `skipped=1`, `durableSyncs=4`, and `directorySyncs=1`.
+- Syntax checks passed for `SQLiteVfsFileWriter.php`, `SQLiteHeaderTest.php`, and `wordpress-vfs-sync-apply.php`; manifest/status JSON decode passed.
+- `git diff --check` passed.
+- Serialized no-argument root passed under the clean-integrator lock with repo-local `TMPDIR`: `215 test files, 33066 assertions, 0 failures`.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T073941Z` still contains the accepted lane changes, so it is preserved as cleanup debt rather than removed.
+
+Decision: accepted this single source-moving libsqlite marker after focused checks, smoke, `git diff --check`, serialized root, and final ref publication gates remained clean. Dashboard publication should run next after the source move.
