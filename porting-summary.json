@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 03:59:00 UTC",
-    "sourceCommit": "9fa6b520717d2f9c744a8e73a65744c135bd8d0a",
-    "sourceCommitShort": "9fa6b520717d",
+    "generated": "2026-05-27 04:06:37 UTC",
+    "sourceCommit": "ff7d7b51bdfb3bf3cc1800b3e09e437c6cc7a001",
+    "sourceCommitShort": "ff7d7b51bdfb",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "fcd5f398a2afaf4e1715b8a0bd3dd06bce580873",
-    "dashboardCommitShort": "fcd5f398a2af",
+    "dashboardCommit": "ee1b726cda4063120979e49797ab61fc25bd9988",
+    "dashboardCommitShort": "ee1b726cda40",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "422",
-            "coverage": "422 / 1589",
-            "php": "766 pass / 0 fail",
+            "mapped": "423",
+            "coverage": "423 / 1589",
+            "php": "767 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed SQL text GROUP BY/HAVING...",
-            "currentWork": "Latest SQL execution/planner slice parses bounded SQLite SELECT text with GROUP BY and HA...",
-            "nextTarget": "Next SQL execution gap: expression ORDER BY or range-cost planner decisions without repea...",
+            "audit": "bounded replayed dependency/open VFS hot...",
+            "currentWork": "Latest dependency/open slice applies accepted hot rollback-journal recovery through bound...",
+            "nextTarget": "Next dependency/open gap: durable fsync/locking integration or pager transaction applicat...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "e331c8d"
+            "commit": "9fa6b52"
         },
         {
             "library": "LightningCSS",
