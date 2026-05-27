@@ -1,5 +1,38 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 VFS Process File-Lock Application
+
+Current-base dependency/open slice adds `SQLiteVfsFileLock` without repeating
+accepted VFS lock byte-range planning, bounded lock-state application, VFS file
+writer application, VFS rollback-journal apply, VFS capability planning, or
+sidecar path planning. The new adapter keeps process-backed PHP lock handles
+open for SQLite lock plans, maps shared/reserved/pending/exclusive requests to
+bounded lock sidecars, preserves shared reader concurrency, blocks competing
+writers and pending/exclusive readers, propagates open-plan/nolock blockers,
+and releases per-connection or whole-path lock state.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 6875 assertions,
+up from the current lane-status focused baseline of 6793 assertions (`+82`).
+The WordPress smoke is `examples/wordpress-vfs-file-lock-apply.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileLock.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no shared root support component is needed. This is the
+smallest lane-local dependency closure for process-backed VFS lock handles.
+Follow-up remains true POSIX byte-range locking and durable fsync policy if a
+future pager/VFS slice requires host-specific primitives beyond PHP `flock()`
+and sidecar files.
+
 ## 2026-05-27 SELECT SQL Expression ORDER BY Dispatch
 
 Current-base SQL-exec slice on accepted `f34a1a06` adds bounded parser-level

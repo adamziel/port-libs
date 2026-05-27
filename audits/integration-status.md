@@ -119218,3 +119218,32 @@ Serialized root verification:
 Cleanup:
 - Removed accepted ready marker, patch, and metadata files after `34a367be8a498e3352c1f2486ee88cbf45755497` was safely on `refs/heads/main`.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T045343Z` because it still reports modified/added libsqlite files matching the accepted handoff; no forced cleanup was used.
+## Integration accepted - libsqlite VFS process file locks - 2026-05-27T05:12:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T045908Z.ready`.
+
+Decision: accepted for serialized root verification from a detached clean worktree at current `refs/heads/main` `237ab8b25986c9d2d8bacbef1ee184ad80ff8d74` after bounded replay.
+
+Dashboard guard evidence:
+- Cache-busted live Pages reported `sourceCommit` `237ab8b25986c9d2d8bacbef1ee184ad80ff8d74`, generated `2026-05-27 05:06:32 UTC`, matching local `refs/heads/main`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Whole patch was older-base and failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, test, example, and notes hunks applied cleanly in the detached candidate.
+- Adds `SQLiteVfsFileLock` process-backed sidecar file locks over accepted SQLite lock byte-range plans.
+- Adds copied WordPress smoke `lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php`.
+- Reconciles current-source status/manifest evidence to mapped coverage `433 / 1589`; `phpPass` moves `775 -> 776`.
+
+Verification before root:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6945 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-file-lock-apply.php` passed and returned copied WordPress shared/reserved/pending/exclusive lock diagnostics.
+- `php -l` passed for `SQLiteVfsFileLock.php`, `SQLiteHeaderTest.php`, and `wordpress-vfs-file-lock-apply.php`.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed before root.
+
+Serialized root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32110 assertions, 0 failures`.
+
+Cleanup:
+- Removed accepted ready marker, patch, and metadata files after `834928f0a35dd73f636392f2b94baff504e6f4e8` was safely on `refs/heads/main`.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T045908Z` because it still reports modified/added libsqlite files matching the accepted handoff; no forced cleanup was used.

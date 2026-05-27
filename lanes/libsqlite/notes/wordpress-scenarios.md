@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## VFS Process File-Lock Scenario
+
+Copied WordPress database open handles can now keep process-backed VFS lock
+handles alive in native PHP without requiring the SQLite extension. The smoke
+`examples/wordpress-vfs-file-lock-apply.php` reports shared reader locks,
+reserved writer locks, competing writer blockers, pending-reader blockers,
+exclusive upgrades after readers drain, open-plan conflict propagation, and
+the lane-local dependency tag for process file locks.
+
+Status delta 2026-05-27 isolated dependency/open slice: added
+`SQLiteVfsFileLock`, a bounded file-lock adapter that consumes accepted
+`SQLiteLockByteRangePlan` output and applies shared/reserved/pending/exclusive
+lock transitions to sidecar lock files while preserving SQLite conflict
+semantics in PHP. Focused assertions cover shared reader concurrency, writer
+exclusion, pending-reader blocking, exclusive upgrades, per-connection and
+whole-path release, lock sidecar paths, nolock/open-plan blockers, malformed
+input guards, and copied WordPress smoke output. The focused lane test count
+moves from the current lane-status baseline of 6793 assertions to 6875
+assertions, +82. Lane `phpPass` moves from 775 to 776 and mapped coverage
+moves from 431 to 432. Dependency closure: no new root support component is
+needed; this is a lane-local VFS/open primitive reusing accepted file URI,
+open-plan, and lock byte-range planning.
+
 ## JSON Table SELECT SQL Source Scenario
 
 Copied WordPress option diagnostics can now run bounded SQLite SELECT text

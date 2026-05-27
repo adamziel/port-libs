@@ -1276,5 +1276,6 @@
     },
     "inventory": {
         "focusedWalSavepointPageImageRollbackScripts": 1
-    }
+    },
+    "focusedVfsProcessFileLock": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS locking evidence row for process-backed sidecar file locks over accepted SQLite lock byte-range plans. Native smoke covers shared reader concurrency, reserved writer exclusion, pending-reader blocking, exclusive promotion after reader drain, nolock and failed-open blockers, and copied WordPress database lock diagnostics without requiring ext/sqlite."
 }
