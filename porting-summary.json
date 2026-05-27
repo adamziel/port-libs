@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 03:42:55 UTC",
-    "sourceCommit": "a8b2b074ca812dd9c043eac8d2953a70d5c82716",
-    "sourceCommitShort": "a8b2b074ca81",
+    "generated": "2026-05-27 03:51:48 UTC",
+    "sourceCommit": "e331c8db19724a4ba346e1a3ed0df47b3838f3f1",
+    "sourceCommitShort": "e331c8db1972",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "7b859830d460d8318857911634a8b7907d9c84b9",
-    "dashboardCommitShort": "7b859830d460",
+    "dashboardCommit": "c13467cad8ba5e40bd90d46751339d499785325a",
+    "dashboardCommitShort": "c13467cad8ba",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "421",
             "coverage": "421 / 1589",
-            "php": "764 pass / 0 fail",
+            "php": "765 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded current-source VFS file-writer re...",
-            "currentWork": "Latest VFS/storage slice applies accepted WAL checkpoint write plans through bounded nati...",
-            "nextTarget": "Next WAL/storage gap: compose the bounded VFS file writer with durable fsync/locking and...",
+            "audit": "bounded current-source encoding replay on...",
+            "currentWork": "Latest encoding slice rejects malformed UTF-8 before SQLite UTF-16LE/UTF-16BE record seri...",
+            "nextTarget": "Next encoding/storage gap: compose validated record text encoding with broader planner/ex...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "8cfee60"
+            "commit": "a8b2b07"
         },
         {
             "library": "LightningCSS",
