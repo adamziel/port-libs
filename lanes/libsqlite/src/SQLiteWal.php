@@ -1075,6 +1075,80 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{mode:string,status:string,current_reader_end_frame:int|null,next_reader_end_frame:int|null,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string|null>,next_reader_images:list<string|null>,current_reader_kept_snapshot:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,images_match:bool,transition:array<string,mixed>,dependencies:list<string>}
+     */
+    public function restartCurrentNextReaderVisibility(
+        string $databaseBytes,
+        SQLiteShmIndex $shm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart current/next reader visibility requires at least one page number');
+        }
+
+        $transition = $this->restartReadMarkTransition($databaseBytes, $shm, $mode);
+        $currentReaderEndFrame = $transition['current_reader_end_frame'];
+        $checkpoint = $transition['checkpoint'];
+
+        $current = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL restart current/next reader pages must be integers');
+            }
+            $current[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $currentReaderEndFrame);
+        }
+
+        $nextWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($checkpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        $nextReaderEndFrame = $transition['next_reader_frame'];
+        if ($nextReaderEndFrame === null) {
+            $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+        }
+
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if ($nextWal === null) {
+                $next[] = self::databasePageVisibilityOrError($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber);
+                continue;
+            }
+            $next[] = self::safeReaderVisibility($nextWal, $checkpoint['database_bytes'], $pageNumber, min($nextReaderEndFrame, $nextWal->frameCount()));
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'mode' => $transition['mode'],
+            'status' => $transition['status'],
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $checkpoint['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_images' => $currentImages,
+            'next_reader_images' => $nextImages,
+            'current_reader_kept_snapshot' => $transition['current_reader_kept_snapshot'],
+            'next_reader_uses_database' => $transition['next_reader_uses_database'],
+            'next_reader_uses_restarted_wal' => $transition['next_reader_uses_restarted_wal'],
+            'images_match' => $currentImages === $nextImages,
+            'transition' => $transition,
+            'dependencies' => array_values(array_unique(array_merge(
+                $transition['dependencies'],
+                ['wal-restart-current-next-reader-visibility']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

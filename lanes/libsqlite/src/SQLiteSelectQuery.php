@@ -631,9 +631,18 @@ final class SQLiteSelectQuery
     private static function applyGroupBy(array $rows, array $groupBy): array
     {
         $groupColumn = self::groupColumns($groupBy);
-        $valueColumn = self::requiredString($groupBy, 'valueColumn', 'groupBy');
+        $valueColumn = array_key_exists('valueColumn', $groupBy)
+            ? self::nullableString($groupBy, 'valueColumn', 'groupBy')
+            : null;
 
-        $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
+        if ($groupColumn === []) {
+            $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn);
+        } else {
+            if ($valueColumn === null) {
+                throw new \InvalidArgumentException('SQLite SELECT query grouped aggregate needs a value column');
+            }
+            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
+        }
 
         if (array_key_exists('having', $groupBy)) {
             if (!is_array($groupBy['having'])) {
@@ -771,7 +780,10 @@ final class SQLiteSelectQuery
     private static function groupColumns(array $groupBy): string|array
     {
         if (array_key_exists('columns', $groupBy)) {
-            if (!is_array($groupBy['columns']) || !array_is_list($groupBy['columns']) || $groupBy['columns'] === []) {
+            if (!is_array($groupBy['columns']) || !array_is_list($groupBy['columns'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query groupBy columns must be a list');
+            }
+            if ($groupBy['columns'] === [] && ($groupBy['implicitAggregate'] ?? false) !== true) {
                 throw new \InvalidArgumentException('SQLite SELECT query groupBy columns must be a non-empty list');
             }
             foreach ($groupBy['columns'] as $column) {
@@ -784,6 +796,15 @@ final class SQLiteSelectQuery
         }
 
         return self::requiredString($groupBy, 'column', 'groupBy');
+    }
+
+    private static function nullableString(array $input, string $key, string $context): ?string
+    {
+        if ($input[$key] === null) {
+            return null;
+        }
+
+        return self::requiredString($input, $key, $context);
     }
 
     /**

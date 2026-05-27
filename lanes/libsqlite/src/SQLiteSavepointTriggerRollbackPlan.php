@@ -12,8 +12,8 @@ final class SQLiteSavepointTriggerRollbackPlan
      * @param list<array<string,mixed>> $inputRows
      * @param list<array<string,mixed>> $triggers
      * @param list<string> $uniqueColumns
-     * @param array{page_size?:int,savepoint_page_images?:array<int,string>,dirty_pages?:array<int,string>,wal_start_frame?:int,wal_frames?:list<array{frame_index:int,page_number:int,commit_frame?:bool}>,recursive_triggers?:bool,max_depth?:int} $options
-     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,dependencies:list<string>}
+     * @param array{page_size?:int,savepoint_page_images?:array<int,string>,dirty_pages?:array<int,string>,wal_start_frame?:int,wal_frames?:list<array{frame_index:int,page_number:int,commit_frame?:bool}>,recursive_triggers?:bool,max_depth?:int,returning?:list<string>|array<string,string|callable(array<string,mixed>):mixed>} $options
+     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,returning_rows:list<array<string,mixed>>,attempted_returning_rows:list<array<string,mixed>>,returning_columns:list<string>,returning_after_triggers:bool,dependencies:list<string>}
      */
     public static function insertRows(
         array $outerRows,
@@ -39,13 +39,18 @@ final class SQLiteSavepointTriggerRollbackPlan
         $inserted = [];
         $ignored = [];
         $effects = [];
+        $attemptedReturningRows = [];
+        $returning = $options['returning'] ?? ['*'];
 
         foreach ($inputRows as $row) {
             $result = self::insertOne($rows, $row, $triggers, $uniqueColumns, $recursiveTriggers, $maxDepth, 0);
             $effects = array_merge($effects, $result['effects']);
+            if ($result['inserted'] !== [] && self::sameRow($result['inserted'][0], $row)) {
+                $attemptedReturningRows[] = self::projectReturningRow($result['inserted'][0], $returning);
+            }
 
             if ($result['rollback_to_savepoint']) {
-                return self::finishRollback($outerRows, $savepointRows, $result['rows'], $effects, $savepointName, (string) $result['reason'], $options);
+                return self::finishRollback($outerRows, $savepointRows, $result['rows'], $effects, $savepointName, (string) $result['reason'], $options, $attemptedReturningRows);
             }
 
             $rows = $result['rows'];
@@ -53,7 +58,7 @@ final class SQLiteSavepointTriggerRollbackPlan
             $ignored = array_merge($ignored, $result['ignored']);
         }
 
-        return self::finish($rows, $inserted, $ignored, $effects, $savepointName, false, null, 'none', [], 0, [], 0);
+        return self::finish($rows, $inserted, $ignored, $effects, $savepointName, false, null, 'none', [], 0, [], 0, $attemptedReturningRows, $attemptedReturningRows, self::returningColumnNames($returning));
     }
 
     /**
@@ -130,9 +135,10 @@ final class SQLiteSavepointTriggerRollbackPlan
      * @param list<array<string,mixed>> $dirtyRows
      * @param list<array<string,mixed>> $effects
      * @param array<string,mixed> $options
-     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,dependencies:list<string>}
+     * @param list<array<string,mixed>> $attemptedReturningRows
+     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,returning_rows:list<array<string,mixed>>,attempted_returning_rows:list<array<string,mixed>>,returning_columns:list<string>,returning_after_triggers:bool,dependencies:list<string>}
      */
-    private static function finishRollback(array $outerRows, array $savepointRows, array $dirtyRows, array $effects, string $savepointName, string $reason, array $options): array
+    private static function finishRollback(array $outerRows, array $savepointRows, array $dirtyRows, array $effects, string $savepointName, string $reason, array $options, array $attemptedReturningRows): array
     {
         $pageSize = (int) ($options['page_size'] ?? 512);
         if ($pageSize < 1) {
@@ -183,7 +189,10 @@ final class SQLiteSavepointTriggerRollbackPlan
             $imagePlan['restored_page_numbers'],
             max(0, count($dirtyRows) - count($savepointRows)),
             $walPlan['discarded_wal_frames'],
-            $walPlan['rollback_to_frame']
+            $walPlan['rollback_to_frame'],
+            [],
+            $attemptedReturningRows,
+            self::returningColumnNames($options['returning'] ?? ['*'])
         );
     }
 
@@ -194,7 +203,10 @@ final class SQLiteSavepointTriggerRollbackPlan
      * @param list<array<string,mixed>> $effects
      * @param list<int> $restoredPageNumbers
      * @param list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}> $discardedWalFrames
-     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,dependencies:list<string>}
+     * @param list<array<string,mixed>> $returningRows
+     * @param list<array<string,mixed>> $attemptedReturningRows
+     * @param list<string> $returningColumns
+     * @return array{rows:list<array<string,mixed>>,inserted:list<array<string,mixed>>,ignored:list<array<string,mixed>>,effects:list<array<string,mixed>>,changes:int,savepoint:string,savepoint_active_after:bool,transaction_active_after:bool,rolled_back_to_savepoint:bool,rollback_reason:?string,rollback_scope:string,rollback_rows_removed:int,rollback_page_numbers:list<int>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,restored_page_numbers:list<int>,returning_rows:list<array<string,mixed>>,attempted_returning_rows:list<array<string,mixed>>,returning_columns:list<string>,returning_after_triggers:bool,dependencies:list<string>}
      */
     private static function finish(
         array $rows,
@@ -209,6 +221,9 @@ final class SQLiteSavepointTriggerRollbackPlan
         int $rowsRemoved,
         array $discardedWalFrames,
         int $rollbackToWalFrame,
+        array $returningRows,
+        array $attemptedReturningRows,
+        array $returningColumns,
     ): array {
         return [
             'rows' => array_values($rows),
@@ -231,7 +246,11 @@ final class SQLiteSavepointTriggerRollbackPlan
                 'commit_frame' => $frame['commit_frame'],
             ], $discardedWalFrames),
             'restored_page_numbers' => $restoredPageNumbers,
-            'dependencies' => ['sqlite-savepoint-current-rollback', 'sqlite-trigger-raise-rollback'],
+            'returning_rows' => $rolledBack ? [] : $returningRows,
+            'attempted_returning_rows' => $attemptedReturningRows,
+            'returning_columns' => $returningColumns,
+            'returning_after_triggers' => false,
+            'dependencies' => ['sqlite-savepoint-current-rollback', 'sqlite-trigger-raise-rollback', 'sqlite-returning-current-row'],
         ];
     }
 
@@ -378,6 +397,74 @@ final class SQLiteSavepointTriggerRollbackPlan
                 throw new \InvalidArgumentException('SQLite savepoint trigger rollback unique column is malformed');
             }
         }
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string>|array<string,string|callable(array<string,mixed>):mixed> $returning
+     * @return array<string,mixed>
+     */
+    private static function projectReturningRow(array $row, array $returning): array
+    {
+        if ($returning === [] || $returning === ['*']) {
+            return $row;
+        }
+
+        $projected = [];
+        foreach ($returning as $key => $column) {
+            if (is_callable($column)) {
+                $projected[(string) $key] = $column($row);
+                continue;
+            }
+
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite savepoint trigger rollback RETURNING column is malformed');
+            }
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite savepoint trigger rollback RETURNING column {$column} is missing");
+            }
+
+            $projected[is_string($key) ? $key : $column] = $row[$column];
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param list<string>|array<string,string|callable(array<string,mixed>):mixed> $returning
+     * @return list<string>
+     */
+    private static function returningColumnNames(array $returning): array
+    {
+        if ($returning === [] || $returning === ['*']) {
+            return ['*'];
+        }
+
+        $columns = [];
+        foreach ($returning as $key => $column) {
+            if (is_callable($column)) {
+                if (!is_string($key) || $key === '') {
+                    throw new \InvalidArgumentException('SQLite savepoint trigger rollback RETURNING expression alias is required');
+                }
+                $columns[] = $key;
+                continue;
+            }
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite savepoint trigger rollback RETURNING column is malformed');
+            }
+            $columns[] = is_string($key) ? $key : $column;
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     */
+    private static function sameRow(array $left, array $right): bool
+    {
+        return json_encode($left, JSON_THROW_ON_ERROR) === json_encode($right, JSON_THROW_ON_ERROR);
     }
 
     /**
