@@ -41,7 +41,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT');
         }
 
-        $compound = self::compoundSqlPlan($sql, $tables, $cteNames);
+        $compound = self::compoundSqlPlan($sql, $tables, $cteNames, $outerRow);
         if ($compound !== null) {
             return $compound;
         }
@@ -323,7 +323,7 @@ final class SQLiteSelectSql
      * @param list<string> $cteNames
      * @return array<string,mixed>|null
      */
-    private static function compoundSqlPlan(string $sql, array $tables, array $cteNames): ?array
+    private static function compoundSqlPlan(string $sql, array $tables, array $cteNames, ?array $outerRow = null): ?array
     {
         $parts = self::splitCompoundSql($sql);
         if ($parts === null) {
@@ -339,7 +339,11 @@ final class SQLiteSelectSql
             if (self::splitCompoundSql($armSql) !== null) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arms cannot contain nested compound SELECT text');
             }
-            $arms[] = self::plan($armSql, $tables);
+            $arm = self::plan($armSql, $tables, [], $outerRow);
+            if ($outerRow !== null) {
+                $arm = self::expandCorrelatedPlan($arm, $tables, $outerRow);
+            }
+            $arms[] = $arm;
         }
 
         $plan = [
@@ -536,6 +540,9 @@ final class SQLiteSelectSql
             $armRows = self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($arm), $arm);
             if ($rows === null) {
                 $rows = $armRows;
+                continue;
+            }
+            if ($rows === [] && $armRows === []) {
                 continue;
             }
             $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1], self::compoundSelectCollations($compound['arms'][0]));
@@ -1188,7 +1195,7 @@ final class SQLiteSelectSql
         }
 
         [$alias, $columns] = self::derivedTableAlias(trim(substr($sql, $offset)));
-        $rows = $outerRow === null || self::splitCompoundSql($body) !== null
+        $rows = $outerRow === null
             ? self::execute($body, $tables)
             : self::correlatedSubqueryRows($body, $tables, $outerRow);
         if ($columns !== []) {
@@ -2000,7 +2007,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        if (preg_match('/^(not\s+)?exists\s*\((select\s+.+)\)$/is', $sql, $match) === 1) {
+        if (preg_match('/^(not\s+)?exists\s*\(\s*(select\s+.+)\)$/is', $sql, $match) === 1) {
             $subquerySql = trim($match[2]);
 
             return [
@@ -2125,7 +2132,23 @@ final class SQLiteSelectSql
     private static function correlatedSubqueryRows(string $sql, array $tables, array $outerRow): array
     {
         $plan = self::plan($sql, $tables, [], $outerRow);
+        if (isset($plan['compound']) && is_array($plan['compound'])) {
+            return self::executeCompoundPlan($plan);
+        }
 
+        $plan = self::expandCorrelatedPlan($plan, $tables, $outerRow);
+
+        return self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($plan), $plan);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param array<string,mixed> $outerRow
+     * @return array<string,mixed>
+     */
+    private static function expandCorrelatedPlan(array $plan, array $tables, array $outerRow): array
+    {
         $rows = $plan['from'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL subquery needs source rows');
@@ -2145,7 +2168,7 @@ final class SQLiteSelectSql
         }
         $plan['from'] = $expanded;
 
-        return self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($plan), $plan);
+        return $plan;
     }
 
     /**

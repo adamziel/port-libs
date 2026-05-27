@@ -153,6 +153,49 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,idxNum:int,idxStr:string,runnable:bool,arguments:list<mixed>,constraintUsage:list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,orderByConsumed:bool,estimatedCost:int,estimatedRows:int}
+     */
+    public static function xBestIndexPlan(string $function, array $constraints, array $orderBy = []): array
+    {
+        $indexedConstraints = [];
+        foreach ($constraints as $index => $constraint) {
+            $indexedConstraints[] = $constraint + ['constraintIndex' => $index];
+        }
+
+        $plan = self::plan($function, $indexedConstraints);
+        $usage = [];
+        foreach ($plan['used'] as $constraint) {
+            $usage[] = self::constraintUsage($constraint, true);
+        }
+        foreach ($plan['residual'] as $constraint) {
+            $constraintIndex = $constraint['constraintIndex'] ?? null;
+            if (!is_int($constraintIndex) || self::constraintIndexAlreadyUsed($usage, $constraintIndex)) {
+                continue;
+            }
+            $usage[] = self::constraintUsage($constraint, false);
+        }
+
+        usort($usage, static fn (array $left, array $right): int => $left['constraintIndex'] <=> $right['constraintIndex']);
+
+        return [
+            'function' => $plan['function'],
+            'idxNum' => self::jsonTableIdxNum($plan),
+            'idxStr' => self::jsonTableIdxStr($plan),
+            'runnable' => $plan['runnable'],
+            'arguments' => $plan['arguments'],
+            'constraintUsage' => $usage,
+            'currentNext' => self::constraintCurrentNext($usage),
+            'used' => $plan['used'],
+            'residual' => $plan['residual'],
+            'orderByConsumed' => self::jsonTableOrderByConsumed($orderBy),
+            'estimatedCost' => $plan['estimatedCost'],
+            'estimatedRows' => $plan['estimatedRows'],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array<string,mixed>>
      */
     public static function rows(string $function, array $constraints): array
@@ -554,6 +597,130 @@ final class SQLiteJsonTablePlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     */
+    private static function jsonTableIdxNum(array $plan): int
+    {
+        $idxNum = 0;
+        foreach ($plan['used'] as $constraint) {
+            $column = strtolower((string) $constraint['column']);
+            if (($constraint['constraint'] ?? null) === 'VISIBLE') {
+                $idxNum |= 4;
+                continue;
+            }
+            if ($column === 'json') {
+                $idxNum |= 1;
+                continue;
+            }
+            if ($column === 'root') {
+                $idxNum |= 2;
+                continue;
+            }
+            if ($column === 'limit') {
+                $idxNum |= 8;
+                continue;
+            }
+            if ($column === 'offset') {
+                $idxNum |= 16;
+            }
+        }
+
+        return $idxNum;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     */
+    private static function jsonTableIdxStr(array $plan): string
+    {
+        $parts = [];
+        foreach ($plan['used'] as $constraint) {
+            $column = strtolower((string) $constraint['column']);
+            $operator = strtoupper((string) $constraint['operator']);
+            $kind = ($constraint['constraint'] ?? null) === 'VISIBLE' ? 'visible' : 'hidden';
+            $parts[] = "{$kind}:{$column}:{$operator}";
+        }
+
+        return implode('|', $parts);
+    }
+
+    /**
+     * @param array<string,mixed> $constraint
+     * @return array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}
+     */
+    private static function constraintUsage(array $constraint, bool $used): array
+    {
+        $constraintIndex = $constraint['constraintIndex'] ?? null;
+        if (!is_int($constraintIndex)) {
+            throw new \InvalidArgumentException('SQLite JSON table xBestIndex constraints must preserve numeric indexes');
+        }
+
+        return [
+            'constraintIndex' => $constraintIndex,
+            'column' => strtolower((string) $constraint['column']),
+            'operator' => strtoupper((string) $constraint['operator']),
+            'argvIndex' => $used ? (int) ($constraint['argvIndex'] ?? 0) : null,
+            'omit' => $used ? (bool) ($constraint['omit'] ?? false) : false,
+            'usable' => (bool) ($constraint['usable'] ?? true),
+            'kind' => $used
+                ? (($constraint['constraint'] ?? null) === 'VISIBLE' ? 'visible' : 'hidden')
+                : 'residual',
+        ];
+    }
+
+    /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     */
+    private static function constraintIndexAlreadyUsed(array $usage, int $constraintIndex): bool
+    {
+        foreach ($usage as $entry) {
+            if ($entry['constraintIndex'] === $constraintIndex) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null}>
+     */
+    private static function constraintCurrentNext(array $usage): array
+    {
+        $pairs = [];
+        $count = count($usage);
+        for ($index = 0; $index < $count; $index++) {
+            $pairs[] = [
+                'current' => $usage[$index],
+                'next' => $usage[$index + 1] ?? null,
+            ];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function jsonTableOrderByConsumed(array $orderBy): bool
+    {
+        if ($orderBy === []) {
+            return false;
+        }
+
+        foreach ($orderBy as $term) {
+            $column = strtolower($term['column']);
+            $direction = strtoupper($term['direction'] ?? 'ASC');
+            if (!in_array($column, ['id', 'rowid', '_rowid_', 'oid'], true) || $direction !== 'ASC') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
