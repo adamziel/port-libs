@@ -2066,3 +2066,32 @@ repeating VFS lock byte ranges, lock state, process locks, locked writer, sync
 apply, rollback-journal apply, or file-writer application. Follow-up should
 wire this state into broader pager/open execution or durable transaction
 coordination.
+## WAL Corrupt Checksum Recovery Boundary Slice
+
+Focused lane verification for the WAL corrupt-checksum recovery-boundary slice:
+
+```bash
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["finds sqlite wal checksum recovery boundary before corrupt tail frames","bounds sqlite wal recovery at header salt and truncated frame corruption"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
+checks passed with 61 assertions and 0 failures; the WordPress WAL diagnostic
+smoke emitted `corruptWalRecoveryBoundary.status = recovered_prefix`,
+`reason = frame_checksum_mismatch`, and `containsCorruptDraftSiteUrl = false`.
+Root harness status: not run - isolated micro-slice.
+
+Non-overlap note: this slice does not repeat accepted WAL byte truncation,
+rollback-journal commit/apply, WAL checkpoint transactions, VFS file writer,
+VFS sync/apply, VFS savepoint rollback, or WAL reader/read-mark diagnostics. It
+adds the corrupt WAL checksum recovery boundary needed before repair tooling
+can trust a valid committed WAL prefix and ignore the corrupt tail.
+
+Dependency closure: no new shared support component is needed; the slice reuses
+lane-local WAL header/frame parsing, checksum validation, checkpoint image
+materialization, and copied WordPress WAL diagnostics.

@@ -72,6 +72,8 @@ $draftOptionPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/
 $draftOptionCell = SQLiteTableLeafCell::encode(1, $draftOptionPayload, $pageSize);
 $draftOptionPage = SQLiteTableLeafPage::assemble([$draftOptionCell], $pageSize);
 $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $draftOptionPage);
+$corruptWalBytes = substr_replace($walBytes, 'X', strlen($committedWalBytes) + 24 + 24, 1);
+$corruptRecovery = SQLiteWal::checksumRecoveryBoundary($corruptWalBytes, $baseDatabaseBytes);
 
 $wal = SQLiteWal::parse($walBytes, null, true);
 $committedWal = SQLiteWal::parse($committedWalBytes, null, true);
@@ -151,6 +153,21 @@ echo json_encode([
     'checkpointResults' => $checkpointResultSummary,
     'durableCheckpointWrites' => $durableCheckpointSummary,
     'durableFileWritePlans' => $durableFileWritePlans,
+    'corruptWalRecoveryBoundary' => [
+        'status' => $corruptRecovery['status'],
+        'reason' => $corruptRecovery['reason'],
+        'valid_frame_count' => $corruptRecovery['valid_frame_count'],
+        'total_frame_slots' => $corruptRecovery['total_frame_slots'],
+        'first_invalid_frame' => $corruptRecovery['first_invalid_frame'],
+        'recovery_end_offset' => $corruptRecovery['recovery_end_offset'],
+        'last_commit_frame' => $corruptRecovery['last_commit_frame'],
+        'last_commit_page_count' => $corruptRecovery['last_commit_page_count'],
+        'can_checkpoint' => $corruptRecovery['can_checkpoint'],
+        'checkpoint_database_page_count' => $corruptRecovery['checkpoint_database_page_count'],
+        'containsCommittedSiteUrl' => str_contains((string) $corruptRecovery['checkpoint_database_bytes'], 'from-wal'),
+        'containsCorruptDraftSiteUrl' => str_contains((string) $corruptRecovery['checkpoint_database_bytes'], 'draft-wal'),
+        'dependencies' => $corruptRecovery['dependencies'],
+    ],
     'readerPageMap' => $readerPageMap,
     'walIndexReadMarks' => $readMarkPlan,
     'readerOptionPage' => [
@@ -209,5 +226,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, and ordered VFS file-write/sync/truncate plans while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, corrupt WAL checksum recovery boundaries, and ordered VFS file-write/sync/truncate plans while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

@@ -16896,6 +16896,136 @@ SQL;
         $badFrameChecksum = substr_replace($walBytes, pack('N', $checksumSeed[0] ^ 1), 32 + 24 + $pageSize + 16, 4);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($badFrameChecksum, null, true));
     },
+    'finds sqlite wal checksum recovery boundary before corrupt tail frames' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x11121314;
+        $salt2 = 0x21222324;
+        $headerPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 4, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($headerPrefix, false);
+        $walBytes = $headerPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+
+        $appendFrame = static function (string $walBytes, array &$checksumSeed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $checksumSeed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $checksumSeed[0], $checksumSeed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $pageImage;
+        };
+
+        $pageOneBase = $makeFirstPage($pageSize, 2);
+        $pageTwoBase = str_pad('wp_options base page', $pageSize, '.');
+        $pageOneWal = $makeFirstPage($pageSize, 3);
+        $pageTwoWal = str_pad('wp_options committed setting', $pageSize, '.');
+        $pageThreeWal = str_pad('wp_options committed metadata', $pageSize, '.');
+        $pageTwoCorrupt = str_pad('wp_options corrupt tail setting', $pageSize, '.');
+        $databaseBytes = $pageOneBase . $pageTwoBase;
+
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $pageOneWal);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $pageTwoWal);
+        $validPrefixBytes = $appendFrame($walBytes, $checksumSeed, 3, 3, $pageThreeWal);
+        $corruptWalBytes = $appendFrame($validPrefixBytes, $checksumSeed, 2, 3, $pageTwoCorrupt);
+        $corruptWalBytes = substr_replace($corruptWalBytes, 'X', 32 + ((24 + $pageSize) * 3) + 24 + 12, 1);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($corruptWalBytes, null, true));
+
+        $boundary = SQLiteWal::checksumRecoveryBoundary($corruptWalBytes, $databaseBytes);
+        $wal = $boundary['wal'];
+        $checkpointBytes = $boundary['checkpoint_database_bytes'];
+
+        $t->same('recovered_prefix', $boundary['status']);
+        $t->same('frame_checksum_mismatch', $boundary['reason']);
+        $t->same(3, $boundary['valid_frame_count']);
+        $t->same(4, $boundary['total_frame_slots']);
+        $t->same(4, $boundary['first_invalid_frame']);
+        $t->same(strlen($validPrefixBytes), $boundary['recovery_end_offset']);
+        $t->same($validPrefixBytes, $boundary['valid_wal_bytes']);
+        $t->same(true, $boundary['can_checkpoint']);
+        $t->same(3, $boundary['last_commit_frame']);
+        $t->same(3, $boundary['last_commit_page_count']);
+        $t->same(0, $boundary['uncommitted_frame_count']);
+        $t->same(3, $boundary['checkpoint_database_page_count']);
+        $t->same(['sqlite-wal-checksum-recovery-boundary'], $boundary['dependencies']);
+        $t->same(true, $wal instanceof SQLiteWal);
+        $t->same(true, $wal->checksumsValidated);
+        $t->same(3, $wal->frameCount());
+        $t->same(3, $wal->lastCommitFrame()?->index);
+        $t->same([1, 2, 3], array_keys($wal->pageImagesThroughLastCommit()));
+        $t->same(false, str_contains($boundary['valid_wal_bytes'], 'corrupt tail'));
+        $t->same(strlen($validPrefixBytes) + 24 + $pageSize, strlen($corruptWalBytes));
+        $t->same(true, is_string($checkpointBytes));
+        $t->same(true, str_contains((string) $checkpointBytes, 'wp_options committed setting'));
+        $t->same(true, str_contains((string) $checkpointBytes, 'wp_options committed metadata'));
+        $t->same(false, str_contains((string) $checkpointBytes, 'wp_options corrupt tail setting'));
+        $t->same(true, str_contains($wal->readerSnapshotPageImage($databaseBytes, 2)['image'], 'wp_options committed setting'));
+        $t->same(false, str_contains($wal->readerSnapshotPageImage($databaseBytes, 2)['image'], 'corrupt tail'));
+    },
+    'bounds sqlite wal recovery at header salt and truncated frame corruption' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x31323334;
+        $salt2 = 0x41424344;
+        $headerPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 6, $salt1, $salt2);
+        $headerChecksum = SQLiteWal::checksumPair($headerPrefix, false);
+        $header = $headerPrefix . pack('N*', $headerChecksum[0], $headerChecksum[1]);
+        $checksumSeed = $headerChecksum;
+
+        $appendFrame = static function (string $walBytes, array &$checksumSeed, int $pageNumber, int $commit, string $pageImage, ?int $frameSalt1 = null) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $frameSalt1 ?? $salt1, $salt2);
+            $checksumSeed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $checksumSeed[0], $checksumSeed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $pageImage;
+        };
+
+        $databaseBytes = $makeFirstPage($pageSize, 1);
+        $pageOne = $makeFirstPage($pageSize, 1);
+        $pageTwo = str_pad('wp_options tail page', $pageSize, '.');
+
+        $oneFrameWal = $appendFrame($header, $checksumSeed, 1, 1, $pageOne);
+        $saltSeed = $checksumSeed;
+        $saltCorruptWal = $appendFrame($oneFrameWal, $saltSeed, 2, 2, $pageTwo, $salt1 ^ 1);
+        $saltBoundary = SQLiteWal::checksumRecoveryBoundary($saltCorruptWal, $databaseBytes);
+
+        $t->same('recovered_prefix', $saltBoundary['status']);
+        $t->same('frame_salt_mismatch', $saltBoundary['reason']);
+        $t->same(1, $saltBoundary['valid_frame_count']);
+        $t->same(2, $saltBoundary['total_frame_slots']);
+        $t->same(2, $saltBoundary['first_invalid_frame']);
+        $t->same(strlen($oneFrameWal), $saltBoundary['recovery_end_offset']);
+        $t->same($oneFrameWal, $saltBoundary['valid_wal_bytes']);
+        $t->same(1, $saltBoundary['last_commit_frame']);
+        $t->same(1, $saltBoundary['last_commit_page_count']);
+        $t->same(0, $saltBoundary['uncommitted_frame_count']);
+        $t->same(1, $saltBoundary['checkpoint_database_page_count']);
+        $t->same(true, str_contains((string) $saltBoundary['checkpoint_database_bytes'], 'SQLite format 3'));
+        $t->same(false, str_contains($saltBoundary['valid_wal_bytes'], 'wp_options tail page'));
+
+        $truncatedWal = $oneFrameWal . substr(pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $pageTwo, 0, 100);
+        $truncatedBoundary = SQLiteWal::checksumRecoveryBoundary($truncatedWal, $databaseBytes);
+
+        $t->same('recovered_prefix', $truncatedBoundary['status']);
+        $t->same('truncated_frame_tail', $truncatedBoundary['reason']);
+        $t->same(1, $truncatedBoundary['valid_frame_count']);
+        $t->same(2, $truncatedBoundary['total_frame_slots']);
+        $t->same(2, $truncatedBoundary['first_invalid_frame']);
+        $t->same(strlen($oneFrameWal), $truncatedBoundary['recovery_end_offset']);
+        $t->same($oneFrameWal, $truncatedBoundary['valid_wal_bytes']);
+        $t->same(1, $truncatedBoundary['wal']->frameCount());
+        $t->same(1, $truncatedBoundary['last_commit_frame']);
+        $t->same(true, $truncatedBoundary['can_checkpoint']);
+
+        $badHeader = substr_replace($oneFrameWal, pack('N', $headerChecksum[0] ^ 7), 24, 4);
+        $headerBoundary = SQLiteWal::checksumRecoveryBoundary($badHeader, $databaseBytes);
+
+        $t->same('corrupt', $headerBoundary['status']);
+        $t->same('header_checksum_mismatch', $headerBoundary['reason']);
+        $t->same(0, $headerBoundary['valid_frame_count']);
+        $t->same(0, $headerBoundary['total_frame_slots']);
+        $t->same(0, $headerBoundary['first_invalid_frame']);
+        $t->same(32, $headerBoundary['recovery_end_offset']);
+        $t->same(substr($badHeader, 0, 32), $headerBoundary['valid_wal_bytes']);
+        $t->same(0, $headerBoundary['wal']->frameCount());
+        $t->same(null, $headerBoundary['last_commit_frame']);
+        $t->same(false, $headerBoundary['can_checkpoint']);
+        $t->same(null, $headerBoundary['checkpoint_database_bytes']);
+    },
     'rejects malformed sqlite wal files' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(str_repeat("\0", 31)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(pack('N*', 0, 3007000, 512, 0, 1, 2, 3, 4)));

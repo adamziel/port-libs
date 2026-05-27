@@ -71,6 +71,109 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{status:string,reason:string,valid_frame_count:int,total_frame_slots:int,first_invalid_frame:int|null,recovery_end_offset:int,valid_wal_bytes:string,wal:SQLiteWal,last_commit_frame:int|null,last_commit_page_count:int|null,uncommitted_frame_count:int,can_checkpoint:bool,checkpoint_database_bytes:string|null,checkpoint_database_page_count:int|null,dependencies:list<string>}
+     */
+    public static function checksumRecoveryBoundary(string $bytes, string $databaseBytes = '', ?int $databasePageSize = null): array
+    {
+        $header = SQLiteWalHeader::parse($bytes);
+        $pageSize = $header->pageSize !== 0 ? $header->pageSize : $databasePageSize;
+        if ($pageSize === null || $pageSize < 512) {
+            throw new \InvalidArgumentException('SQLite WAL recovery requires a page size from the WAL header or database header');
+        }
+        if (strlen($bytes) < 32) {
+            throw new \InvalidArgumentException('SQLite WAL file is truncated before the frame area');
+        }
+
+        $headerChecksum = self::checksumPair(substr($bytes, 0, 24), $header->usesLittleEndianChecksums());
+        if ($headerChecksum !== [$header->checksum1, $header->checksum2]) {
+            $emptyWalBytes = self::headerBytes($header);
+            $wal = new self($header, [], true);
+
+            return [
+                'status' => 'corrupt',
+                'reason' => 'header_checksum_mismatch',
+                'valid_frame_count' => 0,
+                'total_frame_slots' => 0,
+                'first_invalid_frame' => 0,
+                'recovery_end_offset' => 32,
+                'valid_wal_bytes' => $emptyWalBytes,
+                'wal' => $wal,
+                'last_commit_frame' => null,
+                'last_commit_page_count' => null,
+                'uncommitted_frame_count' => 0,
+                'can_checkpoint' => false,
+                'checkpoint_database_bytes' => null,
+                'checkpoint_database_page_count' => null,
+                'dependencies' => ['sqlite-wal-checksum-recovery-boundary'],
+            ];
+        }
+
+        $frameSize = 24 + $pageSize;
+        $availableFrameBytes = max(0, strlen($bytes) - 32);
+        $completeFrameSlots = intdiv($availableFrameBytes, $frameSize);
+        $hasTruncatedTail = ($availableFrameBytes % $frameSize) !== 0;
+        $checksumSeed = $headerChecksum;
+        $frames = [];
+        $validFrameCount = 0;
+        $firstInvalidFrame = null;
+        $reason = $hasTruncatedTail && $completeFrameSlots === 0 ? 'truncated_frame_tail' : 'all_frames_valid';
+
+        for ($offset = 32, $index = 1; $index <= $completeFrameSlots; $offset += $frameSize, $index++) {
+            $frameBytesForParse = substr($bytes, $offset, $frameSize);
+            $frame = SQLiteWalFrame::parse($index, $frameBytesForParse, $pageSize);
+            if ($frame->salt1 !== $header->salt1 || $frame->salt2 !== $header->salt2) {
+                $firstInvalidFrame = $index;
+                $reason = 'frame_salt_mismatch';
+                break;
+            }
+
+            $checksumSeed = self::checksumPair(substr($frameBytesForParse, 0, 8) . $frame->pageImage, $header->usesLittleEndianChecksums(), $checksumSeed[0], $checksumSeed[1]);
+            if ($checksumSeed !== [$frame->checksum1, $frame->checksum2]) {
+                $firstInvalidFrame = $index;
+                $reason = 'frame_checksum_mismatch';
+                break;
+            }
+
+            $frames[] = $frame;
+            $validFrameCount = $index;
+        }
+
+        if ($firstInvalidFrame === null && $hasTruncatedTail) {
+            $firstInvalidFrame = $completeFrameSlots + 1;
+            $reason = 'truncated_frame_tail';
+        }
+
+        $recoveryEndOffset = 32 + ($validFrameCount * $frameSize);
+        $validWalBytes = substr($bytes, 0, $recoveryEndOffset);
+        $wal = new self($header, $frames, true);
+        $lastCommitFrame = $wal->lastCommitFrame();
+        $checkpointDatabaseBytes = null;
+        $checkpointDatabasePageCount = null;
+        if ($databaseBytes !== '' && $lastCommitFrame !== null) {
+            $checkpointDatabaseBytes = $wal->checkpointDatabaseImage($databaseBytes);
+            $checkpointDatabasePageCount = intdiv(strlen($checkpointDatabaseBytes), $pageSize);
+        }
+
+        return [
+            'status' => $firstInvalidFrame === null ? 'valid' : 'recovered_prefix',
+            'reason' => $reason,
+            'valid_frame_count' => $validFrameCount,
+            'total_frame_slots' => $completeFrameSlots + ($hasTruncatedTail ? 1 : 0),
+            'first_invalid_frame' => $firstInvalidFrame,
+            'recovery_end_offset' => $recoveryEndOffset,
+            'valid_wal_bytes' => $validWalBytes,
+            'wal' => $wal,
+            'last_commit_frame' => $lastCommitFrame?->index,
+            'last_commit_page_count' => $lastCommitFrame?->databasePageCountAfterCommit,
+            'uncommitted_frame_count' => $wal->uncommittedFrameCount(),
+            'can_checkpoint' => $lastCommitFrame !== null,
+            'checkpoint_database_bytes' => $checkpointDatabaseBytes,
+            'checkpoint_database_page_count' => $checkpointDatabasePageCount,
+            'dependencies' => ['sqlite-wal-checksum-recovery-boundary'],
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     public static function checksumPair(string $bytes, bool $littleEndian, int $seed1 = 0, int $seed2 = 0): array
@@ -95,17 +198,7 @@ final class SQLiteWal
 
     public function toBytes(): string
     {
-        $bytes = pack(
-            'N*',
-            $this->header->magic,
-            $this->header->formatVersion,
-            $this->header->pageSize,
-            $this->header->checkpointSequence,
-            $this->header->salt1,
-            $this->header->salt2,
-            $this->header->checksum1,
-            $this->header->checksum2,
-        );
+        $bytes = self::headerBytes($this->header);
 
         foreach ($this->frames as $frame) {
             $bytes .= pack(
@@ -120,6 +213,21 @@ final class SQLiteWal
         }
 
         return $bytes;
+    }
+
+    private static function headerBytes(SQLiteWalHeader $header): string
+    {
+        return pack(
+            'N*',
+            $header->magic,
+            $header->formatVersion,
+            $header->pageSize,
+            $header->checkpointSequence,
+            $header->salt1,
+            $header->salt2,
+            $header->checksum1,
+            $header->checksum2,
+        );
     }
 
     public function frameCount(): int
