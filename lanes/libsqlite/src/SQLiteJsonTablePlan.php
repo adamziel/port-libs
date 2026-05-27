@@ -316,6 +316,96 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $baseConstraints
+     * @param list<list<array{column:string,operator:string,value:mixed,usable?:bool}>> $alternatives
+     * @return array{function:string,runnable:bool,branches:list<array<string,mixed>>,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int}
+     */
+    public static function alternativePlan(string $function, array $baseConstraints, array $alternatives): array
+    {
+        if ($alternatives === []) {
+            throw new \InvalidArgumentException('SQLite JSON table alternative plan requires at least one branch');
+        }
+
+        $function = self::normalizeFunction($function);
+        $branches = [];
+        $used = [];
+        $residual = [];
+        $estimatedRows = 0;
+        $estimatedCost = 0;
+        $runnable = false;
+
+        foreach ($alternatives as $index => $alternative) {
+            if (!is_array($alternative) || $alternative === []) {
+                throw new \InvalidArgumentException('SQLite JSON table alternative plan branches must be non-empty constraint lists');
+            }
+
+            $branch = self::plan($function, array_merge($baseConstraints, $alternative));
+            $branch['branch'] = $index;
+            $branches[] = $branch;
+
+            foreach ($branch['used'] as $constraint) {
+                $used[] = $constraint + ['branch' => $index];
+            }
+            foreach ($branch['residual'] as $constraint) {
+                $residual[] = $constraint + ['branch' => $index];
+            }
+
+            if ($branch['runnable']) {
+                $runnable = true;
+                $estimatedRows += $branch['estimatedRows'];
+                $estimatedCost += $branch['estimatedCost'];
+            }
+        }
+
+        return [
+            'function' => $function,
+            'runnable' => $runnable,
+            'branches' => $branches,
+            'used' => $used,
+            'residual' => $residual,
+            'estimatedCost' => $runnable ? max(1, $estimatedCost) : 1000000,
+            'estimatedRows' => $runnable ? $estimatedRows : 0,
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $baseConstraints
+     * @param list<list<array{column:string,operator:string,value:mixed,usable?:bool}>> $alternatives
+     * @return list<array<string,mixed>>
+     */
+    public static function filteredAlternativeRows(string $function, array $baseConstraints, array $alternatives): array
+    {
+        $plan = self::alternativePlan($function, $baseConstraints, $alternatives);
+        if (!$plan['runnable']) {
+            return [];
+        }
+
+        $rows = [];
+        $seen = [];
+        foreach ($plan['branches'] as $branch) {
+            if (!$branch['runnable']) {
+                continue;
+            }
+
+            $branchRows = self::filteredRows($function, array_merge(
+                $baseConstraints,
+                $alternatives[(int) $branch['branch']],
+            ));
+            foreach ($branchRows as $row) {
+                $key = self::rowIdentityKey($row);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<string> $columns
      * @return list<array<string,mixed>>
@@ -915,6 +1005,19 @@ final class SQLiteJsonTablePlan
         }
 
         return $row[$column];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowIdentityKey(array $row): string
+    {
+        return json_encode([
+            $row['json'] ?? null,
+            $row['root'] ?? null,
+            $row['id'] ?? null,
+            $row['fullkey'] ?? null,
+        ], JSON_THROW_ON_ERROR);
     }
 
     private static function isRowIdAlias(string $column): bool

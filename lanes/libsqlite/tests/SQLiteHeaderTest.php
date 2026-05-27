@@ -8151,6 +8151,85 @@ return [
         $t->same(['seo', 'cache', 'forms'], array_column($patternRows, 'atom'));
         $t->same(['$.plugin.rules[0].name', '$.plugin.rules[1].name', '$.plugin.rules[2].name'], array_column($patternRows, 'fullkey'));
     },
+    'plans sqlite json table disjunctive visible-column constraint pushdown' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":4,"autoload":true}],"meta":{"owner":"admin"}}}';
+        $baseConstraints = [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ];
+        $alternatives = [
+            [
+                ['column' => 'key', 'operator' => '=', 'value' => 'name'],
+                ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+                ['column' => 'atom', 'operator' => 'IN', 'value' => ['seo', 'forms']],
+            ],
+            [
+                ['column' => 'key', 'operator' => '=', 'value' => 'priority'],
+                ['column' => 'atom', 'operator' => '>=', 'value' => 4],
+            ],
+            [
+                ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => '$.plugin.rules[%].autoload'],
+                ['column' => 'atom', 'operator' => 'IS', 'value' => 1],
+            ],
+        ];
+
+        $plan = SQLiteJsonTablePlan::alternativePlan('json_tree', $baseConstraints, $alternatives);
+        $t->same('json_tree', $plan['function']);
+        $t->same(true, $plan['runnable']);
+        $t->same(3, count($plan['branches']));
+        $t->same([0, 1, 2], array_column($plan['branches'], 'branch'));
+        $t->same([0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2], array_column($plan['used'], 'branch'));
+        $t->same(['json', 'root', 'key', 'type', 'atom', 'json', 'root', 'key', 'atom', 'json', 'root', 'fullkey', 'atom'], array_column($plan['used'], 'column'));
+        $t->same([true, true, false, false, false], array_column($plan['branches'][0]['used'], 'omit'));
+        $t->same([true, true, false, false], array_column($plan['branches'][1]['used'], 'omit'));
+        $t->same([true, true, false, false], array_column($plan['branches'][2]['used'], 'omit'));
+        $t->same(['key', 'type', 'atom'], array_column($plan['branches'][0]['residual'], 'column'));
+        $t->same(['key', 'atom'], array_column($plan['branches'][1]['residual'], 'column'));
+        $t->same(['fullkey', 'atom'], array_column($plan['branches'][2]['residual'], 'column'));
+        $t->same(4, $plan['estimatedRows']);
+        $t->same(6, $plan['estimatedCost']);
+
+        $rows = SQLiteJsonTablePlan::filteredAlternativeRows('json_tree', $baseConstraints, $alternatives);
+        $t->same(6, count($rows));
+        $t->same(['name', 'name', 'priority', 'priority', 'autoload', 'autoload'], array_column($rows, 'key'));
+        $t->same(['seo', 'forms', 7, 4, 1, 1], array_column($rows, 'atom'));
+        $t->same(['text', 'text', 'integer', 'integer', 'true', 'true'], array_column($rows, 'type'));
+        $t->same([
+            '$.plugin.rules[0].name',
+            '$.plugin.rules[2].name',
+            '$.plugin.rules[1].priority',
+            '$.plugin.rules[2].priority',
+            '$.plugin.rules[0].autoload',
+            '$.plugin.rules[2].autoload',
+        ], array_column($rows, 'fullkey'));
+
+        $duplicateAlternatives = [
+            [
+                ['column' => 'key', 'operator' => '=', 'value' => 'priority'],
+                ['column' => 'atom', 'operator' => '>=', 'value' => 4],
+            ],
+            [
+                ['column' => 'key', 'operator' => 'IN', 'value' => ['priority']],
+                ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [4, 7]],
+            ],
+        ];
+        $dedupedRows = SQLiteJsonTablePlan::filteredAlternativeRows('json_tree', $baseConstraints, $duplicateAlternatives);
+        $t->same(2, count($dedupedRows));
+        $t->same([7, 4], array_column($dedupedRows, 'atom'));
+        $t->same([7, 11], array_column($dedupedRows, 'id'));
+
+        $leftBranchOnlyRows = SQLiteJsonTablePlan::filteredAlternativeRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings, 'usable' => false],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], $alternatives);
+        $t->same([], $leftBranchOnlyRows);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::alternativePlan('json_tree', $baseConstraints, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::alternativePlan('json_tree', $baseConstraints, [[]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredAlternativeRows('json_tree', $baseConstraints, [
+            [['column' => 'missing', 'operator' => '=', 'value' => 'x']],
+        ]));
+    },
     'opens sqlite json table virtual cursors over planned rows' => static function (TestRunner $t): void {
         $settings = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":4,"autoload":true}],"flags":["alpha","beta"]}}';
         $cursor = SQLiteJsonTableCursor::open('json_tree', [

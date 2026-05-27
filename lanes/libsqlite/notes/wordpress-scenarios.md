@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Table Disjunctive Pushdown Scenario
+
+Copied WordPress plugin settings can now plan OR-shaped `json_tree()`
+diagnostics as separate visible-column constraint branches. The smoke
+`examples/wordpress-json-table-disjunctive-pushdown.php` reports branch-local
+`key`, `type`, `atom`, and `fullkey` pushdown estimates, residual filtering,
+and duplicate row suppression without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated JSON table slice: added
+`SQLiteJsonTablePlan::alternativePlan()` and `filteredAlternativeRows()` for
+bounded disjunctive visible-column planner branches. Focused assertions cover
+branch metadata, visible pushdown/residual preservation, estimated rows/cost,
+row materialization, duplicate branch suppression, unusable hidden sources,
+and malformed branch guards.
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/JSON5/JSONB parsing, residual
+predicate comparison, and pure PHP row arrays.
+
 ## Auto-vacuum Pointer-map Apply Scenario
 
 Copied WordPress repair/import flows can now apply auto-vacuum pointer-map
