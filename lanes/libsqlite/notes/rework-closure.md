@@ -929,3 +929,38 @@ Dependency closure: no new shared support component is needed. This reuses
 lane-local VFS file-handle and rollback-journal durability evidence. Follow-up
 should wire the plan into broader pager/VFS transaction application without
 repeating this planning-only path.
+## 2026-05-27 SELECT SQL Scalar Operators
+
+This bounded SQL execution/planner slice does not repeat accepted comma-LIMIT,
+expression ORDER BY, GROUP BY/HAVING SQL text, SELECT SQL JOIN/text dispatch,
+JSON table source wiring, or pager/VFS behavior. It adds parser-level scalar
+operator expressions for `+`, `-`, `*`, `/`, `%`, and `||`, then routes those
+expressions through projection, WHERE predicates, hidden ORDER BY expressions,
+and grouped HAVING aggregate rewrites.
+
+Focused assertion delta: `SQLiteHeaderTest.php` adds 67 assertions over the
+accepted VFS sync-plan baseline. The assertions cover numeric coercion, text
+concatenation, NULL propagation, divide/modulo-by-zero NULL results, hidden
+ORDER BY expression columns, grouped HAVING rewrites, and malformed operator
+guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectExpression.php
+php -l lanes/libsqlite/src/SQLiteSelectProjection.php
+php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser, scalar function dispatcher, projection,
+predicate, grouped aggregate, and query-plan result pipeline. Follow-up should
+broaden SQL executor/planner correctness without repeating this scalar-operator
+path.

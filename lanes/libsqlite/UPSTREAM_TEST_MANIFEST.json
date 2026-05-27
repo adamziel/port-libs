@@ -1307,6 +1307,18 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-rollback-journal-and-vfs-writer-evidence"
+        },
+        "focusedSelectSqlScalarOperators": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite SELECT expression arithmetic, modulo, division, concatenation, and expression composition represented as bounded PHP parser/executor dispatch rather than full VDBE execution.",
+            "nativeEvidence": "SQLiteSelectSql/SQLiteSelectExpression focused PHP coverage plus copied WordPress SELECT SQL scalar-operator smoke.",
+            "phpPass": 1,
+            "phpAssertions": 67,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-sql-parser-and-query-plan-evidence"
         }
     },
     "wordpress": {
@@ -1316,7 +1328,8 @@
             "focusedBtreeIndexInteriorMergeApplicationPlan": "The index-interior merge apply smoke reports copied wp_options autoload-index parent merging after delete underflow, obsolete sibling freelist release, merged child record order, and auto-vacuum pointer-map ownership rewrites without requiring ext/sqlite.",
             "focusedVfsSavepointRollbackApply": "The VFS savepoint rollback smoke reports copied wp_options failed plugin-setting imports applied through native file handles, restoring savepoint database page images, truncating discarded WAL frames, syncing database/WAL handles, and persisting sidecar directory state without requiring ext/sqlite.",
             "focusedSuperJournalCommitApply": "The super-journal commit smoke reports copied WordPress multisite-style attached database imports committed through a SQLite master journal that lists each rollback journal, syncs attached journals and database pages, deletes the super-journal as the atomic commit point, and cleans sidecars without requiring ext/sqlite.",
-            "focusedVfsSyncPlan": "The VFS sync-plan smoke reports copied WordPress database rollback-journal, WAL, directory, read-only, memory, powersafe-overwrite, and persist-journal sync decisions with SQLite xSync flags and durable sequence dependencies without requiring ext/sqlite."
+            "focusedVfsSyncPlan": "The VFS sync-plan smoke reports copied WordPress database rollback-journal, WAL, directory, read-only, memory, powersafe-overwrite, and persist-journal sync decisions with SQLite xSync flags and durable sequence dependencies without requiring ext/sqlite.",
+            "focusedSelectSqlScalarOperators": "The SELECT SQL scalar operator smoke reports copied wp_options rows projected and filtered through parser-level arithmetic, modulo, division, text concatenation, NULL propagation, hidden ORDER BY expressions, and grouped HAVING rewrites without requiring ext/sqlite."
         },
         "focusedBtreeInteriorRedistributionPlan": "The table-interior redistribution smoke reports copied wp_options table b-tree delete rebalancing where an underfilled interior parent borrows a child pointer from its right sibling, replaces the parent divider key, and rewrites auto-vacuum pointer-map ownership without requiring ext/sqlite."
     },
@@ -1336,7 +1349,8 @@
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-json-table-planner-and-cursor-evidence"
         },
-        "focusedSuperJournalCommitApply": "The 2026-05-27 isolated WAL/rollback slice maps one additional focused VFS/pager evidence row for SQLite super-journal/master-journal commit application across attached databases. Native focused coverage adds 83 selected assertions and a copied WordPress multisite-style super-journal smoke without claiming fresh upstream execution."
+        "focusedSuperJournalCommitApply": "The 2026-05-27 isolated WAL/rollback slice maps one additional focused VFS/pager evidence row for SQLite super-journal/master-journal commit application across attached databases. Native focused coverage adds 83 selected assertions and a copied WordPress multisite-style super-journal smoke without claiming fresh upstream execution.",
+        "focusedSelectSqlScalarOperators": "The 2026-05-27 bounded SQL execution/planner slice maps one additional focused SELECT expression evidence row for arithmetic, modulo, division, concatenation, NULL propagation, hidden ORDER BY expressions, and grouped HAVING rewrites over copied wp_options rows. Native focused coverage adds 67 assertions and a copied WordPress scalar-operator smoke without claiming fresh upstream execution."
     },
     "inventory": {
         "focusedWalSavepointPageImageRollbackScripts": 1,

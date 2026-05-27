@@ -119508,3 +119508,35 @@ Decision: accepted. Commit this candidate as `Integrate libsqlite VFS sync plan`
 Cleanup:
 - Removed accepted ready/patch/metadata files for `port-dev-libsqlite-deps-20260527T063946Z` after commit publication.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T063946Z` because it still contains modified/added lane files from the worker handoff. This is cleanup debt for a later non-forced worktree cleanup pass.
+## Integration accepted - libsqlite SELECT SQL scalar operators - 2026-05-27T07:00:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260527T064758Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Starting `refs/heads/main` was `82df9b38e9cec0cc04f161dd3e04f6a9357b65d6` (`Integrate libsqlite VFS sync plan`).
+- Cache-busted live Pages reported exact matching `sourceCommit` `82df9b38e9cec0cc04f161dd3e04f6a9357b65d6`, generated `2026-05-27 06:54:04 UTC`, dashboard `c4befb3727f32c5edd6837b8b47e594ae7e9b9d8`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Selected `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260527T064758Z.ready` (`closure-libsqlite-sql-exec-planner-scalar-functions-20260527T064758Z`) because it was the strongest sampled non-overlapping SQL executor/planner behavior marker with `+67` focused assertions and a copied WordPress smoke.
+- Original marker base was `bbed5adc383726c1121eadb9d064ec528f5f1066`; direct apply on current `82df9b38` failed only in stale manifest/status/notes files.
+- Bounded replay excluding stale `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and lane notes applied implementation/test/example hunks cleanly in detached worktree `.tmux-team/tmp/clean-integrator-scalar-20260527T064758Z-20260527T065646Z`.
+- Reconciled metadata from current accepted source: `phpPass` moves `787 -> 788`; mapped coverage text moves `441 -> 442`; `latestCommit` begins with exact current accepted source `82df9b38e9cec0cc04f161dd3e04f6a9357b65d6`.
+
+Verification before root:
+- Runtime gates before focused checks: `df -Pk /` free `86514248` KiB; load `1.18`; no exact no-argument root harness active.
+- Syntax checks passed for `SQLiteSelectExpression.php`, `SQLiteSelectProjection.php`, `SQLiteSelectPredicate.php`, `SQLiteSelectSql.php`, `SQLiteHeaderTest.php`, and `wordpress-select-sql-scalar-operators.php`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 7708 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-scalar-operators.php` passed and emitted valid JSON with selected option IDs `[5, 2, 1, 4]`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Serialized no-argument root run under clean-integrator lock passed with `215 test files, 32873 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts were removed after commit: `.ready`, `.patch`, and `.md`.
+- The clean detached integration worktree was removed after commit.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260527T064758Z` still contains modified/added lane files from the accepted handoff and was preserved as cleanup debt; no force removal or destructive cleanup was performed.

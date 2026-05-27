@@ -4447,3 +4447,21 @@ for rollback-journal commit paths before applying file-handle writes. The smoke
 directory, read-only, memory, powersafe-overwrite, and persist-journal sync
 steps with FULL/NORMAL/DATAONLY flag names and durable dependency tags without
 requiring ext/sqlite.
+## SELECT SQL Scalar Operators Scenario
+
+Copied WordPress option diagnostics can now execute bounded SELECT SQL scalar
+operators over row-array inputs. The smoke
+`examples/wordpress-select-sql-scalar-operators.php` reports arithmetic,
+modulo, division, text concatenation, NULL propagation, hidden ORDER BY
+expressions, WHERE expression operands, and grouped HAVING rewrites without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 bounded scalar SQL slice: added parser-level binary
+expression dispatch in `SQLiteSelectSql` plus shared scalar expression
+evaluation through projection, predicate, hidden ORDER BY, and aggregate
+rewrite paths. Focused `SQLiteHeaderTest.php` is expected to pass at 7708
+assertions after replay, +67 over the current accepted 7641 assertion
+baseline. Lane `phpPass` moves from 787 to 788 and mapped coverage moves from
+441 to 442. Dependency closure: no new support component is needed; this
+reuses lane-local SELECT SQL parsing, scalar function dispatch, projection,
+predicate, grouped aggregate, and query-plan result evidence.

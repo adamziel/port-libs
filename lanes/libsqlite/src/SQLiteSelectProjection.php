@@ -45,12 +45,13 @@ final class SQLiteSelectProjection
     {
         $kind = $expression['type'] ?? null;
 
+        if ($kind === 'column' || $kind === 'literal' || $kind === 'function' || $kind === 'binary') {
+            return SQLiteSelectExpression::evaluate($row, $expression);
+        }
+
         return match ($kind) {
-            'column' => self::columnValue($row, self::requiredString($expression, 'name', 'column expression')),
-            'literal' => $expression['value'] ?? null,
-            'function' => self::functionValue($row, $expression),
             'case' => self::caseValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, case, or wildcard'),
+            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, binary, case, or wildcard'),
         };
     }
 
@@ -104,31 +105,6 @@ final class SQLiteSelectProjection
         }
 
         return $values;
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     * @param array<string,mixed> $expression
-     */
-    private static function functionValue(array $row, array $expression): mixed
-    {
-        $function = self::requiredString($expression, 'name', 'function expression');
-        $arguments = $expression['arguments'] ?? [];
-        if (!is_array($arguments) || !array_is_list($arguments)) {
-            throw new \InvalidArgumentException("SQLite SELECT projection function {$function} arguments must be a list");
-        }
-
-        $evaluated = [];
-        foreach ($arguments as $argument) {
-            if (is_array($argument) && array_key_exists('type', $argument)) {
-                $evaluated[] = self::evaluateExpression($row, $argument);
-                continue;
-            }
-
-            $evaluated[] = $argument;
-        }
-
-        return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
     }
 
     /**
@@ -233,18 +209,6 @@ final class SQLiteSelectProjection
         }
 
         throw new \InvalidArgumentException('SQLite SELECT projection CASE values must be scalar, BLOB, or NULL');
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     */
-    private static function columnValue(array $row, string $name): mixed
-    {
-        if (!array_key_exists($name, $row)) {
-            throw new \InvalidArgumentException("SQLite SELECT projection row is missing column {$name}");
-        }
-
-        return $row[$name];
     }
 
     /**

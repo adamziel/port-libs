@@ -278,8 +278,8 @@ final class SQLiteSelectPredicate
             return match ($type) {
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
-                'function' => self::functionExpression($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, or function'),
+                'function', 'binary' => SQLiteSelectExpression::evaluate($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, or binary'),
             };
         }
 
@@ -305,30 +305,6 @@ final class SQLiteSelectPredicate
         }
 
         return $row[$column];
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     * @param array<string,mixed> $expression
-     */
-    private static function functionExpression(array $row, array $expression): mixed
-    {
-        $function = $expression['name'] ?? null;
-        if (!is_string($function) || $function === '') {
-            throw new \InvalidArgumentException('SQLite SELECT predicate function expressions need a non-empty name');
-        }
-
-        $arguments = $expression['arguments'] ?? [];
-        if (!is_array($arguments) || !array_is_list($arguments)) {
-            throw new \InvalidArgumentException("SQLite SELECT predicate function {$function} arguments must be a list");
-        }
-
-        $evaluated = [];
-        foreach ($arguments as $argument) {
-            $evaluated[] = self::valueExpression($row, $argument);
-        }
-
-        return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
     }
 
     private static function compareValues(mixed $left, mixed $right): ?int

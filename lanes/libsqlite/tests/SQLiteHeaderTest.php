@@ -22111,6 +22111,101 @@ SQL;
         $missingHiddenRows = SQLiteSelectSql::execute("SELECT key FROM json_each WHERE root = '$.plugin.rules'", []);
         $t->same([], $missingHiddenRows);
 
+        $arithmeticRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name || ':' || coalesce(autoload, 'missing') AS label, bytes + 1 AS next_bytes, bytes * 2 AS doubled, bytes / 3 AS third, bytes % 10 AS remainder FROM wp_options WHERE (bytes + option_id) >= 15 ORDER BY (bytes + option_id) DESC, option_name || option_id ASC LIMIT 4",
+            ['wp_options' => $options],
+        );
+        $t->same(4, count($arithmeticRows));
+        $t->same([5, 2, 1, 4], array_column($arithmeticRows, 'option_id'));
+        $t->same(['_site_transient_update_plugins:no', 'home:yes', 'siteurl:yes', '_transient_feed:no'], array_column($arithmeticRows, 'label'));
+        $t->same([111, 25, 25, 13], array_column($arithmeticRows, 'next_bytes'));
+        $t->same([220, 48, 48, 24], array_column($arithmeticRows, 'doubled'));
+        $t->same([36.666666666666664, 8, 8, 4], array_column($arithmeticRows, 'third'));
+        $t->same([0, 4, 4, 2], array_column($arithmeticRows, 'remainder'));
+        $t->same(['option_id', 'label', 'next_bytes', 'doubled', 'third', 'remainder'], array_keys($arithmeticRows[0]));
+        $t->same(5, $arithmeticRows[0]['option_id']);
+        $t->same('_site_transient_update_plugins:no', $arithmeticRows[0]['label']);
+        $t->same(111, $arithmeticRows[0]['next_bytes']);
+        $t->same(220, $arithmeticRows[0]['doubled']);
+        $t->same(36.666666666666664, $arithmeticRows[0]['third']);
+        $t->same(0, $arithmeticRows[0]['remainder']);
+        $t->same(2, $arithmeticRows[1]['option_id']);
+        $t->same('home:yes', $arithmeticRows[1]['label']);
+        $t->same(25, $arithmeticRows[1]['next_bytes']);
+        $t->same(48, $arithmeticRows[1]['doubled']);
+        $t->same(8, $arithmeticRows[1]['third']);
+        $t->same(4, $arithmeticRows[1]['remainder']);
+        $t->same(1, $arithmeticRows[2]['option_id']);
+        $t->same('siteurl:yes', $arithmeticRows[2]['label']);
+        $t->same(4, $arithmeticRows[3]['option_id']);
+        $t->same('_transient_feed:no', $arithmeticRows[3]['label']);
+
+        $arithmeticPlan = SQLiteSelectSql::plan(
+            "SELECT option_name || ':' || option_id AS label, (bytes + option_id) * 2 AS weight FROM wp_options WHERE (bytes - option_id) >= 8 ORDER BY (bytes + option_id) DESC LIMIT 2",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy', 'limit', 'offset'], array_keys($arithmeticPlan));
+        $t->same('binary', $arithmeticPlan['select'][0]['type']);
+        $t->same('||', $arithmeticPlan['select'][0]['operator']);
+        $t->same('label', $arithmeticPlan['select'][0]['alias']);
+        $t->same('binary', $arithmeticPlan['select'][1]['type']);
+        $t->same('*', $arithmeticPlan['select'][1]['operator']);
+        $t->same('weight', $arithmeticPlan['select'][1]['alias']);
+        $t->same('>=', $arithmeticPlan['where']['operator']);
+        $t->same('binary', $arithmeticPlan['where']['left']['type']);
+        $t->same('-', $arithmeticPlan['where']['left']['operator']);
+        $t->same('binary', $arithmeticPlan['select'][1]['left']['type']);
+        $t->same('+', $arithmeticPlan['select'][1]['left']['operator']);
+        $t->same('__sqlite_order_expr_0', $arithmeticPlan['select'][2]['alias']);
+        $t->true($arithmeticPlan['select'][2]['hiddenOrderColumn']);
+        $t->same('binary', $arithmeticPlan['select'][2]['type']);
+        $t->same('+', $arithmeticPlan['select'][2]['operator']);
+        $t->same([['column' => '__sqlite_order_expr_0', 'direction' => 'DESC']], $arithmeticPlan['orderBy']);
+        $arithmeticPlanRows = SQLiteSelectQuery::execute($arithmeticPlan);
+        $t->same(2, count($arithmeticPlanRows));
+        $t->same(['_site_transient_update_plugins:5', 'home:2'], array_column($arithmeticPlanRows, 'label'));
+        $t->same([230, 52], array_column($arithmeticPlanRows, 'weight'));
+        $t->same([115, 26], array_column($arithmeticPlanRows, '__sqlite_order_expr_0'));
+
+        $numericTextRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, option_value + 5 AS numeric_value, option_value || ':' || bytes AS text_value FROM wp_options WHERE (option_value + 5) >= 5 ORDER BY numeric_value DESC, name ASC LIMIT 3",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($numericTextRows));
+        $t->same(['_site_transient_update_plugins', '_transient_feed', 'blogname'], array_column($numericTextRows, 'name'));
+        $t->same([5, 5, 5], array_column($numericTextRows, 'numeric_value'));
+        $t->same(['plugins:110', 'cached:12', 'Example Site:9'], array_column($numericTextRows, 'text_value'));
+        $t->same(['name', 'numeric_value', 'text_value'], array_keys($numericTextRows[0]));
+
+        $nullArithmeticRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, option_value + 5 AS numeric_value, option_value || ':suffix' AS text_value FROM wp_options WHERE option_value IS NULL ORDER BY name",
+            ['wp_options' => $options],
+        );
+        $t->same(1, count($nullArithmeticRows));
+        $t->same('orphaned', $nullArithmeticRows[0]['name']);
+        $t->same(null, $nullArithmeticRows[0]['numeric_value']);
+        $t->same(null, $nullArithmeticRows[0]['text_value']);
+        $t->same(['name', 'numeric_value', 'text_value'], array_keys($nullArithmeticRows[0]));
+
+        $groupArithmeticRows = SQLiteSelectSql::execute(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload HAVING (sum(bytes) + count(*)) >= 59 ORDER BY (sum(bytes) + count(*)) DESC LIMIT 2",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($groupArithmeticRows));
+        $t->same(['no', 'yes'], array_column($groupArithmeticRows, 'autoload'));
+        $t->same([2, 3], array_column($groupArithmeticRows, 'rows'));
+        $t->same([122, 57], array_column($groupArithmeticRows, 'byte_sum'));
+        $t->same(['autoload', 'rows', 'byte_sum'], array_keys($groupArithmeticRows[0]));
+
+        $divideByZeroRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, bytes / 0 AS div_zero, bytes % 0 AS mod_zero FROM wp_options WHERE option_id = 1",
+            ['wp_options' => $options],
+        );
+        $t->same(1, count($divideByZeroRows));
+        $t->same('siteurl', $divideByZeroRows[0]['name']);
+        $t->same(null, $divideByZeroRows[0]['div_zero']);
+        $t->same(null, $divideByZeroRows[0]['mod_zero']);
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each()', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_each('[1]', '$', '$.extra')", []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each(7)', []));
@@ -22147,5 +22242,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes), max(option_id) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY autoload HAVING count(option_id) >= 2', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, count(DISTINCT bytes) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes + FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
     },
 ];

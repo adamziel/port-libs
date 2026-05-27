@@ -573,6 +573,32 @@ final class SQLiteSelectSql
     private static function valueExpression(string $sql): array
     {
         $sql = trim($sql);
+        $unwrapped = self::unwrapParenthesizedExpression($sql);
+        if ($unwrapped !== $sql) {
+            return self::valueExpression($unwrapped);
+        }
+
+        foreach ([['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
+            $operator = self::topLevelExpressionOperator($sql, $operators);
+            if ($operator === null) {
+                continue;
+            }
+
+            [$offset, $token] = $operator;
+            $left = trim(substr($sql, 0, $offset));
+            $right = trim(substr($sql, $offset + strlen($token)));
+            if ($left === '' || $right === '') {
+                throw new \InvalidArgumentException("SQLite SELECT SQL expression {$token} needs both operands");
+            }
+
+            return [
+                'type' => 'binary',
+                'operator' => $token,
+                'left' => self::valueExpression($left),
+                'right' => self::valueExpression($right),
+            ];
+        }
+
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $sql, $match) === 1) {
             if (trim($match[2]) === '*') {
                 $arguments = [['type' => 'wildcard']];
@@ -599,6 +625,102 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    private static function unwrapParenthesizedExpression(string $sql): string
+    {
+        if (!str_starts_with($sql, '(') || !str_ends_with($sql, ')')) {
+            return $sql;
+        }
+
+        $depth = 0;
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0 && $i !== $length - 1) {
+                    return $sql;
+                }
+            }
+        }
+
+        return trim(substr($sql, 1, -1));
+    }
+
+    /**
+     * @param list<string> $operators
+     * @return array{0:int,1:string}|null
+     */
+    private static function topLevelExpressionOperator(string $sql, array $operators): ?array
+    {
+        $depth = 0;
+        $quote = false;
+        for ($i = strlen($sql) - 1; $i >= 0; $i--) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($i > 0 && $sql[$i - 1] === "'") {
+                    $i--;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === ')') {
+                $depth++;
+                continue;
+            }
+            if ($char === '(') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach ($operators as $operator) {
+                $offset = $i - strlen($operator) + 1;
+                if ($offset < 0 || substr($sql, $offset, strlen($operator)) !== $operator) {
+                    continue;
+                }
+                if (($operator === '+' || $operator === '-') && self::isUnarySign($sql, $offset)) {
+                    continue;
+                }
+
+                return [$offset, $operator];
+            }
+        }
+
+        return null;
+    }
+
+    private static function isUnarySign(string $sql, int $offset): bool
+    {
+        $before = rtrim(substr($sql, 0, $offset));
+        if ($before === '') {
+            return true;
+        }
+
+        return str_contains('+-*/%(', substr($before, -1));
     }
 
     /**
@@ -740,6 +862,15 @@ final class SQLiteSelectSql
     {
         $aggregate = self::aggregateSummaryColumn($expression, $valueColumn);
         if ($aggregate === null) {
+            if (($expression['type'] ?? null) === 'binary') {
+                if (isset($expression['left']) && is_array($expression['left'])) {
+                    $expression['left'] = self::rewriteAggregateExpression($expression['left'], $valueColumn);
+                }
+                if (isset($expression['right']) && is_array($expression['right'])) {
+                    $expression['right'] = self::rewriteAggregateExpression($expression['right'], $valueColumn);
+                }
+            }
+
             return $expression;
         }
 
