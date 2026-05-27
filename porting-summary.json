@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 10:41:10 UTC",
-    "sourceCommit": "d549ded7047364d60da94ecd2d074829572ebf6b",
-    "sourceCommitShort": "d549ded70473",
+    "generated": "2026-05-27 10:48:49 UTC",
+    "sourceCommit": "a4abb60321dafc369853c6f99b5e57eb604565db",
+    "sourceCommitShort": "a4abb60321da",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "1cd319fc1926cf8cbf190820a526309ad0381807",
-    "dashboardCommitShort": "1cd319fc1926",
+    "dashboardCommit": "3e5c279db263257e4d15f87eb6ddfe3c12ba86fe",
+    "dashboardCommitShort": "3e5c279db263",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -166,9 +166,9 @@
             "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "denominator": "2553",
-            "mapped": "511",
-            "coverage": "511 / 2553",
-            "php": "511 pass / 0 fail",
+            "mapped": "512",
+            "coverage": "512 / 2553",
+            "php": "512 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "verified 2026-05-26 isolated continuous-d...",
