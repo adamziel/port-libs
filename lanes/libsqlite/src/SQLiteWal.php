@@ -93,6 +93,35 @@ final class SQLiteWal
         return [$s1, $s2];
     }
 
+    public function toBytes(): string
+    {
+        $bytes = pack(
+            'N*',
+            $this->header->magic,
+            $this->header->formatVersion,
+            $this->header->pageSize,
+            $this->header->checkpointSequence,
+            $this->header->salt1,
+            $this->header->salt2,
+            $this->header->checksum1,
+            $this->header->checksum2,
+        );
+
+        foreach ($this->frames as $frame) {
+            $bytes .= pack(
+                'N*',
+                $frame->pageNumber,
+                $frame->databasePageCountAfterCommit,
+                $frame->salt1,
+                $frame->salt2,
+                $frame->checksum1,
+                $frame->checksum2,
+            ) . $frame->pageImage;
+        }
+
+        return $bytes;
+    }
+
     public function frameCount(): int
     {
         return count($this->frames);
@@ -445,6 +474,41 @@ final class SQLiteWal
                 ($this->header->salt1 + 1) & 0xffffffff,
                 $this->header->salt2,
             ],
+        ];
+    }
+
+    /**
+     * @return array{mode:string,busy:bool,reason:string,reader_end_frame:int|null,database_bytes:string,database_page_count:int,final_database_bytes:int,checkpointed_frame_count:int,total_committable_frame_count:int,remaining_committed_frame_count:int,uncommitted_frame_count:int,can_reset:bool,can_truncate:bool,wal_action:string,wal_bytes:string,wal_bytes_length:int,wal_header:array<string, int|string>|null,next_wal_header_salt:array{0:int,1:int},dependencies:list<string>}
+     */
+    public function durableCheckpointResult(string $databaseBytes, string $mode = 'passive', ?int $readerEndFrame = null): array
+    {
+        $result = $this->checkpointModeResult($databaseBytes, $mode, $readerEndFrame);
+        $walBytes = $this->toBytes();
+        $walHeader = $this->header->toArray();
+
+        if ($result['wal_action'] === 'truncate_wal') {
+            $walBytes = '';
+            $walHeader = null;
+        } elseif ($result['wal_action'] === 'restart_wal') {
+            $walHeaderBytes = pack(
+                'N*',
+                $this->header->magic,
+                $this->header->formatVersion,
+                $this->header->pageSize,
+                ($this->header->checkpointSequence + 1) & 0xffffffff,
+                $result['next_wal_header_salt'][0],
+                $result['next_wal_header_salt'][1],
+            );
+            $checksum = self::checksumPair($walHeaderBytes, $this->header->usesLittleEndianChecksums());
+            $walBytes = $walHeaderBytes . pack('N*', $checksum[0], $checksum[1]);
+            $walHeader = SQLiteWalHeader::parse($walBytes)->toArray();
+        }
+
+        return $result + [
+            'wal_bytes' => $walBytes,
+            'wal_bytes_length' => strlen($walBytes),
+            'wal_header' => $walHeader,
+            'dependencies' => ['sqlite-wal-checkpoint', 'durable-sidecar-write'],
         ];
     }
 

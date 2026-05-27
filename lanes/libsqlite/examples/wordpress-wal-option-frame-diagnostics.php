@@ -100,6 +100,11 @@ $checkpointResults = [
     'restartCommitted' => $committedWal->checkpointModeResult($baseDatabaseBytes, 'restart'),
     'truncateCommitted' => $committedWal->checkpointModeResult($baseDatabaseBytes, 'truncate'),
 ];
+$durableCheckpointResults = [
+    'preserveWithReader' => $wal->durableCheckpointResult($baseDatabaseBytes, 'passive', 1),
+    'restartCommitted' => $committedWal->durableCheckpointResult($baseDatabaseBytes, 'restart'),
+    'truncateCommitted' => $committedWal->durableCheckpointResult($baseDatabaseBytes, 'truncate'),
+];
 $checkpointResultSummary = [];
 foreach ($checkpointResults as $name => $result) {
     $checkpointResultSummary[$name] = [
@@ -115,6 +120,20 @@ foreach ($checkpointResults as $name => $result) {
         'containsUncommittedTail' => str_contains($result['database_bytes'], 'draft-wal'),
     ];
 }
+$durableCheckpointSummary = [];
+foreach ($durableCheckpointResults as $name => $result) {
+    $durableCheckpointSummary[$name] = [
+        'reason' => $result['reason'],
+        'wal_action' => $result['wal_action'],
+        'busy' => $result['busy'],
+        'checkpointed_frame_count' => $result['checkpointed_frame_count'],
+        'wal_bytes_length' => $result['wal_bytes_length'],
+        'wal_header' => $result['wal_header'],
+        'containsWalSiteUrl' => str_contains($result['database_bytes'], 'from-wal'),
+        'containsUncommittedTail' => str_contains($result['database_bytes'], 'draft-wal'),
+        'dependencies' => $result['dependencies'],
+    ];
+}
 
 echo json_encode([
     'wal' => $wal->toArray(),
@@ -124,6 +143,7 @@ echo json_encode([
     'resetPlan' => $resetPlan,
     'checkpointModes' => $checkpointModes,
     'checkpointResults' => $checkpointResultSummary,
+    'durableCheckpointWrites' => $durableCheckpointSummary,
     'readerPageMap' => $readerPageMap,
     'walIndexReadMarks' => $readMarkPlan,
     'readerOptionPage' => [
@@ -182,5 +202,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and durable preserve/restart/truncate sidecar writes while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

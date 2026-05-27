@@ -490,6 +490,17 @@ Dependency closure: no new support component is needed; the slice reuses
 existing lane-local WAL frame parsing, checksum validation, checkpoint overlay,
 and WordPress option decoding.
 
+Status delta 2026-05-27 isolated WAL rollback/savepoint slice: added
+`SQLiteWal::durableCheckpointResult()` and WAL byte reserialization so copied
+WordPress database repair tooling can preview the concrete database image plus
+sidecar bytes that a checkpoint writer would persist. The smoke now reports
+preserved WAL bytes while readers or uncommitted tails block reset, restarted
+WAL headers with advanced checkpoint sequence/salt and regenerated checksums,
+and empty WAL bytes for complete TRUNCATE checkpoints. Dependency closure: no
+new support component is needed; this reuses lane-local WAL parsing, checkpoint
+mode planning, checksum calculation, and the existing WordPress WAL diagnostic
+smoke.
+
 ## JSON Tree Selected-Root Option Review Scenario
 
 Native recursive JSON option expansion now mirrors SQLite's

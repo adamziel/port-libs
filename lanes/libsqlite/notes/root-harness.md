@@ -1758,3 +1758,30 @@ Dependency closure: no new shared support component is needed. This reuses the
 lane-local B-tree page header parser, table/index leaf page assemblers, table
 and index cell encoders, record encoding, and existing WordPress B-tree
 diagnostic smoke pattern.
+
+## WAL Durable Checkpoint Sidecar Write Slice
+
+Focused lane verification for the WAL durable checkpoint sidecar write slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["materializes sqlite wal durable checkpoint sidecar writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
+durable checkpoint write test passed with 58 assertions and 0 failures. The
+WordPress WAL smoke reported copied `wp_options` checkpoint output with
+preserved WAL bytes, restarted WAL headers with regenerated checksums, and
+truncated sidecar bytes for complete TRUNCATE checkpoints. Manifest/status JSON
+decoded successfully; lane diff check passed. The root harness was not run
+because this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local WAL parser, checkpoint mode result planner, checksum implementation,
+and copied WordPress WAL diagnostic smoke; a future VFS/file writer can consume
+the returned database and WAL sidecar bytes.

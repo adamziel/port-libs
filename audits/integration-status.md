@@ -118242,3 +118242,29 @@ Root verification:
 Cleanup:
 - The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T010012Z` still contains modified lane files, so it was preserved and left registered.
 - Cleanup debt: remove that worker worktree only after its owner confirms the dirty files are no longer needed or it becomes clean.
+## Integration accepted - libsqlite WAL durable checkpoint sidecar writes - 2026-05-27T01:24:00Z
+
+Candidate marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T010902Z.ready`
+
+Decision:
+- Bounded-replayed the current-source-clean parts of the WAL marker from base `c8c5bb34c1ccc139381ae730c3a74863ef33f980` onto current `refs/heads/main` `7ddc2f06694b1d2e4f750896b91ae7233680229e`.
+- Direct clean apply failed only for stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, focused tests, WordPress smoke, and notes applied cleanly.
+- Reconciled manifest/status counters from current source evidence: libsqlite `phpPass` `747`, `phpFail` `0`, mapped coverage `409 / 1589`, and exact-hash `latestCommit` convention anchored to `7ddc2f06694b1d2e4f750896b91ae7233680229e`.
+
+Verification before serialized root:
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5010 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` emitted JSON successfully.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 30144 assertions, 0 failures`.
+
+Cleanup:
+- Removed accepted marker artifacts after `refs/heads/main` advanced: ready marker, patch, metadata, worker log, and isolated prompt for `port-dev-libsqlite-wal-20260527T010902Z`.
+- Preserved clean candidate worktree `.tmux-team/tmp/clean-integrator-libsqlite-wal-20260527T010902Z` because normal `git worktree remove` refused untracked root-run temp output under `.tmp-root`; no force cleanup was used.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T010902Z` because it still contains modified lane files; no force cleanup was used.
