@@ -118886,3 +118886,36 @@ Verification before root:
 Root verification: serialized root passed with `215 test files, 31306 assertions, 0 failures`.
 
 Decision: accepted after serialized root passed; committing one source-moving libsqlite slice and removing only inactive accepted marker artifacts. The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-encoding-20260527T033733Z` still contains modified lane files, so it is preserved as cleanup debt rather than removed. Dashboard publication should run next after the commit.
+## Integration accepted - libsqlite SELECT SQL GROUP BY/HAVING - 2026-05-27T03:55:36Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T034454Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before focused/root verification was `e331c8db19724a4ba346e1a3ed0df47b3838f3f1` (`Integrate libsqlite UTF-16 malformed text guard`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `e331c8db19724a4ba346e1a3ed0df47b3838f3f1`, generated `2026-05-27 03:51:48 UTC`, dashboard `c13467cad8ba5e40bd90d46751339d499785325a`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- The marker was based on older source `a8b2b074ca812dd9c043eac8d2953a70d5c82716`, but in a detached clean worktree from current `e331c8db` its implementation, test, smoke, and notes hunks applied cleanly.
+- Direct apply conflicts were limited to stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; those counters/status fields were reconciled from current `e331c8db` evidence.
+- The accepted behavior adds bounded parser-level `SQLiteSelectSql` `GROUP BY`/`HAVING` dispatch, aggregate summary rewrites, joined-source grouping, final `ORDER BY`/`LIMIT`/`OFFSET`, and copied `wp_options` grouped preview diagnostics.
+
+Focused verification:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteSelectSql.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6192 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php` passed with valid JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed before root.
+
+Expected committed libsqlite movement:
+- `phpPass` moves `765 -> 766`.
+- Mapped focused coverage moves `421 -> 422 / 1589`.
+- Root assertion count should move from the prior accepted `31306` by the focused `+51` assertion delta if no unrelated root denominator changes occur.
+
+Cleanup debt:
+- Accepted marker ready/patch/metadata files were removed after `refs/heads/main` was advanced.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T034454Z` still contains modified libsqlite files from the submitted patch and is preserved for later non-force cleanup.

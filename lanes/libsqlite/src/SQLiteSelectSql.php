@@ -42,9 +42,13 @@ final class SQLiteSelectSql
         $fromSql = trim(substr($tail, 0, $tableEnd));
         $source = self::sourcePlan($fromSql, $tables);
 
+        $groupBySql = isset($clauseOffsets['GROUP BY'])
+            ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
+            : null;
+        $select = self::selectList($selectSql);
         $plan = [
             'from' => $source['from'],
-            'select' => self::selectList($selectSql),
+            'select' => $select,
         ];
         if ($source['joins'] !== []) {
             $plan['joins'] = $source['joins'];
@@ -52,6 +56,17 @@ final class SQLiteSelectSql
 
         if (isset($clauseOffsets['WHERE'])) {
             $plan['where'] = self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'));
+        }
+        if ($groupBySql !== null) {
+            $groupBy = self::groupBy($groupBySql, $select);
+            if (isset($clauseOffsets['HAVING'])) {
+                $groupBy['having'] = self::rewriteAggregatePredicate(
+                    self::predicate(self::clauseText($tail, $clauseOffsets, 'HAVING')),
+                    $groupBy['valueColumn'],
+                );
+            }
+            $plan['groupBy'] = $groupBy;
+            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
         }
         if (isset($clauseOffsets['ORDER BY'])) {
             $plan['orderBy'] = self::orderBy(self::clauseText($tail, $clauseOffsets, 'ORDER BY'));
@@ -344,7 +359,11 @@ final class SQLiteSelectSql
     {
         $sql = trim($sql);
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $sql, $match) === 1) {
-            $arguments = trim($match[2]) === '' ? [] : array_map(self::valueExpression(...), self::splitTopLevel($match[2], ','));
+            if (trim($match[2]) === '*') {
+                $arguments = [['type' => 'wildcard']];
+            } else {
+                $arguments = trim($match[2]) === '' ? [] : array_map(self::valueExpression(...), self::splitTopLevel($match[2], ','));
+            }
 
             return ['type' => 'function', 'name' => $match[1], 'arguments' => $arguments];
         }
@@ -365,6 +384,151 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return array<string,mixed>
+     */
+    private static function groupBy(string $sql, array $select): array
+    {
+        $columns = [];
+        foreach (self::splitTopLevel($sql, ',') as $term) {
+            self::assertIdentifier($term, 'SQLite SELECT SQL GROUP BY column');
+            $columns[] = $term;
+        }
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY needs at least one column');
+        }
+
+        return [
+            'columns' => $columns,
+            'valueColumn' => self::aggregateValueColumn($select),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function aggregateValueColumn(array $select): string
+    {
+        $valueColumn = null;
+        foreach ($select as $term) {
+            $aggregate = self::aggregateSummaryColumn($term, null);
+            if ($aggregate === null || $aggregate['valueColumn'] === null) {
+                continue;
+            }
+            if ($valueColumn !== null && $valueColumn !== $aggregate['valueColumn']) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY supports one aggregate value column');
+            }
+            $valueColumn = $aggregate['valueColumn'];
+        }
+        if ($valueColumn === null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY needs an aggregate value column');
+        }
+
+        return $valueColumn;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function rewriteAggregateSelect(array $select, string $valueColumn): array
+    {
+        $rewritten = [];
+        foreach ($select as $term) {
+            $aggregate = self::aggregateSummaryColumn($term, $valueColumn);
+            if ($aggregate !== null) {
+                $rewritten[] = [
+                    'type' => 'column',
+                    'name' => $aggregate['summaryColumn'],
+                    'alias' => $term['alias'] ?? $aggregate['summaryColumn'],
+                ];
+                continue;
+            }
+            $rewritten[] = $term;
+        }
+
+        return $rewritten;
+    }
+
+    /**
+     * @return array{summaryColumn:string,valueColumn:?string}|null
+     */
+    private static function aggregateSummaryColumn(array $term, ?string $requiredValueColumn): ?array
+    {
+        if (($term['type'] ?? null) !== 'function' || !isset($term['name']) || !is_string($term['name'])) {
+            return null;
+        }
+        $name = strtolower($term['name']);
+        $arguments = $term['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL aggregate arguments must be a list');
+        }
+
+        if ($name === 'count' && count($arguments) === 1 && (($arguments[0]['type'] ?? null) === 'wildcard')) {
+            return ['summaryColumn' => 'countAll', 'valueColumn' => null];
+        }
+
+        $summaryColumn = match ($name) {
+            'count' => 'countValue',
+            'sum' => 'sum',
+            'total' => 'total',
+            'avg' => 'avg',
+            'min' => 'min',
+            'max' => 'max',
+            'group_concat' => 'groupConcat',
+            default => null,
+        };
+        if ($summaryColumn === null) {
+            return null;
+        }
+        if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) !== 'column') || !isset($arguments[0]['name']) || !is_string($arguments[0]['name'])) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs one column argument");
+        }
+        if ($requiredValueColumn !== null && $arguments[0]['name'] !== $requiredValueColumn) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY aggregate column does not match value column');
+        }
+
+        return ['summaryColumn' => $summaryColumn, 'valueColumn' => $arguments[0]['name']];
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     * @return array<string,mixed>
+     */
+    private static function rewriteAggregatePredicate(array $predicate, string $valueColumn): array
+    {
+        if (isset($predicate['terms']) && is_array($predicate['terms']) && array_is_list($predicate['terms'])) {
+            $predicate['terms'] = array_map(
+                static fn (array $term): array => self::rewriteAggregatePredicate($term, $valueColumn),
+                $predicate['terms'],
+            );
+
+            return $predicate;
+        }
+        foreach (['left', 'right'] as $side) {
+            if (isset($predicate[$side]) && is_array($predicate[$side])) {
+                $predicate[$side] = self::rewriteAggregateExpression($predicate[$side], $valueColumn);
+            }
+        }
+
+        return $predicate;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @return array<string,mixed>
+     */
+    private static function rewriteAggregateExpression(array $expression, string $valueColumn): array
+    {
+        $aggregate = self::aggregateSummaryColumn($expression, $valueColumn);
+        if ($aggregate === null) {
+            return $expression;
+        }
+
+        return ['type' => 'column', 'name' => $aggregate['summaryColumn']];
     }
 
     /**
@@ -414,7 +578,7 @@ final class SQLiteSelectSql
     private static function tailClauseOffsets(string $sql): array
     {
         $offsets = [];
-        foreach (['WHERE', 'ORDER BY', 'LIMIT'] as $keyword) {
+        foreach (['WHERE', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT'] as $keyword) {
             $offset = self::keywordOffset($sql, $keyword);
             if ($offset !== null) {
                 $offsets[$keyword] = $offset;

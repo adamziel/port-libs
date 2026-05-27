@@ -2,6 +2,30 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT SQL Text Grouped Aggregate Scenario
+
+Copied WordPress option import previews can now run bounded `GROUP BY` and
+`HAVING` aggregate queries from SQLite SELECT text through `SQLiteSelectSql`
+without requiring the SQLite extension. The smoke
+`examples/wordpress-select-sql-grouped-preview.php` reports copied
+`wp_options` rows grouped by `autoload`, filtered by aggregate HAVING terms,
+projected through count/sum/avg/group_concat summary columns, and ordered with
+LIMIT.
+
+Status delta 2026-05-27 isolated SQL execution/planner slice: updated
+`SQLiteSelectSql` so parser-level SELECT text recognizes `GROUP BY` and
+`HAVING`, rewrites bounded aggregate functions to the existing grouped summary
+columns, and composes the result with joins, projection aliases, final
+ORDER BY, LIMIT, and OFFSET. Focused assertions cover single and composite
+group keys, joined-source grouping, HAVING aggregate rewrites, count/sum/avg/
+min/max/group_concat projection, plan-shape checks, NULL buckets, LIMIT/OFFSET,
+and strict malformed SQL guards. The focused lane test count moves from the
+current lane-status baseline of 6055 assertions to 6106 assertions, +51.
+Dependency closure: no new support component is needed; this reuses
+lane-local `SQLiteSelectSql`, grouped aggregate summaries, SELECT predicate,
+projection, result ordering, join composition, scalar dispatch, and pure PHP
+row arrays.
+
 ## SELECT Grouped Aggregate Query Scenario
 
 Copied WordPress option import previews can now run grouped aggregate summaries

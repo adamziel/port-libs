@@ -19212,6 +19212,68 @@ SQL;
         $t->same(['blogname', 'home', 'siteurl'], array_column($joinPlanRows, 'name'));
         $t->same(['theme', 'core', 'core'], array_column($joinPlanRows, 'source'));
 
+        $groupedRows = SQLiteSelectSql::execute(
+            "SELECT autoload, count(*) AS rows, count(bytes) AS byte_rows, sum(bytes) AS byte_sum, avg(bytes) AS avg_bytes, min(bytes) AS min_bytes, max(bytes) AS max_bytes, group_concat(bytes) AS byte_list FROM wp_options GROUP BY autoload HAVING count(*) >= 2 ORDER BY byte_sum DESC LIMIT 2",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($groupedRows));
+        $t->same(['no', 'yes'], array_column($groupedRows, 'autoload'));
+        $t->same([2, 3], array_column($groupedRows, 'rows'));
+        $t->same([2, 3], array_column($groupedRows, 'byte_rows'));
+        $t->same([122, 57], array_column($groupedRows, 'byte_sum'));
+        $t->same([61.0, 19.0], array_column($groupedRows, 'avg_bytes'));
+        $t->same([12, 9], array_column($groupedRows, 'min_bytes'));
+        $t->same([110, 24], array_column($groupedRows, 'max_bytes'));
+        $t->same(['12|110', '24|24|9'], array_column($groupedRows, 'byte_list'));
+        $t->same(['autoload', 'rows', 'byte_rows', 'byte_sum', 'avg_bytes', 'min_bytes', 'max_bytes', 'byte_list'], array_keys($groupedRows[0]));
+        $t->same('no', $groupedRows[0]['autoload']);
+        $t->same(2, $groupedRows[0]['rows']);
+        $t->same(122, $groupedRows[0]['byte_sum']);
+        $t->same('12|110', $groupedRows[0]['byte_list']);
+        $t->same('yes', $groupedRows[1]['autoload']);
+        $t->same(3, $groupedRows[1]['rows']);
+        $t->same(57, $groupedRows[1]['byte_sum']);
+
+        $compositeGroupedRows = SQLiteSelectSql::execute(
+            "SELECT wp_options.autoload AS autoload, coalesce(m.source, 'missing') AS source, count(*) AS rows, sum(wp_options.bytes) AS byte_sum FROM wp_options LEFT JOIN option_meta AS m ON wp_options.option_id = m.option_id GROUP BY wp_options.autoload, m.source HAVING sum(wp_options.bytes) > 2 ORDER BY byte_sum DESC LIMIT 3 OFFSET 1",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(3, count($compositeGroupedRows));
+        $t->same(['yes', 'no', 'yes'], array_column($compositeGroupedRows, 'autoload'));
+        $t->same(['core', 'missing', 'theme'], array_column($compositeGroupedRows, 'source'));
+        $t->same([2, 1, 1], array_column($compositeGroupedRows, 'rows'));
+        $t->same([48, 12, 9], array_column($compositeGroupedRows, 'byte_sum'));
+        $t->same(['autoload', 'source', 'rows', 'byte_sum'], array_keys($compositeGroupedRows[0]));
+        $t->same('core', $compositeGroupedRows[0]['source']);
+        $t->same(48, $compositeGroupedRows[0]['byte_sum']);
+        $t->same('missing', $compositeGroupedRows[1]['source']);
+        $t->same(12, $compositeGroupedRows[1]['byte_sum']);
+        $t->same('theme', $compositeGroupedRows[2]['source']);
+        $t->same(9, $compositeGroupedRows[2]['byte_sum']);
+
+        $groupPlan = SQLiteSelectSql::plan(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload HAVING sum(bytes) >= 50 ORDER BY byte_sum DESC LIMIT 1",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'groupBy', 'orderBy', 'limit', 'offset'], array_keys($groupPlan));
+        $t->same(['autoload'], $groupPlan['groupBy']['columns']);
+        $t->same('bytes', $groupPlan['groupBy']['valueColumn']);
+        $t->same('>=', $groupPlan['groupBy']['having']['operator']);
+        $t->same('sum', $groupPlan['groupBy']['having']['left']['name']);
+        $t->same(50, $groupPlan['groupBy']['having']['right']['value']);
+        $t->same('countAll', $groupPlan['select'][1]['name']);
+        $t->same('rows', $groupPlan['select'][1]['alias']);
+        $t->same('sum', $groupPlan['select'][2]['name']);
+        $t->same('byte_sum', $groupPlan['select'][2]['alias']);
+        $t->same([['column' => 'byte_sum', 'direction' => 'DESC']], $groupPlan['orderBy']);
+        $t->same(1, $groupPlan['limit']);
+        $t->same(0, $groupPlan['offset']);
+        $groupPlanRows = SQLiteSelectQuery::execute($groupPlan);
+        $t->same(1, count($groupPlanRows));
+        $t->same('no', $groupPlanRows[0]['autoload']);
+        $t->same(2, $groupPlanRows[0]['rows']);
+        $t->same(122, $groupPlanRows[0]['byte_sum']);
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('DELETE FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM missing', ['wp_options' => $options]));
@@ -19228,5 +19290,10 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN missing ON wp_options.option_id = missing.option_id', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta AS 1bad ON wp_options.option_id = 1bad.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options CROSS JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes), max(option_id) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY autoload HAVING count(option_id) >= 2', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, count(DISTINCT bytes) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
     },
 ];

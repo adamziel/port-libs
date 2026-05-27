@@ -1,5 +1,40 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT SQL Text GROUP BY/HAVING Dispatch
+
+This isolated SQL execution/planner slice does not reuse stale May 25 rework
+markers and does not repeat accepted single-table SELECT SQL text dispatch,
+JOIN text dispatch, standalone grouped aggregate helpers, composite GROUP BY
+row-array execution, SELECT query-plan composition, scalar WHERE operands,
+JSON host joins, WAL byte truncation, or VFS writer work. It adds one bounded
+parser-level behavior cluster: `SQLiteSelectSql` now recognizes `GROUP BY` and
+`HAVING` clauses and rewrites bounded aggregate functions into the existing
+native grouped summary pipeline.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 6106 assertions,
+up from the current lane-status focused baseline of 6055 assertions (`+51`).
+The new assertions cover copied `wp_options` SQL text with single and composite
+group keys, joined-source grouping, aggregate HAVING predicates, `count(*)`,
+`count(column)`, `sum`, `avg`, `min`, `max`, `group_concat`, plan-shape
+rewrites, NULL grouping buckets, final ORDER BY/LIMIT/OFFSET, and malformed SQL
+guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-grouped-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+SELECT SQL parsing, grouped aggregate summaries, predicate/projection/result
+helpers, join composition, scalar dispatch, and pure PHP row arrays.
+
 ## 2026-05-27 SELECT Composite GROUP BY Query Pipeline
 
 This isolated SQL execution/planner slice does not reuse stale May 25 rework
