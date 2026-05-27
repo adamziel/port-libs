@@ -154,6 +154,11 @@ final class SQLiteAttachedSchemaCatalog
         return $result;
     }
 
+    public function executeSchemaPragmaCursor(string $sql): SQLitePragmaRowCursor
+    {
+        return new SQLitePragmaRowCursor($this->executeSchemaPragma($sql));
+    }
+
     /**
      * @return list<string>
      */

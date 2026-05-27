@@ -62,6 +62,11 @@ final class SQLitePragmaSchemaCatalog
         ];
     }
 
+    public function executeCursor(string $sql): SQLitePragmaRowCursor
+    {
+        return new SQLitePragmaRowCursor($this->execute($sql));
+    }
+
     /**
      * @return list<array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int}|array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int, hidden: int}>
      */

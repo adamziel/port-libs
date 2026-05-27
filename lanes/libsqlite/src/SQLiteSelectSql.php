@@ -1666,9 +1666,6 @@ final class SQLiteSelectSql
     private static function correlatedSubqueryRows(string $sql, array $tables, array $outerRow): array
     {
         $plan = self::plan($sql, $tables);
-        if (array_key_exists('groupBy', $plan)) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL correlated subqueries do not support GROUP BY');
-        }
 
         $rows = $plan['from'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
@@ -1693,6 +1690,11 @@ final class SQLiteSelectSql
     private static function valueExpression(string $sql, array $tables = []): array
     {
         $sql = trim($sql);
+        $window = self::windowExpression($sql, $tables);
+        if ($window !== null) {
+            return $window;
+        }
+
         if (str_starts_with($sql, '(') && str_ends_with($sql, ')')) {
             $subquerySql = trim(substr($sql, 1, -1));
             if (preg_match('/^select\s+/i', $subquerySql) === 1 && self::unwrapParenthesizedExpression($sql) === $subquerySql) {
@@ -1728,7 +1730,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
+        foreach ([['&', '|', '<<', '>>'], ['||'], ['->>', '->'], ['+', '-'], ['*', '/', '%']] as $operators) {
             $operator = self::topLevelExpressionOperator($sql, $operators);
             if ($operator === null) {
                 continue;
@@ -1804,6 +1806,90 @@ final class SQLiteSelectSql
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
     }
 
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,mixed>|null
+     */
+    private static function windowExpression(string $sql, array $tables): ?array
+    {
+        $overOffset = self::keywordOffset($sql, 'OVER');
+        if ($overOffset === null) {
+            return null;
+        }
+
+        $functionSql = trim(substr($sql, 0, $overOffset));
+        $overSql = trim(substr($sql, $overOffset + 4));
+        if (!str_starts_with($overSql, '(') || !str_ends_with($overSql, ')')) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window OVER clause must be parenthesized');
+        }
+        $windowSql = self::unwrapParenthesizedExpression($overSql);
+
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $functionSql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window expression needs a function call');
+        }
+
+        $name = strtolower($match[1]);
+        $argumentSql = trim($match[2]);
+        $arguments = $argumentSql === ''
+            ? []
+            : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($argumentSql, ','));
+
+        $partitionBy = [];
+        $orderBy = [];
+        $partitionOffset = self::keywordOffset($windowSql, 'PARTITION BY');
+        $orderOffset = self::keywordOffset($windowSql, 'ORDER BY');
+        if ($partitionOffset !== null) {
+            $partitionEnd = $orderOffset !== null && $orderOffset > $partitionOffset ? $orderOffset : strlen($windowSql);
+            $partitionSql = trim(substr($windowSql, $partitionOffset + strlen('PARTITION BY'), $partitionEnd - ($partitionOffset + strlen('PARTITION BY'))));
+            if ($partitionSql === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL window PARTITION BY needs expressions');
+            }
+            $partitionBy = array_map(static fn (string $term): array => self::valueExpression($term, $tables), self::splitTopLevel($partitionSql, ','));
+        }
+        if ($orderOffset !== null) {
+            $orderSql = trim(substr($windowSql, $orderOffset + strlen('ORDER BY')));
+            if ($orderSql === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL window ORDER BY needs expressions');
+            }
+            foreach (self::splitTopLevel($orderSql, ',') as $term) {
+                [$expression, $direction] = self::windowOrderTerm($term, $tables);
+                $orderBy[] = ['expression' => $expression, 'direction' => $direction];
+            }
+        }
+
+        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value'];
+        if (!in_array($name, $supported, true)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
+        }
+
+        return [
+            'type' => 'window',
+            'function' => $name,
+            'arguments' => $arguments,
+            'partitionBy' => $partitionBy,
+            'orderBy' => $orderBy,
+        ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{0:array<string,mixed>,1:string}
+     */
+    private static function windowOrderTerm(string $term, array $tables): array
+    {
+        $term = trim($term);
+        $direction = 'ASC';
+        if (preg_match('/^(.+?)\s+(ASC|DESC)$/i', $term, $match) === 1) {
+            $term = trim($match[1]);
+            $direction = strtoupper($match[2]);
+        }
+        if ($term === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window ORDER BY term cannot be empty');
+        }
+
+        return [self::valueExpression($term, $tables), $direction];
+    }
+
     private static function unwrapParenthesizedExpression(string $sql): string
     {
         if (!str_starts_with($sql, '(') || !str_ends_with($sql, ')')) {
@@ -1877,6 +1963,9 @@ final class SQLiteSelectSql
             foreach ($operators as $operator) {
                 $offset = $i - strlen($operator) + 1;
                 if ($offset < 0 || substr($sql, $offset, strlen($operator)) !== $operator) {
+                    continue;
+                }
+                if ($operator === '>>' && ($sql[$offset - 1] ?? null) === '-') {
                     continue;
                 }
                 if ($operator === '|' && (($sql[$offset - 1] ?? null) === '|' || ($sql[$offset + 1] ?? null) === '|')) {
@@ -2509,6 +2598,15 @@ final class SQLiteSelectSql
                 continue;
             }
             if ($depth === 0 && strncasecmp(substr($sql, $i), $operator, strlen($operator)) === 0) {
+                if (
+                    $operator === '>'
+                    && (
+                        ($sql[$i - 1] ?? null) === '-'
+                        || (($sql[$i - 1] ?? null) === '>' && ($sql[$i - 2] ?? null) === '-')
+                    )
+                ) {
+                    continue;
+                }
                 if (ctype_alpha($operator[0]) && !self::keywordBounded($sql, $i, strlen($operator))) {
                     continue;
                 }

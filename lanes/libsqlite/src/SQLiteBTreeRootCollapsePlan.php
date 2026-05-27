@@ -9,6 +9,7 @@ final class SQLiteBTreeRootCollapsePlan
     /**
      * @param list<int> $childPageNumbers
      * @param array<int, array{type:int,parent_page_number:int}> $pointerMapUpdates
+     * @param list<int> $updatedPointerMapPageNumbers
      * @param array<int, string> $pageImages
      */
     private function __construct(
@@ -21,6 +22,7 @@ final class SQLiteBTreeRootCollapsePlan
         public readonly array $childPageNumbers,
         public readonly SQLiteFreelistFreePlan $freePlan,
         public readonly array $pointerMapUpdates,
+        public readonly array $updatedPointerMapPageNumbers,
         public readonly array $pageImages,
     ) {
     }
@@ -98,6 +100,15 @@ final class SQLiteBTreeRootCollapsePlan
         }
         ksort($pointerMapUpdates);
         ksort($pageImages);
+        $updatedPointerMapPageNumbers = array_keys($freePlan->updatedPointerMapPages);
+        foreach (array_keys($pointerMapUpdates) as $pageNumber) {
+            $pointerMapPage = $database->pointerMapPageFor($pageNumber);
+            if ($pointerMapPage !== null && $pointerMapPage !== $pageNumber) {
+                $updatedPointerMapPageNumbers[] = $pointerMapPage;
+            }
+        }
+        $updatedPointerMapPageNumbers = array_values(array_unique($updatedPointerMapPageNumbers));
+        sort($updatedPointerMapPageNumbers);
 
         return new self(
             $rootPageNumber,
@@ -109,6 +120,7 @@ final class SQLiteBTreeRootCollapsePlan
             $childPageNumbers,
             $freePlan,
             $pointerMapUpdates,
+            $updatedPointerMapPageNumbers,
             $pageImages,
         );
     }
@@ -139,7 +151,7 @@ final class SQLiteBTreeRootCollapsePlan
             'freelist_page_count' => $this->freePlan->freelistPageCount,
             'first_freelist_trunk_page' => $this->freePlan->firstFreelistTrunkPage,
             'updated_page_numbers' => $this->updatedPageNumbers(),
-            'updated_pointer_map_page_numbers' => array_keys($this->freePlan->updatedPointerMapPages),
+            'updated_pointer_map_page_numbers' => $this->updatedPointerMapPageNumbers,
             'secure_delete_cleared_pages' => $this->freePlan->clearedPageNumbers,
         ];
     }

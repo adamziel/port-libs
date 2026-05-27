@@ -270,8 +270,77 @@ final class SQLiteSelectExpression
             '||' => self::textValue($left) . self::textValue($right),
             '+', '-', '*', '/', '%' => self::numericValue($left, $right, $operator),
             '&', '|', '<<', '>>' => self::bitwiseValue($left, $right, $operator),
+            '->', '->>' => self::jsonOperatorValue($left, $right, $operator),
             default => throw new \InvalidArgumentException("SQLite SELECT expression operator {$operator} is not supported"),
         };
+    }
+
+    private static function jsonOperatorValue(mixed $left, mixed $right, string $operator): mixed
+    {
+        if ($left !== null && !is_string($left) && !$left instanceof SQLiteBlobValue && !$left instanceof SQLiteJsonSubtypeValue) {
+            throw new \InvalidArgumentException('SQLite SELECT JSON operator left operand must be text, JSONB, JSON subtype, or NULL');
+        }
+
+        $path = self::jsonOperatorPath($right);
+        $json = $left instanceof SQLiteJsonSubtypeValue ? $left->json : $left;
+        $located = SQLiteJsonInspection::locatePath($json, $path);
+        if (!$located['found']) {
+            return null;
+        }
+
+        if ($operator === '->>') {
+            $value = $located['value'];
+            if ($value === true) {
+                return 1;
+            }
+            if ($value === false) {
+                return 0;
+            }
+            if ($value === null || is_int($value) || is_float($value) || is_string($value)) {
+                return $value;
+            }
+
+            return SQLiteJsonCanonical::encodeDecodedJson($value);
+        }
+
+        return SQLiteJsonCanonical::encodeDecodedJson($located['value']);
+    }
+
+    private static function jsonOperatorPath(mixed $operand): string
+    {
+        if (is_int($operand)) {
+            return $operand < 0 ? '$[#' . $operand . ']' : '$[' . $operand . ']';
+        }
+        if ($operand instanceof SQLiteBlobValue || is_bool($operand) || is_float($operand) || is_string($operand)) {
+            $path = self::textValue($operand);
+            if (str_starts_with($path, '$')) {
+                if (!SQLiteJsonPath::isWellFormed($path)) {
+                    throw new \InvalidArgumentException('SQLite SELECT JSON operator path is malformed');
+                }
+
+                return $path;
+            }
+            if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $path) === 1) {
+                return '$' . $path;
+            }
+
+            $member = SQLiteJsonPath::decodeBareMember($path);
+            if ($member === null) {
+                throw new \InvalidArgumentException('SQLite SELECT JSON operator path is malformed');
+            }
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $member) === 1) {
+                return '$.' . $member;
+            }
+
+            $quoted = json_encode($member, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if (!is_string($quoted)) {
+                throw new \InvalidArgumentException('SQLite SELECT JSON operator path is malformed');
+            }
+
+            return '$.' . $quoted;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT JSON operator path must have scalar, BLOB, or NULL affinity');
     }
 
     private static function numericValue(mixed $left, mixed $right, string $operator): int|float|null
