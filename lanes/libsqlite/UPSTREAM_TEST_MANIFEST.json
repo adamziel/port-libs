@@ -970,7 +970,8 @@
         "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run.",
         "focusedJsonTableWindowRanking": "The 2026-05-27 isolated json-table/window slice maps one additional focused JSON table/window evidence row for ordered json_each/json_tree window annotations over copied wp_options settings. Native smoke covers row_number, rank, dense_rank, percent_rank, cume_dist, ntile, lag, lead, first_value, last_value, optional partitioning, JSONB/subtype inputs, LIMIT/OFFSET composition, strict guards, and no fresh upstream execution.",
         "focusedVfsLockByteRangePlan": "The 2026-05-27 clean-integrated dependency/open lock-byte-range slice maps one additional focused VFS locking evidence row for SQLite pending/reserved/shared byte offsets, shared-slot bounds, nolock suppression, open-admission composition, and copied WordPress lock diagnostics without claiming fresh upstream execution.",
-        "focusedBtreeInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree table-interior merge slice maps one additional focused B-tree delete/rebalance evidence row for materializing table-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run."
+        "focusedBtreeInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree table-interior merge slice maps one additional focused B-tree delete/rebalance evidence row for materializing table-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run.",
+        "focusedJsonTableHostJoinRows": "The 2026-05-27 clean-integrated JSON table slice maps one additional focused JSON table/planner evidence row for joining copied host rows to json_each/json_tree scans, reusing accepted JSON table hidden-constraint and residual-predicate evidence without claiming a fresh upstream run."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -1049,6 +1050,14 @@
                 "phpPass": 1,
                 "phpFail": 0,
                 "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted VFS/open/lock-coordination evidence while adding native byte-range lock assertions."
+            },
+            "focusedJsonTableHostJoinRows": {
+                "upstreamScope": "SQLite json_each/json_tree table-valued scans joined to host rows through hidden json/root constraints and residual predicates, represented as bounded PHP row-array materialization rather than full virtual-table cursor execution.",
+                "nativeEvidence": "SQLiteJsonTablePlan::hostJoinRows() focused PHP coverage plus copied WordPress JSON table host-join smoke.",
+                "status": "mapped-focused-native",
+                "phpPass": 1,
+                "phpFail": 0,
+                "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted JSON table hidden-column, JSONB/subtype, and residual predicate evidence while adding native host-row join materialization assertions."
             }
         },
         "sqlExecutionPlanner": {
@@ -1079,7 +1088,8 @@
         "wordpressBtreeLeafMergeApply": "Copied wp_options autoload-index sibling merge application smoke reports merged leaf records, obsolete sibling freelist release, secure-delete handling, header freelist counts, and pointer-map free-page rewrites for repair/import previews without requiring ext/sqlite.",
         "wordpressBtreeLeafRedistribution": "The B-tree leaf redistribution smoke reports copied wp_options table and autoload-index sibling redistribution after delete underflow, including moved cells, replacement parent dividers, updated page images, before/after free-space deltas, and no freelist release for repair/import previews without requiring ext/sqlite.",
         "focusedSelectGroupedAggregateQuery": "The SELECT grouped aggregate preview smoke reports copied wp_options rows executed through bounded GROUP BY/HAVING aggregate dispatch, projected summary columns, DISTINCT, final ORDER BY, and result limits without requiring ext/sqlite.",
-        "focusedSelectSqlTextExecution": "The SELECT SQL preview smoke reports copied wp_options rows executed from bounded SQL text through native query-plan dispatch, including projection aliases, scalar functions, WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite."
+        "focusedSelectSqlTextExecution": "The SELECT SQL preview smoke reports copied wp_options rows executed from bounded SQL text through native query-plan dispatch, including projection aliases, scalar functions, WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite.",
+        "focusedJsonTableHostJoinRows": "The JSON table host-join smoke reports copied wp_options rows expanded through json_each/json_tree joins with hidden json/root constraints, residual predicates, JSONB/subtype inputs, rowid aliases, INNER/LEFT join handling, and NULL/malformed payload diagnostics without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",

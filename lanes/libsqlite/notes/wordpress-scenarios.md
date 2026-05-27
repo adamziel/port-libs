@@ -3982,3 +3982,26 @@ lane-local table interior cell/page assembly, database page access, freelist
 mutation, pointer-map update planning, and secure-delete clearing. Follow-up
 should move to page-move/pointer-map integration or broader delete/rebalance
 write application.
+
+## JSON Table Host Join Scenario
+
+Copied WordPress import and repair tooling can now materialize host-row joins
+against bounded `json_each()` and `json_tree()` scans without ext/sqlite. The
+smoke `examples/wordpress-json-table-host-join.php` reports copied
+`wp_options` rows expanded with hidden `json`/`root` constraints, residual
+predicates, JSONB and constructor-subtype payloads, rowid aliases, INNER and
+LEFT join behavior, and SQL NULL or malformed payload diagnostics.
+
+Status delta 2026-05-27 clean integration: extended
+`SQLiteJsonTablePlan` with `hostJoinRows()` and focused assertions covering
+host-column validation, projected JSON column prefixes, hidden constraint
+composition, residual `LIKE`/`BETWEEN`/`IN`/`NOT IN`/`IS NOT NULL` filtering,
+rowid/_rowid_/oid aliases, duplicate hidden-json constraints, no-match INNER
+joins, NULL-extended LEFT joins, and malformed path/column guards.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local JSON table hidden-column planning, JSONB/subtype conversion,
+residual predicate dispatch, and copied WordPress JSON option smokes.
+Follow-up should wire this bounded materialization into parser-level
+`FROM json_each(...)` / `FROM json_tree(...)` SELECT execution or a native
+virtual-table cursor.

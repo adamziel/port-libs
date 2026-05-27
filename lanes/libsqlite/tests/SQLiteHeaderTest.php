@@ -6724,6 +6724,213 @@ return [
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
         ]));
     },
+    'joins host rows to sqlite json table-valued scans' => static function (TestRunner $t): void {
+        $hostRows = [
+            [
+                'option_id' => 1,
+                'option_name' => 'site_plugin_settings',
+                'autoload' => 'yes',
+                'option_value' => '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false}]}}',
+            ],
+            [
+                'option_id' => 2,
+                'option_name' => 'site_theme_settings',
+                'autoload' => 'yes',
+                'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
+                    'plugin' => [
+                        'rules' => [
+                            ['name' => 'forms', 'priority' => 4, 'autoload' => true],
+                            ['name' => 'media', 'priority' => 1, 'autoload' => false],
+                        ],
+                    ],
+                ])),
+            ],
+            [
+                'option_id' => 3,
+                'option_name' => 'empty_plugin_settings',
+                'autoload' => 'no',
+                'option_value' => '{"plugin":{"rules":[]}}',
+            ],
+            [
+                'option_id' => 4,
+                'option_name' => 'malformed_plugin_settings',
+                'autoload' => 'no',
+                'option_value' => new SQLiteBlobValue("\xcc\x01"),
+            ],
+            [
+                'option_id' => 5,
+                'option_name' => 'subtype_plugin_settings',
+                'autoload' => 'yes',
+                'option_value' => new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject(
+                    'plugin',
+                    new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject(
+                        'rules',
+                        new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonArray(
+                            new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject('name', 'security', 'priority', 9, 'autoload', true)),
+                        )),
+                    )),
+                )),
+            ],
+            [
+                'option_id' => 6,
+                'option_name' => 'null_plugin_settings',
+                'autoload' => 'no',
+                'option_value' => null,
+            ],
+        ];
+        $constraints = [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ];
+
+        $joinedEachRows = SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', $constraints, ['rowid', 'key', 'type', 'value', 'atom', 'path', 'root']);
+        $t->same([1, 1, 2, 2, 5], array_column($joinedEachRows, 'option_id'));
+        $t->same(['site_plugin_settings', 'site_plugin_settings', 'site_theme_settings', 'site_theme_settings', 'subtype_plugin_settings'], array_column($joinedEachRows, 'option_name'));
+        $t->same([1, 2, 1, 2, 1], array_column($joinedEachRows, 'json_rowid'));
+        $t->same([0, 1, 0, 1, 0], array_column($joinedEachRows, 'json_key'));
+        $t->same(['object', 'object', 'object', 'object', 'object'], array_column($joinedEachRows, 'json_type'));
+        $t->same([null, null, null, null, null], array_column($joinedEachRows, 'json_atom'));
+        $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($joinedEachRows, 'json_path'));
+        $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($joinedEachRows, 'json_root'));
+        $t->same('{"name":"cache","priority":7,"autoload":false}', $joinedEachRows[1]['json_value']);
+        $t->same('{"name":"forms","priority":4,"autoload":true}', $joinedEachRows[2]['json_value']);
+        $t->same('{"name":"security","priority":9,"autoload":1}', $joinedEachRows[4]['json_value']);
+
+        $joinedNameRows = SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => '=', 'value' => 'name'],
+            ['column' => 'atom', 'operator' => 'LIKE', 'value' => ['pattern' => '%e%']],
+        ], ['rowid', 'key', 'atom', 'fullkey', 'path', 'root'], 'inner', 'jt_');
+        $t->same([1, 1, 2, 5], array_column($joinedNameRows, 'option_id'));
+        $t->same(['site_plugin_settings', 'site_plugin_settings', 'site_theme_settings', 'subtype_plugin_settings'], array_column($joinedNameRows, 'option_name'));
+        $t->same(['seo', 'cache', 'media', 'security'], array_column($joinedNameRows, 'jt_atom'));
+        $t->same(['name', 'name', 'name', 'name'], array_column($joinedNameRows, 'jt_key'));
+        $t->same([2, 6, 6, 2], array_column($joinedNameRows, 'jt_rowid'));
+        $t->same(['$.plugin.rules[0].name', '$.plugin.rules[1].name', '$.plugin.rules[1].name', '$.plugin.rules[0].name'], array_column($joinedNameRows, 'jt_fullkey'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]', '$.plugin.rules[1]', '$.plugin.rules[0]'], array_column($joinedNameRows, 'jt_path'));
+        $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($joinedNameRows, 'jt_root'));
+        $t->same(['yes', 'yes', 'yes', 'yes'], array_column($joinedNameRows, 'autoload'));
+
+        $joinedPriorityRows = SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+            ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [4, 9]],
+        ], ['key', 'atom', 'fullkey'], 'inner', 'rule_');
+        $t->same([1, 2, 5], array_column($joinedPriorityRows, 'option_id'));
+        $t->same(['priority', 'priority', 'priority'], array_column($joinedPriorityRows, 'rule_key'));
+        $t->same([7, 4, 9], array_column($joinedPriorityRows, 'rule_atom'));
+        $t->same(['$.plugin.rules[1].priority', '$.plugin.rules[0].priority', '$.plugin.rules[0].priority'], array_column($joinedPriorityRows, 'rule_fullkey'));
+
+        $leftRows = SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ], ['key', 'type', 'value'], 'left', 'json_');
+        $t->same([1, 1, 2, 2, 3, 4, 5, 6], array_column($leftRows, 'option_id'));
+        $t->same(['site_plugin_settings', 'site_plugin_settings', 'site_theme_settings', 'site_theme_settings', 'empty_plugin_settings', 'malformed_plugin_settings', 'subtype_plugin_settings', 'null_plugin_settings'], array_column($leftRows, 'option_name'));
+        $t->same([0, 1, 0, 1, null, null, 0, null], array_column($leftRows, 'json_key'));
+        $t->same(['object', 'object', 'object', 'object', null, null, 'object', null], array_column($leftRows, 'json_type'));
+        $t->same(['{"name":"seo","priority":2,"autoload":true}', '{"name":"cache","priority":7,"autoload":false}', '{"name":"forms","priority":4,"autoload":true}', '{"name":"media","priority":1,"autoload":false}', null, null, '{"name":"security","priority":9,"autoload":1}', null], array_column($leftRows, 'json_value'));
+
+        $missingRootLeftRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[0]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.missing'],
+        ], ['key', 'atom', 'fullkey'], 'left', 'miss_');
+        $t->same([1], array_column($missingRootLeftRows, 'option_id'));
+        $t->same([null], array_column($missingRootLeftRows, 'miss_key'));
+        $t->same([null], array_column($missingRootLeftRows, 'miss_atom'));
+        $t->same([null], array_column($missingRootLeftRows, 'miss_fullkey'));
+
+        $textLeafRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[0]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['text', 'integer', 'false']],
+        ], ['rowid', 'key', 'type', 'atom', 'path'], 'inner', 'leaf_');
+        $t->same([1, 1, 1], array_column($textLeafRows, 'option_id'));
+        $t->same(['name', 'priority', 'autoload'], array_column($textLeafRows, 'leaf_key'));
+        $t->same(['text', 'integer', 'false'], array_column($textLeafRows, 'leaf_type'));
+        $t->same(['cache', 7, 0], array_column($textLeafRows, 'leaf_atom'));
+        $t->same(['$.plugin.rules[#-1]', '$.plugin.rules[#-1]', '$.plugin.rules[#-1]'], array_column($textLeafRows, 'leaf_path'));
+        $t->same([1, 2, 3], array_column($textLeafRows, 'leaf_rowid'));
+
+        $jsonbOnlyRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[1]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => 'NOT IN', 'value' => ['array', 'object']],
+            ['column' => 'atom', 'operator' => 'IS NOT NULL'],
+        ], ['key', 'type', 'atom', 'fullkey'], 'inner', 'jb_');
+        $t->same([2, 2, 2, 2, 2, 2], array_column($jsonbOnlyRows, 'option_id'));
+        $t->same(['name', 'priority', 'autoload', 'name', 'priority', 'autoload'], array_column($jsonbOnlyRows, 'jb_key'));
+        $t->same(['text', 'integer', 'true', 'text', 'integer', 'false'], array_column($jsonbOnlyRows, 'jb_type'));
+        $t->same(['forms', 4, 1, 'media', 1, 0], array_column($jsonbOnlyRows, 'jb_atom'));
+        $t->same(['$.plugin.rules[0].name', '$.plugin.rules[0].priority', '$.plugin.rules[0].autoload', '$.plugin.rules[1].name', '$.plugin.rules[1].priority', '$.plugin.rules[1].autoload'], array_column($jsonbOnlyRows, 'jb_fullkey'));
+
+        $noMatchInnerRows = SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => '=', 'value' => 'not-a-row'],
+        ]);
+        $t->same([], $noMatchInnerRows);
+
+        $aliasRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[0]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[0]'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['object', 'text', 'integer', 'true']],
+        ], ['rowid', '_rowid_', 'oid', 'key', 'type', 'atom', 'json', 'root'], 'inner', 'table_');
+        $t->same(['option_id', 'option_name', 'autoload', 'option_value', 'table_rowid', 'table__rowid_', 'table_oid', 'table_key', 'table_type', 'table_atom', 'table_json', 'table_root'], array_keys($aliasRows[0]));
+        $t->same([0, 1, 2, 3], array_column($aliasRows, 'table_rowid'));
+        $t->same([0, 1, 2, 3], array_column($aliasRows, 'table__rowid_'));
+        $t->same([0, 1, 2, 3], array_column($aliasRows, 'table_oid'));
+        $t->same([0, 'name', 'priority', 'autoload'], array_column($aliasRows, 'table_key'));
+        $t->same(['object', 'text', 'integer', 'true'], array_column($aliasRows, 'table_type'));
+        $t->same([null, 'seo', 2, 1], array_column($aliasRows, 'table_atom'));
+        $t->same([$hostRows[0]['option_value'], $hostRows[0]['option_value'], $hostRows[0]['option_value'], $hostRows[0]['option_value']], array_column($aliasRows, 'table_json'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[0]', '$.plugin.rules[0]', '$.plugin.rules[0]'], array_column($aliasRows, 'table_root'));
+
+        $duplicateJsonRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[0]], 'option_value', 'json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $hostRows[0]['option_value']],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ], ['key', 'type'], 'inner', 'dup_');
+        $t->same([1, 1], array_column($duplicateJsonRows, 'option_id'));
+        $t->same([0, 1], array_column($duplicateJsonRows, 'dup_key'));
+        $t->same(['object', 'object'], array_column($duplicateJsonRows, 'dup_type'));
+
+        $conflictingDuplicateJsonRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[0]], 'option_value', 'json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":{"rules":[{"name":"other"}]}}'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], ['key'], 'inner', 'dup_');
+        $t->same([], $conflictingDuplicateJsonRows);
+
+        $nullAliasLeftRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[5]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], ['rowid', '_rowid_', 'oid', 'key'], 'left', 'left_');
+        $t->same([6], array_column($nullAliasLeftRows, 'option_id'));
+        $t->same([null], array_column($nullAliasLeftRows, 'left_rowid'));
+        $t->same([null], array_column($nullAliasLeftRows, 'left__rowid_'));
+        $t->same([null], array_column($nullAliasLeftRows, 'left_oid'));
+        $t->same([null], array_column($nullAliasLeftRows, 'left_key'));
+
+        $malformedOnlyLeftRows = SQLiteJsonTablePlan::hostJoinRows([$hostRows[3]], 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], ['key', 'type', 'fullkey'], 'left', 'bad_');
+        $t->same([4], array_column($malformedOnlyLeftRows, 'option_id'));
+        $t->same([null], array_column($malformedOnlyLeftRows, 'bad_key'));
+        $t->same([null], array_column($malformedOnlyLeftRows, 'bad_type'));
+        $t->same([null], array_column($malformedOnlyLeftRows, 'bad_fullkey'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, '', 'json_each'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_group_array'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [], []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [], ['key'], 'outer'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [], ['key'], 'inner', ''));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_each', [], ['']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows([['option_name' => 'missing']], 'option_value', 'json_each'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'missing', 'operator' => '=', 'value' => 'x'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hostJoinRows($hostRows, 'option_value', 'json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], ['missing']));
+    },
     'annotates sqlite json table rows with ordered window semantics' => static function (TestRunner $t): void {
         $settings = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":7,"autoload":true},{"name":"media","priority":1,"autoload":false}]}}';
         $constraints = [

@@ -118743,3 +118743,37 @@ Serialized root verification:
 
 Cleanup:
 - The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T025943Z` still contains modified and added lane files matching the accepted patch, so it was preserved as cleanup debt instead of removed.
+
+## Integration accepted - libsqlite JSON table host joins - 2026-05-27T03:18:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T030741Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `4c6dff8aaff84109b673edbcc4330ac024fb23f5` (`Integrate libsqlite table-interior merge`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `4c6dff8aaff84109b673edbcc4330ac024fb23f5`, generated `2026-05-27 03:13:50 UTC`, dashboard commit `408045038bcf074e7d860078d36cccc003e10f8f`.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it adds non-overlapping JSON table behavior, a WordPress smoke, and `+77` focused assertions.
+- Full patch was older-base and conflicted only in manifest/status/notes; implementation, test, and example hunks applied cleanly from current `main` after excluding stale manifest/status/notes and were reconciled minimally.
+- Added `SQLiteJsonTablePlan::hostJoinRows()`, `wordpress-json-table-host-join.php`, focused host-row join assertions, and current-source manifest/status/notes.
+- Sampled alternatives: B-tree page-move had a current-source test hunk conflict after the accepted table-interior merge; WAL byte truncation, rollback-journal write planning, and encoding singleton GLOB ranges applied but had lower or more overlapping accepted-test yield for this pass.
+
+Focused verification:
+- `php -l` passed for `SQLiteJsonTablePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-json-table-host-join.php`.
+- `jq`/JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5842 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-table-host-join.php` passed.
+- `git diff --check` passed before root.
+
+Expected dashboard-visible delta:
+- `phpPass`: `760 -> 761`.
+- Mapped coverage: `422 -> 423`.
+- Focused `SQLiteHeaderTest.php`: `5765 -> 5842` assertions.
+
+Serialized root verification:
+- `TMPDIR=.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 31007 assertions, 0 failures`.
+
+Cleanup:
+- The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T030741Z` still contains modified and added accepted lane files, so it was preserved as cleanup debt instead of removed.

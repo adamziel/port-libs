@@ -320,6 +320,72 @@ final class SQLiteJsonTablePlan
         );
     }
 
+    /**
+     * @param list<array<string,mixed>> $hostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<string> $jsonColumns
+     * @return list<array<string,mixed>>
+     */
+    public static function hostJoinRows(
+        array $hostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints = [],
+        array $jsonColumns = self::VISIBLE_COLUMNS,
+        string $joinType = 'inner',
+        string $jsonPrefix = 'json_',
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table host join requires a host JSON column');
+        }
+        if ($jsonColumns === []) {
+            throw new \InvalidArgumentException('SQLite JSON table host join projection must include at least one JSON column');
+        }
+
+        $joinType = strtolower($joinType);
+        if ($joinType !== 'inner' && $joinType !== 'left') {
+            throw new \InvalidArgumentException('SQLite JSON table host join type must be inner or left');
+        }
+        if ($jsonPrefix === '') {
+            throw new \InvalidArgumentException('SQLite JSON table host join prefix must be non-empty');
+        }
+
+        $normalizedColumns = array_map(
+            static fn (string $column): string => strtolower($column),
+            $jsonColumns,
+        );
+        foreach ($normalizedColumns as $column) {
+            if ($column === '') {
+                throw new \InvalidArgumentException('SQLite JSON table host join projection columns must be non-empty');
+            }
+        }
+
+        $joined = [];
+        foreach ($hostRows as $hostRow) {
+            if (!array_key_exists($jsonColumn, $hostRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table host row is missing {$jsonColumn}");
+            }
+
+            $rowConstraints = array_merge(
+                [['column' => 'json', 'operator' => '=', 'value' => $hostRow[$jsonColumn]]],
+                $constraints,
+            );
+            $plan = self::validatedPlan($function, $rowConstraints);
+            $jsonRows = $plan['runnable'] ? self::projectedRows($function, $rowConstraints, $normalizedColumns) : [];
+
+            if ($jsonRows === [] && $joinType === 'left') {
+                $joined[] = self::joinedHostRow($hostRow, self::nullJsonProjection($normalizedColumns), $jsonPrefix);
+                continue;
+            }
+
+            foreach ($jsonRows as $jsonRow) {
+                $joined[] = self::joinedHostRow($hostRow, $jsonRow, $jsonPrefix);
+            }
+        }
+
+        return $joined;
+    }
+
     private static function normalizeFunction(string $function): string
     {
         if (strcasecmp($function, 'json_each') === 0) {
@@ -789,5 +855,33 @@ final class SQLiteJsonTablePlan
         }
 
         return $left === $right;
+    }
+
+    /**
+     * @param array<string,mixed> $hostRow
+     * @param array<string,mixed> $jsonRow
+     * @return array<string,mixed>
+     */
+    private static function joinedHostRow(array $hostRow, array $jsonRow, string $jsonPrefix): array
+    {
+        foreach ($jsonRow as $column => $value) {
+            $hostRow[$jsonPrefix . $column] = $value;
+        }
+
+        return $hostRow;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function nullJsonProjection(array $columns): array
+    {
+        $projection = [];
+        foreach ($columns as $column) {
+            $projection[$column] = null;
+        }
+
+        return $projection;
     }
 }
