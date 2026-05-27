@@ -52,12 +52,13 @@ final class SQLitePragmaIntegrityCheck
         }
 
         if (!$quick) {
-            self::appendPointerMapErrors($database, $errors, $limit);
+            $freePages = self::freelistPageNumbers($database);
+            self::appendPointerMapErrors($database, $freePages, $errors, $limit);
             if (count($errors) >= $limit) {
                 return array_slice($errors, 0, $limit);
             }
 
-            self::appendBtreeErrors($database, $errors, $limit);
+            self::appendBtreeErrors($database, $freePages, $errors, $limit);
         }
 
         return array_slice($errors, 0, $limit);
@@ -153,9 +154,10 @@ final class SQLitePragmaIntegrityCheck
     }
 
     /**
+     * @param array<int, true> $freePages
      * @param list<string> $errors
      */
-    private static function appendPointerMapErrors(SQLiteDatabase $database, array &$errors, int $limit): void
+    private static function appendPointerMapErrors(SQLiteDatabase $database, array $freePages, array &$errors, int $limit): void
     {
         if (!$database->isAutoVacuum()) {
             return;
@@ -176,15 +178,37 @@ final class SQLitePragmaIntegrityCheck
             if ($entry->type !== SQLitePointerMapEntry::FREE_PAGE && $entry->parentPageNumber > $database->pageCount()) {
                 self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for page {$pageNumber} is beyond the database image");
             }
+            if ($entry->type === SQLitePointerMapEntry::FREE_PAGE && !isset($freePages[$pageNumber]) && ord($database->page($pageNumber)[0]) === 0) {
+                self::append($errors, $limit, "pointer-map marks page {$pageNumber} free but the page is not reachable from the freelist");
+            }
+        }
+
+        foreach (array_keys($freePages) as $pageNumber) {
+            if (count($errors) >= $limit || $pageNumber === 1 || $database->isPointerMapPage($pageNumber)) {
+                continue;
+            }
+
+            try {
+                $entry = $database->pointerMapEntryForPage($pageNumber);
+            } catch (\InvalidArgumentException $exception) {
+                self::append($errors, $limit, self::formatError($exception));
+                continue;
+            }
+
+            if ($entry->type !== SQLitePointerMapEntry::FREE_PAGE) {
+                self::append($errors, $limit, "freelist page {$pageNumber} pointer-map type {$entry->typeName()} does not match expected free-page");
+            } elseif ($entry->parentPageNumber !== 0) {
+                self::append($errors, $limit, "freelist page {$pageNumber} pointer-map parent {$entry->parentPageNumber} does not match expected parent 0");
+            }
         }
     }
 
     /**
+     * @param array<int, true> $freePages
      * @param list<string> $errors
      */
-    private static function appendBtreeErrors(SQLiteDatabase $database, array &$errors, int $limit): void
+    private static function appendBtreeErrors(SQLiteDatabase $database, array $freePages, array &$errors, int $limit): void
     {
-        $freePages = self::freelistPageNumbers($database);
         $overflowPages = [];
         $pageCount = $database->pageCount();
         $usableSize = $database->usablePageSize();

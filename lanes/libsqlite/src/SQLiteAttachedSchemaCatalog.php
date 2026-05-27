@@ -12,6 +12,8 @@ final class SQLiteAttachedSchemaCatalog
     /** @var list<string> */
     private array $attachedOrder = [];
 
+    private int $schemaGeneration = 0;
+
     /**
      * @param list<SQLiteSchemaRecord> $mainRecords
      * @param list<SQLiteSchemaRecord> $tempRecords
@@ -52,6 +54,7 @@ final class SQLiteAttachedSchemaCatalog
             'records' => array_values($records),
             'sequence' => count($this->attachedOrder) + 1,
         ];
+        $this->schemaGeneration++;
     }
 
     public function detach(string $schemaName): void
@@ -73,6 +76,7 @@ final class SQLiteAttachedSchemaCatalog
         foreach ($this->attachedOrder as $index => $attached) {
             $this->schemas[$attached]['sequence'] = $index + 2;
         }
+        $this->schemaGeneration++;
     }
 
     /**
@@ -81,7 +85,7 @@ final class SQLiteAttachedSchemaCatalog
      * schema name and returns the schema records for that attached database.
      *
      * @param callable(string, string): list<SQLiteSchemaRecord>|null $recordLoader
-     * @return array{status: string, operation: string, schema: string, file: string|null, database_list: list<array{seq: int, name: string, file: string|null}>, uri: array<string, mixed>|null, open_plan: array<string, mixed>|null}
+     * @return array{status: string, operation: string, schema: string, file: string|null, database_list: list<array{seq: int, name: string, file: string|null}>, uri: array<string, mixed>|null, open_plan: array<string, mixed>|null, schema_generation: int, cache_invalidated: bool}
      */
     public function executeAttachDetachSql(string $sql, ?callable $recordLoader = null): array
     {
@@ -103,6 +107,8 @@ final class SQLiteAttachedSchemaCatalog
                 'database_list' => $this->databaseList(),
                 'uri' => $attachment['uri'],
                 'open_plan' => $attachment['open_plan'],
+                'schema_generation' => $this->schemaGeneration,
+                'cache_invalidated' => true,
             ];
         }
 
@@ -118,6 +124,8 @@ final class SQLiteAttachedSchemaCatalog
                 'database_list' => $this->databaseList(),
                 'uri' => null,
                 'open_plan' => null,
+                'schema_generation' => $this->schemaGeneration,
+                'cache_invalidated' => true,
             ];
         }
 
@@ -140,6 +148,75 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return $rows;
+    }
+
+    public function schemaGeneration(): int
+    {
+        return $this->schemaGeneration;
+    }
+
+    /**
+     * Capture the connection-level schema-cache state that SQLite uses to
+     * decide whether prepared statements must be reprepared after ATTACH or
+     * DETACH changes the database array.
+     *
+     * @return array{generation: int, source: string, database_count: int, search_order: list<string>, database_list: list<array{seq: int, name: string, file: string|null}>, schema_names: list<string>}
+     */
+    public function schemaCacheSnapshot(string $sourceSchema = 'main'): array
+    {
+        $source = self::normalizeSchemaName($sourceSchema);
+        if (!isset($this->schemas[$source])) {
+            throw new \InvalidArgumentException("SQLite schema {$source} is not attached");
+        }
+
+        return [
+            'generation' => $this->schemaGeneration,
+            'source' => $source,
+            'database_count' => count($this->schemas),
+            'search_order' => $this->searchOrder(),
+            'database_list' => $this->databaseList(),
+            'schema_names' => array_map(
+                static fn (array $schema): string => $schema['name'],
+                $this->databaseList(),
+            ),
+        ];
+    }
+
+    /**
+     * @param array{generation?: int} $snapshot
+     */
+    public function schemaCacheIsCurrent(array $snapshot): bool
+    {
+        return ($snapshot['generation'] ?? -1) === $this->schemaGeneration;
+    }
+
+    /**
+     * @param array{generation?: int, search_order?: list<string>, database_list?: list<array{seq: int, name: string, file: string|null}>} $snapshot
+     * @return array{current: bool, before_generation: int|null, after_generation: int, before_search_order: list<string>, after_search_order: list<string>, before_database_count: int, after_database_count: int, invalidated_schemas: list<string>, added_schemas: list<string>, removed_schemas: list<string>, sequence_changed: bool}
+     */
+    public function schemaCacheInvalidation(array $snapshot): array
+    {
+        $beforeOrder = array_values($snapshot['search_order'] ?? []);
+        $afterOrder = $this->searchOrder();
+        $beforeSchemas = self::schemaNamesFromDatabaseList($snapshot['database_list'] ?? []);
+        $afterSchemas = self::schemaNamesFromDatabaseList($this->databaseList());
+        $added = array_values(array_diff($afterSchemas, $beforeSchemas));
+        $removed = array_values(array_diff($beforeSchemas, $afterSchemas));
+        $sequenceChanged = self::sequenceMap($snapshot['database_list'] ?? []) !== self::sequenceMap($this->databaseList());
+
+        return [
+            'current' => $this->schemaCacheIsCurrent($snapshot),
+            'before_generation' => isset($snapshot['generation']) ? (int) $snapshot['generation'] : null,
+            'after_generation' => $this->schemaGeneration,
+            'before_search_order' => $beforeOrder,
+            'after_search_order' => $afterOrder,
+            'before_database_count' => count($beforeSchemas),
+            'after_database_count' => count($afterSchemas),
+            'invalidated_schemas' => array_values(array_unique(array_merge($added, $removed))),
+            'added_schemas' => $added,
+            'removed_schemas' => $removed,
+            'sequence_changed' => $sequenceChanged,
+        ];
     }
 
     /**
@@ -405,6 +482,32 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<array{seq?: int, name?: string, file?: string|null}> $databaseList
+     * @return list<string>
+     */
+    private static function schemaNamesFromDatabaseList(array $databaseList): array
+    {
+        return array_values(array_map(
+            static fn (array $row): string => (string) ($row['name'] ?? ''),
+            $databaseList,
+        ));
+    }
+
+    /**
+     * @param list<array{seq?: int, name?: string, file?: string|null}> $databaseList
+     * @return array<string, int>
+     */
+    private static function sequenceMap(array $databaseList): array
+    {
+        $map = [];
+        foreach ($databaseList as $row) {
+            $map[(string) ($row['name'] ?? '')] = (int) ($row['seq'] ?? -1);
+        }
+
+        return $map;
     }
 
     /**

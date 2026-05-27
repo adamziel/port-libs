@@ -492,6 +492,33 @@ final class SQLiteDatabase
         );
     }
 
+    /**
+     * @param array<int, string> $allocatedPageImages
+     */
+    public function applyPageAllocationPlan(
+        SQLiteFreelistAllocationPlan $allocationPlan,
+        array $allocatedPageImages = [],
+    ): self {
+        $allocated = array_fill_keys($allocationPlan->allocatedPageNumbers, true);
+        $pageImages = $allocationPlan->pageImages();
+
+        foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
+            $pageImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
+        }
+
+        foreach ($allocatedPageImages as $pageNumber => $page) {
+            if (!isset($allocated[$pageNumber])) {
+                throw new \InvalidArgumentException('SQLite allocated page image was not part of the allocation plan');
+            }
+            if (!is_string($page) || strlen($page) !== $this->header->pageSize) {
+                throw new \InvalidArgumentException('SQLite allocated page image length does not match page size');
+            }
+            $pageImages[$pageNumber] = $page;
+        }
+
+        return $this->withPageImages($pageImages);
+    }
+
     public function planPageFree(int $pageNumber, bool $secureDelete = false): SQLiteFreelistFreePlan
     {
         return $this->planPageFreeList([$pageNumber], $secureDelete);

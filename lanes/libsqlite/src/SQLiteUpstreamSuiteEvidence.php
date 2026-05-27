@@ -1803,6 +1803,40 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $artifact
+     * @return array<string, mixed>
+     */
+    public function boundedRunnerCountabilityGateFromRecord(array $artifact, string $acceptedRepositoryHead): array
+    {
+        $acceptance = $this->boundedRunnerAcceptanceGate($artifact, $acceptedRepositoryHead);
+        $blockers = is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [];
+        $activeGate = is_array($artifact['active_gate'] ?? null) ? $artifact['active_gate'] : [];
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            array_unshift($blockers, [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot still contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+            ]);
+        }
+
+        $countable = ($acceptance['status'] ?? null) === 'accepted-for-lane-evidence' && $blockers === [];
+
+        return [
+            'status' => $countable ? 'countable' : 'blocked',
+            'countable' => $countable,
+            'artifact_status' => $artifact['status'] ?? 'unknown',
+            'artifact' => $artifact,
+            'acceptance' => $acceptance,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $countable
+                ? 'record this bounded runner artifact in manifest/status as accepted release/all evidence'
+                : 'do not count this bounded runner artifact until it has parsed zero-error results, no active runner, accepted HEAD provenance, and matching SQLite manifest UUID',
+            'dependency_closure' => 'no new support component needed; countability gate composes an in-memory bounded runner artifact and provenance record only',
+        ];
+    }
+
+    /**
      * @param array<string, array{audit:string, stdout?:string|null, process_snapshot?:string}> $artifacts
      * @return array<string, mixed>
      */
@@ -3274,6 +3308,139 @@ final class SQLiteUpstreamSuiteEvidence
                 default => 'keep the release blocker open until artifact-set countability, exclusion, duplicate-runner, and supervisor-approval gates are resolved',
             },
             'dependency_closure' => 'no new support component needed; closure record composes artifact-set countability, admission ledger, exclusion, and active-runner gates only',
+        ];
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @param array<string, mixed>|null $exclusionDecisionGate
+     * @return array<string, mixed>
+     */
+    public function currentReleaseRunnerParityLedger(
+        array $artifactRecords,
+        string $acceptedRepositoryHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = '',
+        bool $supervisorApproved = false,
+        ?array $exclusionDecisionGate = null
+    ): array {
+        $artifactByLabel = [];
+        foreach ($artifactRecords as $label => $artifact) {
+            if (!is_array($artifact)) {
+                continue;
+            }
+
+            $entryLabel = is_string($label) ? $label : 'artifact-' . (string) count($artifactByLabel);
+            $artifactByLabel[$entryLabel] = $artifact;
+        }
+
+        $provenance = $this->acceptedHeadArtifactProvenanceBatch($artifactRecords, $acceptedRepositoryHead);
+        $focused = $this->focusedRunnerArtifactSetAdmission($artifactRecords, $acceptedRepositoryHead);
+
+        $releaseArtifacts = [];
+        foreach (is_array($provenance['entries'] ?? null) ? $provenance['entries'] : [] as $entry) {
+            if (!is_array($entry) || ($entry['kind'] ?? null) !== 'release-like') {
+                continue;
+            }
+
+            $label = is_string($entry['label'] ?? null) ? $entry['label'] : 'release-' . (string) count($releaseArtifacts);
+            if (!isset($artifactByLabel[$label])) {
+                continue;
+            }
+
+            $artifact = $artifactByLabel[$label];
+            $releaseArtifacts[$label] = $this->boundedRunnerCountabilityGateFromRecord($artifact, $acceptedRepositoryHead);
+        }
+
+        $admissions = [];
+        foreach ($releaseArtifacts as $label => $gate) {
+            $admissions[$label] = $this->releaseBlockerAdmissionRecord($gate);
+        }
+        if ($exclusionDecisionGate !== null) {
+            $admissions['supervisor-exclusion'] = $this->releaseBlockerAdmissionRecord(
+                [
+                    'status' => 'blocked',
+                    'countable' => false,
+                    'artifact_status' => 'not-applicable',
+                    'acceptance' => ['tests' => null, 'errors' => null],
+                    'blockers' => [
+                        [
+                            'id' => 'artifact-not-supplied-for-exclusion',
+                            'evidence' => 'current parity ledger is using an explicit supervisor exclusion gate instead of a zero-error broad artifact',
+                        ],
+                    ],
+                ],
+                $exclusionDecisionGate
+            );
+        }
+
+        $admissionLedger = $this->releaseAdmissionLedger($admissions);
+        $rerun = $this->releaseRerunDecisionRecord($admissions, $processSnapshot, $supervisorApproved);
+        $phpAdmission = $this->focusedPhpPassAdmission($currentPhpPass, $focusedPath, $focusedTestOutput, $nonOverlapNote);
+
+        $blockers = [];
+        foreach (is_array($admissionLedger['blockers'] ?? null) ? $admissionLedger['blockers'] : [] as $blocker) {
+            if (is_array($blocker)) {
+                $blockers[] = $blocker;
+            }
+        }
+        if (($provenance['blocked_count'] ?? 0) > 0) {
+            $blockers[] = [
+                'id' => 'artifact-provenance-blocked',
+                'evidence' => 'one or more supplied runner artifacts are stale, failed, missing provenance, or manifest-mismatched',
+                'blocked_labels' => $provenance['blocked_labels'] ?? [],
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $status = 'blocked';
+        if (($admissionLedger['counts_as_zero_error_release_parity'] ?? false) === true) {
+            $status = 'zero-error-release-parity-current';
+        } elseif (($admissionLedger['release_blocker_closed'] ?? false) === true) {
+            $status = 'release-blocker-closed-by-exclusion';
+        } elseif (($focused['countable_count'] ?? 0) > 0 && ($phpAdmission['status'] ?? null) === 'admitted') {
+            $status = 'focused-evidence-current-release-open';
+        } elseif (($rerun['rerun_allowed'] ?? false) === true) {
+            $status = 'rerun-allowed';
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => (int) ($provenance['artifact_count'] ?? 0),
+            'current_accepted_artifacts' => (int) ($provenance['current_accepted_count'] ?? 0),
+            'focused_countable_artifacts' => (int) ($focused['countable_count'] ?? 0),
+            'release_like_artifacts' => count($releaseArtifacts),
+            'release_admission_count' => count($admissions),
+            'release_ledger' => $admissionLedger,
+            'rerun_decision' => $rerun,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'release_blocker_closed' => (bool) ($admissionLedger['release_blocker_closed'] ?? false),
+            'counts_as_zero_error_release_parity' => (bool) ($admissionLedger['counts_as_zero_error_release_parity'] ?? false),
+            'counts_focused_as_release_parity' => false,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'provenance' => $provenance,
+            'focused' => $focused,
+            'release_countability_gates' => $releaseArtifacts,
+            'next_gate' => match ($status) {
+                'zero-error-release-parity-current' => 'publish the current accepted-HEAD zero-error release/all artifact and do not launch another broad runner',
+                'release-blocker-closed-by-exclusion' => 'record the supervisor exclusion as release-blocker closure while keeping zero-error parity uncounted',
+                'focused-evidence-current-release-open' => 'admit the focused PHP PASS delta and focused upstream artifacts, but keep release/all parity open until a broad zero-error artifact is countable',
+                'rerun-allowed' => 'launch at most one guarded broad runner, then feed its audit/log artifact back into this current parity ledger',
+                default => 'repair provenance, PHP admission, or release admission blockers before counting current release-runner parity',
+            },
+            'dependency_closure' => 'no new support component needed; current parity ledger composes existing runner artifact, admission, rerun, and focused PHP PASS gates only',
         ];
     }
 

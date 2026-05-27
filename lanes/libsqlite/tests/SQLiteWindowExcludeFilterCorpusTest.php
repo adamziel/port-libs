@@ -67,8 +67,10 @@ $tests['upstream corpus window exclude filter rejects unknown exclude mode'] = s
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateRows([1], [1], 0, 0, 'SIDEWAYS'));
 };
 
-$tests['upstream corpus window exclude filter rejects non scalar order keys'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateRows([1], [['bad']], 0, 0));
+$tests['upstream corpus window exclude filter accepts composite rows keys and rejects unsupported compared members'] = static function (TestRunner $t): void {
+    $summary = SQLiteWindowFunction::aggregateRows([1], [['bad']], 0, 0);
+    $t->same([0], $summary[0]['frame']);
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::aggregateFrameRows([1, 2], [[new stdClass()], [1]], 'GROUPS', 0, 0));
 };
 
 $tests['upstream corpus window exclude filter rejects non scalar filter values'] = static function (TestRunner $t): void {

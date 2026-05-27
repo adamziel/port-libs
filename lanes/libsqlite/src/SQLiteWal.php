@@ -805,6 +805,65 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{status:string,mode:string,reason:string,busy:bool,reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,dependencies:list<string>}
+     */
+    public function checkpointBusyReaderCurrentNext(string $databaseBytes, array $pageNumbers, string $mode = 'full', int $readerEndFrame = 0): array
+    {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL busy-reader checkpoint visibility requires at least one page number');
+        }
+        if ($readerEndFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL busy-reader checkpoint requires a positive reader frame');
+        }
+
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
+        $nextWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($checkpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL busy-reader checkpoint visibility pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $readerEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibilityOrError($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $checkpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        return [
+            'status' => $checkpoint['busy'] ? 'busy' : 'ready',
+            'mode' => $checkpoint['mode'],
+            'reason' => $checkpoint['reason'],
+            'busy' => $checkpoint['busy'],
+            'reader_end_frame' => $readerEndFrame,
+            'current_reader_end_frame' => $readerEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $checkpoint['wal_action'],
+            'checkpoint' => $checkpoint,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => array_map(static fn (array $entry): string => (string) ($entry['source'] ?? 'error'), $current),
+            'next_reader_sources' => array_map(static fn (array $entry): string => (string) ($entry['source'] ?? 'error'), $next),
+            'current_reader_frame_indexes' => array_map(static fn (array $entry): ?int => $entry['frame_index'] ?? null, $current),
+            'next_reader_frame_indexes' => array_map(static fn (array $entry): ?int => $entry['frame_index'] ?? null, $next),
+            'current_reader_errors' => array_values(array_map(static fn (array $entry): string => (string) $entry['error'], array_filter($current, static fn (array $entry): bool => isset($entry['error'])))),
+            'next_reader_errors' => array_values(array_map(static fn (array $entry): string => (string) $entry['error'], array_filter($next, static fn (array $entry): bool => isset($entry['error'])))),
+            'next_uses_checkpoint_database' => $checkpoint['database_bytes'] !== $databaseBytes,
+            'next_uses_preserved_wal' => $checkpoint['wal_action'] === 'preserve_wal',
+            'dependencies' => array_values(array_unique(array_merge($checkpoint['dependencies'], [
+                'sqlite-wal-checkpoint-busy-reader-current-next',
+                'wal-reader-current-next-visibility',
+            ]))),
+        ];
+    }
+
+    /**
      * @param list<int|null> $readMarks
      * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
      */

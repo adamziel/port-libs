@@ -215,7 +215,16 @@ final class SQLiteSelectQuery
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
             ? $orderKeys
-            : array_map(static fn (array $row): mixed => SQLiteSelectExpression::evaluate($row, $orderBy[0]['expression']), $orderedRows);
+            : array_map(static function (array $row) use ($orderBy): mixed {
+                if (count($orderBy) === 1) {
+                    return SQLiteSelectExpression::evaluate($row, $orderBy[0]['expression']);
+                }
+
+                return array_map(
+                    static fn (array $term): mixed => SQLiteSelectExpression::evaluate($row, $term['expression']),
+                    $orderBy
+                );
+            }, $orderedRows);
         $values = $arguments !== [] && (($arguments[0]['type'] ?? null) !== 'wildcard')
             ? array_map(static fn (array $row): mixed => SQLiteSelectExpression::evaluate($row, $arguments[0]), $orderedRows)
             : $peerKeys;
