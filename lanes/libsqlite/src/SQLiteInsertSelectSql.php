@@ -9,40 +9,65 @@ final class SQLiteInsertSelectSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param array<int|string,mixed> $parameters
-     * @return array{target:string,columns:list<string>,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,changes:int}
+     * @param list<list<string>> $uniqueColumns
+     * @return array{target:string,conflict_action:string,columns:list<string>,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,deleted_rows:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,changes:int}
      */
-    public static function execute(string $sql, array $tables, array $parameters = []): array
+    public static function execute(string $sql, array $tables, array $parameters = [], array $uniqueColumns = []): array
     {
         $plan = self::plan($sql, $tables, $parameters);
         $target = $plan['target'];
         $before = $tables[$target];
-        $after = array_values(array_merge($before, $plan['inserted_rows']));
+        $after = $before;
+        $inserted = [];
+        $deleted = [];
+        $ignored = [];
+
+        foreach ($plan['inserted_rows'] as $row) {
+            $conflictingIndexes = self::conflictingIndexes($after, $row, $uniqueColumns);
+            if ($conflictingIndexes !== []) {
+                if ($plan['conflict_action'] === 'ignore') {
+                    $ignored[] = $row;
+                    continue;
+                }
+                if ($plan['conflict_action'] !== 'replace') {
+                    throw new \InvalidArgumentException('SQLite INSERT SELECT current unique constraint conflict');
+                }
+                foreach (array_reverse($conflictingIndexes) as $index) {
+                    $deleted[] = $after[$index];
+                    unset($after[$index]);
+                }
+                $after = array_values($after);
+            }
+            $after[] = $row;
+            $inserted[] = $row;
+        }
 
         return [
             'target' => $target,
+            'conflict_action' => $plan['conflict_action'],
             'columns' => $plan['columns'],
             'source_rows' => $plan['source_rows'],
-            'inserted_rows' => $plan['inserted_rows'],
+            'inserted_rows' => $inserted,
+            'deleted_rows' => $deleted,
+            'ignored_rows' => $ignored,
             'before' => $before,
             'after' => $after,
-            'changes' => count($plan['inserted_rows']),
+            'changes' => count($inserted),
         ];
     }
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param array<int|string,mixed> $parameters
-     * @return array{target:string,columns:list<string>,select_sql:string,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>}
+     * @return array{target:string,conflict_action:string,columns:list<string>,select_sql:string,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>}
      */
     public static function plan(string $sql, array $tables, array $parameters = []): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
-        if (preg_match('/^insert\s+(?:or\s+(?:abort|fail|ignore|rollback|replace)\s+)?into\s+/i', $sql, $match) !== 1) {
+        if (preg_match('/^insert\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?into\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite INSERT SELECT SQL must start with INSERT INTO');
         }
-        if (preg_match('/^insert\s+or\s+/i', $sql) === 1) {
-            throw new \InvalidArgumentException('SQLite INSERT SELECT conflict clauses are not supported by this bounded executor');
-        }
+        $conflictAction = strtolower(($match[1] ?? '') === '' ? 'abort' : $match[1]);
 
         $offset = strlen($match[0]);
         $target = self::readIdentifier($sql, $offset, 'SQLite INSERT SELECT target table');
@@ -95,6 +120,7 @@ final class SQLiteInsertSelectSql
 
         return [
             'target' => $target,
+            'conflict_action' => $conflictAction,
             'columns' => $columns,
             'select_sql' => $selectSql,
             'source_rows' => $sourceRows,
@@ -119,6 +145,61 @@ final class SQLiteInsertSelectSql
         }
 
         return $sql;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueColumns
+     * @return list<int>
+     */
+    private static function conflictingIndexes(array $rows, array $candidate, array $uniqueColumns): array
+    {
+        $indexes = [];
+        foreach ($uniqueColumns as $columns) {
+            self::validateUniqueColumns($columns);
+            foreach ($rows as $index => $row) {
+                if (self::uniqueRowsConflict($candidate, $row, $columns)) {
+                    $indexes[(int) $index] = true;
+                }
+            }
+        }
+
+        return array_keys($indexes);
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function validateUniqueColumns(array $columns): void
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite INSERT SELECT unique constraint column list cannot be empty');
+        }
+        foreach ($columns as $column) {
+            if (!is_string($column) || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1) {
+                throw new \InvalidArgumentException('SQLite INSERT SELECT unique constraint column is malformed');
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function uniqueRowsConflict(array $left, array $right, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $left) || !array_key_exists($column, $right)) {
+                throw new \InvalidArgumentException("SQLite INSERT SELECT unique constraint column {$column} is missing from row data");
+            }
+            if ($left[$column] === null || $right[$column] === null) {
+                return false;
+            }
+            if ($left[$column] !== $right[$column]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function skipWhitespace(string $sql, int $offset): int

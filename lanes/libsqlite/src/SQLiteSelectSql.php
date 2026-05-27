@@ -52,6 +52,13 @@ final class SQLiteSelectSql
         }
 
         $selectSql = trim(substr($sql, 6, $fromOffset - 6));
+        $distinct = false;
+        if (preg_match('/^distinct(?:\s+|$)/i', $selectSql) === 1) {
+            $distinct = true;
+            $selectSql = trim(substr($selectSql, 8));
+        } elseif (preg_match('/^all(?:\s+|$)/i', $selectSql) === 1) {
+            $selectSql = trim(substr($selectSql, 3));
+        }
         $tail = trim(substr($sql, $fromOffset + 4));
         if ($selectSql === '' || $tail === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL needs select list and table');
@@ -74,6 +81,9 @@ final class SQLiteSelectSql
             'from' => $source['from'],
             'select' => $select,
         ];
+        if ($distinct) {
+            $plan['distinct'] = true;
+        }
         if ($source['joins'] !== []) {
             $plan['joins'] = $source['joins'];
         }

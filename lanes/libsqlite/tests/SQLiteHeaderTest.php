@@ -25131,7 +25131,7 @@ SQL;
         $t->same($archive, $empty['after']);
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('SELECT option_id FROM wp_options', ['wp_options' => $options]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT OR REPLACE INTO archived_options (option_id) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT OR UPSERT INTO archived_options (option_id) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO missing (option_id) SELECT option_id FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options () SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id, option_id) SELECT option_id, option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
@@ -25139,6 +25139,96 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id) VALUES (1)', ['archived_options' => $archive]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options SELECT option_id FROM wp_options WHERE option_name = "missing"', ['wp_options' => $options, 'archived_options' => []]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id, option_name) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+    },
+    'executes bounded sqlite insert select current conflict sql text' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => 'home', 'option_value' => 'duplicate-home', 'autoload' => 'no', 'bytes' => 14],
+            ['option_id' => 5, 'option_name' => null, 'option_value' => 'anonymous', 'autoload' => 'no', 'bytes' => 9],
+        ];
+        $archive = [
+            ['archive_id' => 10, 'option_name' => 'siteurl', 'option_value' => 'old-site', 'source_id' => 100],
+            ['archive_id' => 11, 'option_name' => 'legacy', 'option_value' => 'old-legacy', 'source_id' => 101],
+            ['archive_id' => 12, 'option_name' => null, 'option_value' => 'old-null', 'source_id' => 102],
+        ];
+        $sql = "INSERT OR IGNORE INTO archived_options (archive_id, option_name, option_value, source_id) SELECT option_id + 20, option_name, option_value, option_id FROM wp_options ORDER BY option_id";
+
+        $ignore = SQLiteInsertSelectSql::execute($sql, ['wp_options' => $options, 'archived_options' => $archive], [], [['option_name']]);
+        $t->same('archived_options', $ignore['target']);
+        $t->same('ignore', $ignore['conflict_action']);
+        $t->same(['archive_id', 'option_name', 'option_value', 'source_id'], $ignore['columns']);
+        $t->same(5, count($ignore['source_rows']));
+        $t->same(3, $ignore['changes']);
+        $t->same(3, count($ignore['inserted_rows']));
+        $t->same(2, count($ignore['ignored_rows']));
+        $t->same([], $ignore['deleted_rows']);
+        $t->same([10, 11, 12], array_column($ignore['before'], 'archive_id'));
+        $t->same([22, 23, 25], array_column($ignore['inserted_rows'], 'archive_id'));
+        $t->same(['siteurl', 'home'], array_column($ignore['ignored_rows'], 'option_name'));
+        $t->same(['siteurl', 'legacy', null, 'home', 'blogname', null], array_column($ignore['after'], 'option_name'));
+        $t->same(['old-site', 'old-legacy', 'old-null', 'https://example.test', 'Example Site', 'anonymous'], array_column($ignore['after'], 'option_value'));
+
+        $replace = SQLiteInsertSelectSql::execute(
+            "INSERT OR REPLACE INTO archived_options (archive_id, option_name, option_value, source_id) SELECT option_id + 30, option_name, option_value, option_id FROM wp_options ORDER BY option_id",
+            ['wp_options' => $options, 'archived_options' => $archive],
+            [],
+            [['option_name']],
+        );
+        $t->same('replace', $replace['conflict_action']);
+        $t->same(5, $replace['changes']);
+        $t->same(5, count($replace['inserted_rows']));
+        $t->same(2, count($replace['deleted_rows']));
+        $t->same([], $replace['ignored_rows']);
+        $t->same(['siteurl', 'home'], array_column($replace['deleted_rows'], 'option_name'));
+        $t->same([10, 32], array_column($replace['deleted_rows'], 'archive_id'));
+        $t->same([11, 12, 31, 33, 34, 35], array_column($replace['after'], 'archive_id'));
+        $t->same(['legacy', null, 'siteurl', 'blogname', 'home', null], array_column($replace['after'], 'option_name'));
+        $t->same(['old-legacy', 'old-null', 'https://example.test', 'Example Site', 'duplicate-home', 'anonymous'], array_column($replace['after'], 'option_value'));
+        $t->same([101, 102, 1, 3, 4, 5], array_column($replace['after'], 'source_id'));
+
+        $composite = SQLiteInsertSelectSql::execute(
+            "INSERT OR IGNORE INTO archived_options (archive_id, option_name, option_value, source_id) SELECT option_id + 40, option_name, option_value, option_id FROM wp_options ORDER BY option_id",
+            ['wp_options' => $options, 'archived_options' => $archive],
+            [],
+            [['option_name', 'option_value']],
+        );
+        $t->same('ignore', $composite['conflict_action']);
+        $t->same(5, $composite['changes']);
+        $t->same([], $composite['ignored_rows']);
+        $t->same([10, 11, 12, 41, 42, 43, 44, 45], array_column($composite['after'], 'archive_id'));
+        $t->same(['siteurl', 'legacy', null, 'siteurl', 'home', 'blogname', 'home', null], array_column($composite['after'], 'option_name'));
+
+        $parameterized = SQLiteInsertSelectSql::execute(
+            'INSERT OR IGNORE INTO archived_options (archive_id, option_name, option_value, source_id) SELECT option_id + ?, option_name || :suffix, option_value, option_id FROM wp_options WHERE autoload = :autoload ORDER BY option_id',
+            ['wp_options' => $options, 'archived_options' => [['archive_id' => 70, 'option_name' => 'home:copy', 'option_value' => 'old', 'source_id' => 0]]],
+            [0 => 50, ':suffix' => ':copy', ':autoload' => 'yes'],
+            [['option_name']],
+        );
+        $t->same(2, $parameterized['changes']);
+        $t->same([51, 53], array_column($parameterized['inserted_rows'], 'archive_id'));
+        $t->same(['home:copy'], array_column($parameterized['ignored_rows'], 'option_name'));
+        $t->same(['home:copy', 'siteurl:copy', 'blogname:copy'], array_column($parameterized['after'], 'option_name'));
+
+        $plan = SQLiteInsertSelectSql::plan($sql, ['wp_options' => $options, 'archived_options' => $archive]);
+        $t->same('ignore', $plan['conflict_action']);
+        $t->same("SELECT option_id + 20, option_name, option_value, option_id FROM wp_options ORDER BY option_id", $plan['select_sql']);
+        $t->same(5, count($plan['inserted_rows']));
+        $t->same([21, 22, 23, 24, 25], array_column($plan['inserted_rows'], 'archive_id'));
+
+        $abort = SQLiteInsertSelectSql::plan(
+            "INSERT OR ABORT INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options",
+            ['wp_options' => $options, 'archived_options' => $archive],
+        );
+        $t->same('abort', $abort['conflict_action']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR ABORT INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR FAIL INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR ROLLBACK INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR IGNORE INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [[]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR IGNORE INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute("INSERT OR IGNORE INTO archived_options (archive_id, option_name) SELECT option_id, option_name FROM wp_options", ['wp_options' => $options, 'archived_options' => $archive], [], [['1bad']]));
     },
     'executes bounded sqlite update from current conflict sql text' => static function (TestRunner $t): void {
         $options = [
