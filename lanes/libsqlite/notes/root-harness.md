@@ -2095,3 +2095,29 @@ can trust a valid committed WAL prefix and ignore the corrupt tail.
 Dependency closure: no new shared support component is needed; the slice reuses
 lane-local WAL header/frame parsing, checksum validation, checkpoint image
 materialization, and copied WordPress WAL diagnostics.
+
+## Temp-store Sorter B-tree Slice
+
+Focused lane verification for the temp-store sorter B-tree slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTempStoreSorterBTreePlan.php
+php -l lanes/libsqlite/examples/wordpress-temp-store-sorter-btree.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-temp-store-sorter-btree.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; full focused `SQLiteHeaderTest.php` passed with
+8971 assertions and 0 failures in the worker handoff. The WordPress smoke
+reported copied `wp_options` rows sorted through a bounded SQLite temp-store
+spill plan with NOCASE option-name keys, DESC autoload tie-breaks, stable
+input-sequence tie-breaking, memory-threshold admission, and generated
+temporary index-leaf B-tree page images.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local record encoder plus index leaf page/cell assembly. Follow-up should
+wire the generated sorter B-tree pages into broader SELECT executor ORDER BY
+spill paths without repeating accepted SELECT expression ORDER BY,
+freeblock/freelist, page-move, root-collapse, overflow-release, or overflow
+cell reuse clusters.

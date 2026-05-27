@@ -91,6 +91,7 @@ use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableInteriorPage;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
+use PortLibs\LibSqlite\SQLiteTempStoreSorterBTreePlan;
 use PortLibs\LibSqlite\SQLiteSuperJournalCommitPlan;
 use PortLibs\LibSqlite\SQLiteTableRow;
 use PortLibs\LibSqlite\SQLiteTextAggregate;
@@ -25119,5 +25120,90 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::indexChild($database, 2, 3, $delete));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 3, ['page' => $delete['page'], 'obsolete_overflow_page_numbers' => []]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 3, ['page' => $delete['page'], 'rowids' => [10], 'obsolete_overflow_page_numbers' => ['bad']]));
+    },
+    'plans sqlite temp-store sorter spill into b-tree index leaf runs' => static function (TestRunner $t): void {
+        $rows = [
+            ['option_id' => 10, 'option_name' => 'zeta_plugin', 'autoload' => 'no', 'option_value' => 'last'],
+            ['option_id' => 11, 'option_name' => 'Alpha_plugin', 'autoload' => 'yes', 'option_value' => 'first upper'],
+            ['option_id' => 12, 'option_name' => 'alpha_plugin', 'autoload' => 'no', 'option_value' => 'first lower'],
+            ['option_id' => 13, 'option_name' => 'cache_key', 'autoload' => 'yes', 'option_value' => str_repeat('cache:', 8)],
+            ['option_id' => 14, 'option_name' => 'cache_key', 'autoload' => 'no', 'option_value' => 'stable duplicate'],
+            ['option_id' => 15, 'option_name' => 'beta_plugin   ', 'autoload' => 'yes', 'option_value' => 'trimmed'],
+            ['option_id' => 16, 'option_name' => null, 'autoload' => 'no', 'option_value' => 'null sorts first'],
+        ];
+
+        $plan = SQLiteTempStoreSorterBTreePlan::forRows(
+            $rows,
+            [
+                ['column' => 'option_name', 'collation' => 'NOCASE'],
+                ['column' => 'autoload', 'direction' => 'DESC'],
+                ['column' => 'option_id'],
+            ],
+            pageSize: 2048,
+            memoryThresholdBytes: 96,
+        );
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteTempStoreSorterBTreePlan::class, get_class($plan));
+        $t->true($plan->spilledToTempBTree);
+        $t->true($plan->estimatedMemoryBytes > 96);
+        $t->same(7, $summary['input_rows']);
+        $t->same(7, $summary['sorted_rows']);
+        $t->same('temp-store-sorter-btree', $summary['action']);
+        $t->same([2], $summary['temp_page_numbers']);
+        $t->same([null, 'Alpha_plugin', 'alpha_plugin', 'beta_plugin   ', 'cache_key', 'cache_key', 'zeta_plugin'], array_column($plan->sortedRows, 'option_name'));
+        $t->same([16, 11, 12, 15, 13, 14, 10], array_column($plan->sortedRows, 'option_id'));
+        $t->same('NOCASE', $plan->sortTerms[0]['collation']);
+        $t->same('DESC', $plan->sortTerms[1]['direction']);
+        $t->same(2, array_key_first($plan->pageImages));
+        $t->same(2048, strlen($plan->pageImages[2]));
+        $t->same(1, count($plan->runs));
+        $t->same(7, $plan->runs[0]['cell_count']);
+        $t->same(null, $plan->runs[0]['first_key']);
+        $t->same('zeta_plugin', $plan->runs[0]['last_key']);
+
+        $header = SQLiteBTreePageHeader::parsePage($plan->pageImages[2], 2048);
+        $cells = SQLiteIndexCell::parsePageCells($plan->pageImages[2], $header, 2048);
+        $records = array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $cells);
+
+        $t->same('index-leaf', $header->pageType);
+        $t->same(7, $header->cellCount);
+        $t->same([null, 'no', 16, 6, json_encode($rows[6], JSON_THROW_ON_ERROR)], $records[0]);
+        $t->same(['Alpha_plugin', 'yes', 11], array_slice($records[1], 0, 3));
+        $t->same(['alpha_plugin', 'no', 12], array_slice($records[2], 0, 3));
+        $t->same(['cache_key', 'yes', 13], array_slice($records[4], 0, 3));
+        $t->same(['cache_key', 'no', 14], array_slice($records[5], 0, 3));
+        $t->same('zeta_plugin', $records[6][0]);
+        $t->same(10, $records[6][2]);
+        $t->same(0, $records[6][3]);
+        $t->same(json_encode($rows[0], JSON_THROW_ON_ERROR), $records[6][4]);
+    },
+    'keeps sqlite temp-store sorter in memory below spill threshold and validates inputs' => static function (TestRunner $t): void {
+        $rows = [
+            ['option_id' => 1, 'option_name' => 'b', 'autoload' => 'yes'],
+            ['option_id' => 2, 'option_name' => 'a', 'autoload' => 'no'],
+            ['option_id' => 3, 'option_name' => 'a', 'autoload' => 'yes'],
+        ];
+
+        $plan = SQLiteTempStoreSorterBTreePlan::forRows(
+            $rows,
+            [['column' => 'option_name'], ['column' => 'autoload', 'direction' => 'DESC']],
+            memoryThresholdBytes: 4096,
+        );
+
+        $t->true(!$plan->spilledToTempBTree);
+        $t->same([], $plan->pageImages);
+        $t->same([], $plan->runs);
+        $t->same([3, 2, 1], array_column($plan->sortedRows, 'option_id'));
+        $t->same(['ASC', 'DESC'], array_column($plan->sortTerms, 'direction'));
+        $t->same(['BINARY', 'BINARY'], array_column($plan->sortTerms, 'collation'));
+        $t->same([], $plan->toArray()['temp_page_numbers']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows([], [['column' => 'option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name', 'direction' => 'SIDEWAYS']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name', 'collation' => 'UNICODE']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name']], memoryThresholdBytes: 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name']], firstTempPageNumber: 1));
     },
 ];

@@ -4788,6 +4788,27 @@ non-overlapping JSON planner/JSONB pushdown or broader SQL executor behavior
 beyond accepted JSON table sources, hidden/visible constraints, and this scalar
 JSON-path expression dispatch.
 
+## Temp-store Sorter B-tree Scenario
+
+Copied WordPress `wp_options` diagnostics now expose bounded SQLite temp-store
+sorter spill planning. The smoke
+`examples/wordpress-temp-store-sorter-btree.php` reports option rows ordered by
+NOCASE `option_name`, DESC `autoload`, and stable `option_id`/sequence
+tie-breaks, plus generated temporary index-leaf page numbers for sort records
+that cross the memory threshold, without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree sorter slice:
+`SQLiteTempStoreSorterBTreePlan` adds in-memory versus temp-B-tree admission,
+sort-term validation for BINARY/NOCASE/RTRIM collations, stable row ordering,
+and temp index-leaf page image assembly. Focused `SQLiteHeaderTest.php` passed
+at 8971 assertions with 0 failures in the worker handoff.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local SQLite record encoding and index leaf page/cell assembly. Follow-up
+should wire the generated sorter B-tree page images into broader SELECT ORDER
+BY spill execution without repeating accepted expression ORDER BY or B-tree
+freeblock/freelist/page-move/root-collapse/overflow clusters.
+
 ## WAL Checkpoint Reader Visibility Scenario
 
 Copied WordPress `wp_options` WAL diagnostics now report current-reader
