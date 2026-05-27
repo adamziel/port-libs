@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 06:08:33 UTC",
-    "sourceCommit": "7e509304f07e091c14a36b05796ada444a68feb6",
-    "sourceCommitShort": "7e509304f07e",
+    "generated": "2026-05-27 06:16:09 UTC",
+    "sourceCommit": "95f6fff8eb9de09377c86eb3b8a221d5999c7141",
+    "sourceCommitShort": "95f6fff8eb9d",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "4ec7c7f20a15a5ac641ca328659897fc32d4a79e",
-    "dashboardCommitShort": "4ec7c7f20a15",
+    "dashboardCommit": "1f3e19acf423c4b16616bd2c1d8172ae9b9e9aa4",
+    "dashboardCommitShort": "1f3e19acf423",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "438",
-            "coverage": "438 / 1589",
-            "php": "783 pass / 0 fail",
+            "mapped": "439",
+            "coverage": "439 / 1589",
+            "php": "784 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded encoding/collation Unicode GLOB r...",
-            "currentWork": "Clean-integrating Unicode-aware SQLite GLOB character-class range matching for copied Wor...",
-            "nextTarget": "Continue encoding closure with non-overlapping collation/affinity comparison predicates o...",
+            "audit": "bounded dependency/VFS rollback-journal c...",
+            "currentWork": "Clean-integrating rollback-journal commit VFS application after focused verification at 7...",
+            "nextTarget": "Broaden pager/VFS transaction application and durable sync policy without repeating accep...",
             "blocker": "Full SQLite release/all-suite parity remains gated by bounded runner coun...",
-            "commit": "3241d3a"
+            "commit": "7e50930"
         },
         {
             "library": "LightningCSS",
