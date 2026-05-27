@@ -24,6 +24,10 @@ $database = $databasePath === '--self-test'
     : SQLiteDatabase::fromFile($databasePath);
 
 $likeOptions = $database->wordpressOptionsByNameLike($likePattern, '\\');
+$likePlan = SQLiteDatabase::likePatternPlan($likePattern, '\\');
+$unicodeLikePattern = 'plugin\_å%';
+$unicodeLikeOptions = $database->wordpressOptionsByNameLike($unicodeLikePattern, '\\');
+$unicodeLikePlan = SQLiteDatabase::likePatternPlan($unicodeLikePattern, '\\');
 $indexedLikeOptions = $database->wordpressOptionsByIndexedNameLikePrefixRange($likePattern, '\\');
 $upperCaseLikePattern = strtoupper($likePattern);
 $indexedNoCaseLike = null;
@@ -67,7 +71,15 @@ $regexpOptions = $database->wordpressOptionsByNameRegexp($regexpPattern, $regexp
 echo json_encode([
     'path' => $databasePath,
     'likePattern' => $likePattern,
+    'likePlan' => $likePlan,
     'likePrefixRange' => SQLiteDatabase::likePrefixRangeBounds($likePattern, '\\'),
+    'likeNoCasePrefixRange' => SQLiteDatabase::likeNoCasePrefixRangeBounds($likePattern, '\\'),
+    'unicodeLikePattern' => $unicodeLikePattern,
+    'unicodeLikePlan' => $unicodeLikePlan,
+    'unicodeLikeOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $unicodeLikeOptions,
+    ),
     'upperCaseLikePattern' => $upperCaseLikePattern,
     'globPattern' => $globPattern,
     'regexpPattern' => $regexpPattern,
@@ -199,6 +211,8 @@ function exampleWordPressOptionPatternFixture(): string
     $optionCells[] = $schemaCell([null, 'plugin_-', 'reversed range hyphen excluded', 'no'], 108);
     $optionCells[] = $schemaCell([null, 'plugin_å', 'unicode latin range payload', 'no'], 109);
     $optionCells[] = $schemaCell([null, 'plugin_β', 'unicode greek range payload', 'no'], 110);
+    $optionCells[] = $schemaCell([null, 'plugin_Å', 'unicode latin uppercase payload', 'no'], 111);
+    $optionCells[] = $schemaCell([null, 'plugin_%_literal', 'escaped wildcard payload', 'no'], 112);
 
     $page2 = $tableLeafPage($optionCells);
     $page3 = $tableLeafPage([
@@ -206,6 +220,8 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['_transient_feed', 1]),
         $indexCell(['_transient_late', 105]),
         $indexCell(['plugin_-', 108]),
+        $indexCell(['plugin_%_literal', 112]),
+        $indexCell(['plugin_Å', 111]),
         $indexCell(['plugin_a', 107]),
         $indexCell(['plugin_z', 106]),
         $indexCell(['plugin_å', 109]),
@@ -218,6 +234,8 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['_transient_feed', 1]),
         $indexCell(['_transient_late', 105]),
         $indexCell(['plugin_-', 108]),
+        $indexCell(['plugin_%_literal', 112]),
+        $indexCell(['plugin_Å', 111]),
         $indexCell(['plugin_a', 107]),
         $indexCell(['plugin_z', 106]),
         $indexCell(['plugin_å', 109]),

@@ -6012,19 +6012,17 @@ final class SQLiteDatabase
             return [];
         }
 
-        $bounds = self::likePrefixRangeBounds($pattern, $escape);
+        $bounds = self::likeNoCasePrefixRangeBounds($pattern, $escape);
         if ($bounds === null) {
             throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup requires a leading literal prefix');
         }
 
-        $lowerInclusive = self::asciiLower($bounds['lowerInclusive']);
-        $upperBound = self::nextBinaryPrefixUpperBound($lowerInclusive);
         $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
 
         $options = [];
         foreach ($this->wordpressOptionsByIndexedNameRangeWithCollation(
-            $lowerInclusive,
-            $upperBound,
+            $bounds['lowerInclusive'],
+            $bounds['upperBound'],
             'NOCASE',
             $compareNoCase,
         ) as $option) {
@@ -10547,6 +10545,28 @@ final class SQLiteDatabase
      */
     public static function likePrefixRangeBounds(string $pattern, ?string $escape = null): ?array
     {
+        $plan = self::likePatternPlan($pattern, $escape);
+        if ($plan['prefix'] === '') {
+            return null;
+        }
+
+        return $plan['binaryRange'];
+    }
+
+    /**
+     * @return array{
+     *   pattern:string,
+     *   escape:?string,
+     *   prefix:string,
+     *   prefixCharacters:int,
+     *   prefixIsAscii:bool,
+     *   hasWildcard:bool,
+     *   binaryRange:array{lowerInclusive:string,upperBound:?string},
+     *   noCaseRange:array{lowerInclusive:string,upperBound:?string}
+     * }
+     */
+    public static function likePatternPlan(string $pattern, ?string $escape = null): array
+    {
         if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
             throw new \InvalidArgumentException('SQLite LIKE ESCAPE expression must be a single character');
         }
@@ -10554,6 +10574,7 @@ final class SQLiteDatabase
         $patternCharacters = self::sqlitePatternCharacters($pattern);
         $escapeCharacters = self::sqlitePatternCharacters($escape ?? '');
         $prefix = '';
+        $hasWildcard = false;
         $count = count($patternCharacters);
         for ($offset = 0; $offset < $count; $offset++) {
             $character = $patternCharacters[$offset];
@@ -10566,19 +10587,43 @@ final class SQLiteDatabase
                 continue;
             }
             if ($character === '%' || $character === '_') {
+                $hasWildcard = true;
                 break;
             }
             $prefix .= $character;
         }
 
-        if ($prefix === '') {
+        $lowerNoCase = self::asciiLower($prefix);
+
+        return [
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'prefix' => $prefix,
+            'prefixCharacters' => self::sqliteTextLength($prefix),
+            'prefixIsAscii' => self::sqliteTextIsAscii($prefix),
+            'hasWildcard' => $hasWildcard,
+            'binaryRange' => [
+                'lowerInclusive' => $prefix,
+                'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
+            ],
+            'noCaseRange' => [
+                'lowerInclusive' => $lowerNoCase,
+                'upperBound' => self::nextBinaryPrefixUpperBound($lowerNoCase),
+            ],
+        ];
+    }
+
+    /**
+     * @return null|array{lowerInclusive:string,upperBound:?string}
+     */
+    public static function likeNoCasePrefixRangeBounds(string $pattern, ?string $escape = null): ?array
+    {
+        $plan = self::likePatternPlan($pattern, $escape);
+        if ($plan['prefix'] === '') {
             return null;
         }
 
-        return [
-            'lowerInclusive' => $prefix,
-            'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
-        ];
+        return $plan['noCaseRange'];
     }
 
     public static function globMatches(string $value, string $pattern): bool
@@ -10866,6 +10911,18 @@ final class SQLiteDatabase
     private static function sqliteTextLength(string $value): int
     {
         return count(self::sqlitePatternCharacters($value));
+    }
+
+    private static function sqliteTextIsAscii(string $value): bool
+    {
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (ord($value[$offset]) > 0x7f) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function sqlitePatternCharactersEqual(string $left, string $right, bool $caseSensitive): bool

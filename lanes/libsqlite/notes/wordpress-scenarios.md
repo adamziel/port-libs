@@ -4693,3 +4693,26 @@ and row-correlated dynamic join callback machinery. Follow-up should continue
 JSON planner pushdown or malformed JSONB behavior without repeating accepted
 hidden/visible constraints, cursor/source wiring, or this dynamic validation
 path.
+
+## LIKE Pattern Plan Scenario
+
+Copied WordPress `wp_options` diagnostics now expose SQLite LIKE pattern
+planning for option-name scans. The smoke
+`examples/wordpress-option-name-like-glob.php` reports escaped literal `_` and
+`%` handling, binary prefix ranges, NOCASE prefix ranges, wildcard detection,
+and ASCII-only LIKE folding for non-ASCII option names such as `plugin_Å` and
+`plugin_å` without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated encoding/collation slice: added
+`SQLiteDatabase::likePatternPlan()` and
+`SQLiteDatabase::likeNoCasePrefixRangeBounds()`, and rewired the NOCASE indexed
+LIKE prefix lookup through the explicit plan. Focused `SQLiteHeaderTest.php`
+passes at 8477 assertions with 0 failures in the worker handoff; clean
+integration reran the focused test on current source before commit.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local UTF-8 character splitting, ASCII-only NOCASE folding, LIKE matching,
+and existing copied WordPress option fixtures. Follow-up should continue
+encoding closure with affinity/collation predicate behavior or malformed-text
+comparison edges without repeating accepted Unicode GLOB ranges or this LIKE
+planner surface.

@@ -10764,3 +10764,40 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.ph
 Dependency closure: no new support component is needed. This slice composes
 lane-local runner evidence parsing only and does not require a shared process,
 VFS, Tcl, or SQLite support component.
+
+## Focused Native Mapping: LIKE Pattern Plan and NOCASE Prefix Bounds
+
+Date: 2026-05-27
+
+This isolated encoding/collation micro-slice maps one additional focused
+behavior row for SQLite LIKE planner semantics over copied WordPress option
+names. `SQLiteDatabase::likePatternPlan()` now reports escaped literal prefix
+text, wildcard presence, UTF-8 character length, ASCII-only prefix status,
+binary index bounds, and NOCASE index bounds. The existing NOCASE indexed LIKE
+lookup now consumes that explicit plan instead of recomputing folded bounds
+inline.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` gains one
+bounded encoding/collation row for LIKE planner prefix evidence. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+launched from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused `SQLiteHeaderTest.php` passed with 8477 assertions and 0
+failures. The WordPress LIKE/GLOB smoke passed and reports binary/NOCASE LIKE
+plans, escaped wildcard literals, and ASCII-only non-ASCII matching for copied
+`wp_options` rows.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local UTF-8 text splitting, ASCII NOCASE folding, LIKE/GLOB matchers, and
+copied WordPress option fixtures.

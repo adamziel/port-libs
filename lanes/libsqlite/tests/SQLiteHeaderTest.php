@@ -4692,12 +4692,16 @@ return [
             $schemaCell([null, 'plugin_å', 'latin range payload', 'no'], 6),
             $schemaCell([null, 'plugin_β', 'greek range payload', 'no'], 7),
             $schemaCell([null, 'plugin_Ж', 'cyrillic range payload', 'no'], 8),
+            $schemaCell([null, 'plugin_Å', 'latin uppercase payload', 'no'], 9),
+            $schemaCell([null, 'plugin_%_literal', 'escaped wildcard payload', 'no'], 10),
         ]);
         $page3 = $indexLeafPage([
             $indexCell(['_Transient_API', 2]),
             $indexCell(['_transient_feed', 1]),
             $indexCell(['emoji_é', 3]),
             $indexCell(['literal_percent_%', 4]),
+            $indexCell(['plugin_%_literal', 10]),
+            $indexCell(['plugin_Å', 9]),
             $indexCell(['plugin_å', 6]),
             $indexCell(['plugin_β', 7]),
             $indexCell(['plugin_Ж', 8]),
@@ -4708,6 +4712,8 @@ return [
             $indexCell(['_transient_feed', 1]),
             $indexCell(['emoji_é', 3]),
             $indexCell(['literal_percent_%', 4]),
+            $indexCell(['plugin_%_literal', 10]),
+            $indexCell(['plugin_Å', 9]),
             $indexCell(['plugin_å', 6]),
             $indexCell(['plugin_β', 7]),
             $indexCell(['plugin_Ж', 8]),
@@ -4725,6 +4731,12 @@ return [
         $caseSensitiveLike = $database->wordpressOptionsByNameLike('_transient_%', null, null, true);
         $escapedPercent = $database->wordpressOptionsByNameLike('literal\_percent\_\%', '\\');
         $utf8SingleCharacter = $database->wordpressOptionsByNameLike('emoji__');
+        $likeLatinLower = $database->wordpressOptionsByNameLike('plugin_å%');
+        $likeLatinUpper = $database->wordpressOptionsByNameLike('plugin_Å%');
+        $likeEscapedWildcard = $database->wordpressOptionsByNameLike('plugin\_\%\_literal', '\\');
+        $indexedNoCaseLatinLower = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('plugin_å%');
+        $indexedNoCaseLatinUpper = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('plugin_Å%');
+        $indexedNoCaseEscapedWildcard = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('PLUGIN\_\%\_LITERAL', '\\');
         $globTransient = $database->wordpressOptionsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
         $indexedGlobTransient = $database->wordpressOptionsByIndexedNameGlobPrefixRange('_Transient_[A-Z][A-Z][A-Z]');
         $indexedGlobUtf8 = $database->wordpressOptionsByIndexedNameGlobPrefixRange('emoji_?');
@@ -4749,11 +4761,49 @@ return [
         $t->same(false, SQLiteDatabase::likeMatches('SiteURL', 'site%', null, true));
         $t->true(SQLiteDatabase::likeMatches('literal_percent_%', 'literal\_percent\_\%', '\\'));
         $t->true(SQLiteDatabase::likeMatches('emoji_é', 'emoji__'));
+        $t->true(SQLiteDatabase::likeMatches('plugin_Å', 'plugin_Å'));
+        $t->same(false, SQLiteDatabase::likeMatches('plugin_å', 'plugin_Å'));
+        $t->same(false, SQLiteDatabase::likeMatches('plugin_Å', 'plugin_å'));
+        $t->same(false, SQLiteDatabase::likeMatches('plugin_å', 'PLUGIN_Å'));
+        $t->true(SQLiteDatabase::likeMatches('plugin_%_literal', 'PLUGIN\_\%\_LITERAL', '\\'));
+        $t->true(SQLiteDatabase::likeMatches('plugin_%_literal', 'plugin\_\%\_literal', '\\', true));
+        $t->same(false, SQLiteDatabase::likeMatches('Plugin_%_literal', 'plugin\_\%\_literal', '\\', true));
         $t->true(SQLiteDatabase::likeMatches("site\0url", "site_url"));
         $t->same(false, SQLiteDatabase::likeMatches("site\0url", 'siteurl'));
         $t->same(['lowerInclusive' => '_transient_', 'upperBound' => '_transient`'], SQLiteDatabase::likePrefixRangeBounds('\_transient\_%', '\\'));
         $t->same(['lowerInclusive' => 'literal_percent_%', 'upperBound' => 'literal_percent_&'], SQLiteDatabase::likePrefixRangeBounds('literal\_percent\_\%', '\\'));
+        $t->same(['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], SQLiteDatabase::likePrefixRangeBounds('plugin_Å%'));
+        $t->same(['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], SQLiteDatabase::likePrefixRangeBounds('plugin_å%'));
+        $t->same(['lowerInclusive' => 'plugin_Å', 'upperBound' => 'plugin_Æ'], SQLiteDatabase::likePrefixRangeBounds('plugin\_Å%', '\\'));
+        $t->same(['lowerInclusive' => 'plugin_å', 'upperBound' => 'plugin_æ'], SQLiteDatabase::likePrefixRangeBounds('plugin\_å%', '\\'));
+        $t->same(['lowerInclusive' => 'plugin_%_literal', 'upperBound' => 'plugin_%_literam'], SQLiteDatabase::likePrefixRangeBounds('plugin\_\%\_literal', '\\'));
+        $t->same(['lowerInclusive' => 'site', 'upperBound' => 'sitf'], SQLiteDatabase::likeNoCasePrefixRangeBounds('SITE%'));
+        $t->same(['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], SQLiteDatabase::likeNoCasePrefixRangeBounds('PLUGIN_Å%'));
+        $t->same(['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], SQLiteDatabase::likeNoCasePrefixRangeBounds('PLUGIN_å%'));
+        $t->same(['lowerInclusive' => 'plugin_Å', 'upperBound' => 'plugin_Æ'], SQLiteDatabase::likeNoCasePrefixRangeBounds('PLUGIN\_Å%', '\\'));
+        $t->same(['lowerInclusive' => 'plugin_å', 'upperBound' => 'plugin_æ'], SQLiteDatabase::likeNoCasePrefixRangeBounds('PLUGIN\_å%', '\\'));
+        $t->same(['lowerInclusive' => 'plugin_%_literal', 'upperBound' => 'plugin_%_literam'], SQLiteDatabase::likeNoCasePrefixRangeBounds('PLUGIN\_\%\_LITERAL', '\\'));
         $t->same(null, SQLiteDatabase::likePrefixRangeBounds('%transient'));
+        $t->same(null, SQLiteDatabase::likeNoCasePrefixRangeBounds('%transient'));
+        $likePlans = [
+            ['site%', null, 'site', 4, true, true, ['lowerInclusive' => 'site', 'upperBound' => 'sitf'], ['lowerInclusive' => 'site', 'upperBound' => 'sitf']],
+            ['SITE%', null, 'SITE', 4, true, true, ['lowerInclusive' => 'SITE', 'upperBound' => 'SITF'], ['lowerInclusive' => 'site', 'upperBound' => 'sitf']],
+            ['plugin_Å%', null, 'plugin', 6, true, true, ['lowerInclusive' => 'plugin', 'upperBound' => 'plugio'], ['lowerInclusive' => 'plugin', 'upperBound' => 'plugio']],
+            ['plugin\_Å%', '\\', 'plugin_Å', 8, false, true, ['lowerInclusive' => 'plugin_Å', 'upperBound' => 'plugin_Æ'], ['lowerInclusive' => 'plugin_Å', 'upperBound' => 'plugin_Æ']],
+            ['plugin\_å%', '\\', 'plugin_å', 8, false, true, ['lowerInclusive' => 'plugin_å', 'upperBound' => 'plugin_æ'], ['lowerInclusive' => 'plugin_å', 'upperBound' => 'plugin_æ']],
+            ['plugin\_\%\_literal', '\\', 'plugin_%_literal', 16, true, false, ['lowerInclusive' => 'plugin_%_literal', 'upperBound' => 'plugin_%_literam'], ['lowerInclusive' => 'plugin_%_literal', 'upperBound' => 'plugin_%_literam']],
+            ['emoji_é', null, 'emoji', 5, true, true, ['lowerInclusive' => 'emoji', 'upperBound' => 'emojj'], ['lowerInclusive' => 'emoji', 'upperBound' => 'emojj']],
+            ['', null, '', 0, true, false, ['lowerInclusive' => '', 'upperBound' => null], ['lowerInclusive' => '', 'upperBound' => null]],
+        ];
+        foreach ($likePlans as $index => [$pattern, $escape, $prefix, $prefixCharacters, $prefixIsAscii, $hasWildcard, $binaryRange, $noCaseRange]) {
+            $plan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+            $t->same($prefix, $plan['prefix'], 'like plan prefix ' . $index);
+            $t->same($prefixCharacters, $plan['prefixCharacters'], 'like plan prefix characters ' . $index);
+            $t->same($prefixIsAscii, $plan['prefixIsAscii'], 'like plan ascii prefix ' . $index);
+            $t->same($hasWildcard, $plan['hasWildcard'], 'like plan wildcard ' . $index);
+            $t->same($binaryRange, $plan['binaryRange'], 'like plan binary range ' . $index);
+            $t->same($noCaseRange, $plan['noCaseRange'], 'like plan nocase range ' . $index);
+        }
         $t->same(['lowerInclusive' => '_Transient_', 'upperBound' => '_Transient`'], SQLiteDatabase::globPrefixRangeBounds('_Transient_[A-Z][A-Z][A-Z]'));
         $t->same(['lowerInclusive' => 'emoji_', 'upperBound' => 'emoji`'], SQLiteDatabase::globPrefixRangeBounds('emoji_?'));
         $t->same(['lowerInclusive' => 'literal_percent_', 'upperBound' => 'literal_percent`'], SQLiteDatabase::globPrefixRangeBounds('literal_percent_*'));
@@ -4850,13 +4900,19 @@ return [
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $caseSensitiveLike));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $utf8SingleCharacter));
+        $t->same(['plugin_å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeLatinLower));
+        $t->same(['plugin_Å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeLatinUpper));
+        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeEscapedWildcard));
+        $t->same(['plugin_å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseLatinLower));
+        $t->same(['plugin_Å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseLatinUpper));
+        $t->same(['plugin_%_literal'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseEscapedWildcard));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globTransient));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobTransient));
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobUtf8));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLiteral));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLimited));
-        $t->same(['emoji_é', 'literal_percent_%', 'plugin_å', 'plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
-        $t->same(['plugin_å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globLatinRange));
+        $t->same(['emoji_é', 'literal_percent_%', 'plugin_å', 'plugin_β', 'plugin_Ж', 'plugin_Å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
+        $t->same(['plugin_å', 'plugin_Å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globLatinRange));
         $t->same(['plugin_β'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globGreekRange));
         $t->same(['plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globCyrillicRange));
         $t->same(['plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globUnicodeNegated));
