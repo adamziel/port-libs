@@ -272,11 +272,63 @@ final class SQLiteSelectPredicate
             return $row[$column];
         }
 
+        if (is_array($expression) && array_key_exists('type', $expression)) {
+            $type = $expression['type'];
+
+            return match ($type) {
+                'column' => self::columnExpression($row, $expression),
+                'literal' => $expression['value'] ?? null,
+                'function' => self::functionExpression($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, or function'),
+            };
+        }
+
         if ($expression instanceof SQLiteBlobValue || $expression === null || is_bool($expression) || is_int($expression) || is_float($expression) || is_string($expression)) {
             return $expression;
         }
 
         throw new \InvalidArgumentException('SQLite SELECT predicate operands must be scalar, BLOB, NULL, or column references');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function columnExpression(array $row, array $expression): mixed
+    {
+        $column = $expression['name'] ?? null;
+        if (!is_string($column) || $column === '') {
+            throw new \InvalidArgumentException('SQLite SELECT predicate column expressions need a non-empty name');
+        }
+        if (!array_key_exists($column, $row)) {
+            throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
+        }
+
+        return $row[$column];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function functionExpression(array $row, array $expression): mixed
+    {
+        $function = $expression['name'] ?? null;
+        if (!is_string($function) || $function === '') {
+            throw new \InvalidArgumentException('SQLite SELECT predicate function expressions need a non-empty name');
+        }
+
+        $arguments = $expression['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            throw new \InvalidArgumentException("SQLite SELECT predicate function {$function} arguments must be a list");
+        }
+
+        $evaluated = [];
+        foreach ($arguments as $argument) {
+            $evaluated[] = self::valueExpression($row, $argument);
+        }
+
+        return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
     }
 
     private static function compareValues(mixed $left, mixed $right): ?int

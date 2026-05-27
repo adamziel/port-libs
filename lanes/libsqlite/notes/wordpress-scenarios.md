@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT WHERE Scalar Expression Scenario
+
+Copied WordPress option import previews can now model scalar expression
+operands inside residual `WHERE` predicates without requiring the SQLite
+extension. The smoke `examples/wordpress-options-where-predicate-preview.php`
+now reports copied `wp_options` rows filtered through scalar expressions such
+as `upper(autoload)`, `lower(option_name)`, `length(option_name)`, and
+`replace(option_name, '_', '-')` before final result ordering.
+
+Status delta 2026-05-27 isolated scalar SQL execution/planner slice: updated
+`SQLiteSelectPredicate` so predicate operands accept typed column/literal and
+bounded scalar function expression arrays, including nested scalar arguments.
+Focused assertions cover `lower()`, `upper()`, `length()`, `coalesce()`,
+`trim()`, `substr()`, `instr()`, `replace()`, `hex()`, `quote()`, `printf()`,
+comparison, `BETWEEN`, `IN`/`NOT IN`, `LIKE ... ESCAPE`, `GLOB`, `IS`/`IS
+NOT`, boolean composition, SQL NULL propagation, malformed expression guards,
+and copied WordPress smoke output. The focused lane test count moves from the
+current accepted baseline of 5149 assertions to 5199 assertions, +50. Lane
+`phpPass` moves from 750 to 751 and mapped coverage moves from 414 to 415.
+Dependency closure: no new support component is needed; this reuses
+lane-local scalar dispatch, BLOB wrappers, LIKE/GLOB matchers, result ordering,
+and pure PHP row arrays.
+
 ## JSON Table Reverse-Root Scenario
 
 Copied WordPress option settings can now expand the last JSON array item through

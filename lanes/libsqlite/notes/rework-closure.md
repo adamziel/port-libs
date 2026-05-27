@@ -1,5 +1,38 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT WHERE Scalar Expression Operands
+
+This isolated scalar SQL execution/planner slice does not reuse stale May 25
+rework markers and does not repeat accepted SELECT projection scalar helpers,
+CASE projection, wildcard projection, join row production, compound SELECT,
+WHERE residual predicate basics, expression-index planning, or bounded
+query-plan composition. It adds one bounded execution behavior cluster:
+`SQLiteSelectPredicate` operands now evaluate typed column/literal expressions
+and scalar function expression arrays inside WHERE predicates.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 5199 assertions,
+up from the accepted lane-status recorded 5149 baseline (`+50`). The new
+assertions cover scalar operands in comparison, `BETWEEN`, `IN`/`NOT IN`,
+`LIKE ESCAPE`, `GLOB`, `IS`/`IS NOT`, `IS NULL`, boolean composition, nested
+function arguments, typed literal operands, SQL NULL propagation, malformed
+expression guards, and copied WordPress option-name/value filtering.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectPredicate.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar dispatch, predicate truth handling, BLOB wrappers,
+LIKE/GLOB matchers, and pure PHP result-row arrays.
+
 ## 2026-05-27 JSON Table NULL Path Arguments
 
 This isolated JSON table/window slice does not reuse stale May 25 rework

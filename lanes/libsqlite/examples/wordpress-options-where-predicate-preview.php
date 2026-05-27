@@ -22,12 +22,30 @@ $predicate = [
         [
             'operator' => 'AND',
             'terms' => [
-                ['operator' => '=', 'left' => ['column' => 'autoload'], 'right' => 'yes'],
-                ['operator' => 'BETWEEN', 'left' => ['column' => 'bytes'], 'lower' => 8, 'upper' => 24],
-                ['operator' => 'NOT LIKE', 'left' => ['column' => 'option_name'], 'right' => '!_%', 'escape' => '!'],
+                [
+                    'operator' => '=',
+                    'left' => ['type' => 'function', 'name' => 'upper', 'arguments' => [['type' => 'column', 'name' => 'autoload']]],
+                    'right' => 'YES',
+                ],
+                [
+                    'operator' => 'BETWEEN',
+                    'left' => ['type' => 'function', 'name' => 'length', 'arguments' => [['type' => 'column', 'name' => 'option_name']]],
+                    'lower' => 4,
+                    'upper' => 8,
+                ],
+                [
+                    'operator' => 'NOT LIKE',
+                    'left' => ['type' => 'function', 'name' => 'lower', 'arguments' => [['type' => 'column', 'name' => 'option_name']]],
+                    'right' => '!_%',
+                    'escape' => ['type' => 'literal', 'value' => '!'],
+                ],
             ],
         ],
-        ['operator' => 'GLOB', 'left' => ['column' => 'option_name'], 'right' => '_site_transient_*'],
+        [
+            'operator' => 'GLOB',
+            'left' => ['type' => 'function', 'name' => 'replace', 'arguments' => [['type' => 'column', 'name' => 'option_name'], '_', '-']],
+            'right' => '-site-transient-*',
+        ],
     ],
 ];
 
@@ -38,7 +56,7 @@ $ordered = SQLiteSelectResult::execute($filtered, null, [
 ]);
 
 echo json_encode([
-    'wordpressUse' => 'Preview copied wp_options rows filtered through SQLite WHERE residual predicates before result ordering, without requiring ext/sqlite.',
+    'wordpressUse' => 'Preview copied wp_options rows filtered through SQLite WHERE residual scalar expressions before result ordering, without requiring ext/sqlite.',
     'filteredOptionNames' => array_column($filtered, 'option_name'),
     'orderedRows' => $ordered,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

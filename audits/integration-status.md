@@ -118467,3 +118467,35 @@ Decision: accepted after serialized root passed from this exact candidate snapsh
 Post-publication cleanup:
 - Accepted marker artifacts `.ready`, `.patch`, and `.md` were removed after commit publication.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T015656Z` is still dirty (`UPSTREAM_TEST_MANIFEST.json`, `wordpress-json-table-limit-offset.php`, `lane-status.json`, `notes/rework-closure.md`, `SQLiteJsonTablePlan.php`, and `SQLiteHeaderTest.php`), so it was preserved and left registered as cleanup debt.
+
+
+## Integration accepted - libsqlite SELECT WHERE scalar operands - 2026-05-27T02:13:59Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260527T020506Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `bc2c66e1424a1111602a59c6b2584f39c294356d` (`Integrate libsqlite JSON table limit offset`).
+- Cache-busted live Pages reported matching `sourceCommit` `bc2c66e1424a1111602a59c6b2584f39c294356d`, generated `2026-05-27 02:10:09 UTC`, dashboard commit `fafce8af8d18910c9ecb1bff63562184beea37a4`; the source-moving guard was open.
+
+Candidate evidence:
+- Replayed the marker in detached clean worktree `/home/claude/port-libs/.tmux-team/worktrees/clean-integrator-libsqlite-20260527T021233Z` from current `main`.
+- Direct patch apply failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, test, example, and notes hunks applied cleanly with those status files excluded.
+- Reconciled current metadata to `phpPass` `752` and mapped coverage `416 / 1589`, preserving the current-source latestCommit convention from `bc2c66e1424a1111602a59c6b2584f39c294356d`.
+
+Focused verification before root:
+- Runtime gates: `/` had at least `115272908` KiB available, load was `0.86`, and no exact no-argument `php tools/run-tests.php` process was active.
+- `php -l lanes/libsqlite/src/SQLiteSelectPredicate.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php` passed.
+- Manifest/status JSON decode passed.
+- `php lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php` passed with repo-local `TMPDIR`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5233 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification: serialized no-argument root run under clean-integrator lock passed with `215 test files, 30398 assertions, 0 failures`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root passed. Commit exactly this source move and remove the accepted marker artifacts only after `refs/heads/main` is updated. Dashboard publication should run next after the accepted commit.
+
+Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-scalar-20260527T020506Z` still has modified libsqlite files matching the accepted patch, so it was preserved and left registered. Accepted ready/patch/metadata marker files may be removed after publication of this commit to `refs/heads/main`.
