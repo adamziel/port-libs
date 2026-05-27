@@ -89,6 +89,7 @@ use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsFileLock;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
+use PortLibs\LibSqlite\SQLiteVfsLockedFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockState;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
@@ -18723,6 +18724,132 @@ SQL;
             'dependencies' => [],
             'reason' => null,
         ]));
+    },
+    'applies sqlite vfs writes only under exclusive process locks' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-locked-writer-' . bin2hex(random_bytes(4));
+        $path = '/srv/www/wp-content/database/.ht.sqlite';
+        $localPath = $root . '/srv/www/wp-content/database/.ht.sqlite';
+        $locks = new SQLiteVfsFileLock($root);
+        $writer = new SQLiteVfsLockedFileWriter(new SQLiteVfsFileWriter($root), $locks);
+
+        $reader = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', false, 'wp-reader', 3));
+        $blocked = $writer->applyExclusive(
+            SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin-import'),
+            [
+                ['op' => 'write', 'path' => $path, 'offset' => 0, 'bytes' => 12, 'reason' => 'blocked_write'],
+            ],
+            [$path => 'blocked-data'],
+            ['wordpress-import-transaction']
+        );
+        $t->same('acquired', $reader['status']);
+        $t->same('blocked', $blocked['status']);
+        $t->same(false, $blocked['locked']);
+        $t->same(0, $blocked['applied']);
+        $t->same('blocked', $blocked['lock']['status']);
+        $t->same('exclusive', $blocked['lock']['requested']);
+        $t->same([['connection' => 'wp-reader', 'level' => 'shared']], $blocked['lock']['blocking']);
+        $t->same('exclusive_process_lock_waits_for_all_other_holders', $blocked['reason']);
+        $t->same(null, $blocked['write']);
+        $t->same(null, $blocked['release']);
+        $t->same(false, is_file($localPath));
+        $t->same(true, in_array('vfs-locked-file-write-application', $blocked['dependencies'], true));
+        $t->same(true, in_array('sqlite-lock-byte-range', $blocked['dependencies'], true));
+        $t->same([$path => ['wp-reader' => 'shared']], $locks->snapshot());
+
+        $releaseReader = $locks->release($path, 'wp-reader');
+        $t->same('released', $releaseReader['status']);
+        $t->same([], $locks->snapshot());
+
+        $applied = $writer->applyExclusive(
+            SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin-import'),
+            [
+                ['op' => 'write', 'path' => $path, 'offset' => 0, 'bytes' => 12, 'reason' => 'write_import_page'],
+                ['op' => 'sync', 'path' => $path, 'durable' => true, 'reason' => 'sync_import_page'],
+                ['op' => 'truncate', 'path' => $path, 'bytes' => 8, 'reason' => 'truncate_failed_tail'],
+                ['op' => 'sync_directory', 'path' => '/srv/www/wp-content/database', 'durable' => true, 'reason' => 'persist_import_directory'],
+            ],
+            [$path => 'option-bytes'],
+            ['wordpress-import-transaction']
+        );
+
+        $t->same('applied', $applied['status']);
+        $t->same(true, $applied['locked']);
+        $t->same(4, $applied['applied']);
+        $t->same('acquired', $applied['lock']['status']);
+        $t->same('exclusive', $applied['lock']['held']);
+        $t->same('exclusive', $applied['lock']['lock_type']);
+        $t->same($path . '-lock', $applied['lock']['lock_file']);
+        $t->same($root . '/srv/www/wp-content/database/.ht.sqlite-lock', $applied['lock']['local_lock_file']);
+        $t->same(['wp-admin-import' => 'exclusive'], $applied['lock']['holders']);
+        $t->same('applied', $applied['write']['status']);
+        $t->same(4, $applied['write']['applied']);
+        $t->same(12, $applied['write']['bytes_written']);
+        $t->same(8, $applied['write']['bytes_truncated']);
+        $t->same(1, $applied['write']['durable_syncs']);
+        $t->same(1, $applied['write']['directory_syncs']);
+        $t->same('write', $applied['write']['operations'][0]['op']);
+        $t->same('write_import_page', $applied['write']['operations'][0]['reason']);
+        $t->same('sync', $applied['write']['operations'][1]['op']);
+        $t->same(true, $applied['write']['operations'][1]['durable']);
+        $t->same('truncate', $applied['write']['operations'][2]['op']);
+        $t->same(8, $applied['write']['operations'][2]['bytes']);
+        $t->same('sync_directory', $applied['write']['operations'][3]['op']);
+        $t->same($root . '/srv/www/wp-content/database', $applied['write']['operations'][3]['local_path']);
+        $t->same('released', $applied['release']['status']);
+        $t->same('exclusive', $applied['release']['held']);
+        $t->same([], $applied['release']['holders']);
+        $t->same([], $locks->snapshot());
+        $t->same(8, filesize($localPath));
+        $t->same('option-b', file_get_contents($localPath));
+        $t->same(true, in_array('wordpress-import-transaction', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-exclusive-lock-held', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-write-application', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-locked-file-write-application', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-process-file-lock', $applied['dependencies'], true));
+        $t->same(null, $applied['reason']);
+
+        $failed = null;
+        try {
+            $writer->applyExclusive(
+                SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin-import'),
+                [
+                    ['op' => 'write', 'path' => $path, 'offset' => 0, 'bytes' => 7, 'reason' => 'bad_payload'],
+                ],
+                [$path => 'bad'],
+                ['wordpress-import-transaction']
+            );
+        } catch (InvalidArgumentException $exception) {
+            $failed = $exception;
+        }
+        $t->same(true, $failed instanceof InvalidArgumentException);
+        $t->same([], $locks->snapshot());
+
+        $readonly = new SQLiteVfsLockedFileWriter(new SQLiteVfsFileWriter($root, true), $locks);
+        $readonlyFailure = null;
+        try {
+            $readonly->applyExclusive(
+                SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin-import'),
+                [],
+                [],
+                ['readonly-import']
+            );
+        } catch (LogicException $exception) {
+            $readonlyFailure = $exception;
+        }
+        $t->same(true, $readonlyFailure instanceof LogicException);
+        $t->same([], $locks->snapshot());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyExclusive(SQLiteLockByteRangePlan::forLevel($path, 'reserved', false, 'wp-admin-import'), []));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyExclusive([
+            'level' => 'exclusive',
+            'can_lock' => true,
+            'nolock' => false,
+            'path' => $path,
+            'connection' => '',
+            'ranges' => [],
+            'dependencies' => [],
+            'reason' => null,
+        ], []));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

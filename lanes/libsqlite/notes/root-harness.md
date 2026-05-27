@@ -1840,3 +1840,28 @@ Dependency closure: no new shared support component is needed. This reuses the
 lane-local rollback-journal parser/recovery planner and accepted VFS
 file-handle writer; follow-up should wire broader pager transaction state or
 durable lock/fsync coordination to this apply path.
+
+## Dependency/Open Locked VFS Writer Slice
+
+Focused lane verification for the dependency/open locked VFS writer slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsLockedFileWriter.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-locked-writer-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs writes only under exclusive process locks"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-vfs-locked-writer-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` VFS
+locked-writer test passed with 57 assertions and 0 failures. The WordPress
+smoke reported copied `wp_options` writes blocked while a shared reader held
+the database, then applied after exclusive lock acquisition with file write,
+truncate, durable sync, directory sync, and lock release diagnostics.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS process file-lock and file-handle writer helpers; follow-up
+should wire broader pager transaction state or durable fsync policy to this
+apply path without repeating the accepted lock-state/process-lock wrappers.

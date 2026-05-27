@@ -119281,3 +119281,31 @@ Root verification: passed under `.tmux-team/tmp/clean-integrator-run.lock` with 
 
 Cleanup debt:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260527T050759Z` still contains modified/added accepted lane files after publication, so it was preserved rather than removed.
+
+## Integration accepted - libsqlite locked VFS writer - 2026-05-27T05:28:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T051619Z.ready`.
+
+Source guard evidence:
+- Starting/current candidate base was `e053593a64d3d9d542a9db035552c66ca35e1a2d` (`Integrate libsqlite expression-index range costs`).
+- Cache-busted live Pages reported matching `sourceCommit` `e053593a64d3d9d542a9db035552c66ca35e1a2d`, generated `2026-05-27 05:22:23 UTC`, dashboard `ebc39ff817e0303c08662576171efeaa599f9ccf`.
+
+Candidate evidence:
+- Chosen over recent JSON table, B-tree, encoding, WAL, and SQL markers because it is a preferred VFS/pager application bucket, adds a non-overlapping locked writer behavior slice, and has visible focused assertion and public pass/coverage movement.
+- Original marker base was `bc16f99fb7fc623168b5be6c51abb94e95b40752`; full patch conflicted only in stale `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and WordPress notes. Implementation/test/smoke hunks replayed cleanly onto current `e053593a`; counters and status were reconciled from current source.
+- Effective delta adds `SQLiteVfsLockedFileWriter`, `wordpress-vfs-locked-writer-apply.php`, focused tests, mapped manifest evidence, lane status, and lane notes.
+
+Focused verification:
+- Syntax checks passed for `SQLiteVfsLockedFileWriter.php`, `SQLiteHeaderTest.php`, and `wordpress-vfs-locked-writer-apply.php`.
+- Selected focused test `applies sqlite vfs writes only under exclusive process locks` passed with `57 assertions, 0 failures`.
+- WordPress smoke `php lanes/libsqlite/examples/wordpress-vfs-locked-writer-apply.php` passed and emitted valid JSON.
+- Full focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 7055 assertions, 0 failures`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification: passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root`: `215 test files, 32220 assertions, 0 failures`.
+
+Dashboard publication should run next after the final commit because this is a source-moving libsqlite acceptance.
+
+Cleanup debt:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T051619Z` still contains modified/added accepted lane files after publication, so it was preserved rather than removed.

@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## VFS Locked Writer Scenario
+
+Copied WordPress database imports can now apply file-handle writes only after
+an exclusive SQLite VFS process lock is acquired. The smoke
+`examples/wordpress-vfs-locked-writer-apply.php` reports shared-reader
+blocking, exclusive acquisition after reader drain, file write/truncate/sync
+operations, directory sync, lock release, and dependency tags without requiring
+the SQLite extension.
+
+Status delta 2026-05-27 clean integration replay: added
+`SQLiteVfsLockedFileWriter`, a bounded adapter that composes accepted
+`SQLiteVfsFileLock` and `SQLiteVfsFileWriter` behavior for copied
+`wp_options` import writes. The selected focused test passed with 57 assertions
+and 0 failures. Lane `phpPass` moves from 777 to 778 and mapped coverage moves
+from 433 to 434. Dependency closure: no new shared support component is needed;
+this remains lane-local VFS/pager behavior.
+
 ## VFS Process File-Lock Scenario
 
 Copied WordPress database open handles can now keep process-backed VFS lock
