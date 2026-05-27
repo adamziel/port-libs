@@ -467,6 +467,9 @@ final class SQLiteSelectQuery
                 if (!is_callable($join['dynamicRows'])) {
                     throw new \InvalidArgumentException('SQLite SELECT query dynamic join rows must be callable');
                 }
+                if (isset($join['indexedDynamicRows']) && !is_callable($join['indexedDynamicRows'])) {
+                    throw new \InvalidArgumentException('SQLite SELECT query indexed dynamic join rows must be callable');
+                }
                 $rows = self::applyDynamicJoin($rows, $join, $type);
                 continue;
             }
@@ -493,7 +496,7 @@ final class SQLiteSelectQuery
      */
     private static function applyDynamicJoin(array $rows, array $join, string $type): array
     {
-        $dynamicRows = $join['dynamicRows'];
+        $dynamicRows = $join['indexedDynamicRows'] ?? $join['dynamicRows'];
         $predicate = $type === 'CROSS' ? null : self::requiredPredicate($join, $type);
         $joined = [];
         $rightColumns = self::rightColumns($join, []);

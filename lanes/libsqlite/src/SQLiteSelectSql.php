@@ -1477,6 +1477,14 @@ final class SQLiteSelectSql
                             'value' => $rootValue,
                         ];
                     }
+                    $extraConstraints = $row['__sqlite_json_table_constraints'][$alias] ?? [];
+                    if (is_array($extraConstraints) && array_is_list($extraConstraints)) {
+                        foreach ($extraConstraints as $constraint) {
+                            if (is_array($constraint)) {
+                                $constraints[] = $constraint;
+                            }
+                        }
+                    }
 
                     $plan = SQLiteJsonTablePlan::validatedPlan($function, $constraints);
                     if (!$plan['runnable'] && ($plan['jsonInputKind'] === 'jsonb' || $plan['jsonInputKind'] === 'sql-null')) {
@@ -1895,6 +1903,23 @@ final class SQLiteSelectSql
         }
 
         $predicate = self::predicate($on[1], $tables);
+        $jsonIndexConstraints = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
+            ? self::jsonTableVisibleConstraintsForAlias($predicate, $table['alias'])
+            : [];
+        if ($jsonIndexConstraints !== [] && isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
+            $dynamicRows = $table['dynamicRows'];
+            $alias = $table['alias'];
+            $join['indexedDynamicRows'] = static function (array $row) use ($dynamicRows, $alias, $jsonIndexConstraints): array {
+                $row['__sqlite_json_table_constraints'][$alias] = $jsonIndexConstraints;
+
+                return $dynamicRows($row);
+            };
+            $join['jsonTableIndex'] = [
+                'alias' => $alias,
+                'constraints' => $jsonIndexConstraints,
+                'constraintCount' => count($jsonIndexConstraints),
+            ];
+        }
         $join['predicate'] = static function (array $left, array $right) use ($predicate): bool {
             return SQLiteSelectPredicate::filter([array_merge($left, $right)], $predicate) !== [];
         };
@@ -1906,6 +1931,114 @@ final class SQLiteSelectSql
         }
 
         return [$join, $remaining];
+    }
+
+    /**
+     * @return list<array{column:string,operator:string,value:mixed,usable?:bool}>
+     */
+    private static function jsonTableVisibleConstraintsForAlias(array $predicate, string $alias): array
+    {
+        $constraints = [];
+        foreach (self::flattenAndPredicate($predicate) as $term) {
+            $constraint = self::jsonTableVisibleConstraint($term, $alias);
+            if ($constraint !== null) {
+                $constraints[] = $constraint;
+            }
+        }
+
+        return $constraints;
+    }
+
+    /**
+     * @return array{column:string,operator:string,value:mixed,usable?:bool}|null
+     */
+    private static function jsonTableVisibleConstraint(array $predicate, string $alias): ?array
+    {
+        $operator = strtoupper((string) ($predicate['operator'] ?? ''));
+        if ($operator === 'AND' || $operator === 'OR' || $operator === 'NOT') {
+            return null;
+        }
+
+        if ($operator === 'IS NULL' || $operator === 'IS NOT NULL') {
+            $left = $predicate['left'] ?? null;
+            if (!is_array($left)) {
+                return null;
+            }
+            $column = self::jsonTableVisibleColumnName($left, $alias);
+            if ($column === null) {
+                return null;
+            }
+
+            return ['column' => $column, 'operator' => $operator, 'value' => null, 'usable' => true];
+        }
+
+        if ($operator === 'IN') {
+            $left = $predicate['left'] ?? null;
+            $values = $predicate['values'] ?? null;
+            if (!is_array($left) || !is_array($values) || !array_is_list($values)) {
+                return null;
+            }
+            $column = self::jsonTableVisibleColumnName($left, $alias);
+            if ($column === null) {
+                return null;
+            }
+            $literalValues = [];
+            foreach ($values as $valueExpression) {
+                if (!is_array($valueExpression) || ($valueExpression['type'] ?? null) !== 'literal' || !array_key_exists('value', $valueExpression)) {
+                    return null;
+                }
+                $literalValues[] = $valueExpression['value'];
+            }
+
+            return ['column' => $column, 'operator' => 'IN', 'value' => $literalValues, 'usable' => true];
+        }
+
+        if (!in_array($operator, ['=', 'IS', 'IS NOT', 'IS DISTINCT FROM', 'IS NOT DISTINCT FROM', '<', '<=', '>', '>=', 'LIKE', 'GLOB'], true)) {
+            return null;
+        }
+        if (!isset($predicate['left'], $predicate['right']) || !is_array($predicate['left']) || !is_array($predicate['right'])) {
+            return null;
+        }
+
+        $columnExpression = $predicate['left'];
+        $literalExpression = $predicate['right'];
+        $column = self::jsonTableVisibleColumnName($columnExpression, $alias);
+        if ($column === null) {
+            $columnExpression = $predicate['right'];
+            $literalExpression = $predicate['left'];
+            $column = self::jsonTableVisibleColumnName($columnExpression, $alias);
+        }
+        if ($column === null || ($literalExpression['type'] ?? null) !== 'literal' || !array_key_exists('value', $literalExpression)) {
+            return null;
+        }
+
+        return ['column' => $column, 'operator' => $operator, 'value' => $literalExpression['value'], 'usable' => true];
+    }
+
+    private static function jsonTableVisibleColumnName(array $expression, string $alias): ?string
+    {
+        if (($expression['type'] ?? null) !== 'column' || !isset($expression['name']) || !is_string($expression['name'])) {
+            return null;
+        }
+
+        $name = strtolower($expression['name']);
+        $normalizedAlias = strtolower($alias);
+        if (str_contains($name, '.')) {
+            [$prefix, $column] = explode('.', $name, 2);
+            if ($prefix !== $normalizedAlias) {
+                return null;
+            }
+        } else {
+            $column = $name;
+        }
+
+        if ($column === 'rowid' || $column === '_rowid_' || $column === 'oid') {
+            $column = 'id';
+        }
+
+        return in_array($column, ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], true)
+            ? $column
+            : null;
     }
 
     /**

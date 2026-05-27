@@ -51,6 +51,11 @@ final class SQLitePragmaIntegrityCheck
             return array_slice($errors, 0, $limit);
         }
 
+        self::appendSchemaRootPageErrors($database, $errors, $limit);
+        if (count($errors) >= $limit) {
+            return array_slice($errors, 0, $limit);
+        }
+
         if (!$quick) {
             $freePages = self::freelistPageNumbers($database);
             self::appendPointerMapErrors($database, $freePages, $errors, $limit);
@@ -210,6 +215,7 @@ final class SQLitePragmaIntegrityCheck
     private static function appendBtreeErrors(SQLiteDatabase $database, array $freePages, array &$errors, int $limit): void
     {
         $overflowPages = [];
+        $rootPages = self::schemaRootPageNumbers($database);
         $pageCount = $database->pageCount();
         $usableSize = $database->usablePageSize();
 
@@ -229,7 +235,8 @@ final class SQLitePragmaIntegrityCheck
             try {
                 $header = SQLiteBTreePageHeader::parsePage($page, $database->header->pageSize, $headerOffset);
                 $header->freeSpaceBytes($page, $usableSize);
-                self::appendPointerMapTypeError($database, $pageNumber, $database->header->largestRootBtreePage >= $pageNumber ? SQLitePointerMapEntry::ROOT_PAGE : SQLitePointerMapEntry::BTREE_PAGE, 0, $errors, $limit);
+                $usesLegacyLargestRootFallback = count($rootPages) === 1 && $database->header->largestRootBtreePage >= $pageNumber;
+                self::appendPointerMapTypeError($database, $pageNumber, isset($rootPages[$pageNumber]) || $usesLegacyLargestRootFallback ? SQLitePointerMapEntry::ROOT_PAGE : SQLitePointerMapEntry::BTREE_PAGE, 0, $errors, $limit);
 
                 $overflowReader = static function (int $firstOverflowPage, int $byteCount) use ($database, $pageNumber, &$overflowPages, &$errors, $limit): string {
                     if ($byteCount < 0) {
@@ -261,6 +268,35 @@ final class SQLitePragmaIntegrityCheck
                 self::append($errors, $limit, "btree page {$pageNumber}: " . self::formatError($exception));
             }
         }
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private static function schemaRootPageNumbers(SQLiteDatabase $database): array
+    {
+        $rootPages = [1 => true];
+        try {
+            $records = $database->schemaRecords();
+            $records = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => in_array($record->type, ['table', 'index', 'view', 'trigger'], true)));
+            if ($records === [] && $database->isAutoVacuum() && $database->header->largestRootBtreePage > 0) {
+                for ($pageNumber = 2; $pageNumber <= min($database->header->largestRootBtreePage, $database->pageCount()); $pageNumber++) {
+                    if (!$database->isPointerMapPage($pageNumber)) {
+                        $rootPages[$pageNumber] = true;
+                    }
+                }
+
+                return $rootPages;
+            }
+            foreach ($records as $record) {
+                if (($record->type === 'table' || $record->type === 'index') && $record->rootPage !== null && $record->rootPage > 0 && $record->rootPage <= $database->pageCount()) {
+                    $rootPages[$record->rootPage] = true;
+                }
+            }
+        } catch (\InvalidArgumentException) {
+        }
+
+        return $rootPages;
     }
 
     /**
@@ -311,6 +347,59 @@ final class SQLitePragmaIntegrityCheck
         }
         if ($expectedParent !== 0 && $entry->parentPageNumber !== $expectedParent) {
             self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for page {$pageNumber} does not match expected parent {$expectedParent}");
+        }
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendSchemaRootPageErrors(SQLiteDatabase $database, array &$errors, int $limit): void
+    {
+        try {
+            $records = $database->schemaRecords();
+        } catch (\InvalidArgumentException) {
+            return;
+        }
+        $records = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => in_array($record->type, ['table', 'index', 'view', 'trigger'], true)));
+        if ($records === []) {
+            return;
+        }
+
+        $pageCount = $database->pageCount();
+        $freePages = self::freelistPageNumbers($database);
+        $rootPages = [1 => true];
+        $maxRootPage = 1;
+
+        foreach ($records as $record) {
+            if ($record->rootPage === null || $record->rootPage === 0) {
+                continue;
+            }
+
+            if ($record->rootPage < 0) {
+                self::append($errors, $limit, "sqlite_schema {$record->type} {$record->name} rootpage {$record->rootPage} is negative");
+                continue;
+            }
+
+            if ($record->rootPage > $pageCount) {
+                self::append($errors, $limit, "sqlite_schema {$record->type} {$record->name} rootpage {$record->rootPage} is beyond the database image");
+                continue;
+            }
+
+            if (isset($freePages[$record->rootPage])) {
+                self::append($errors, $limit, "sqlite_schema {$record->type} {$record->name} rootpage {$record->rootPage} is on the freelist");
+                continue;
+            }
+
+            $rootPages[$record->rootPage] = true;
+            $maxRootPage = max($maxRootPage, $record->rootPage);
+        }
+
+        if ($database->isAutoVacuum() && $database->header->largestRootBtreePage !== 0 && $database->header->largestRootBtreePage !== $maxRootPage) {
+            self::append($errors, $limit, "largest root btree page {$database->header->largestRootBtreePage} does not match sqlite_schema max rootpage {$maxRootPage}");
+        }
+
+        foreach ($rootPages as $rootPage => $_) {
+            self::appendPointerMapTypeError($database, (int) $rootPage, SQLitePointerMapEntry::ROOT_PAGE, 0, $errors, $limit);
         }
     }
 
