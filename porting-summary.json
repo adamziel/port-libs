@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 12:57:07 UTC",
-    "sourceCommit": "8651bf722346984a99267e66ac94176420fd5dd1",
-    "sourceCommitShort": "8651bf722346",
+    "generated": "2026-05-27 13:10:02 UTC",
+    "sourceCommit": "3c1d82d0dc2716f776a9edb9dfe2159160517ac9",
+    "sourceCommitShort": "3c1d82d0dc27",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "fb8484d5164d3b8d8af5a4ddda0816496ecf69dc",
-    "dashboardCommitShort": "fb8484d5164d",
+    "dashboardCommit": "d3d1508c63591819e0eec76a096995bad3008096",
+    "dashboardCommitShort": "d3d1508c6359",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "448",
-            "coverage": "448 / 1589",
+            "mapped": "449",
+            "coverage": "449 / 1589",
             "php": "799 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Rollback/savepoint nested recovery slice...",
-            "currentWork": "Added bounded full transaction page-image recovery across nested SQLite savepoints for co...",
-            "nextTarget": "Continue pager/VFS transaction application or WAL durability beyond accepted rollback-jou...",
+            "audit": "B-tree overflow cell reuse delete/apply s...",
+            "currentWork": "Clean-integrated bounded B-tree overflow cell reuse delete/apply planning for copied wp_o...",
+            "nextTarget": "Continue non-overlapping B-tree delete/rebalance materialization beyond accepted overflow...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
-            "commit": "isolate"
+            "commit": "integra"
         },
         {
             "library": "LightningCSS",
