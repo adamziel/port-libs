@@ -84,7 +84,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
         $this->rememberCookies(
             $response['headers'],
-            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::infoRefsUrl($this->repositoryUrl))
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::infoRefsUrl($this->repositoryUrl)),
+            true,
         );
 
         return self::stripServiceAdvertisement($response['body']);
@@ -124,7 +125,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
         $this->rememberCookies(
             $response['headers'],
-            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl))
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl)),
+            true,
         );
 
         return $response['body'];
