@@ -70,9 +70,9 @@ foreach ($valueCases as $name => [$method, $arguments, $expected]) {
 }
 
 $filteredCases = [
-    'filter rows first value applies SQL truthiness after current exclusion' => ['firstValue', [], ['blogname', 'blogname', 'active_plugins', null, 'network_plugins', 'network_plugins', null]],
-    'filter rows last value applies SQL truthiness after current exclusion' => ['lastValue', [], ['blogname', 'active_plugins', 'active_plugins', null, 'network_plugins', 'network_plugins', null]],
-    'filter rows nth two value skips false and null filter rows' => ['nthValue', [2], [null, 'active_plugins', null, null, null, null, null]],
+    'filter rows first value applies SQL truthiness after current exclusion' => ['firstValue', [true], ['blogname', 'blogname', 'active_plugins', null, 'network_plugins', 'network_plugins', null]],
+    'filter rows last value applies SQL truthiness after current exclusion' => ['lastValue', [true], ['blogname', 'active_plugins', 'active_plugins', null, 'network_plugins', 'network_plugins', null]],
+    'filter rows nth two value skips false and null filter rows' => ['nthValue', [2, true], [null, 'active_plugins', null, null, null, null, null]],
     'filter rows nth two unfiltered bypass returns physical second row' => ['nthValue', [2, false], ['blogname', 'active_plugins', null, null, 'network_plugins', null, null]],
     'filter rows first value unfiltered bypass returns false row' => ['firstValue', [false], ['home', 'blogname', 'active_plugins', null, 'network_home', 'network_plugins', null]],
     'filter rows last value unfiltered bypass sees null-filter peer row' => ['lastValue', [false], ['blogname', 'active_plugins', 'active_plugins', null, 'network_plugins', 'network_plugins', null]],
@@ -129,7 +129,7 @@ $summaryCases = [
 
 foreach ($summaryCases as $name => [$field, $expected]) {
     $tests['vdbe window value frame exclude current next48 ' . $name] = static function (TestRunner $t) use ($cursorFor, $field, $expected): void {
-        $t->same($expected, array_column($cursorFor('ROWS', 0, 2, 'CURRENT ROW', 'include')->drainSummaries('|'), $field));
+        $t->same($expected, array_column($cursorFor('ROWS', 0, 2, 'CURRENT ROW', 'include')->drainSummaries('|', true), $field));
     };
 }
 
@@ -212,16 +212,16 @@ foreach ($positionCases as $name => [$advance, $_method, $applyFilter, $expected
 }
 
 $directCases = [
-    'row2 direct first filtered value' => [1, 'firstValue', [], 'blogname'],
-    'row2 direct second filtered value' => [1, 'nthValue', [2], 'active_plugins'],
-    'row2 direct last filtered value' => [1, 'lastValue', [], 'active_plugins'],
-    'row5 direct first filtered value' => [4, 'firstValue', [], 'network_plugins'],
-    'row5 direct second filtered value missing' => [4, 'nthValue', [2], null],
+    'row2 direct first filtered value' => [1, 'firstValue', [true], 'blogname'],
+    'row2 direct second filtered value' => [1, 'nthValue', [2, true], 'active_plugins'],
+    'row2 direct last filtered value' => [1, 'lastValue', [true], 'active_plugins'],
+    'row5 direct first filtered value' => [4, 'firstValue', [true], 'network_plugins'],
+    'row5 direct second filtered value missing' => [4, 'nthValue', [2, true], null],
     'row6 direct unfiltered first value sees row7' => [5, 'firstValue', [false], 'network_plugins'],
     'row7 direct unfiltered last value missing' => [6, 'lastValue', [false], null],
     'row1 direct unfiltered first value sees false-filter row' => [0, 'firstValue', [false], 'home'],
-    'row1 direct filtered nth one skips false-filter row' => [0, 'nthValue', [1], 'blogname'],
-    'row1 direct filtered nth two missing after filter' => [0, 'nthValue', [2], null],
+    'row1 direct filtered nth one skips false-filter row' => [0, 'nthValue', [1, true], 'blogname'],
+    'row1 direct filtered nth two missing after filter' => [0, 'nthValue', [2, true], null],
 ];
 
 foreach ($directCases as $name => [$advance, $method, $arguments, $expected]) {

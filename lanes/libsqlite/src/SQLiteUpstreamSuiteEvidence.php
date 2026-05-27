@@ -5130,6 +5130,237 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $suiteRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamSuiteBurnupCurrentNext50(
+        array $suiteRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $minimumFocusedAssertions = 40
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite current-next50 suite burnup requires current and next accepted HEAD values');
+        }
+        if ($suiteRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next50 suite burnup requires at least one upstream suite row');
+        }
+        if ($minimumFocusedAssertions < 1) {
+            throw new \InvalidArgumentException('SQLite current-next50 suite burnup minimum focused assertions must be at least 1');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = [];
+        $blockers = [];
+        $currentCountable = 0;
+        $nextCountable = 0;
+        $currentTests = 0;
+        $nextTests = 0;
+        $advanced = [];
+        $preserved = [];
+        $regressed = [];
+        $open = [];
+        $tiers = [];
+        $artifactLabels = [];
+
+        foreach ($suiteRows as $label => $row) {
+            if (!is_array($row)) {
+                $blockers[] = [
+                    'id' => 'suite-row-invalid',
+                    'evidence' => 'current-next50 upstream suite row is not an array',
+                    'label' => is_string($label) ? $label : 'row-' . (string) count($entries),
+                ];
+                continue;
+            }
+
+            $id = is_string($row['id'] ?? null) && $row['id'] !== ''
+                ? $row['id']
+                : (is_string($label) ? $label : 'row-' . (string) count($entries));
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? $row['tier'] : 'unclassified';
+            $artifactLabel = is_string($row['artifact'] ?? null) && $row['artifact'] !== ''
+                ? $row['artifact']
+                : null;
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'missing';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'missing';
+            $currentRowCountable = (bool) ($row['current_countable'] ?? ($currentStatus === 'passed'));
+            $nextRowCountable = (bool) ($row['next_countable'] ?? ($nextStatus === 'passed'));
+            $currentRowTests = max(0, (int) ($row['current_tests'] ?? 0));
+            $nextRowTests = max(0, (int) ($row['next_tests'] ?? 0));
+            $rowBlockers = [];
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            if (is_string($row['blocker'] ?? null) && $row['blocker'] !== '') {
+                $rowBlockers[] = $row['blocker'];
+            }
+
+            if ($artifactLabel !== null) {
+                $artifactLabels[$artifactLabel] = true;
+            }
+            if ($currentRowCountable) {
+                $currentCountable++;
+                $currentTests += $currentRowTests;
+            }
+            if ($nextRowCountable) {
+                $nextCountable++;
+                $nextTests += $nextRowTests;
+            }
+
+            $movement = 'open';
+            if ($nextRowCountable && !$currentRowCountable) {
+                $movement = 'advanced';
+                $advanced[] = $id;
+            } elseif ($nextRowCountable && $currentRowCountable) {
+                $movement = $nextRowTests >= $currentRowTests ? 'preserved' : 'regressed';
+                if ($movement === 'preserved') {
+                    $preserved[] = $id;
+                } else {
+                    $regressed[] = $id;
+                    $rowBlockers[] = 'next-test-count-regressed';
+                }
+            } elseif (!$nextRowCountable && $currentRowCountable) {
+                $movement = 'regressed';
+                $regressed[] = $id;
+                $rowBlockers[] = 'next-countability-regressed';
+            } else {
+                $open[] = $id;
+            }
+
+            $rowBlockers = array_values(array_unique($rowBlockers));
+            if ($rowBlockers !== []) {
+                $blockers[] = [
+                    'id' => 'suite-row-blocked',
+                    'suite_id' => $id,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            }
+
+            if (!isset($tiers[$tier])) {
+                $tiers[$tier] = [
+                    'tier' => $tier,
+                    'rows' => 0,
+                    'current_countable' => 0,
+                    'next_countable' => 0,
+                    'advanced' => 0,
+                    'preserved' => 0,
+                    'regressed' => 0,
+                    'open' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 0,
+                ];
+            }
+            $tiers[$tier]['rows']++;
+            $tiers[$tier]['current_countable'] += $currentRowCountable ? 1 : 0;
+            $tiers[$tier]['next_countable'] += $nextRowCountable ? 1 : 0;
+            $tiers[$tier][$movement]++;
+            $tiers[$tier]['current_tests'] += $currentRowCountable ? $currentRowTests : 0;
+            $tiers[$tier]['next_tests'] += $nextRowCountable ? $nextRowTests : 0;
+
+            $entries[] = [
+                'id' => $id,
+                'tier' => $tier,
+                'artifact' => $artifactLabel,
+                'current_status' => $currentStatus,
+                'next_status' => $nextStatus,
+                'current_countable' => $currentRowCountable,
+                'next_countable' => $nextRowCountable,
+                'current_tests' => $currentRowTests,
+                'next_tests' => $nextRowTests,
+                'movement' => $movement,
+                'blockers' => $rowBlockers,
+            ];
+        }
+
+        ksort($tiers);
+        $artifactLabels = array_keys($artifactLabels);
+        sort($artifactLabels);
+        sort($advanced);
+        sort($preserved);
+        sort($regressed);
+        sort($open);
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        } elseif ((int) ($phpAdmission['assertion_delta'] ?? 0) < $minimumFocusedAssertions) {
+            $blockers[] = [
+                'id' => 'focused-php-pass-delta-below-minimum',
+                'evidence' => 'focused TestRunner assertion delta is below current-next50 burnup minimum',
+                'minimum' => $minimumFocusedAssertions,
+                'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            ];
+        }
+
+        $countableDelta = $nextCountable - $currentCountable;
+        $testsDelta = $nextTests - $currentTests;
+        $status = 'blocked';
+        if ($blockers === [] && $countableDelta > 0) {
+            $status = 'next50-suite-burnup-advanced';
+        } elseif ($blockers === [] && $countableDelta === 0 && $regressed === []) {
+            $status = 'next50-suite-burnup-preserved';
+        } elseif ($currentCountable > 0 && $regressed === []) {
+            $status = 'current-suite-burnup-preserved-with-open-gaps';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'tier_count' => count($tiers),
+            'artifact_count' => count($artifactLabels),
+            'artifact_labels' => $artifactLabels,
+            'current_countable_count' => $currentCountable,
+            'next_countable_count' => $nextCountable,
+            'countable_delta' => $countableDelta,
+            'current_tests_total' => $currentTests,
+            'next_tests_total' => $nextTests,
+            'tests_total_delta' => $testsDelta,
+            'advanced_count' => count($advanced),
+            'preserved_count' => count($preserved),
+            'regressed_count' => count($regressed),
+            'open_count' => count($open),
+            'advanced_ids' => $advanced,
+            'preserved_ids' => $preserved,
+            'regressed_ids' => $regressed,
+            'open_ids' => $open,
+            'tiers' => array_values($tiers),
+            'entries' => $entries,
+            'php_pass_admission' => $phpAdmission,
+            'minimum_focused_assertions' => $minimumFocusedAssertions,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_next_suite_burnup' => $status === 'next50-suite-burnup-advanced',
+            'preserves_current_suite_burnup' => in_array($status, ['next50-suite-burnup-preserved', 'current-suite-burnup-preserved-with-open-gaps'], true),
+            'next_gate' => match ($status) {
+                'next50-suite-burnup-advanced' => 'publish only the countable current-next50 suite burnup rows and keep release/all parity gaps explicit',
+                'next50-suite-burnup-preserved' => 'record that current-next50 preserves countable suite burnup without claiming release/all parity movement',
+                'current-suite-burnup-preserved-with-open-gaps' => 'preserve current countable suite rows while resolving open next-source runner blockers',
+                default => 'repair blocked, regressed, or under-threshold current-next50 suite burnup evidence before counting movement',
+            },
+            'dependency_closure' => 'no new support component needed; current-next50 suite burnup composes lane-local suite row metadata and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */

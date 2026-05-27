@@ -630,6 +630,17 @@ final class SQLiteDatabase
         }
 
         $truncatedLookup = array_fill_keys($truncatedPageNumbers, true);
+        $truncatedPointerMapEntries = [];
+        if ($this->isAutoVacuum()) {
+            foreach ($truncatedPageNumbers as $pageNumber) {
+                if (!$this->isPointerMapPage($pageNumber)) {
+                    $entry = $this->pointerMapEntryForPageIfPresent($pageNumber);
+                    if ($entry !== null) {
+                        $truncatedPointerMapEntries[] = $entry->toArray();
+                    }
+                }
+            }
+        }
         $previousTrunkByPage = [];
         foreach ($trunkPages as $trunkPage) {
             if ($trunkPage->nextTrunkPage !== null) {
@@ -693,6 +704,21 @@ final class SQLiteDatabase
         $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
 
         ksort($updatedFreelistPages);
+        $boundaryPointerMapEntry = null;
+        if ($this->isAutoVacuum() && $newDatabasePageCount >= 2 && !$this->isPointerMapPage($newDatabasePageCount)) {
+            $postImages = [1 => $firstPage];
+            foreach ($updatedFreelistPages as $pageNumber => $page) {
+                if ($pageNumber <= $newDatabasePageCount) {
+                    $postImages[$pageNumber] = $page;
+                }
+            }
+            $postPages = [];
+            for ($pageNumber = 1; $pageNumber <= $newDatabasePageCount; $pageNumber++) {
+                $postPages[$pageNumber] = $postImages[$pageNumber] ?? $this->page($pageNumber);
+            }
+            $postDatabase = self::fromBytes(implode('', $postPages));
+            $boundaryPointerMapEntry = $postDatabase->pointerMapEntryForPageIfPresent($newDatabasePageCount)?->toArray();
+        }
 
         return new SQLiteFreelistTruncatePlan(
             $truncatedPageNumbers,
@@ -701,7 +727,24 @@ final class SQLiteDatabase
             $newDatabasePageCount,
             $firstTrunkPage,
             $freelistPageCount,
+            $truncatedPointerMapEntries,
+            $boundaryPointerMapEntry,
         );
+    }
+
+    private function pointerMapEntryForPageIfPresent(int $pageNumber): ?SQLitePointerMapEntry
+    {
+        $pointerMapPage = $this->pointerMapPageFor($pageNumber);
+        if ($pointerMapPage === null || $pointerMapPage === $pageNumber) {
+            return null;
+        }
+
+        $offset = $this->pointerMapOffsetFor($pageNumber);
+        if (ord($this->page($pointerMapPage)[$offset]) === 0) {
+            return null;
+        }
+
+        return $this->pointerMapEntryForPage($pageNumber);
     }
 
     /**

@@ -9,6 +9,55 @@ final class SQLiteWordPressJsonImportWalSavepointPlan
     /**
      * @param list<array<string,mixed>> $currentRows
      * @param list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}> $imports
+     * @param list<int> $pageNumbers
+     * @param array{database_path?:string,journal_mode?:string,page_size?:int,replace_conflicts?:bool,sync_mode?:string,first_option_page_number?:int,autoload_index_page_number?:int} $options
+     * @return array<string,mixed>
+     */
+    public static function insertWalCurrentNext(SQLiteWal $wal, string $databaseBytes, array $currentRows, array $imports, array $pageNumbers, array $options = []): array
+    {
+        $jsonPlan = self::plan($currentRows, $imports, $options);
+        $databasePath = $jsonPlan['database_path'];
+        $changedRows = self::changedRowsForWalImport($jsonPlan['current_rows'], $jsonPlan['released_rows']);
+        $walImport = $changedRows === []
+            ? null
+            : SQLiteWordPressOptionsWalImportPlan::currentNext(
+                $wal,
+                $databaseBytes,
+                $databasePath,
+                self::optionsWalRows($jsonPlan['current_rows']),
+                self::optionsWalRows($changedRows),
+                $pageNumbers,
+                (int) ($options['first_option_page_number'] ?? 2),
+                isset($options['autoload_index_page_number']) ? (int) $options['autoload_index_page_number'] : null,
+            );
+
+        return [
+            'status' => $jsonPlan['rolled_back_batches'] === [] ? 'planned' : 'partial_rollback',
+            'reason' => 'wordpress_json_import_insert_wal_current_next50',
+            'json_import' => $jsonPlan,
+            'wal_import' => $walImport,
+            'changed_rows' => array_values($changedRows),
+            'changed_option_names' => array_column(array_values($changedRows), 'option_name'),
+            'inserted_option_names' => self::changedNames($jsonPlan['current_rows'], array_values($changedRows), true),
+            'updated_option_names' => self::changedNames($jsonPlan['current_rows'], array_values($changedRows), false),
+            'released_batches' => $jsonPlan['released_batches'],
+            'rolled_back_batches' => $jsonPlan['rolled_back_batches'],
+            'current_reader_sources' => $walImport['current_reader_sources'] ?? [],
+            'next_reader_sources' => $walImport['next_reader_sources'] ?? [],
+            'next_reader_frame_indexes' => $walImport['next_reader_frame_indexes'] ?? [],
+            'append_frame_count' => $walImport['append']['appended_frame_count'] ?? 0,
+            'last_commit_frame' => $walImport['append']['last_commit_frame'] ?? $wal->lastCommitFrame()?->index,
+            'dependencies' => array_values(array_unique(array_merge(
+                $jsonPlan['dependencies'],
+                $walImport['dependencies'] ?? [],
+                ['sqlite-wordpress-json-import-insert-wal-current-next50']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}> $imports
      * @param array{database_path?:string,journal_mode?:string,page_size?:int,replace_conflicts?:bool,sync_mode?:string} $options
      * @return array<string,mixed>
      */
@@ -321,5 +370,98 @@ final class SQLiteWordPressJsonImportWalSavepointPlan
     private static function pageImage(string $savepoint, int $pageNumber, int $walFrame): string
     {
         return str_pad($savepoint . ':before:' . $pageNumber . ':wal:' . $walFrame, 512, '.', STR_PAD_RIGHT);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $releasedRows
+     * @return list<array<string,mixed>>
+     */
+    private static function changedRowsForWalImport(array $currentRows, array $releasedRows): array
+    {
+        $currentByName = [];
+        foreach ($currentRows as $row) {
+            $name = (string) ($row['option_name'] ?? '');
+            if ($name !== '') {
+                $currentByName[$name] = $row;
+            }
+        }
+
+        $changed = [];
+        foreach ($releasedRows as $row) {
+            $name = (string) ($row['option_name'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $current = $currentByName[$name] ?? null;
+            if ($current === null || self::optionValueForComparison($current['option_value'] ?? '') !== self::optionValueForComparison($row['option_value'] ?? '') || self::autoloadForComparison($current['autoload'] ?? 'no') !== self::autoloadForComparison($row['autoload'] ?? 'no')) {
+                $changed[] = $row;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{option_id?:int,option_name:string,option_value:string,autoload?:string}>
+     */
+    private static function optionsWalRows(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            $value = $row['option_value'] ?? '';
+            $out[] = [
+                'option_id' => isset($row['option_id']) && is_int($row['option_id']) ? $row['option_id'] : null,
+                'option_name' => (string) ($row['option_name'] ?? ''),
+                'option_value' => self::optionValueForComparison($value),
+                'autoload' => self::autoloadForComparison($row['autoload'] ?? 'no'),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $changedRows
+     * @return list<string>
+     */
+    private static function changedNames(array $currentRows, array $changedRows, bool $inserted): array
+    {
+        $currentNames = [];
+        foreach ($currentRows as $row) {
+            $currentNames[(string) ($row['option_name'] ?? '')] = true;
+        }
+
+        $names = [];
+        foreach ($changedRows as $row) {
+            $name = (string) ($row['option_name'] ?? '');
+            if (($currentNames[$name] ?? false) !== $inserted) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    private static function optionValueForComparison(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return json_encode(SQLiteJsonB::decode($value->bytes), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return $value->json;
+        }
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        }
+
+        return (string) $value;
+    }
+
+    private static function autoloadForComparison(mixed $autoload): string
+    {
+        return in_array(strtolower(trim((string) $autoload)), ['yes', 'on', 'true', '1'], true) ? 'yes' : 'no';
     }
 }

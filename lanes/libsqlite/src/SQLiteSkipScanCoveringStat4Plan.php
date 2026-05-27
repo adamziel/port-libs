@@ -101,6 +101,7 @@ final class SQLiteSkipScanCoveringStat4Plan
             'coveringPayloadColumns' => $covering ? $neededColumns : [],
             'deferredTableLookup' => !$covering,
             'tableLookupColumns' => $missingColumns,
+            'partialPredicateImplied' => ($plan['partial'] ?? false) === true,
             'detail' => self::detail($plan, $covering, $stat4Used),
         ]);
     }
@@ -177,7 +178,7 @@ final class SQLiteSkipScanCoveringStat4Plan
         return [
             'prefix' => $sample['prefix'],
             'suffix' => $sample['suffix'],
-            'key' => (string) $sample['prefix'] . '|' . (string) $sample['suffix'],
+            'key' => self::valueLabel($sample['prefix']) . '|' . self::valueLabel($sample['suffix']),
             'nEq' => $sample['nEq'],
             'nLt' => $sample['nLt'],
             'nDLt' => $sample['nDLt'],
@@ -273,6 +274,9 @@ final class SQLiteSkipScanCoveringStat4Plan
         $detail = 'SEARCH ' . ($covering ? 'USING COVERING INDEX ' : 'USING INDEX ') . (string) $plan['name'];
         $detail .= ' SKIP-SCAN ANY(' . implode(',', (array) $plan['skippedColumns']) . ')';
         $detail .= ' CURRENT ' . (string) $plan['rangeColumn'];
+        if (($plan['partial'] ?? false) === true) {
+            $detail .= ' PARTIAL';
+        }
         if ($stat4Used) {
             $detail .= ' USING STAT4';
         }
@@ -294,6 +298,19 @@ final class SQLiteSkipScanCoveringStat4Plan
 
     private static function compare(mixed $left, mixed $right): int
     {
+        if (is_array($left) || is_array($right)) {
+            $leftTuple = is_array($left) ? array_values($left) : [$left];
+            $rightTuple = is_array($right) ? array_values($right) : [$right];
+            $count = min(count($leftTuple), count($rightTuple));
+            for ($i = 0; $i < $count; $i++) {
+                $comparison = self::compare($leftTuple[$i], $rightTuple[$i]);
+                if ($comparison !== 0) {
+                    return $comparison;
+                }
+            }
+
+            return count($leftTuple) <=> count($rightTuple);
+        }
         if ($left === null || $right === null) {
             return $left === $right ? 0 : ($left === null ? -1 : 1);
         }
@@ -304,5 +321,23 @@ final class SQLiteSkipScanCoveringStat4Plan
     private static function key(mixed $value): string
     {
         return get_debug_type($value) . ':' . serialize($value);
+    }
+
+    private static function valueLabel(mixed $value): string
+    {
+        if (is_array($value)) {
+            return '(' . implode(',', array_map(static fn (mixed $item): string => self::valueLabel($item), array_values($value))) . ')';
+        }
+        if ($value === null) {
+            return 'NULL';
+        }
+        if ($value === true) {
+            return '1';
+        }
+        if ($value === false) {
+            return '0';
+        }
+
+        return (string) $value;
     }
 }

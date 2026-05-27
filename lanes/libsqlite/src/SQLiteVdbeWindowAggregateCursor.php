@@ -296,33 +296,33 @@ final class SQLiteVdbeWindowAggregateCursor
         return SQLiteTextAggregate::groupConcat($this->currentValues(), $separator);
     }
 
-    public function firstValue(bool $applyFilter = true): mixed
+    public function firstValue(bool $applyFilter = false): mixed
     {
-        $values = $this->currentValues($applyFilter);
+        $rows = $this->currentFrameRows($applyFilter);
 
-        return $values[0] ?? null;
+        return $rows === [] ? null : $rows[0][$this->valueColumn];
     }
 
-    public function lastValue(bool $applyFilter = true): mixed
+    public function lastValue(bool $applyFilter = false): mixed
     {
-        $values = $this->currentValues($applyFilter);
+        $rows = $this->currentFrameRows($applyFilter);
 
-        return $values[count($values) - 1] ?? null;
+        return $rows === [] ? null : $rows[count($rows) - 1][$this->valueColumn];
     }
 
-    public function nthValue(int $nth, bool $applyFilter = true): mixed
+    public function nthValue(int $nth, bool $applyFilter = false): mixed
     {
         if ($nth <= 0) {
             throw new \InvalidArgumentException('SQLite VDBE window nth_value() index must be positive');
         }
 
-        $values = $this->currentValues($applyFilter);
+        $rows = $this->currentFrameRows($applyFilter);
 
-        return $values[$nth - 1] ?? null;
+        return $rows[$nth - 1][$this->valueColumn] ?? null;
     }
 
     /**
-     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed}
      */
     public function currentSummary(): array
     {
@@ -332,7 +332,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}|null
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed}|null
      */
     public function peekNextSummary(): ?array
     {
@@ -344,7 +344,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return array{current:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool},next:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}|null,advanced:bool}
+     * @return array{current:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed},next:array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed}|null,advanced:bool}
      */
     public function currentNextSummary(): array
     {
@@ -372,7 +372,7 @@ final class SQLiteVdbeWindowAggregateCursor
     /**
      * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}>
      */
-    public function drainSummaries(mixed $separator = ','): array
+    public function drainSummaries(mixed $separator = ',', bool $applyValueFilter = false): array
     {
         $summaries = [];
         while (!$this->eof()) {
@@ -380,9 +380,9 @@ final class SQLiteVdbeWindowAggregateCursor
             $summary['value'] = $this->requireCurrentRow()[$this->valueColumn];
             $summary['total'] = $this->total();
             $summary['groupConcat'] = $this->groupConcat($separator);
-            $summary['firstValue'] = $this->firstValue();
-            $summary['lastValue'] = $this->lastValue();
-            $summary['nthValue'] = $this->nthValue(2);
+            $summary['firstValue'] = $this->firstValue($applyValueFilter);
+            $summary['lastValue'] = $this->lastValue($applyValueFilter);
+            $summary['nthValue'] = $this->nthValue(2, $applyValueFilter);
             $summaries[] = $summary;
             $this->next();
         }
@@ -512,7 +512,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed}
      */
     private function summaryAt(int $position): array
     {
@@ -531,6 +531,9 @@ final class SQLiteVdbeWindowAggregateCursor
                 'nextPartitionKey' => $this->peekNextPartitionKey(),
                 'nextOrderKey' => $this->peekNextOrderKey(),
                 'eof' => false,
+                'firstValue' => $this->firstValue(),
+                'lastValue' => $this->lastValue(),
+                'nthValue' => $this->nthValue(2),
             ];
         });
     }
