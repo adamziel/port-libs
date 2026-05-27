@@ -4886,6 +4886,144 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $currentDenominator
+     * @param array<string, mixed> $nextDenominator
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerDenominatorAuditCurrentNext34(
+        array $currentDenominator,
+        array $nextDenominator,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $testOutput,
+        string $nonOverlapNote
+    ): array {
+        $currentMapped = $this->denominatorAuditInt($currentDenominator, 'mapped');
+        $nextMapped = $this->denominatorAuditInt($nextDenominator, 'mapped');
+        $currentRunnerCount = $this->denominatorAuditInt($currentDenominator, 'runner_countable_count');
+        $nextRunnerCount = $this->denominatorAuditInt($nextDenominator, 'runner_countable_count');
+        $currentRunnerBlocked = $this->denominatorAuditInt($currentDenominator, 'runner_blocked_count');
+        $nextRunnerBlocked = $this->denominatorAuditInt($nextDenominator, 'runner_blocked_count');
+        $currentTotal = $this->denominatorAuditInt($currentDenominator, 'total');
+        $nextTotal = $this->denominatorAuditInt($nextDenominator, 'total');
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $testOutput,
+            $nonOverlapNote
+        );
+
+        $blockers = [];
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-not-admitted',
+                'evidence' => $phpAdmission['blocker'],
+            ];
+        }
+        if ($currentMapped < 0 || $nextMapped < 0) {
+            $blockers[] = [
+                'id' => 'mapped-count-missing',
+                'evidence' => 'current and next denominator mapped counts must be present and non-negative',
+            ];
+        } elseif ($nextMapped < $currentMapped) {
+            $blockers[] = [
+                'id' => 'mapped-count-regressed',
+                'evidence' => 'next denominator mapped count is lower than the current accepted baseline',
+                'current_mapped' => $currentMapped,
+                'next_mapped' => $nextMapped,
+            ];
+        }
+        if ($currentTotal > 0 && $nextTotal > 0 && $nextTotal !== $currentTotal) {
+            $blockers[] = [
+                'id' => 'denominator-total-changed',
+                'evidence' => 'current and next denominator totals differ; refresh the static upstream inventory before publishing movement',
+                'current_total' => $currentTotal,
+                'next_total' => $nextTotal,
+            ];
+        }
+        if ($currentRunnerCount < 0 || $nextRunnerCount < 0) {
+            $blockers[] = [
+                'id' => 'runner-count-missing',
+                'evidence' => 'current and next runner countable counts must be present and non-negative',
+            ];
+        } elseif ($nextRunnerCount < $currentRunnerCount) {
+            $blockers[] = [
+                'id' => 'runner-count-regressed',
+                'evidence' => 'next countable runner artifact count is lower than the current accepted baseline',
+                'current_runner_countable_count' => $currentRunnerCount,
+                'next_runner_countable_count' => $nextRunnerCount,
+            ];
+        }
+        if ($currentRunnerBlocked > 0) {
+            $blockers[] = [
+                'id' => 'current-runner-evidence-blocked',
+                'evidence' => 'current accepted runner evidence still has blocked artifacts and cannot anchor a clean denominator audit',
+                'blocked_count' => $currentRunnerBlocked,
+            ];
+        }
+        if ($nextRunnerBlocked > 0) {
+            $blockers[] = [
+                'id' => 'next-runner-evidence-blocked',
+                'evidence' => 'next runner evidence still has stale, failed, active, or missing-log artifacts',
+                'blocked_count' => $nextRunnerBlocked,
+            ];
+        }
+
+        $mappedDelta = max(0, $nextMapped - $currentMapped);
+        $runnerDelta = max(0, $nextRunnerCount - $currentRunnerCount);
+        $phpDelta = (int) ($phpAdmission['assertion_delta'] ?? 0);
+        $status = 'blocked';
+        if ($blockers === []) {
+            $status = ($mappedDelta > 0 || $runnerDelta > 0 || $phpDelta > 0)
+                ? 'countable-current-next34-denominator-movement'
+                : 'current-next34-denominator-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'current_total' => $currentTotal,
+            'next_total' => $nextTotal,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $nextMapped,
+            'mapped_delta' => $blockers === [] ? $mappedDelta : 0,
+            'current_runner_countable_count' => $currentRunnerCount,
+            'next_runner_countable_count' => $nextRunnerCount,
+            'runner_countable_delta' => $blockers === [] ? $runnerDelta : 0,
+            'current_runner_blocked_count' => $currentRunnerBlocked,
+            'next_runner_blocked_count' => $nextRunnerBlocked,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? $phpDelta : 0,
+            'next_php_pass' => $blockers === [] ? $currentPhpPass + $phpDelta : $currentPhpPass,
+            'counts_dashboard_movement' => $blockers === [] && ($mappedDelta > 0 || $phpDelta > 0),
+            'counts_runner_denominator_movement' => $blockers === [] && $runnerDelta > 0,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $blockers === []
+                ? 'publish only the admitted focused phpPass delta and clean current/next runner denominator movement for next34'
+                : 'keep next34 denominator movement uncounted until focused TestRunner output, mapped totals, and runner artifact counts are clean',
+            'dependency_closure' => 'no new support component needed; current-next34 denominator audit composes lane-local TestRunner output and runner count snapshots only',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function denominatorAuditInt(array $row, string $key): int
+    {
+        $value = $row[$key] ?? null;
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return -1;
+    }
+
+    /**
      * @param list<string> $scripts
      * @return array<string, mixed>
      */

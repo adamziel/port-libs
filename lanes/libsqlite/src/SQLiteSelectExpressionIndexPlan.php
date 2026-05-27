@@ -47,6 +47,84 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
+     * Build a bounded SQLite OR-clause plan where every OR arm is independently
+     * usable through a partial covering expression index.
+     *
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @param list<array<string,string>> $neededExpressions
+     * @return null|array<string,mixed>
+     */
+    public static function partialCoveringOrPlan(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = [], array $neededExpressions = []): ?array
+    {
+        $operator = strtoupper(self::requiredString($predicate, 'operator', 'SQLite SELECT expression-index OR predicate'));
+        if ($operator !== 'OR') {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index OR planner needs an OR predicate');
+        }
+
+        $arms = $predicate['terms'] ?? null;
+        if (!is_array($arms) || !array_is_list($arms) || $arms === []) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index OR planner needs a non-empty term list');
+        }
+
+        $armPlans = [];
+        $indexNames = [];
+        $estimatedRows = 0;
+        $estimatedCost = 0;
+        $orderBySatisfied = true;
+        foreach ($arms as $position => $arm) {
+            if (!is_array($arm)) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index OR planner terms must be predicates');
+            }
+
+            $plan = self::chooseLowestCost($indexDefinitions, $arm, $orderBy, $neededColumns, $neededExpressions);
+            if ($plan === null || !$plan['partial'] || !$plan['covering']) {
+                return null;
+            }
+
+            $estimatedRows += (int) $plan['estimatedRows'];
+            $estimatedCost += (int) $plan['estimatedCost'];
+            $orderBySatisfied = $orderBySatisfied && (bool) $plan['orderBySatisfied'];
+            if (is_string($plan['name'] ?? null)) {
+                $indexNames[$plan['name']] = true;
+            }
+
+            $armPlans[] = [
+                'position' => $position,
+                'name' => $plan['name'] ?? null,
+                'rootPage' => $plan['rootPage'] ?? null,
+                'operator' => $plan['operator'],
+                'values' => $plan['values'],
+                'estimatedRows' => $plan['estimatedRows'],
+                'estimatedCost' => $plan['estimatedCost'],
+                'orderBySatisfied' => $plan['orderBySatisfied'],
+                'trailingColumns' => $plan['trailingColumns'],
+                'coveringExpressions' => $plan['coveringExpressions'] ?? [],
+            ];
+        }
+
+        $uniqueIndexNames = array_keys($indexNames);
+        sort($uniqueIndexNames, SORT_STRING);
+
+        return [
+            'usable' => true,
+            'type' => 'or-partial-covering',
+            'partial' => true,
+            'covering' => true,
+            'arms' => $armPlans,
+            'armCount' => count($armPlans),
+            'indexNames' => $uniqueIndexNames,
+            'usesSingleIndex' => count($uniqueIndexNames) === 1,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost + max(0, count($armPlans) - 1) * 4,
+            'orderBySatisfied' => $orderBySatisfied,
+            'dedupeRowidsRequired' => count($armPlans) > 1,
+        ];
+    }
+
+    /**
      * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -71,7 +149,17 @@ final class SQLiteSelectExpressionIndexPlan
                 }
 
                 $expression = self::expressionForType($sql, $constraint['type']);
-                if ($expression === null || strcasecmp($expression->columnName, $constraint['column']) !== 0) {
+                if (
+                    $expression === null
+                    || strcasecmp($expression->columnName, $constraint['column']) !== 0
+                    || (
+                        $expression instanceof SQLiteJsonExtractIndexExpression
+                        && (
+                            (($constraint['path'] ?? null) !== $expression->path)
+                            || !self::jsonExpressionKindMatches($constraint['type'], $expression->functionName)
+                        )
+                    )
+                ) {
                     continue;
                 }
                 if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint, $terms)) {
@@ -95,6 +183,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'column' => $expression->columnName,
                     'operator' => $constraint['operator'],
                     'values' => $constraint['values'],
+                    'path' => $constraint['path'] ?? null,
                     'collation' => $expression->collation,
                     'descending' => $expression->descending,
                     'partial' => $expression->partial,
@@ -165,6 +254,7 @@ final class SQLiteSelectExpressionIndexPlan
             return [
                 'type' => $left['type'],
                 'column' => $left['column'],
+                'path' => $left['path'] ?? null,
                 'operator' => 'IN',
                 'values' => self::literalList($values),
                 'residualPredicateRequired' => true,
@@ -179,6 +269,7 @@ final class SQLiteSelectExpressionIndexPlan
             return [
                 'type' => $left['type'],
                 'column' => $left['column'],
+                'path' => $left['path'] ?? null,
                 'operator' => 'BETWEEN',
                 'values' => [
                     'lower' => self::literalValue($predicate['lower']),
@@ -202,6 +293,7 @@ final class SQLiteSelectExpressionIndexPlan
             return [
                 'type' => $left['type'],
                 'column' => $left['column'],
+                'path' => $left['path'] ?? null,
                 'operator' => $operator,
                 'values' => self::literalValue($predicate['right']),
                 'residualPredicateRequired' => true,
@@ -211,6 +303,7 @@ final class SQLiteSelectExpressionIndexPlan
             return [
                 'type' => $right['type'],
                 'column' => $right['column'],
+                'path' => $right['path'] ?? null,
                 'operator' => self::reverseRangeOperator($operator),
                 'values' => self::literalValue($predicate['left']),
                 'residualPredicateRequired' => true,
@@ -221,7 +314,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @return null|array{type:string,column:string}
+     * @return null|array{type:string,column:string,path?:string}
      */
     private static function expressionOperand(mixed $operand): ?array
     {
@@ -240,18 +333,49 @@ final class SQLiteSelectExpressionIndexPlan
             'upper' => ['type' => 'upper', 'column' => $column],
             'length' => ['type' => 'length', 'column' => $column],
             'cast_integer' => ['type' => 'integer-cast', 'column' => $column],
+            'json_extract' => self::jsonPathOperand($operand, 'json-extract', $column),
+            'jsonb_extract' => self::jsonPathOperand($operand, 'jsonb-extract', $column),
+            'json_text_operator' => self::jsonPathOperand($operand, 'json-text-operator', $column),
+            'json_value_operator' => self::jsonPathOperand($operand, 'json-value-operator', $column),
             default => null,
         };
     }
 
-    private static function expressionForType(string $sql, string $type): ?SQLiteIndexColumn
+    /**
+     * @return null|array{type:string,column:string,path:string}
+     */
+    private static function jsonPathOperand(array $operand, string $type, string $column): ?array
+    {
+        $path = $operand['path'] ?? null;
+        if (!is_string($path) || !SQLiteJsonPath::isWellFormed($path)) {
+            return null;
+        }
+
+        return ['type' => $type, 'column' => $column, 'path' => $path];
+    }
+
+    private static function expressionForType(string $sql, string $type): SQLiteIndexColumn|SQLiteJsonExtractIndexExpression|null
     {
         return match ($type) {
             'lower' => SQLiteCreateIndex::firstLowerExpression($sql),
             'upper' => SQLiteCreateIndex::firstUpperExpression($sql),
             'length' => SQLiteCreateIndex::firstLengthExpression($sql),
             'integer-cast' => SQLiteCreateIndex::firstIntegerCastExpression($sql),
+            'json-extract', 'jsonb-extract' => SQLiteCreateIndex::firstJsonExtractExpression($sql),
+            'json-text-operator' => SQLiteCreateIndex::firstJsonTextOperatorExpression($sql),
+            'json-value-operator' => SQLiteCreateIndex::firstJsonValueOperatorExpression($sql),
             default => null,
+        };
+    }
+
+    private static function jsonExpressionKindMatches(string $constraintType, string $functionName): bool
+    {
+        return match ($constraintType) {
+            'json-extract' => $functionName === 'json_extract',
+            'jsonb-extract' => $functionName === 'jsonb_extract',
+            'json-text-operator' => $functionName === '->>',
+            'json-value-operator' => $functionName === '->',
+            default => true,
         };
     }
 
@@ -265,6 +389,12 @@ final class SQLiteSelectExpressionIndexPlan
         }
         if ($constraint['type'] === 'length' || $constraint['type'] === 'integer-cast') {
             return self::valuesAreIntegersOrNull($constraint['values']);
+        }
+        if ($constraint['type'] === 'json-text-operator') {
+            return $collation !== '' && (is_string($constraint['values']) || is_int($constraint['values']) || is_float($constraint['values']) || is_array($constraint['values']) || $constraint['values'] === null);
+        }
+        if ($constraint['type'] === 'json-extract' || $constraint['type'] === 'jsonb-extract' || $constraint['type'] === 'json-value-operator') {
+            return $collation !== '';
         }
 
         return $collation !== '';
@@ -719,7 +849,7 @@ final class SQLiteSelectExpressionIndexPlan
      * @param array{operator:string} $constraint
      * @param list<array{column:string,direction?:string}> $orderBy
      */
-    private static function orderCompatible(SQLiteIndexColumn $expression, array $trailingColumns, array $constraint, array $orderBy): bool
+    private static function orderCompatible(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, array $trailingColumns, array $constraint, array $orderBy): bool
     {
         if ($orderBy === []) {
             return false;
@@ -770,7 +900,7 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array<string,string>> $neededExpressions
      * @param list<SQLiteIndexColumn> $trailingColumns
      */
-    private static function covering(array $index, SQLiteIndexColumn $expression, string $expressionType, array $neededColumns, array $neededExpressions, array $trailingColumns): bool
+    private static function covering(array $index, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededColumns, array $neededExpressions, array $trailingColumns): bool
     {
         if ($neededColumns === [] && $neededExpressions === []) {
             return false;
@@ -821,7 +951,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array<string,string>> $neededExpressions
      */
-    private static function expressionsCovered(SQLiteIndexColumn $expression, string $expressionType, array $neededExpressions): bool
+    private static function expressionsCovered(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): bool
     {
         foreach ($neededExpressions as $neededExpression) {
             $normalized = self::neededExpressionOperand($neededExpression);
@@ -834,6 +964,14 @@ final class SQLiteSelectExpressionIndexPlan
             ) {
                 return false;
             }
+            if ($expression instanceof SQLiteJsonExtractIndexExpression) {
+                if (($normalized['path'] ?? null) !== $expression->path) {
+                    return false;
+                }
+                if (!self::jsonExpressionKindMatches($normalized['type'], $expression->functionName)) {
+                    return false;
+                }
+            }
         }
 
         return true;
@@ -843,7 +981,7 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array<string,string>> $neededExpressions
      * @return list<string>
      */
-    private static function coveredExpressionNames(SQLiteIndexColumn $expression, string $expressionType, array $neededExpressions): array
+    private static function coveredExpressionNames(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): array
     {
         if (!self::expressionsCovered($expression, $expressionType, $neededExpressions)) {
             return [];

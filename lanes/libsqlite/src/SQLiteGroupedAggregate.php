@@ -67,6 +67,36 @@ final class SQLiteGroupedAggregate
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    public static function summarizeAll(array $rows, ?string $valueColumn): array
+    {
+        if ($valueColumn !== null) {
+            foreach ($rows as $row) {
+                if (!array_key_exists($valueColumn, $row)) {
+                    throw new \InvalidArgumentException("SQLite aggregate row is missing column {$valueColumn}");
+                }
+            }
+            $values = array_map(static fn (array $row): mixed => $row[$valueColumn], $rows);
+        } else {
+            $values = [];
+        }
+
+        return [[
+            'countAll' => SQLiteNumericAggregate::countAll($rows),
+            'countValue' => SQLiteNumericAggregate::countValue($values),
+            'countDistinct' => SQLiteNumericAggregate::countDistinct($values),
+            'sum' => SQLiteNumericAggregate::sum($values),
+            'total' => SQLiteNumericAggregate::total($values),
+            'avg' => SQLiteNumericAggregate::avg($values),
+            'min' => SQLiteNumericAggregate::min($values),
+            'max' => SQLiteNumericAggregate::max($values),
+            'groupConcat' => SQLiteTextAggregate::groupConcat($values, '|'),
+        ]];
+    }
+
+    /**
      * @param list<array<string,mixed>> $summaries
      * @return list<array<string,mixed>>
      */

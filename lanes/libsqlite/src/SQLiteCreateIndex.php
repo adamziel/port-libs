@@ -251,6 +251,7 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
+            $expression['functionName'],
         );
     }
 
@@ -284,6 +285,7 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
+            '->>',
         );
     }
 
@@ -317,6 +319,7 @@ final class SQLiteCreateIndex
             $expression['descending'],
             $partial,
             $partialPredicate,
+            '->',
         );
     }
 
@@ -733,13 +736,13 @@ final class SQLiteCreateIndex
     }
 
     /**
-     * @return null|array{name:string,path:string,collation:string,descending:bool}
+     * @return null|array{name:string,path:string,collation:string,descending:bool,functionName:string}
      */
     private static function parseJsonExtractExpressionColumn(string $term): ?array
     {
         $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
-        if ($function === null || strcasecmp($function[0], 'json_extract') !== 0) {
+        if ($function === null || !in_array(strtolower($function[0]), ['json_extract', 'jsonb_extract'], true)) {
             return null;
         }
 
@@ -786,6 +789,7 @@ final class SQLiteCreateIndex
             'path' => $path[0],
             'collation' => $modifiers['collation'],
             'descending' => $modifiers['descending'],
+            'functionName' => strtolower($function[0]),
         ];
     }
 

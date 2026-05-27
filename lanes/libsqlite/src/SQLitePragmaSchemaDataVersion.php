@@ -77,6 +77,14 @@ final class SQLitePragmaSchemaDataVersion
      */
     public function bumpDataVersion(string $schema = 'main', int $by = 1, string $reason = 'external_commit'): array
     {
+        return $this->recordExternalCommit($schema, $by, $reason);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function recordExternalCommit(string $schema = 'main', int $by = 1, string $reason = 'external_commit'): array
+    {
         if ($by < 1) {
             throw new InvalidArgumentException('data_version bump must be positive');
         }
@@ -88,6 +96,62 @@ final class SQLitePragmaSchemaDataVersion
         $this->schemas[$schema]['data_dirty'] = true;
 
         return $this->row($schema, 'data_version', true, $reason);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function recordLocalCommit(string $schema = 'main', int $by = 1, string $reason = 'local_commit'): array
+    {
+        if ($by < 1) {
+            throw new InvalidArgumentException('local commit bump must be positive');
+        }
+
+        $schema = self::normalizeSchemaName($schema);
+        $this->ensureSchema($schema);
+        $this->schemas[$schema]['change_counter'] += $by;
+        $this->schemas[$schema]['data_dirty'] = true;
+
+        return $this->row($schema, 'data_version', false, $reason);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function recordSchemaChange(string $schema = 'main', int $by = 1, string $reason = 'schema_change'): array
+    {
+        if ($by < 1) {
+            throw new InvalidArgumentException('schema change bump must be positive');
+        }
+
+        $schema = self::normalizeSchemaName($schema);
+        $this->ensureSchema($schema);
+        $this->schemas[$schema]['schema_version'] = self::normalizeVersion($this->schemas[$schema]['schema_version'] + $by);
+        $this->schemas[$schema]['change_counter'] += $by;
+        $this->schemas[$schema]['schema_dirty'] = true;
+
+        return $this->row($schema, 'schema_version', true, $reason);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function observeHeader(string $schema, int $schemaVersion, int $changeCounter, string $reason = 'header_observed'): array
+    {
+        $schema = self::normalizeSchemaName($schema);
+        $schemaVersion = self::normalizeVersion($schemaVersion);
+        $changeCounter = self::normalizeVersion($changeCounter);
+        $this->ensureSchema($schema);
+
+        $oldChangeCounter = $this->schemas[$schema]['change_counter'];
+        $this->schemas[$schema]['schema_version'] = $schemaVersion;
+        $this->schemas[$schema]['change_counter'] = $changeCounter;
+        if ($changeCounter !== $oldChangeCounter) {
+            $this->schemas[$schema]['data_version'] = $changeCounter;
+            $this->schemas[$schema]['data_dirty'] = true;
+        }
+
+        return $this->row($schema, 'data_version', $changeCounter !== $oldChangeCounter, $reason);
     }
 
     /**

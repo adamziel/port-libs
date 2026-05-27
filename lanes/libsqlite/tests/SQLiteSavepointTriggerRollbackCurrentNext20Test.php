@@ -111,7 +111,7 @@ $cases = [
     'successful plan reports none scope' => [static fn (): mixed => $successPlan()['rollback_scope'], 'none'],
     'successful plan inserted names match new rows' => [static fn (): mixed => array_column($successPlan()['inserted'], 'option_name'), ['plugin_seed', 'plugin_seed:child', 'plugin_seed:child:child']],
     'successful plan last trigger when skipped' => [static fn (): mixed => $successPlan()['effects'][5]['result'], 'when-skipped'],
-    'successful plan keeps dependency tags' => [static fn (): mixed => $successPlan()['dependencies'], ['sqlite-savepoint-current-rollback', 'sqlite-trigger-raise-rollback']],
+    'successful plan keeps dependency tags' => [static fn (): mixed => $successPlan()['dependencies'], ['sqlite-savepoint-current-rollback', 'sqlite-trigger-raise-rollback', 'sqlite-returning-current-row']],
     'recursive trigger disabled suppresses grandchild' => [static fn (): mixed => array_column($run($recursiveTrigger, null, ['recursive_triggers' => false])['rows'], 'option_name'), ['siteurl', 'home', 'preflight_marker', 'plugin_seed', 'plugin_seed:child']],
     'recursive trigger disabled still counts top child' => [static fn (): mixed => $run($recursiveTrigger, null, ['recursive_triggers' => false])['changes'], 2],
     'duplicate seed is ignored without savepoint rollback' => [static fn (): mixed => $run($recursiveTrigger, [['option_id' => 20, 'option_name' => 'siteurl', 'level' => 1, 'autoload' => 'yes']])['ignored'][0]['option_name'], 'siteurl'],

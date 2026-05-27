@@ -27,8 +27,8 @@ final class SQLiteVdbeWindowAggregateCursor
         private readonly array $partitionColumns,
         private readonly array $orderColumns,
         private readonly ?string $filterColumn = null,
-        private readonly int $preceding = 0,
-        private readonly int $following = 0,
+        private readonly int|float $preceding = 0,
+        private readonly int|float $following = 0,
         private readonly array|string $partitionAffinities = [],
         private readonly array $partitionCollations = [],
         private readonly array|string $orderAffinities = [],
@@ -47,11 +47,14 @@ final class SQLiteVdbeWindowAggregateCursor
             throw new \InvalidArgumentException('SQLite VDBE window aggregate frame bounds must be non-negative');
         }
         $unit = strtoupper(trim($frameUnit));
-        if (!in_array($unit, ['ROWS', 'RANGE'], true)) {
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate frame unit is not supported');
         }
+        if ($unit !== 'RANGE' && (!self::isIntegerOffset($preceding) || !self::isIntegerOffset($following))) {
+            throw new \InvalidArgumentException("SQLite VDBE window aggregate {$unit} frame bounds must be integers");
+        }
         if ($unit === 'RANGE' && count($orderColumns) !== 1) {
-            throw new \InvalidArgumentException('SQLite VDBE RANGE window aggregate needs exactly one ORDER BY column');
+            throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires one ORDER BY column');
         }
         self::assertColumnList($partitionColumns, true, 'partition');
         self::assertColumnList($orderColumns, false, 'order');
@@ -294,7 +297,67 @@ final class SQLiteVdbeWindowAggregateCursor
             $partitionEnd++;
         }
 
-        return [max($partitionStart, $this->position - $this->preceding), min($partitionEnd, $this->position + $this->following)];
+        $unit = strtoupper(trim($this->frameUnit));
+        if ($unit === 'ROWS') {
+            return [max($partitionStart, $this->position - (int) $this->preceding), min($partitionEnd, $this->position + (int) $this->following)];
+        }
+        if ($unit === 'RANGE') {
+            return $this->currentRangeFrame($partitionStart, $partitionEnd);
+        }
+
+        return $this->currentGroupsFrame($partitionStart, $partitionEnd);
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function currentRangeFrame(int $partitionStart, int $partitionEnd): array
+    {
+        $orderColumn = $this->orderColumns[0];
+        $current = $this->numericRangeKey($this->orderedRows[$this->position][$orderColumn]);
+        $descending = $this->orderDescending[0] ?? false;
+        $start = null;
+        $end = null;
+        for ($index = $partitionStart; $index <= $partitionEnd; $index++) {
+            $numeric = $this->numericRangeKey($this->orderedRows[$index][$orderColumn]);
+            if ($descending) {
+                $inFrame = $numeric <= $current + (float) $this->preceding + 1.0e-12
+                    && $numeric >= $current - (float) $this->following - 1.0e-12;
+            } else {
+                $inFrame = $numeric >= $current - (float) $this->preceding - 1.0e-12
+                    && $numeric <= $current + (float) $this->following + 1.0e-12;
+            }
+            if (!$inFrame) {
+                continue;
+            }
+            $start ??= $index;
+            $end = $index;
+        }
+
+        return [$start ?? $this->position, $end ?? $this->position];
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function currentGroupsFrame(int $partitionStart, int $partitionEnd): array
+    {
+        $groups = [];
+        $groupIndexByRow = [];
+        for ($index = $partitionStart; $index <= $partitionEnd; $index++) {
+            if ($index === $partitionStart || !$this->samePeer($index - 1, $index)) {
+                $groups[] = [];
+            }
+            $groupIndex = count($groups) - 1;
+            $groups[$groupIndex][] = $index;
+            $groupIndexByRow[$index] = $groupIndex;
+        }
+
+        $currentGroup = $groupIndexByRow[$this->position];
+        $startGroup = max(0, $currentGroup - (int) $this->preceding);
+        $endGroup = min(count($groups) - 1, $currentGroup + (int) $this->following);
+
+        return [$groups[$startGroup][0], $groups[$endGroup][count($groups[$endGroup]) - 1]];
     }
 
     /**
@@ -302,42 +365,9 @@ final class SQLiteVdbeWindowAggregateCursor
      */
     private function currentFrameIndexes(): array
     {
-        if (strtoupper($this->frameUnit) === 'ROWS') {
-            [$start, $end] = $this->currentFrameRange();
+        [$start, $end] = $this->currentFrameRange();
 
-            return range($start, $end);
-        }
-
-        [$partitionStart, $partitionEnd] = $this->currentPartitionRange();
-        $orderColumn = $this->orderColumns[0];
-        $currentValue = $this->orderedRows[$this->position][$orderColumn];
-        if (!is_int($currentValue) && !is_float($currentValue) && !is_bool($currentValue)) {
-            throw new \InvalidArgumentException('SQLite VDBE RANGE window aggregate requires numeric ORDER BY values');
-        }
-
-        $descending = $this->orderDescending[0] ?? false;
-        $current = (float) $currentValue;
-        $indexes = [];
-        for ($index = $partitionStart; $index <= $partitionEnd; $index++) {
-            $value = $this->orderedRows[$index][$orderColumn];
-            if (!is_int($value) && !is_float($value) && !is_bool($value)) {
-                throw new \InvalidArgumentException('SQLite VDBE RANGE window aggregate requires numeric ORDER BY values');
-            }
-            $numeric = (float) $value;
-            if ($descending) {
-                $inFrame = $numeric <= $current + $this->preceding + 1.0e-12
-                    && $numeric >= $current - $this->following - 1.0e-12;
-            } else {
-                $inFrame = $numeric >= $current - $this->preceding - 1.0e-12
-                    && $numeric <= $current + $this->following + 1.0e-12;
-            }
-            if ($inFrame) {
-                $indexes[] = $index;
-            }
-        }
-
-        /** @var non-empty-list<int> $indexes */
-        return $indexes;
+        return range($start, $end);
     }
 
     /**
@@ -403,6 +433,18 @@ final class SQLiteVdbeWindowAggregateCursor
                 $this->orderDescending,
                 $this->orderNulls
             ) === 0;
+    }
+
+    private function numericRangeKey(mixed $value): float
+    {
+        if (is_bool($value)) {
+            return $value ? 1.0 : 0.0;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires numeric ORDER BY values');
     }
 
     /**
@@ -501,6 +543,11 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         throw new \InvalidArgumentException('SQLite VDBE window aggregate sort values must be scalar, BLOB, or NULL');
+    }
+
+    private static function isIntegerOffset(int|float $offset): bool
+    {
+        return is_int($offset) || floor($offset) === $offset;
     }
 
     private static function isSqlTrue(mixed $value): bool

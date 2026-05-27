@@ -14,6 +14,13 @@ final class SQLiteAttachedSchemaCatalog
 
     private int $schemaGeneration = 0;
 
+    /** @var array<string,array{generation: int, result: array{schema: string, record: SQLiteSchemaRecord}|null}> */
+    private array $lookupCache = [];
+
+    private int $lookupCacheHits = 0;
+
+    private int $lookupCacheMisses = 0;
+
     /**
      * @param list<SQLiteSchemaRecord> $mainRecords
      * @param list<SQLiteSchemaRecord> $tempRecords
@@ -54,7 +61,7 @@ final class SQLiteAttachedSchemaCatalog
             'records' => array_values($records),
             'sequence' => count($this->attachedOrder) + 1,
         ];
-        $this->schemaGeneration++;
+        $this->invalidateLookupCache();
     }
 
     public function detach(string $schemaName): void
@@ -76,7 +83,7 @@ final class SQLiteAttachedSchemaCatalog
         foreach ($this->attachedOrder as $index => $attached) {
             $this->schemas[$attached]['sequence'] = $index + 2;
         }
-        $this->schemaGeneration++;
+        $this->invalidateLookupCache();
     }
 
     /**
@@ -229,7 +236,7 @@ final class SQLiteAttachedSchemaCatalog
             return $schemaTable;
         }
 
-        return $this->resolveObject($name, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'table' || $record->type === 'view');
+        return $this->resolveObjectByType($name, 'table');
     }
 
     /**
@@ -237,7 +244,34 @@ final class SQLiteAttachedSchemaCatalog
      */
     public function resolveIndex(string $name): ?array
     {
-        return $this->resolveObject($name, static fn (SQLiteSchemaRecord $record): bool => $record->type === 'index');
+        return $this->resolveObjectByType($name, 'index');
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     */
+    public function replaceSchemaRecords(string $schemaName, array $records): void
+    {
+        $name = self::normalizeSchemaName($schemaName);
+        if (!isset($this->schemas[$name])) {
+            throw new \InvalidArgumentException("SQLite schema {$name} is not attached");
+        }
+
+        $this->schemas[$name]['records'] = array_values($records);
+        $this->invalidateLookupCache();
+    }
+
+    /**
+     * @return array{generation: int, entries: int, hits: int, misses: int}
+     */
+    public function lookupCacheStats(): array
+    {
+        return [
+            'generation' => $this->schemaGeneration,
+            'entries' => count($this->lookupCache),
+            'hits' => $this->lookupCacheHits,
+            'misses' => $this->lookupCacheMisses,
+        ];
     }
 
     /**
@@ -412,6 +446,31 @@ final class SQLiteAttachedSchemaCatalog
     /**
      * @return array{schema: string, record: SQLiteSchemaRecord}|null
      */
+    private function resolveObjectByType(string $name, string $type): ?array
+    {
+        $cacheKey = strtolower($type . ':' . $name);
+        if (isset($this->lookupCache[$cacheKey]) && $this->lookupCache[$cacheKey]['generation'] === $this->schemaGeneration) {
+            $this->lookupCacheHits++;
+
+            return $this->lookupCache[$cacheKey]['result'];
+        }
+
+        $this->lookupCacheMisses++;
+        $result = $this->resolveObject($name, static function (SQLiteSchemaRecord $record) use ($type): bool {
+            if ($type === 'table') {
+                return $record->type === 'table' || $record->type === 'view';
+            }
+
+            return $record->type === $type;
+        });
+        $this->lookupCache[$cacheKey] = [
+            'generation' => $this->schemaGeneration,
+            'result' => $result,
+        ];
+
+        return $result;
+    }
+
     private function resolveObject(string $name, callable $accept): ?array
     {
         $qualified = self::splitQualifiedName($name);
@@ -429,6 +488,12 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return null;
+    }
+
+    private function invalidateLookupCache(): void
+    {
+        $this->schemaGeneration++;
+        $this->lookupCache = [];
     }
 
     /**

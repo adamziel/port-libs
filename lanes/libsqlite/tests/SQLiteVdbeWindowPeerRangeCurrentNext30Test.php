@@ -119,7 +119,7 @@ $cases = [
         }
 
         return 'missing exception';
-    })(), 'SQLite VDBE RANGE window aggregate requires numeric ORDER BY values'],
+    })(), 'SQLite VDBE window aggregate RANGE frame requires numeric ORDER BY values'],
     'range rejects multiple order columns' => [static fn (): mixed => (static function (): string {
         try {
             new SQLiteVdbeWindowAggregateCursor([['site' => 1, 'bytes' => 1, 'name' => 'a']], 'bytes', ['site'], ['bytes', 'name'], null, 0, 1, [], [], [], [], [], [], 'RANGE');
@@ -128,10 +128,10 @@ $cases = [
         }
 
         return 'missing exception';
-    })(), 'SQLite VDBE RANGE window aggregate needs exactly one ORDER BY column'],
+    })(), 'SQLite VDBE window aggregate RANGE frame requires one ORDER BY column'],
     'range rejects unsupported frame unit' => [static fn (): mixed => (static function (): string {
         try {
-            new SQLiteVdbeWindowAggregateCursor([['site' => 1, 'bytes' => 1]], 'bytes', ['site'], ['bytes'], null, 0, 1, [], [], [], [], [], [], 'GROUPS');
+            new SQLiteVdbeWindowAggregateCursor([['site' => 1, 'bytes' => 1]], 'bytes', ['site'], ['bytes'], null, 0, 1, [], [], [], [], [], [], 'BOUNDS');
         } catch (InvalidArgumentException $exception) {
             return $exception->getMessage();
         }
