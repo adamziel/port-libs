@@ -18,9 +18,10 @@ final class SQLiteSelectExpression
             'column' => self::columnValue($row, self::requiredString($expression, 'name', 'column expression')),
             'literal' => $expression['value'] ?? null,
             'function' => self::functionValue($row, $expression),
+            'unary' => self::unaryValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, binary, or subquery'),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, unary, binary, or subquery'),
         };
     }
 
@@ -53,6 +54,31 @@ final class SQLiteSelectExpression
         }
 
         return $first[$columns[0]];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function unaryValue(array $row, array $expression): mixed
+    {
+        $operator = self::requiredString($expression, 'operator', 'unary expression');
+        $operandExpression = $expression['operand'] ?? null;
+        if (!is_array($operandExpression)) {
+            throw new \InvalidArgumentException("SQLite SELECT expression unary {$operator} needs an expression operand");
+        }
+
+        $operand = self::evaluate($row, $operandExpression);
+        if ($operand === null) {
+            return null;
+        }
+
+        return match ($operator) {
+            '+' => self::numericOperand($operand),
+            '-' => -self::numericOperand($operand),
+            '~' => ~self::integerOperand($operand),
+            default => throw new \InvalidArgumentException("SQLite SELECT unary expression operator {$operator} is not supported"),
+        };
     }
 
     /**
@@ -141,6 +167,7 @@ final class SQLiteSelectExpression
         return match ($operator) {
             '||' => self::textValue($left) . self::textValue($right),
             '+', '-', '*', '/', '%' => self::numericValue($left, $right, $operator),
+            '&', '|', '<<', '>>' => self::bitwiseValue($left, $right, $operator),
             default => throw new \InvalidArgumentException("SQLite SELECT expression operator {$operator} is not supported"),
         };
     }
@@ -164,6 +191,25 @@ final class SQLiteSelectExpression
             '%' => (int) $leftNumeric % (int) $rightNumeric,
             default => throw new \InvalidArgumentException("SQLite SELECT numeric operator {$operator} is not supported"),
         };
+    }
+
+    private static function bitwiseValue(mixed $left, mixed $right, string $operator): int
+    {
+        $leftInteger = self::integerOperand($left);
+        $rightInteger = self::integerOperand($right);
+
+        return match ($operator) {
+            '&' => $leftInteger & $rightInteger,
+            '|' => $leftInteger | $rightInteger,
+            '<<' => $leftInteger << $rightInteger,
+            '>>' => $leftInteger >> $rightInteger,
+            default => throw new \InvalidArgumentException("SQLite SELECT bitwise operator {$operator} is not supported"),
+        };
+    }
+
+    private static function integerOperand(mixed $value): int
+    {
+        return (int) self::numericOperand($value);
     }
 
     private static function numericOperand(mixed $value): int|float
