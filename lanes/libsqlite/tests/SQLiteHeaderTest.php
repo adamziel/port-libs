@@ -80,6 +80,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteInsertSelectSql;
 use PortLibs\LibSqlite\SQLiteSelectCompound;
 use PortLibs\LibSqlite\SQLiteSelectExpressionIndexPlan;
 use PortLibs\LibSqlite\SQLiteSelectPredicate;
@@ -24923,6 +24924,95 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes + FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
+    },
+    'executes bounded sqlite insert select sql text' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'option_value' => 'plugins', 'autoload' => 'no', 'bytes' => 110],
+        ];
+        $archive = [
+            ['option_id' => 100, 'option_name' => 'archived_existing', 'option_value' => 'old', 'autoload' => 'no', 'source_id' => 0],
+        ];
+        $meta = [
+            ['meta_option_id' => 1, 'meta_key' => 'public'],
+            ['meta_option_id' => 3, 'meta_key' => 'public'],
+            ['meta_option_id' => 5, 'meta_key' => 'plugin'],
+        ];
+
+        $copy = SQLiteInsertSelectSql::execute(
+            "INSERT INTO archived_options (option_id, option_name, option_value, autoload, source_id) SELECT option_id + 100, option_name || ':copy' AS copied_name, option_value, 'no' AS autoload, option_id FROM wp_options WHERE autoload = 'yes' AND option_id >= 2 LIMIT 2",
+            ['wp_options' => $options, 'archived_options' => $archive],
+        );
+        $t->same('archived_options', $copy['target']);
+        $t->same(['option_id', 'option_name', 'option_value', 'autoload', 'source_id'], $copy['columns']);
+        $t->same(2, $copy['changes']);
+        $t->same(2, count($copy['source_rows']));
+        $t->same(2, count($copy['inserted_rows']));
+        $t->same(1, count($copy['before']));
+        $t->same(3, count($copy['after']));
+        $t->same([102, 103], array_column($copy['inserted_rows'], 'option_id'));
+        $t->same(['home:copy', 'blogname:copy'], array_column($copy['inserted_rows'], 'option_name'));
+        $t->same(['https://example.test', 'Example Site'], array_column($copy['inserted_rows'], 'option_value'));
+        $t->same(['no', 'no'], array_column($copy['inserted_rows'], 'autoload'));
+        $t->same([2, 3], array_column($copy['inserted_rows'], 'source_id'));
+        $t->same('archived_existing', $copy['after'][0]['option_name']);
+        $t->same('home:copy', $copy['after'][1]['option_name']);
+        $t->same('blogname:copy', $copy['after'][2]['option_name']);
+
+        $implicit = SQLiteInsertSelectSql::execute(
+            "INSERT INTO copied_option_names SELECT option_id AS copied_id, option_name AS copied_name FROM wp_options WHERE option_name NOT GLOB '_*' LIMIT 3",
+            ['wp_options' => $options, 'copied_option_names' => []],
+        );
+        $t->same(['copied_id', 'copied_name'], $implicit['columns']);
+        $t->same(3, $implicit['changes']);
+        $t->same([1, 2, 3], array_column($implicit['inserted_rows'], 'copied_id'));
+        $t->same(['siteurl', 'home', 'blogname'], array_column($implicit['inserted_rows'], 'copied_name'));
+        $t->same([], $implicit['before']);
+        $t->same($implicit['inserted_rows'], $implicit['after']);
+
+        $parameterized = SQLiteInsertSelectSql::execute(
+            'INSERT INTO public_options (option_id, option_name, option_value, autoload) SELECT option_id + ? AS option_id, option_name || :suffix AS option_name, option_value, @autoload AS autoload FROM wp_options WHERE EXISTS (SELECT meta_key FROM option_meta WHERE meta_option_id = option_id AND meta_key = :meta_key)',
+            ['wp_options' => $options, 'option_meta' => $meta, 'public_options' => []],
+            [0 => 200, ':suffix' => ':public', '@autoload' => 'no', ':meta_key' => 'public'],
+        );
+        $t->same(2, $parameterized['changes']);
+        $t->same([201, 203], array_column($parameterized['inserted_rows'], 'option_id'));
+        $t->same(['siteurl:public', 'blogname:public'], array_column($parameterized['inserted_rows'], 'option_name'));
+        $t->same(['https://example.test', 'Example Site'], array_column($parameterized['inserted_rows'], 'option_value'));
+        $t->same(['no', 'no'], array_column($parameterized['inserted_rows'], 'autoload'));
+        $t->same($parameterized['inserted_rows'], $parameterized['after']);
+
+        $cte = SQLiteInsertSelectSql::plan(
+            "INSERT INTO noautoload_options (name, bytes) WITH filtered AS (SELECT option_name AS name, bytes FROM wp_options WHERE autoload = 'no') SELECT name, bytes FROM filtered ORDER BY bytes DESC",
+            ['wp_options' => $options, 'noautoload_options' => []],
+        );
+        $t->same('noautoload_options', $cte['target']);
+        $t->same(['name', 'bytes'], $cte['columns']);
+        $t->same(2, count($cte['source_rows']));
+        $t->same(['_site_transient_update_plugins', '_transient_feed'], array_column($cte['inserted_rows'], 'name'));
+        $t->same([110, 12], array_column($cte['inserted_rows'], 'bytes'));
+        $t->same("WITH filtered AS (SELECT option_name AS name, bytes FROM wp_options WHERE autoload = 'no') SELECT name, bytes FROM filtered ORDER BY bytes DESC", $cte['select_sql']);
+
+        $empty = SQLiteInsertSelectSql::execute(
+            "INSERT INTO archived_options (option_id, option_name) SELECT option_id, option_name FROM wp_options WHERE option_name = 'missing'",
+            ['wp_options' => $options, 'archived_options' => $archive],
+        );
+        $t->same(0, $empty['changes']);
+        $t->same([], $empty['inserted_rows']);
+        $t->same($archive, $empty['after']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('SELECT option_id FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT OR REPLACE INTO archived_options (option_id) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO missing (option_id) SELECT option_id FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options () SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id, option_id) SELECT option_id, option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (1bad) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id) VALUES (1)', ['archived_options' => $archive]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options SELECT option_id FROM wp_options WHERE option_name = "missing"', ['wp_options' => $options, 'archived_options' => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id, option_name) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
     },
     'executes bounded sqlite compound select sql text' => static function (TestRunner $t): void {
         $options = [

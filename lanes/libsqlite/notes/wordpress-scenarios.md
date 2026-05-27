@@ -4979,3 +4979,28 @@ record encoding, and copied WordPress option fixtures. Follow-up should wire
 the conflict planner into parser-level INSERT SQL execution or broaden conflict
 handling beyond this single-leaf current behavior without repeating accepted
 unique-index replacement or B-tree delete/freeblock clusters.
+
+## INSERT INTO SELECT Current Scenario
+
+Copied WordPress `wp_options` diagnostics now expose bounded SQLite
+`INSERT INTO ... SELECT ...` current behavior. The smoke
+`examples/wordpress-insert-select-current.php` reports archive/import staging
+rows copied from `wp_options` through parser-level SELECT projection, WHERE,
+LIMIT, CTE, subquery, and bind-parameter execution, then materialized into a
+target row array without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated `insert-select-current` slice:
+`SQLiteInsertSelectSql` parses `INSERT INTO target [(columns)] SELECT ...`,
+reuses the accepted SELECT SQL executor for row production, maps selected values
+to explicit or inferred target columns, reports before/after rows and change
+counts, and rejects unsupported conflict clauses, malformed target columns,
+missing target tables, non-SELECT sources, empty inferred-column inserts, and
+column-count mismatches. Focused `SQLiteHeaderTest.php` passed at 9561
+assertions with 0 failures in the worker handoff, +45 over the previous
+lane-status focused count of 9516.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser/executor and copied WordPress option fixtures.
+Follow-up should wire this row-array insert-select preview into lower-level
+table/index page write planning without repeating accepted insert-or-replace,
+SELECT SQL text, subquery, bind-parameter, or storage VFS clusters.
