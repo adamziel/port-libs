@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 08:33:08 UTC",
-    "sourceCommit": "bcf9b6b38957b788f158f22dba475b13cf360880",
-    "sourceCommitShort": "bcf9b6b38957",
+    "generated": "2026-05-27 08:45:34 UTC",
+    "sourceCommit": "9e7dbb0b0f9ffccade0eab839514d75a09ddebe8",
+    "sourceCommitShort": "9e7dbb0b0f9f",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "6405dd6533b3ee47eff2c2b2a02866dbeee5e28e",
-    "dashboardCommitShort": "6405dd6533b3",
+    "dashboardCommit": "dd6c28a71f4d10eb5f28e26bb4fdd689c1c14ae0",
+    "dashboardCommitShort": "dd6c28a71f4d",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,13 +83,13 @@
             "denominator": "1589",
             "mapped": "444",
             "coverage": "444 / 1589",
-            "php": "792 pass / 0 fail",
+            "php": "793 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded SELECT SQL WITH common-table-expression materia...",
-            "audit": "JSON dynamic table-join slice passes focu...",
-            "currentWork": "Clean-integrating bounded SELECT SQL row-correlated json_each/json_tree JOIN sources, inc...",
-            "nextTarget": "Continue JSON planner/JSONB behavior beyond accepted hidden/visible constraints, SELECT s...",
-            "blocker": "Full SQLite release/all-suite parity remains gated by bounded runner coun...",
+            "audit": "B-tree empty-leaf batch release slice pas...",
+            "currentWork": "Clean-integrating bounded SQLiteBTreeEmptyLeafBatchFreePlan for mixed table/index empty-l...",
+            "nextTarget": "Continue B-tree delete/rebalance materialization beyond accepted page moves, root collaps...",
+            "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
             "commit": "pending"
         },
         {
