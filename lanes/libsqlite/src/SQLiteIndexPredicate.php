@@ -177,6 +177,29 @@ final class SQLiteIndexPredicate
             return false;
         }
 
+        if (in_array($this->operator, [
+            self::EQUALS,
+            self::NOT_EQUALS,
+            self::LESS_THAN,
+            self::LESS_THAN_OR_EQUAL,
+            self::GREATER_THAN,
+            self::GREATER_THAN_OR_EQUAL,
+            self::BETWEEN,
+        ], true)) {
+            $hasSearchValue = false;
+            foreach ($values as $lookupValue) {
+                if ($lookupValue === null) {
+                    continue;
+                }
+                $hasSearchValue = true;
+                if (!$this->isImpliedByPointLookup($columnName, $lookupValue, $collation)) {
+                    return false;
+                }
+            }
+
+            return $hasSearchValue;
+        }
+
         if ($this->operator !== self::IN_LIST || !is_array($this->value)) {
             return false;
         }

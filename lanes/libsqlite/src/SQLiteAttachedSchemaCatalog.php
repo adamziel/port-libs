@@ -203,6 +203,7 @@ final class SQLiteAttachedSchemaCatalog
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+                'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
         }
@@ -222,7 +223,7 @@ final class SQLiteAttachedSchemaCatalog
      * Execute SQLite's table-valued PRAGMA function form against the same
      * current-source catalog resolution used by direct schema PRAGMAs.
      *
-     * @return array{status: string, pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
+     * @return array{status: string, pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
      */
     public function executeTableValuedPragma(string $sql): array
     {
@@ -233,12 +234,15 @@ final class SQLiteAttachedSchemaCatalog
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+                'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
         }
 
         $result = $this->pragmaCatalog($schemaName)->executeTableValuedPragma(
-            'pragma_' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
+            $parsed['target'] === ''
+                ? 'pragma_' . $parsed['pragma'] . '()'
+                : 'pragma_' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
         );
         $result['schema'] = $schemaName;
 

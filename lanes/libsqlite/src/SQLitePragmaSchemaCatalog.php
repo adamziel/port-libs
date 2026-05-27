@@ -8,6 +8,39 @@ use InvalidArgumentException;
 
 final class SQLitePragmaSchemaCatalog
 {
+    private const DEFAULT_FUNCTIONS = [
+        ['name' => 'abs', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2099200],
+        ['name' => 'coalesce', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => -1, 'flags' => 2099200],
+        ['name' => 'count', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 0, 'flags' => 2097152],
+        ['name' => 'count', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2097152],
+        ['name' => 'glob', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 2, 'flags' => 2099200],
+        ['name' => 'json_extract', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => -1, 'flags' => 2099200],
+        ['name' => 'json_group_array', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 1, 'flags' => 3147776],
+        ['name' => 'json_group_object', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 2, 'flags' => 3147776],
+        ['name' => 'like', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 2, 'flags' => 2099200],
+        ['name' => 'like', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 3, 'flags' => 2099200],
+        ['name' => 'lower', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2099200],
+        ['name' => 'max', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => -1, 'flags' => 2099200],
+        ['name' => 'min', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => -1, 'flags' => 2099200],
+        ['name' => 'printf', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => -1, 'flags' => 2099200],
+        ['name' => 'sum', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2097152],
+        ['name' => 'total', 'builtin' => 1, 'type' => 'w', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2097152],
+        ['name' => 'upper', 'builtin' => 1, 'type' => 's', 'enc' => 'utf8', 'narg' => 1, 'flags' => 2099200],
+    ];
+
+    private const DEFAULT_MODULES = [
+        ['name' => 'json_each'],
+        ['name' => 'json_tree'],
+        ['name' => 'fts5'],
+        ['name' => 'rtree'],
+    ];
+
+    private const DEFAULT_COLLATIONS = [
+        ['seq' => 0, 'name' => 'BINARY'],
+        ['seq' => 1, 'name' => 'NOCASE'],
+        ['seq' => 2, 'name' => 'RTRIM'],
+    ];
+
     /** @var array<string, SQLiteSchemaRecord> */
     private array $tables = [];
 
@@ -16,9 +49,16 @@ final class SQLitePragmaSchemaCatalog
 
     /**
      * @param list<SQLiteSchemaRecord> $records
+     * @param list<array{name:string,builtin?:int,type?:string,enc?:string,narg?:int,flags?:int}> $functions
+     * @param list<array{name:string}> $modules
+     * @param list<array{name:string,seq?:int}> $collations
      */
-    public function __construct(private readonly array $records)
-    {
+    public function __construct(
+        private readonly array $records,
+        private readonly array $functions = self::DEFAULT_FUNCTIONS,
+        private readonly array $modules = self::DEFAULT_MODULES,
+        private readonly array $collations = self::DEFAULT_COLLATIONS,
+    ) {
         foreach ($records as $record) {
             if ($record->type === 'table') {
                 $this->tables[strtolower($record->name)] = $record;
@@ -59,6 +99,9 @@ final class SQLitePragmaSchemaCatalog
                 'index_info' => $this->indexInfo($parsed['target']),
                 'index_xinfo' => $this->indexXInfo($parsed['target']),
                 'foreign_key_list' => $this->foreignKeyList($parsed['target']),
+                'function_list' => $this->functionList(),
+                'module_list' => $this->moduleList(),
+                'collation_list' => $this->collationList(),
             },
         ];
     }
@@ -87,6 +130,9 @@ final class SQLitePragmaSchemaCatalog
                 'index_info' => $this->indexInfo($parsed['target']),
                 'index_xinfo' => $this->indexXInfo($parsed['target']),
                 'foreign_key_list' => $this->foreignKeyList($parsed['target']),
+                'function_list' => $this->functionList(),
+                'module_list' => $this->moduleList(),
+                'collation_list' => $this->collationList(),
             },
         ];
     }
@@ -278,13 +324,96 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string|null, target: string}
+     * @return list<array{name: string, builtin: int, type: string, enc: string, narg: int, flags: int}>
+     */
+    public function functionList(): array
+    {
+        $rows = [];
+        foreach ($this->functions as $function) {
+            $name = $function['name'] ?? null;
+            if (!is_string($name) || trim($name) === '') {
+                throw new InvalidArgumentException('SQLite function_list entries need a function name');
+            }
+            $type = strtoupper((string) ($function['type'] ?? 's'));
+            if (!in_array($type, ['S', 'W', 'A'], true)) {
+                throw new InvalidArgumentException("SQLite function_list function {$name} has unsupported type {$type}");
+            }
+            $enc = strtolower((string) ($function['enc'] ?? 'utf8'));
+            if (!in_array($enc, ['utf8', 'utf16le', 'utf16be'], true)) {
+                throw new InvalidArgumentException("SQLite function_list function {$name} has unsupported encoding {$enc}");
+            }
+
+            $rows[] = [
+                'name' => strtolower($name),
+                'builtin' => (int) ($function['builtin'] ?? 0),
+                'type' => strtolower($type),
+                'enc' => $enc,
+                'narg' => (int) ($function['narg'] ?? -1),
+                'flags' => (int) ($function['flags'] ?? 0),
+            ];
+        }
+
+        usort($rows, static fn (array $left, array $right): int => [$left['name'], $left['narg'], $left['type']] <=> [$right['name'], $right['narg'], $right['type']]);
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{name: string}>
+     */
+    public function moduleList(): array
+    {
+        $rows = [];
+        foreach ($this->modules as $module) {
+            $name = $module['name'] ?? null;
+            if (!is_string($name) || trim($name) === '') {
+                throw new InvalidArgumentException('SQLite module_list entries need a module name');
+            }
+            $rows[] = ['name' => strtolower($name)];
+        }
+
+        usort($rows, static fn (array $left, array $right): int => $left['name'] <=> $right['name']);
+
+        return array_values($rows);
+    }
+
+    /**
+     * @return list<array{seq: int, name: string}>
+     */
+    public function collationList(): array
+    {
+        $rows = [];
+        foreach ($this->collations as $index => $collation) {
+            $name = $collation['name'] ?? null;
+            if (!is_string($name) || trim($name) === '') {
+                throw new InvalidArgumentException('SQLite collation_list entries need a collation name');
+            }
+            $rows[] = [
+                'seq' => (int) ($collation['seq'] ?? $index),
+                'name' => strtoupper($name),
+            ];
+        }
+
+        usort($rows, static fn (array $left, array $right): int => $left['seq'] <=> $right['seq']);
+
+        return array_values($rows);
+    }
+
+    /**
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list', schema: string|null, target: string}
      */
     public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
+        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>function_list|module_list|collation_list)$/i', $trimmed, $matches) === 1) {
+            return [
+                'pragma' => strtolower($matches['pragma']),
+                'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
+                'target' => '',
+            ];
+        }
         if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, and foreign_key_list are supported');
+            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, function_list, module_list, and collation_list are supported');
         }
 
         return [
@@ -295,11 +424,18 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string|null, target: string}
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list', schema: string|null, target: string}
      */
     public static function parseTableValuedPragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
+        if (preg_match('/^pragma_(?<pragma>function_list|module_list|collation_list)\s*\(\s*\)$/i', $trimmed, $matches) === 1) {
+            return [
+                'pragma' => strtolower($matches['pragma']),
+                'schema' => null,
+                'target' => '',
+            ];
+        }
         if (!preg_match('/^pragma_(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('Only table-valued PRAGMA schema functions are supported');
         }
