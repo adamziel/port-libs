@@ -156,6 +156,61 @@ final class SQLiteUpdateDeleteLimitPlan
     }
 
     /**
+     * @param list<string>|array<string,string|callable(array<string,mixed>):mixed>|null $projection
+     * @return list<array<string,mixed>>
+     */
+    public function returningRows(?array $projection = null): array
+    {
+        if ($projection === null || $projection === []) {
+            return $this->mutationRows;
+        }
+
+        $rows = [];
+        foreach ($this->mutationRows as $row) {
+            $returned = [];
+            foreach ($projection as $alias => $expression) {
+                if (is_int($alias)) {
+                    if (!is_string($expression) || $expression === '') {
+                        throw new \InvalidArgumentException('SQLite RETURNING projection columns must be non-empty strings');
+                    }
+                    if ($expression === '*') {
+                        foreach ($row as $column => $value) {
+                            $returned[$column] = $value;
+                        }
+                        continue;
+                    }
+                    if (!array_key_exists($expression, $row)) {
+                        throw new \InvalidArgumentException("SQLite RETURNING projection column {$expression} is missing");
+                    }
+                    $returned[$expression] = $row[$expression];
+                    continue;
+                }
+
+                if (!is_string($alias) || $alias === '') {
+                    throw new \InvalidArgumentException('SQLite RETURNING projection aliases must be non-empty strings');
+                }
+                if (is_string($expression)) {
+                    if ($expression === '') {
+                        throw new \InvalidArgumentException('SQLite RETURNING projection columns must be non-empty strings');
+                    }
+                    if (!array_key_exists($expression, $row)) {
+                        throw new \InvalidArgumentException("SQLite RETURNING projection column {$expression} is missing");
+                    }
+                    $returned[$alias] = $row[$expression];
+                    continue;
+                }
+                if (!is_callable($expression)) {
+                    throw new \InvalidArgumentException('SQLite RETURNING projection expressions must be column names or callables');
+                }
+                $returned[$alias] = $expression($row);
+            }
+            $rows[] = $returned;
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
      * @param list<array{column:string,direction?:string}> $orderBy

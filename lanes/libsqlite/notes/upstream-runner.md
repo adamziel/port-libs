@@ -10842,3 +10842,27 @@ fixtures. Non-overlap: it avoids accepted VFS byte-range, process lock,
 lock-state, locked-writer, pager checkpoint, rollback, WAL, B-tree, JSON, and
 SELECT clusters by covering only `PRAGMA locking_mode` current connection
 state.
+### 2026-05-27 ANALYZE sqlite_stat1 planner corpus
+
+This isolated planner micro-slice adds a bounded native PHP corpus for SQLite
+`ANALYZE` / `sqlite_stat1` planner behavior. It parses `sqlite_stat1` row-count
+and per-prefix average cardinality values, ranks equality/`IN`/range constraints
+across single-column and composite indexes, preserves deterministic fallback
+table scans, and guards malformed stat rows. The focused WordPress smoke uses
+copied `wp_options`, `wp_postmeta`, and `wp_posts` style stats to preview index
+selection before row decoding without `ext/sqlite`.
+
+Focused evidence:
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteAnalyzeStatPlannerCorpusTest.php`
+reported `1 test files, 105 assertions, 0 failures` and 50 PASS lines. The
+`phpPass` status counter moved from 1336 to 1386. No mapped denominator change
+was claimed; this is a new focused PHP planner corpus, not a new upstream
+inventory hydration row. Root harness status: not run for this isolated
+micro-slice.
+
+Non-overlap: this avoids accepted expression-index range-cost ranking, parser
+SELECT SQL text dispatch, grouped SELECT, subqueries, JSON table source/cursor
+and visible/hidden constraint work, VFS file writer/sync/lock/rollback apply,
+WAL savepoint byte truncation/checkpoint transaction work, B-tree page move/root
+collapse/overflow freelist release, and Unicode GLOB range work. Dependency
+closure: no new support component is needed.

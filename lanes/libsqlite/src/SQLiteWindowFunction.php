@@ -208,6 +208,82 @@ final class SQLiteWindowFunction
 
     /**
      * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<array{count:int,sum:int|float|null,groupConcat:string|null,frame:list<int>}>
+     */
+    public static function aggregateRows(
+        iterable $values,
+        iterable $orderKeys,
+        int $preceding,
+        int $following,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite window frame offsets must be non-negative');
+        }
+
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        foreach ($keys as $key) {
+            self::sortRank($key);
+        }
+
+        $count = count($rows);
+        $result = [];
+        for ($index = 0; $index < $count; $index++) {
+            $start = max(0, $index - $preceding);
+            $end = min($count - 1, $index + $following);
+            $frameIndexes = range($start, $end);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+            if ($filterRows !== null) {
+                $frameIndexes = array_values(array_filter(
+                    $frameIndexes,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $sum = null;
+            $groupValues = [];
+            foreach ($frameIndexes as $frameIndex) {
+                $value = $rows[$frameIndex];
+                if ($value !== null) {
+                    if (!is_int($value) && !is_float($value) && !is_bool($value)) {
+                        throw new \InvalidArgumentException('SQLite window sum() values must be numeric or NULL');
+                    }
+                    $sum = ($sum ?? 0) + (is_bool($value) ? (int) $value : $value);
+                    $groupValues[] = self::valueText($value);
+                }
+            }
+
+            $result[] = [
+                'count' => count($frameIndexes),
+                'sum' => $sum,
+                'groupConcat' => $groupValues === [] ? null : implode(',', $groupValues),
+                'frame' => $frameIndexes,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
      * @return list<mixed>
      */
     private static function offsetValue(iterable $values, int $relativeOffset, mixed $default, string $functionName): array
@@ -225,6 +301,48 @@ final class SQLiteWindowFunction
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<int> $frameIndexes
+     * @param list<mixed> $orderKeys
+     * @return list<int>
+     */
+    private static function applyExclude(array $frameIndexes, array $orderKeys, int $currentIndex, string $excludeMode): array
+    {
+        if ($excludeMode === 'NO OTHERS') {
+            return $frameIndexes;
+        }
+
+        return array_values(array_filter($frameIndexes, static function (int $frameIndex) use ($orderKeys, $currentIndex, $excludeMode): bool {
+            $isCurrent = $frameIndex === $currentIndex;
+            $isPeer = self::compareSqlValues($orderKeys[$frameIndex], $orderKeys[$currentIndex]) === 0;
+
+            return match ($excludeMode) {
+                'CURRENT ROW' => !$isCurrent,
+                'GROUP' => !$isPeer,
+                'TIES' => !$isPeer || $isCurrent,
+                default => true,
+            };
+        }));
+    }
+
+    private static function sqlTruthy(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (float) $value != 0.0;
+        }
+        if (is_string($value)) {
+            return (float) $value != 0.0;
+        }
+
+        throw new \InvalidArgumentException('SQLite window FILTER values must be scalar or NULL');
     }
 
     /**
