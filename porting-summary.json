@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 04:52:12 UTC",
-    "sourceCommit": "f11f810f91468dc974019afcf8993935952f7a14",
-    "sourceCommitShort": "f11f810f9146",
+    "generated": "2026-05-27 04:58:54 UTC",
+    "sourceCommit": "1fce4904a47d45302fd0050934a58b08f7c2c1d9",
+    "sourceCommitShort": "1fce4904a47d",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "20e90d792272ee652049d0de09cfbb74e1c59ad8",
-    "dashboardCommitShort": "20e90d792272",
+    "dashboardCommit": "186dd7ecb711f1bb0681317e45eb5af9c018a701",
+    "dashboardCommitShort": "186dd7ecb711",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "430",
-            "coverage": "430 / 1589",
-            "php": "774 pass / 0 fail",
+            "mapped": "431",
+            "coverage": "431 / 1589",
+            "php": "775 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed JSON hidden-constraint S...",
-            "currentWork": "Latest JSON-table slice wires parser-level bare json_each/json_tree SELECT sources to acc...",
-            "nextTarget": "Next JSON/SQL gap: broader virtual-table planner/VDBE cursor integration or planner const...",
+            "audit": "bounded replayed SQL execution/planner ex...",
+            "currentWork": "Latest SQL-exec slice lets SQLiteSelectSql parse scalar and aggregate ORDER BY expression...",
+            "nextTarget": "Next SQL/planner gap: range-cost planner decisions, subquery dispatch, broader parser/VDB...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "2afe089"
+            "commit": "f11f810"
         },
         {
             "library": "LightningCSS",
