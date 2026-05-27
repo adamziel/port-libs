@@ -25528,7 +25528,11 @@ SQL;
         $t->same(['_site_transient_update_plugins', 'home'], array_column($planRows, 'name'));
         $t->same([115, 26], array_column($planRows, 'weight'));
 
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH recursive seq AS (SELECT option_id FROM wp_options) SELECT option_id FROM seq", ['wp_options' => $options]));
+        $recursiveKeywordRows = SQLiteSelectSql::execute(
+            "WITH recursive seq AS (SELECT option_id FROM wp_options) SELECT option_id FROM seq",
+            ['wp_options' => $options],
+        );
+        $t->same([1, 2, 3, 4, 5, 6], array_column($recursiveKeywordRows, 'option_id'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH wp_options AS (SELECT option_id FROM wp_options) SELECT option_id FROM wp_options", ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad AS (DELETE FROM wp_options) SELECT * FROM bad", ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad(id, name) AS (SELECT option_id FROM wp_options) SELECT id FROM bad", ['wp_options' => $options]));

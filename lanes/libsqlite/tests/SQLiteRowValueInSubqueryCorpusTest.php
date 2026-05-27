@@ -108,11 +108,11 @@ $cases = [
     ],
     'joined subquery source returns tuple candidates' => [
         "SELECT option_id AS id, option_name AS name FROM wp_options WHERE (option_id, autoload) IN (SELECT v.option_id, m.meta_value FROM site_visibility AS v JOIN option_meta AS m ON v.option_id = m.meta_option_id WHERE m.meta_key = 'load' AND v.site_id = 1) ORDER BY id",
-        InvalidArgumentException::class,
+        ['siteurl', 'home', '_transient_feed'],
     ],
     'left join subquery source returns tuple candidates' => [
         "SELECT option_id AS id, option_name AS name FROM wp_options WHERE (option_id, autoload) IN (SELECT v.option_id, m.meta_value FROM site_visibility AS v LEFT JOIN option_meta AS m ON v.option_id = m.meta_option_id AND m.meta_key = 'load' WHERE v.site_id = 2) ORDER BY id",
-        InvalidArgumentException::class,
+        ['blogname', 'widget_recent'],
     ],
     'row-value in under and predicate' => [
         "SELECT option_id AS id, option_name AS name FROM wp_options WHERE kind IS NOT NULL AND (option_id, autoload) IN (SELECT meta_option_id, meta_value FROM option_meta WHERE meta_key = 'load') ORDER BY id",

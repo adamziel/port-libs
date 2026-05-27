@@ -137,6 +137,8 @@ final class SQLiteSelectQuery
             $rows = match ($type) {
                 'INNER' => SQLiteSelectResult::innerJoin($rows, $rightRows, self::requiredPredicate($join, 'INNER')),
                 'LEFT' => SQLiteSelectResult::leftJoin($rows, $rightRows, self::requiredPredicate($join, 'LEFT'), self::rightColumns($join, $rightRows)),
+                'RIGHT' => self::rightJoin($rows, $rightRows, self::requiredPredicate($join, 'RIGHT'), self::collectColumns($rows)),
+                'FULL' => self::fullJoin($rows, $rightRows, self::requiredPredicate($join, 'FULL'), self::collectColumns($rows), self::rightColumns($join, $rightRows)),
                 'CROSS' => SQLiteSelectResult::crossJoin($rows, $rightRows),
                 'USING' => SQLiteSelectResult::joinUsing($rows, $rightRows, self::usingColumns($join), (bool) ($join['left'] ?? false)),
                 default => throw new \InvalidArgumentException("SQLite SELECT query join type {$type} is not supported"),
@@ -190,6 +192,94 @@ final class SQLiteSelectQuery
         }
 
         throw new \InvalidArgumentException("SQLite SELECT query join type {$type} is not supported");
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $predicate
+     * @param list<string> $leftColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function rightJoin(array $leftRows, array $rightRows, callable $predicate, array $leftColumns): array
+    {
+        $result = [];
+
+        foreach ($rightRows as $right) {
+            $matchedAny = false;
+            foreach ($leftRows as $left) {
+                $matched = $predicate($left, $right);
+                if ($matched !== null && !is_bool($matched)) {
+                    throw new \InvalidArgumentException('SQLite RIGHT JOIN predicate must return bool or NULL');
+                }
+                if ($matched !== true) {
+                    continue;
+                }
+                $matchedAny = true;
+                $result[] = array_merge($left, $right);
+            }
+
+            if (!$matchedAny) {
+                $leftNulls = [];
+                foreach ($leftColumns as $column) {
+                    $leftNulls[$column] = null;
+                }
+                $result[] = array_merge($leftNulls, $right);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $predicate
+     * @param list<string> $leftColumns
+     * @param list<string> $rightColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function fullJoin(array $leftRows, array $rightRows, callable $predicate, array $leftColumns, array $rightColumns): array
+    {
+        $matchedRightIndexes = [];
+        $result = [];
+
+        foreach ($leftRows as $left) {
+            $matchedAny = false;
+            foreach ($rightRows as $rightIndex => $right) {
+                $matched = $predicate($left, $right);
+                if ($matched !== null && !is_bool($matched)) {
+                    throw new \InvalidArgumentException('SQLite FULL JOIN predicate must return bool or NULL');
+                }
+                if ($matched !== true) {
+                    continue;
+                }
+                $matchedAny = true;
+                $matchedRightIndexes[$rightIndex] = true;
+                $result[] = array_merge($left, $right);
+            }
+
+            if (!$matchedAny) {
+                $rightNulls = [];
+                foreach ($rightColumns as $column) {
+                    $rightNulls[$column] = null;
+                }
+                $result[] = array_merge($left, $rightNulls);
+            }
+        }
+
+        foreach ($rightRows as $rightIndex => $right) {
+            if (isset($matchedRightIndexes[$rightIndex])) {
+                continue;
+            }
+            $leftNulls = [];
+            foreach ($leftColumns as $column) {
+                $leftNulls[$column] = null;
+            }
+            $result[] = array_merge($leftNulls, $right);
+        }
+
+        return $result;
     }
 
     /**
@@ -290,6 +380,30 @@ final class SQLiteSelectQuery
             foreach (array_keys($row) as $column) {
                 if (!is_string($column) || $column === '') {
                     throw new \InvalidArgumentException('SQLite SELECT query join column names must be non-empty strings');
+                }
+                if (!in_array($column, $columns, true)) {
+                    $columns[] = $column;
+                }
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function collectColumns(array $rows): array
+    {
+        $columns = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite SELECT query rows must be arrays');
+            }
+            foreach (array_keys($row) as $column) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT query row column names must be non-empty strings');
                 }
                 if (!in_array($column, $columns, true)) {
                     $columns[] = $column;

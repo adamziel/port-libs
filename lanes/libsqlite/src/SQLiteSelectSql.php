@@ -48,7 +48,7 @@ final class SQLiteSelectSql
 
         $fromOffset = self::keywordOffset($sql, 'FROM');
         if ($fromOffset === null) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL needs FROM');
+            return self::constantSelectPlan(trim(substr($sql, 6)), $tables, $cteNames);
         }
 
         $selectSql = trim(substr($sql, 6, $fromOffset - 6));
@@ -115,6 +115,76 @@ final class SQLiteSelectSql
         }
         if (isset($clauseOffsets['LIMIT'])) {
             [$limit, $offset] = self::limitOffset(self::clauseText($tail, $clauseOffsets, 'LIMIT'));
+            $plan['limit'] = $limit;
+            $plan['offset'] = $offset;
+        }
+        if ($cteNames !== []) {
+            $plan['with'] = $cteNames;
+        }
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $cteNames
+     * @return array<string,mixed>
+     */
+    private static function constantSelectPlan(string $sql, array $tables, array $cteNames): array
+    {
+        if ($sql === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
+        }
+
+        $clauseOffsets = self::tailClauseOffsets($sql);
+        $selectEnd = self::firstOffset($clauseOffsets) ?? strlen($sql);
+        $selectSql = trim(substr($sql, 0, $selectEnd));
+        if ($selectSql === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
+        }
+
+        $distinct = false;
+        if (preg_match('/^distinct(?:\s+|$)/i', $selectSql) === 1) {
+            $distinct = true;
+            $selectSql = trim(substr($selectSql, 8));
+        } elseif (preg_match('/^all(?:\s+|$)/i', $selectSql) === 1) {
+            $selectSql = trim(substr($selectSql, 3));
+        }
+        if ($selectSql === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
+        }
+
+        if (isset($clauseOffsets['GROUP BY']) || isset($clauseOffsets['HAVING'])) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL constant SELECT does not support GROUP BY or HAVING');
+        }
+
+        $select = self::selectList($selectSql, $tables);
+        foreach ($select as $term) {
+            if (($term['type'] ?? null) === 'wildcard') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL wildcard projection needs FROM');
+            }
+        }
+
+        $plan = [
+            'from' => [[]],
+            'select' => $select,
+        ];
+        if ($distinct) {
+            $plan['distinct'] = true;
+        }
+        if (isset($clauseOffsets['WHERE'])) {
+            $plan['where'] = self::predicate(self::clauseText($sql, $clauseOffsets, 'WHERE'), $tables);
+        }
+        if (isset($clauseOffsets['ORDER BY'])) {
+            $plan['orderBy'] = self::orderBy(
+                self::clauseText($sql, $clauseOffsets, 'ORDER BY'),
+                $plan['select'],
+                null,
+                $tables,
+            );
+        }
+        if (isset($clauseOffsets['LIMIT'])) {
+            [$limit, $offset] = self::limitOffset(self::clauseText($sql, $clauseOffsets, 'LIMIT'));
             $plan['limit'] = $limit;
             $plan['offset'] = $offset;
         }
@@ -395,7 +465,7 @@ final class SQLiteSelectSql
 
     /**
      * @param list<array<string,mixed>> $select
-     * @return list<array{column:string,direction?:string}>
+     * @return list<array{column:string,direction?:string,collation?:string,nulls?:string}>
      */
     private static function compoundOrderBy(string $sql, array $select): array
     {
@@ -413,7 +483,7 @@ final class SQLiteSelectSql
 
         $orderBy = [];
         foreach (self::splitTopLevel($sql, ',') as $term) {
-            [$expression, $direction] = self::orderByExpressionDirection($term);
+            [$expression, $direction, $collation, $nulls] = self::orderByTermParts($term);
             if (preg_match('/^[1-9][0-9]*$/', $expression) === 1) {
                 $ordinal = (int) $expression;
                 if (!isset($columns[$ordinal])) {
@@ -428,6 +498,12 @@ final class SQLiteSelectSql
             $entry = ['column' => $column];
             if ($direction !== null) {
                 $entry['direction'] = $direction;
+            }
+            if ($collation !== null) {
+                $entry['collation'] = $collation;
+            }
+            if ($nulls !== null) {
+                $entry['nulls'] = $nulls;
             }
             $orderBy[] = $entry;
         }
@@ -478,9 +554,6 @@ final class SQLiteSelectSql
     private static function materializeWithTables(string $sql, array $tables): array
     {
         [$entries, $mainSql, $recursive] = self::withEntries($sql);
-        if ($recursive) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTEs are not supported');
-        }
 
         $cteNames = [];
         foreach ($entries as $entry) {
@@ -488,9 +561,13 @@ final class SQLiteSelectSql
             if (array_key_exists($name, $tables)) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} shadows an input table");
             }
-            $rows = preg_match('/^values\s+/i', $entry['sql']) === 1
-                ? self::executeValuesClause($entry['sql'])
-                : self::execute($entry['sql'], $tables);
+            if ($recursive && self::cteSqlReferencesName($entry['sql'], $name)) {
+                $rows = self::executeRecursiveCte($entry, $tables);
+            } elseif (preg_match('/^values\s+/i', $entry['sql']) === 1) {
+                $rows = self::executeValuesClause($entry['sql']);
+            } else {
+                $rows = self::execute($entry['sql'], $tables);
+            }
             if ($entry['columns'] !== []) {
                 $rows = self::renameCteColumns($rows, $entry['columns'], $name);
             }
@@ -499,6 +576,114 @@ final class SQLiteSelectSql
         }
 
         return [$tables, $mainSql, $cteNames];
+    }
+
+    /**
+     * @param array{name:string,columns:list<string>,sql:string} $entry
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<array<string,mixed>>
+     */
+    private static function executeRecursiveCte(array $entry, array $tables): array
+    {
+        $name = $entry['name'];
+        $compound = self::splitCompoundSql($entry['sql']);
+        if ($compound === null || count($compound['arms']) !== 2 || count($compound['operators']) !== 1) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs one anchor and one recursive arm");
+        }
+        $operator = strtoupper($compound['operators'][0]);
+        if ($operator !== 'UNION ALL' && $operator !== 'UNION') {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} supports UNION ALL or UNION");
+        }
+
+        [$anchorSql, $recursiveSql] = $compound['arms'];
+        if (!self::cteSqlReferencesName($recursiveSql, $name)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} recursive arm must reference itself");
+        }
+        if (self::cteSqlReferencesName($anchorSql, $name)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} anchor arm cannot reference itself");
+        }
+
+        $anchorRows = self::executeCteArm($anchorSql, $tables);
+        $columns = $entry['columns'] !== []
+            ? $entry['columns']
+            : ($anchorRows === [] ? [] : array_keys($anchorRows[0]));
+        if ($columns === []) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor columns");
+        }
+        $rows = self::normalizeRecursiveRows($anchorRows, $columns, $name);
+        $frontier = $rows;
+        $seen = [];
+        foreach ($rows as $row) {
+            $seen[self::recursiveRowKey($row)] = true;
+        }
+
+        for ($iteration = 0; $iteration < 1000 && $frontier !== []; $iteration++) {
+            $stepTables = $tables;
+            $stepTables[$name] = $frontier;
+            $stepRows = self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name);
+            $nextFrontier = [];
+            foreach ($stepRows as $row) {
+                $key = self::recursiveRowKey($row);
+                if ($operator === 'UNION' && isset($seen[$key])) {
+                    continue;
+                }
+                $rows[] = $row;
+                $nextFrontier[] = $row;
+                $seen[$key] = true;
+            }
+            $frontier = $nextFrontier;
+        }
+        if ($frontier !== []) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} exceeded iteration limit");
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<array<string,mixed>>
+     */
+    private static function executeCteArm(string $sql, array $tables): array
+    {
+        return preg_match('/^values\s+/i', $sql) === 1
+            ? self::executeValuesClause($sql)
+            : self::execute($sql, $tables);
+    }
+
+    private static function cteSqlReferencesName(string $sql, string $name): bool
+    {
+        return preg_match('/(^|[^A-Za-z0-9_])' . preg_quote($name, '/') . '([^A-Za-z0-9_]|$)/i', $sql) === 1;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function normalizeRecursiveRows(array $rows, array $columns, string $name): array
+    {
+        $normalized = [];
+        foreach ($rows as $row) {
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} row width does not match anchor");
+            }
+            $combined = array_combine($columns, array_values($row));
+            if (!is_array($combined)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} row width does not match anchor");
+            }
+            $normalized[] = $combined;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function recursiveRowKey(array $row): string
+    {
+        return serialize(array_values($row));
     }
 
     /**
@@ -649,9 +834,11 @@ final class SQLiteSelectSql
 
         if ($joinOffset !== null) {
             $joinSql = trim(substr($sql, $joinOffset));
+            $currentRows = self::qualifiedRows($base['rows'], $base['alias']);
             while ($joinSql !== '') {
-                [$join, $joinSql] = self::consumeJoin($joinSql, $tables);
+                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows);
                 $joins[] = $join;
+                $currentRows = [array_fill_keys(array_merge(self::collectColumns($currentRows), self::collectColumns($join['rows'])), null)];
             }
         }
 
@@ -968,30 +1155,56 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{0:array<string,mixed>,1:string}
      */
-    private static function consumeJoin(string $sql, array $tables): array
+    private static function consumeJoin(string $sql, array $tables, array $leftRows = []): array
     {
-        if (preg_match('/^(left\s+join|inner\s+join|cross\s+join|join)\s+/i', $sql, $match) !== 1) {
+        if (preg_match('/^((?:natural\s+)?(?:(?:left|right|full)(?:\s+outer)?\s+join|inner\s+join|cross\s+join|join))\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN clause is not supported');
         }
 
         $keyword = strtoupper(preg_replace('/\s+/', ' ', $match[1]));
+        $natural = str_starts_with($keyword, 'NATURAL ');
+        if ($natural) {
+            $keyword = substr($keyword, 8);
+        }
         $type = match ($keyword) {
             'JOIN', 'INNER JOIN' => 'INNER',
-            'LEFT JOIN' => 'LEFT',
+            'LEFT JOIN', 'LEFT OUTER JOIN' => 'LEFT',
+            'RIGHT JOIN', 'RIGHT OUTER JOIN' => 'RIGHT',
+            'FULL JOIN', 'FULL OUTER JOIN' => 'FULL',
             'CROSS JOIN' => 'CROSS',
             default => throw new \InvalidArgumentException('SQLite SELECT SQL JOIN type is not supported'),
         };
+        if ($natural && $type === 'CROSS') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL NATURAL CROSS JOIN is not supported');
+        }
 
         $rest = trim(substr($sql, strlen($match[0])));
         $boundary = self::nextJoinConditionOffset($rest);
-        if ($boundary === null && $type === 'CROSS') {
+        if ($natural) {
+            $boundary = null;
+        }
+        if ($boundary === null && ($type === 'CROSS' || $natural)) {
             $nextJoin = self::firstJoinOffset($rest);
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
             $table = self::tableReference($tableSql, $tables);
+            $rightRows = self::qualifiedRows($table['rows'], $table['alias']);
+            if ($natural) {
+                $columns = self::naturalJoinColumns($leftRows, $rightRows);
+                $join = [
+                    'type' => $type,
+                    'rows' => $rightRows,
+                    'predicate' => self::usingPredicate($columns, $leftRows, $rightRows),
+                ];
+                if ($type === 'LEFT' || $type === 'FULL') {
+                    $join['rightColumns'] = self::collectColumns($rightRows);
+                }
+
+                return [$join, $remaining];
+            }
             $join = [
                 'type' => 'CROSS',
-                'rows' => self::qualifiedRows($table['rows'], $table['alias']),
+                'rows' => $rightRows,
             ];
             if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
                 $join['dynamicRows'] = $table['dynamicRows'];
@@ -1021,7 +1234,19 @@ final class SQLiteSelectSql
         }
 
         if (preg_match('/^using\s*\((.*)\)$/i', $condition, $using) === 1) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING is not supported for qualified SQL text rows');
+            $columns = array_map('trim', self::splitTopLevel($using[1], ','));
+            foreach ($columns as $column) {
+                self::assertBareIdentifier($column, 'SQLite SELECT SQL JOIN USING column');
+            }
+            if ($type === 'CROSS') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CROSS JOIN does not support USING');
+            }
+            $join['predicate'] = self::usingPredicate($columns, $leftRows, $join['rows']);
+            if ($type === 'LEFT' || $type === 'FULL') {
+                $join['rightColumns'] = self::collectColumns($join['rows']);
+            }
+
+            return [$join, $remaining];
         }
 
         if (preg_match('/^on\s+(.+)$/i', $condition, $on) !== 1) {
@@ -1035,7 +1260,7 @@ final class SQLiteSelectSql
         $join['predicate'] = static function (array $left, array $right) use ($predicate): bool {
             return SQLiteSelectPredicate::filter([array_merge($left, $right)], $predicate) !== [];
         };
-        if ($type === 'LEFT') {
+        if ($type === 'LEFT' || $type === 'FULL') {
             $join['rightColumns'] = self::collectColumns($join['rows']);
             if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
                 $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
@@ -1061,6 +1286,102 @@ final class SQLiteSelectSql
         }
 
         return $columns;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @return list<string>
+     */
+    private static function naturalJoinColumns(array $leftRows, array $rightRows): array
+    {
+        $left = array_map(self::unqualifiedColumn(...), self::collectColumns($leftRows));
+        $right = array_map(self::unqualifiedColumn(...), self::collectColumns($rightRows));
+
+        return array_values(array_intersect($left, $right));
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @return callable(array<string,mixed>,array<string,mixed>):bool
+     */
+    private static function usingPredicate(array $columns, array $leftRows, array $rightRows): callable
+    {
+        if ($columns === []) {
+            return static fn (): bool => true;
+        }
+        $leftColumns = self::resolveJoinColumns($columns, self::collectColumns($leftRows), 'left');
+        $rightColumns = self::resolveJoinColumns($columns, self::collectColumns($rightRows), 'right');
+
+        return static function (array $left, array $right) use ($leftColumns, $rightColumns): bool {
+            foreach ($leftColumns as $index => $leftColumn) {
+                $rightColumn = $rightColumns[$index];
+                if (!array_key_exists($leftColumn, $left) || !array_key_exists($rightColumn, $right)) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING row is missing a comparison column');
+                }
+                if ($left[$leftColumn] === null || $right[$rightColumn] === null) {
+                    return false;
+                }
+                if (self::joinValueKey($left[$leftColumn]) !== self::joinValueKey($right[$rightColumn])) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string> $available
+     * @return list<string>
+     */
+    private static function resolveJoinColumns(array $columns, array $available, string $side): array
+    {
+        $resolved = [];
+        foreach ($columns as $column) {
+            $matches = array_values(array_filter(
+                $available,
+                static fn (string $candidate): bool => self::unqualifiedColumn($candidate) === $column
+            ));
+            if ($matches === []) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL JOIN USING {$side} side is missing column {$column}");
+            }
+            if ($side !== 'left' && count($matches) > 1) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL JOIN USING {$side} side column {$column} is ambiguous");
+            }
+            $resolved[] = $matches[0];
+        }
+
+        return $resolved;
+    }
+
+    private static function unqualifiedColumn(string $column): string
+    {
+        return str_contains($column, '.') ? substr($column, strrpos($column, '.') + 1) : $column;
+    }
+
+    private static function joinValueKey(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null:';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return 'integer:' . (int) $value;
+        }
+        if (is_float($value)) {
+            return 'real:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING values must be scalar, BLOB, or NULL');
     }
 
     /**
@@ -1250,9 +1571,6 @@ final class SQLiteSelectSql
     private static function correlatedSubqueryRows(string $sql, array $tables, array $outerRow): array
     {
         $plan = self::plan($sql, $tables);
-        if (($plan['joins'] ?? []) !== []) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL correlated subqueries support one FROM source');
-        }
         if (array_key_exists('groupBy', $plan)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL correlated subqueries do not support GROUP BY');
         }
@@ -1639,7 +1957,7 @@ final class SQLiteSelectSql
     {
         $terms = [];
         foreach (self::splitTopLevel($sql, ',') as $index => $term) {
-            [$expressionSql, $direction] = self::orderByExpressionDirection($term);
+            [$expressionSql, $direction, $collation, $nulls] = self::orderByTermParts($term);
             if ($expressionSql === '') {
                 throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY term cannot be empty');
             }
@@ -1671,6 +1989,12 @@ final class SQLiteSelectSql
 
             if ($direction !== null) {
                 $order['direction'] = $direction;
+            }
+            if ($collation !== null) {
+                $order['collation'] = $collation;
+            }
+            if ($nulls !== null) {
+                $order['nulls'] = $nulls;
             }
             $terms[] = $order;
         }
@@ -1712,6 +2036,29 @@ final class SQLiteSelectSql
         }
 
         return [$term, null];
+    }
+
+    /**
+     * @return array{0:string,1:?string,2:?string,3:?string}
+     */
+    private static function orderByTermParts(string $term): array
+    {
+        $term = trim($term);
+        $nulls = null;
+        if (preg_match('/\s+NULLS\s+(FIRST|LAST)\s*$/i', $term, $match) === 1) {
+            $nulls = strtoupper($match[1]);
+            $term = trim(substr($term, 0, -strlen($match[0])));
+        }
+
+        [$term, $direction] = self::orderByExpressionDirection($term);
+
+        $collation = null;
+        if (preg_match('/\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/i', $term, $match) === 1) {
+            $collation = strtoupper($match[1]);
+            $term = trim(substr($term, 0, -strlen($match[0])));
+        }
+
+        return [$term, $direction, $collation, $nulls];
     }
 
     /**
@@ -2093,7 +2440,7 @@ final class SQLiteSelectSql
     private static function firstJoinOffset(string $sql): ?int
     {
         $offsets = [];
-        foreach (['LEFT JOIN', 'INNER JOIN', 'CROSS JOIN', 'JOIN'] as $keyword) {
+        foreach (['NATURAL LEFT OUTER JOIN', 'NATURAL RIGHT OUTER JOIN', 'NATURAL FULL OUTER JOIN', 'NATURAL LEFT JOIN', 'NATURAL RIGHT JOIN', 'NATURAL FULL JOIN', 'NATURAL INNER JOIN', 'LEFT OUTER JOIN', 'RIGHT OUTER JOIN', 'FULL OUTER JOIN', 'INNER JOIN', 'CROSS JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'NATURAL JOIN', 'JOIN'] as $keyword) {
             $offset = self::keywordOffset($sql, $keyword);
             if ($offset !== null) {
                 $offsets[] = $offset;

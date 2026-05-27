@@ -9,7 +9,7 @@ final class SQLiteSelectResult
     /**
      * @param iterable<array<string,mixed>> $rows
      * @param list<string>|null $distinctColumns
-     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{column:string,direction?:string,collation?:string,nulls?:string}> $orderBy
      * @return list<array<string,mixed>>
      */
     public static function execute(
@@ -67,7 +67,7 @@ final class SQLiteSelectResult
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @param list<array{column:string,direction?:string}> $terms
+     * @param list<array{column:string,direction?:string,collation?:string,nulls?:string}> $terms
      * @return list<array<string,mixed>>
      */
     public static function orderBy(array $rows, array $terms): array
@@ -83,6 +83,14 @@ final class SQLiteSelectResult
             $direction = strtoupper($term['direction'] ?? 'ASC');
             if ($direction !== 'ASC' && $direction !== 'DESC') {
                 throw new \InvalidArgumentException('SQLite ORDER BY direction must be ASC or DESC');
+            }
+            $collation = strtoupper($term['collation'] ?? 'BINARY');
+            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                throw new \InvalidArgumentException("Unsupported SQLite ORDER BY collation: {$term['collation']}");
+            }
+            $nulls = strtoupper($term['nulls'] ?? '');
+            if ($nulls !== '' && $nulls !== 'FIRST' && $nulls !== 'LAST') {
+                throw new \InvalidArgumentException('SQLite ORDER BY NULLS placement must be FIRST or LAST');
             }
         }
 
@@ -100,7 +108,19 @@ final class SQLiteSelectResult
         usort($ordered, static function (array $left, array $right) use ($terms): int {
             foreach ($terms as $term) {
                 $direction = strtoupper($term['direction'] ?? 'ASC');
-                $comparison = self::compareSqlValues($left[0][$term['column']], $right[0][$term['column']]);
+                $nullComparison = self::compareNullPlacement(
+                    $left[0][$term['column']],
+                    $right[0][$term['column']],
+                    strtoupper($term['nulls'] ?? '')
+                );
+                if ($nullComparison !== null) {
+                    return $nullComparison;
+                }
+                $comparison = self::compareSqlValues(
+                    $left[0][$term['column']],
+                    $right[0][$term['column']],
+                    strtoupper($term['collation'] ?? 'BINARY'),
+                );
                 if ($comparison !== 0) {
                     return $direction === 'DESC' ? -$comparison : $comparison;
                 }
@@ -337,7 +357,7 @@ final class SQLiteSelectResult
         throw new \InvalidArgumentException('SQLite SELECT result values must be scalar, BLOB, or NULL');
     }
 
-    private static function compareSqlValues(mixed $left, mixed $right): int
+    private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY'): int
     {
         $leftRank = self::sortRank($left);
         $rightRank = self::sortRank($right);
@@ -354,7 +374,36 @@ final class SQLiteSelectResult
             return ((float) $left) <=> ((float) $right);
         }
 
+        if (is_string($left) && is_string($right)) {
+            return match ($collation) {
+                'BINARY' => strcmp($left, $right),
+                'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
+                'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+                default => throw new \InvalidArgumentException("Unsupported SQLite ORDER BY collation: {$collation}"),
+            };
+        }
+
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function compareNullPlacement(mixed $left, mixed $right, string $nulls): ?int
+    {
+        if ($nulls === '' || ($left !== null && $right !== null)) {
+            return null;
+        }
+        if ($left === null && $right === null) {
+            return 0;
+        }
+        if ($nulls === 'FIRST') {
+            return $left === null ? -1 : 1;
+        }
+
+        return $left === null ? 1 : -1;
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }
 
     private static function sortRank(mixed $value): int
