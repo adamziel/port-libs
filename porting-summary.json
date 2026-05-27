@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 21:38:53 UTC",
-    "sourceCommit": "21f0b82e923b7c0a02a5759b294d225ef4ca2f88",
-    "sourceCommitShort": "21f0b82e923b",
+    "generated": "2026-05-27 21:53:30 UTC",
+    "sourceCommit": "794e2292979e4d46fccb922edbd70dac9aab15b9",
+    "sourceCommitShort": "794e2292979e",
     "sourceBranch": "main",
-    "dashboardCommit": "3a4b7f98572335207e68fbf9e049ede51968e49e",
-    "dashboardCommitShort": "3a4b7f985723",
+    "dashboardCommit": "472e65af70a671a863ac20d924e4ff4bbdb3c077",
+    "dashboardCommitShort": "472e65af70a6",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "462",
             "coverage": "462 / 1589",
-            "php": "14649 pass / 0 fail",
+            "php": "15189 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch33 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch33 closure over JSON table lateral ON-index pushdown, WAL crash-recovery ch...",
-            "nextTarget": "Publish batch33 dashboard status, consume accepted batch33 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch33 subset: focused, targeted regression,...",
-            "commit": "dd34b25"
+            "audit": "Batch34 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch34 closure over JSONB path expression-index covering, WAL reader restart sn...",
+            "nextTarget": "Publish batch34 dashboard status, consume accepted batch34 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch34 subset: focused, targeted regression,...",
+            "commit": "77b4985"
         },
         {
             "library": "LightningCSS",
