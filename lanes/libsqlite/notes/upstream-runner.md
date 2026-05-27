@@ -1,5 +1,41 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Progress Audit
+
+Date: 2026-05-27
+
+This isolated release-suite blocker micro-slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerProgressAudit()`. The helper
+summarizes already parsed guarded bounded-runner artifacts without admitting
+release/all parity: passed and failed artifacts keep parsed test/error totals,
+active and timed-out artifacts keep `tcl(done/total)` progress, focused
+artifacts remain separated from broad release-like artifacts, and incomplete
+records remain explicit blockers.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change removes an opaque interrupted-run
+blocker for release/all handoff review: integrators can now see whether a
+guarded broad artifact is passed, failed, active, timed out, or incomplete
+before deciding whether to wait, rerun, or route it through existing
+countability gates.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteBoundedRunnerProgressAuditTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteBoundedRunnerProgressAuditTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused PASS-line delta: 3796 to 3832, +36. The new focused test file reports
+`1 test files, 151 assertions, 0 failures`.
+
+Dependency closure: no new support component is needed. This composes existing
+bounded-runner artifact records and supplied audit/stdout/process snapshot
+parsing only; it does not inspect secrets or launch upstream runners.
+
 ## Focused Native Mapping: Focused Runner Artifact-Set Admission
 
 Date: 2026-05-27
@@ -10880,6 +10916,38 @@ fixtures. Non-overlap: it avoids accepted VFS byte-range, process lock,
 lock-state, locked-writer, pager checkpoint, rollback, WAL, B-tree, JSON, and
 SELECT clusters by covering only `PRAGMA locking_mode` current connection
 state.
+
+## Focused Native Mapping: INSERT DEFAULT VALUES Generated Defaults
+
+Date: 2026-05-27
+
+This isolated libsqlite micro-slice adds bounded native PHP execution for
+`INSERT INTO ... DEFAULT VALUES` over copied row arrays. The executor parses
+the target table from SQL text, reads column defaults and generated-column
+expressions from `CREATE TABLE` SQL, assigns the next INTEGER PRIMARY KEY rowid,
+evaluates literal, signed numeric, `CURRENT_*`, `coalesce()`, `upper()`,
+`lower()`, `length()`, concatenation, and simple arithmetic expressions, then
+computes virtual/stored generated columns after defaulted base columns.
+
+Focused evidence:
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteInsertDefaultValuesGeneratedDefaultTest.php`
+reported `1 test files, 51 assertions, 0 failures` and 41 PASS lines. The
+WordPress smoke
+`php lanes/libsqlite/examples/wordpress-insert-default-values-generated-default.php --self-test`
+passed and reports a copied `wp_options`-style default row without requiring
+`ext/sqlite`.
+
+Dashboard impact: `lane-status.json` `phpPass` moved from 3796 to 3837. No
+mapped denominator change is claimed; this is focused PHP behavior coverage,
+not a new upstream inventory unit.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local SQL/schema parsing and scalar expression helpers. Non-overlap: this
+avoids accepted SELECT SQL text/JOIN/GROUP/subquery/ORDER expression clusters,
+VFS lock/write/sync/rollback apply clusters, WAL checkpoint/savepoint byte
+clusters, B-tree page-move/root-collapse/overflow clusters, JSON table
+source/cursor/constraint clusters, Unicode GLOB, and PRAGMA locking-mode work by
+covering only INSERT DEFAULT VALUES with generated/default column evaluation.
 ### 2026-05-27 ANALYZE sqlite_stat1 planner corpus
 
 This isolated planner micro-slice adds a bounded native PHP corpus for SQLite
@@ -10904,3 +10972,43 @@ and visible/hidden constraint work, VFS file writer/sync/lock/rollback apply,
 WAL savepoint byte truncation/checkpoint transaction work, B-tree page move/root
 collapse/overflow freelist release, and Unicode GLOB range work. Dependency
 closure: no new support component is needed.
+## Focused Native Mapping: JSON Scalar SQL Input Mutation next13
+
+Date: 2026-05-27
+
+This isolated JSON mutation slice covers SQLite JSON SQL-function boundaries
+where numeric SQL values are accepted as JSON documents. Native
+`json_patch()`/`jsonb_patch()`, `json_set()`/`jsonb_set()` and related
+mutation variants, and `json_remove()`/`jsonb_remove()` now normalize PHP
+integer, finite float, and boolean inputs at the JSON-document argument
+boundary. Booleans follow SQLite SQL truth literal behavior by entering the
+JSON boundary as integer `1` or `0`; non-finite float inputs are rejected.
+
+Focused verification:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonScalarInputMutationNext13Test.php
+php lanes/libsqlite/examples/wordpress-json-scalar-input-mutation-next13.php
+```
+
+Result: the focused test file reported `1 test files, 54 assertions, 0
+failures` with 54 PASS lines. The WordPress smoke reports copied numeric
+`wp_options.option_value` rows promoted by `json_patch()`, root-replaced by
+`json_set()`, left unchanged by nested set/remove paths, removed to SQL NULL at
+`$`, and returned as JSONB blobs for `jsonb_patch()` without requiring
+`ext/sqlite`.
+
+Dashboard impact: `lane-status.json` `phpPass` moves from 3796 to 3850. No
+mapped upstream denominator row is claimed because this is focused PHP
+coverage for an already mapped JSON mutation family, not a new hydrated
+upstream inventory unit.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local JSON5 parser, JSONB codec, canonical JSON encoder, JSON path
+mutation/removal helpers, and copied WordPress option smoke fixtures.
+
+Non-overlap: this avoids accepted JSON table cursor/source/hidden/visible
+constraint work, JSON host joins, malformed JSONB planner diagnostics,
+Unicode GLOB, VFS write/sync/lock/rollback clusters, WAL checkpoint/savepoint
+clusters, B-tree page move/overflow/root-collapse clusters, and parser-level
+SELECT SQL text/subquery/group/order work.

@@ -88,9 +88,15 @@ final class SQLiteVacuumBackupSerializePlan
     }
 
     /**
-     * @return array{status:string,target_path:string,page_size:int,page_count:int,source_freelist_pages:int,bytes:string,operations:list<array<string,mixed>>,dependencies:list<string>}
+     * @return array{status:string,target_path:string,page_size:int,page_count:int,source_freelist_pages:int,bytes:string,operations:list<array<string,mixed>>,dependencies:list<string>,source_auto_vacuum:string,target_auto_vacuum:string,incremental_vacuum:int,largest_root_page:int,pointer_map_page_numbers:list<int>,pointer_map_entry_page_numbers:list<int>,vacuum_rewrite_operations:list<array<string,mixed>>}
      */
-    public static function vacuumInto(SQLiteDatabase $source, string $targetPath, bool $overwrite = false): array
+    public static function vacuumInto(
+        SQLiteDatabase $source,
+        string $targetPath,
+        bool $overwrite = false,
+        int|string|null $pageSize = null,
+        int|string|null $autoVacuum = null,
+    ): array
     {
         if ($targetPath === '') {
             throw new \InvalidArgumentException('SQLite VACUUM INTO requires a target path');
@@ -99,13 +105,24 @@ final class SQLiteVacuumBackupSerializePlan
             throw new \InvalidArgumentException('SQLite VACUUM INTO target already exists');
         }
 
-        $bytes = self::databaseBytes($source);
+        $rewrite = SQLiteVacuumPageSizeAutoVacuumPlan::plan($source, $pageSize, $autoVacuum);
+        $bytes = $rewrite['bytes'];
+        $target = SQLiteDatabase::fromBytes($bytes);
+        $pointerMapPageNumbers = self::pointerMapPageNumbers($target);
+        $pointerMapEntryPageNumbers = [];
+        if ($target->isAutoVacuum()) {
+            for ($pageNumber = 2; $pageNumber <= $target->pageCount(); $pageNumber++) {
+                if (!$target->isPointerMapPage($pageNumber)) {
+                    $pointerMapEntryPageNumbers[] = $pageNumber;
+                }
+            }
+        }
 
         return [
             'status' => 'ready',
             'target_path' => $targetPath,
-            'page_size' => $source->header->pageSize,
-            'page_count' => $source->pageCount(),
+            'page_size' => $rewrite['target_page_size'],
+            'page_count' => $rewrite['target_page_count'],
             'source_freelist_pages' => $source->header->freelistPageCount,
             'bytes' => $bytes,
             'operations' => [
@@ -128,8 +145,25 @@ final class SQLiteVacuumBackupSerializePlan
                     'durable' => true,
                     'reason' => 'persist_vacuum_into_target',
                 ],
+                [
+                    'op' => 'vacuum_rewrite',
+                    'source_page_size' => $rewrite['source_page_size'],
+                    'target_page_size' => $rewrite['target_page_size'],
+                    'source_auto_vacuum' => $rewrite['source_auto_vacuum'],
+                    'target_auto_vacuum' => $rewrite['target_auto_vacuum'],
+                    'pointer_map_pages' => $pointerMapPageNumbers,
+                    'pointer_map_entry_pages' => $pointerMapEntryPageNumbers,
+                    'reason' => 'materialize_vacuum_destination_header_and_pointer_map_layout',
+                ],
             ],
-            'dependencies' => ['sqlite-vacuum-into', 'sqlite-database-image'],
+            'dependencies' => ['sqlite-vacuum-into', 'sqlite-database-image', 'sqlite-auto-vacuum-pointer-map-layout'],
+            'source_auto_vacuum' => $rewrite['source_auto_vacuum'],
+            'target_auto_vacuum' => $rewrite['target_auto_vacuum'],
+            'incremental_vacuum' => $rewrite['incremental_vacuum'],
+            'largest_root_page' => $rewrite['largest_root_page'],
+            'pointer_map_page_numbers' => $pointerMapPageNumbers,
+            'pointer_map_entry_page_numbers' => $pointerMapEntryPageNumbers,
+            'vacuum_rewrite_operations' => $rewrite['operations'],
         ];
     }
 
@@ -141,6 +175,25 @@ final class SQLiteVacuumBackupSerializePlan
         }
 
         return implode('', $pages);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function pointerMapPageNumbers(SQLiteDatabase $database): array
+    {
+        if (!$database->isAutoVacuum()) {
+            return [];
+        }
+
+        $pages = [];
+        for ($pageNumber = 2; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            if ($database->isPointerMapPage($pageNumber)) {
+                $pages[] = $pageNumber;
+            }
+        }
+
+        return $pages;
     }
 
     private static function assertSchemaName(string $schema): void

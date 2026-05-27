@@ -10,6 +10,7 @@ final class SQLiteUpsertDoUpdateWherePlan
      * @param list<array<string,mixed>> $rows
      * @param list<array<string,mixed>> $incomingRows
      * @param list<string> $uniqueColumns
+     * @param list<list<string>>|null $uniqueConstraints
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where
      * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int}
@@ -20,11 +21,13 @@ final class SQLiteUpsertDoUpdateWherePlan
         array $uniqueColumns,
         array $assignments,
         ?callable $where = null,
+        ?array $uniqueConstraints = null,
     ): array {
         self::validateRows($rows, 'target');
         self::validateRows($incomingRows, 'incoming');
         self::validateUniqueColumns($uniqueColumns);
         self::validateAssignments($assignments);
+        $uniqueConstraints = self::normalizeUniqueConstraints($uniqueColumns, $uniqueConstraints);
 
         $before = $rows;
         $inserted = [];
@@ -37,6 +40,7 @@ final class SQLiteUpsertDoUpdateWherePlan
             self::ensureColumns($incoming, $uniqueColumns, 'incoming');
             $conflictIndex = self::findConflictIndex($rows, $incoming, $uniqueColumns);
             if ($conflictIndex === null) {
+                self::ensureNoUniqueConflict($rows, $incoming, $uniqueConstraints, null, 'insert');
                 $rows[] = $incoming;
                 $inserted[] = $incoming;
                 $returning[] = $incoming;
@@ -58,11 +62,7 @@ final class SQLiteUpsertDoUpdateWherePlan
 
             $otherRows = $rows;
             unset($otherRows[$conflictIndex]);
-            foreach (array_values($otherRows) as $other) {
-                if (self::rowsConflict($other, $updatedRow, $uniqueColumns)) {
-                    throw new \InvalidArgumentException('SQLite UPSERT DO UPDATE produced a unique constraint conflict');
-                }
-            }
+            self::ensureNoUniqueConflict(array_values($otherRows), $updatedRow, $uniqueConstraints, null, 'update');
 
             $rows[$conflictIndex] = $updatedRow;
             $updated[] = $updatedRow;
@@ -200,6 +200,50 @@ final class SQLiteUpsertDoUpdateWherePlan
         foreach ($uniqueColumns as $column) {
             if (!preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', $column)) {
                 throw new \InvalidArgumentException('SQLite UPSERT unique column name is malformed');
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
+     * @return list<list<string>>
+     */
+    private static function normalizeUniqueConstraints(array $conflictTarget, ?array $uniqueConstraints): array
+    {
+        if ($uniqueConstraints === null) {
+            return [$conflictTarget];
+        }
+        if ($uniqueConstraints === [] || !array_is_list($uniqueConstraints)) {
+            throw new \InvalidArgumentException('SQLite UPSERT unique constraints must be a non-empty list');
+        }
+
+        $normalized = [];
+        foreach ($uniqueConstraints as $constraint) {
+            if (!is_array($constraint)) {
+                throw new \InvalidArgumentException('SQLite UPSERT unique constraint must be a column list');
+            }
+            self::validateUniqueColumns($constraint);
+            $normalized[] = $constraint;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function ensureNoUniqueConflict(array $rows, array $candidate, array $uniqueConstraints, ?int $ignoreIndex, string $operation): void
+    {
+        foreach ($uniqueConstraints as $columns) {
+            foreach ($rows as $index => $row) {
+                if ($ignoreIndex !== null && $index === $ignoreIndex) {
+                    continue;
+                }
+                if (self::rowsConflict($row, $candidate, $columns)) {
+                    throw new \InvalidArgumentException("SQLite UPSERT {$operation} produced a unique constraint conflict");
+                }
             }
         }
     }

@@ -144,6 +144,42 @@ final class SQLiteSelectExpression
         }
 
         $normalized = strtolower($function);
+        if ($normalized === 'json' || $normalized === 'jsonb') {
+            return SQLiteJsonCanonical::jsonSqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_array' || $normalized === 'jsonb_array') {
+            return SQLiteJsonConstructor::jsonArraySqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_object' || $normalized === 'jsonb_object') {
+            return SQLiteJsonConstructor::jsonObjectSqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_quote') {
+            return SQLiteJsonQuote::jsonQuoteSqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_valid') {
+            $valid = SQLiteJsonValidity::jsonValidSqlFunctionArguments($normalized, $evaluated);
+
+            return $valid === null ? null : ($valid ? 1 : 0);
+        }
+        if ($normalized === 'json_pretty') {
+            return SQLiteJsonPretty::jsonPrettySqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_patch' || $normalized === 'jsonb_patch') {
+            return SQLiteJsonPatch::patchSqlFunctionArguments($normalized, $evaluated);
+        }
+        if (
+            $normalized === 'json_insert'
+            || $normalized === 'jsonb_insert'
+            || $normalized === 'json_set'
+            || $normalized === 'jsonb_set'
+            || $normalized === 'json_replace'
+            || $normalized === 'jsonb_replace'
+        ) {
+            return SQLiteJsonMutation::mutateSqlFunctionArguments($normalized, $evaluated);
+        }
+        if ($normalized === 'json_remove' || $normalized === 'jsonb_remove') {
+            return SQLiteJsonRemove::removeSqlFunctionArguments($normalized, $evaluated);
+        }
         if ($normalized === 'json_extract' || $normalized === 'jsonb_extract') {
             if ($evaluated === []) {
                 throw new \InvalidArgumentException('SQLite SELECT expression json_extract() requires a JSON argument');
@@ -275,6 +311,19 @@ final class SQLiteSelectExpression
 
     private static function integerOperand(mixed $value): int
     {
+        if (is_bool($value) || is_int($value)) {
+            return (int) $value;
+        }
+        if (is_float($value)) {
+            return self::clampFloatToInt64($value);
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return self::integerPrefix($value->bytes);
+        }
+        if (is_string($value)) {
+            return self::integerPrefix($value);
+        }
+
         return (int) self::numericOperand($value);
     }
 
@@ -303,10 +352,70 @@ final class SQLiteSelectExpression
             return 0;
         }
         if (preg_match('/^[+-]?[0-9]+$/', $match[0]) === 1) {
-            return (int) $match[0];
+            return self::integerTextWithinInt64($match[0]) ? (int) $match[0] : (float) $match[0];
         }
 
         return (float) $match[0];
+    }
+
+    private static function integerPrefix(string $value): int
+    {
+        $trimmed = ltrim($value);
+        if (preg_match('/^[+-]?[0-9]+/', $trimmed, $match) !== 1) {
+            return 0;
+        }
+
+        $integer = $match[0];
+        $negative = str_starts_with($integer, '-');
+        if ($integer[0] === '-' || $integer[0] === '+') {
+            $integer = substr($integer, 1);
+        }
+
+        $digits = ltrim($integer, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return $negative ? PHP_INT_MIN : PHP_INT_MAX;
+        }
+        if ($negative && $digits === '9223372036854775808') {
+            return PHP_INT_MIN;
+        }
+
+        $parsed = (int) $digits;
+
+        return $negative ? -$parsed : $parsed;
+    }
+
+    private static function clampFloatToInt64(float $value): int
+    {
+        if ($value >= 9223372036854775807.0) {
+            return PHP_INT_MAX;
+        }
+        if ($value <= -9223372036854775808.0) {
+            return PHP_INT_MIN;
+        }
+
+        return (int) $value;
+    }
+
+    private static function integerTextWithinInt64(string $value): bool
+    {
+        $negative = str_starts_with($value, '-');
+        if ($value[0] === '-' || $value[0] === '+') {
+            $value = substr($value, 1);
+        }
+
+        $digits = ltrim($value, '0');
+        if ($digits === '') {
+            return true;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+
+        return strlen($digits) < strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) <= 0);
     }
 
     private static function integerLike(int|float $left, int|float $right): bool

@@ -82,19 +82,64 @@ final class SQLiteTextAggregate
      */
     public static function groupConcatDistinctOrderBy(iterable $rows, mixed $separator = ','): ?string
     {
-        $ordered = [];
-        $sequence = 0;
+        $distinctRows = self::distinctOrderRows($rows);
+
+        return self::groupConcatOrderBy($distinctRows, $separator);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function groupConcatDistinctOrderByFilter(iterable $rows, mixed $separator = ','): ?string
+    {
+        $filteredRows = [];
         foreach ($rows as $row) {
-            $ordered[] = [$row[0], $row[1], $sequence++];
+            if (count($row) < 3) {
+                throw new \InvalidArgumentException('SQLite group_concat(DISTINCT ORDER BY) FILTER rows require value, order key, and filter columns');
+            }
+            if (self::isSqlTrue($row[2])) {
+                $filteredRows[] = [$row[0], $row[1]];
+            }
         }
 
+        return self::groupConcatDistinctOrderBy($filteredRows, $separator);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     * @return list<array{0:mixed,1:mixed}>
+     */
+    private static function distinctOrderRows(iterable $rows): array
+    {
+        $distinct = [];
+        $sequence = 0;
+        foreach ($rows as $row) {
+            if (count($row) < 2) {
+                throw new \InvalidArgumentException('SQLite group_concat(DISTINCT ORDER BY) rows require value and order key columns');
+            }
+            if ($row[0] === null) {
+                continue;
+            }
+
+            $key = self::distinctKey($row[0]);
+            if (isset($distinct[$key])) {
+                continue;
+            }
+
+            $distinct[$key] = [$row[0], $row[1], $sequence++];
+        }
+
+        $ordered = array_values($distinct);
         usort($ordered, static function (array $left, array $right): int {
             $comparison = self::compareSqlValues($left[1], $right[1]);
 
             return $comparison !== 0 ? $comparison : ($left[2] <=> $right[2]);
         });
 
-        return self::groupConcatDistinct(array_column($ordered, 0), $separator);
+        return array_map(
+            static fn (array $row): array => [$row[0], $row[1]],
+            $ordered
+        );
     }
 
     /**

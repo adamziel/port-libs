@@ -371,6 +371,18 @@ final class SQLiteSelectExpressionIndexPlan
                 ],
             ];
         }
+        if ($operator === 'IS NOT NULL') {
+            $left = self::columnOperand($predicate['left'] ?? null);
+            if ($left === null) {
+                return null;
+            }
+
+            return [
+                'column' => $left,
+                'operator' => 'is-not-null',
+                'values' => true,
+            ];
+        }
 
         return null;
     }
@@ -424,6 +436,10 @@ final class SQLiteSelectExpressionIndexPlan
         }
         if ($constraint['operator'] === 'IN' && is_array($constraint['values'])) {
             return $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values']);
+        }
+        if ($constraint['operator'] === 'is-not-null') {
+            return $predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL
+                && strcasecmp($predicate->columnName, $constraint['column']) === 0;
         }
         if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
             return $predicate->isImpliedByRangeLookup(

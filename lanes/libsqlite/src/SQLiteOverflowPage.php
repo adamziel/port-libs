@@ -7,6 +7,74 @@ namespace PortLibs\LibSqlite;
 final class SQLiteOverflowPage
 {
     /**
+     * @param callable(int): string $pageReader
+     * @return list<int>
+     */
+    public static function pageNumbersFromChain(
+        int $firstPageNumber,
+        int $overflowPayloadLength,
+        callable $pageReader,
+        int $pageSize = 512,
+        ?int $usableSize = null,
+    ): array {
+        $usableSize ??= $pageSize;
+        self::validatePageShape($pageSize, $usableSize);
+
+        if ($overflowPayloadLength < 1) {
+            throw new \InvalidArgumentException('SQLite overflow chain payload length must be positive');
+        }
+        if ($firstPageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite overflow chain requires a valid first overflow page');
+        }
+
+        $pageCount = self::requiredPageCount($overflowPayloadLength, $pageSize, $usableSize);
+        $pageNumbers = [];
+        $seen = [];
+        $pageNumber = $firstPageNumber;
+
+        for ($index = 0; $index < $pageCount; $index++) {
+            if ($pageNumber < 2) {
+                throw new \InvalidArgumentException('SQLite overflow chain ended before the expected payload length');
+            }
+            if (isset($seen[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite overflow chain loops at page {$pageNumber}");
+            }
+
+            $page = $pageReader($pageNumber);
+            if (!is_string($page) || strlen($page) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite overflow page {$pageNumber} image length does not match page size");
+            }
+
+            $seen[$pageNumber] = true;
+            $pageNumbers[] = $pageNumber;
+            $pageNumber = self::readUInt32($page, 0);
+        }
+
+        if ($pageNumber !== 0) {
+            throw new \InvalidArgumentException('SQLite overflow chain has trailing pages beyond the expected payload length');
+        }
+
+        return $pageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function pageNumbersFromDatabase(
+        SQLiteDatabase $database,
+        int $firstPageNumber,
+        int $overflowPayloadLength,
+    ): array {
+        return self::pageNumbersFromChain(
+            $firstPageNumber,
+            $overflowPayloadLength,
+            static fn (int $pageNumber): string => $database->page($pageNumber),
+            $database->header->pageSize,
+            $database->usablePageSize(),
+        );
+    }
+
+    /**
      * @return list<string>
      */
     public static function encodeChain(
@@ -110,5 +178,10 @@ final class SQLiteOverflowPage
         if ($usableSize < 480 || $usableSize > $pageSize) {
             throw new \InvalidArgumentException('SQLite overflow usable size is outside the page');
         }
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        return unpack('N', substr($bytes, $offset, 4))[1];
     }
 }

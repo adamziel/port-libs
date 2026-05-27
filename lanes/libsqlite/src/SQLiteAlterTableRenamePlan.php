@@ -74,6 +74,7 @@ final class SQLiteAlterTableRenamePlan
                     strcasecmp($identifier, $oldName) === 0
                     && !self::isObjectNamePosition($tokens, $index, $previousKeyword)
                     && !self::isFunctionNamePosition($tokens, $index)
+                    && !self::isExplicitAliasPosition($tokens, $index)
                 ) {
                     $result .= self::renderIdentifier($newName, $token['quote']);
                 } else {
@@ -152,6 +153,18 @@ final class SQLiteAlterTableRenamePlan
 
         $previous = self::previousSignificant($tokens, $index - 1);
         return $previous === null || $previous['text'] !== '.';
+    }
+
+    /**
+     * @param list<array{type:string,text:string,identifier?:string,quote?:string|null}> $tokens
+     */
+    private static function isExplicitAliasPosition(array $tokens, int $index): bool
+    {
+        $previous = self::previousSignificant($tokens, $index - 1);
+
+        return $previous !== null
+            && $previous['type'] === 'keyword'
+            && strcasecmp((string) $previous['identifier'], 'AS') === 0;
     }
 
     /**

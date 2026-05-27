@@ -5105,3 +5105,25 @@ slice reuses lane-local SELECT planner arrays and native PHP stat parsing only.
 ## FTS5 Option Search
 
 `examples/wordpress-fts5-option-search.php` previews copied `wp_options` text through bounded FTS5-style MATCH ranking and snippet diagnostics. It reports selected option ids, highlighted snippets, and ascending bm25-like ranks for `search cache` without requiring `ext/sqlite`.
+## JSON Scalar SQL Input Mutation next13 Scenario
+
+Copied WordPress `wp_options` fixtures can contain numeric option values that
+are later migrated into JSON plugin-setting documents. The
+`wordpress-json-scalar-input-mutation-next13.php` smoke reports those numeric
+SQL values flowing through native `json_patch()`, `json_set()`,
+`json_remove()`, and `jsonb_patch()` without `ext/sqlite`: object merge-patch
+promotes a scalar into an object, root set replaces the scalar, nested set and
+remove paths leave the scalar unchanged, root remove returns SQL NULL, and
+`jsonb_patch()` preserves BLOB result typing.
+
+Status delta 2026-05-27 isolated `yield-sqlite-json-patch-set-remove-edge-next13`
+slice: added scalar SQL input normalization for JSON document arguments in
+`SQLiteJsonPatch`, `SQLiteJsonMutation`, and `SQLiteJsonRemove`; added
+`SQLiteJsonScalarInputMutationNext13Test.php` with 54 focused PASS cases; and
+added the WordPress smoke. `lane-status.json` `phpPass` moved from 3796 to
+3850. No mapped denominator change is claimed.
+
+Dependency closure: no new shared support component is needed. This slice
+reuses lane-local JSON parsing/JSONB/path mutation helpers and copied
+WordPress option fixtures only. Follow-up should target non-overlapping JSON
+planner/JSONB behavior rather than this scalar SQL input mutation boundary.
