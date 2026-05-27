@@ -13,6 +13,7 @@ use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageMovePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteBTreeRootCollapsePlan;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteBusyHandler;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
@@ -2709,6 +2710,172 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergePlan::indexInterior(SQLiteIndexLeafPage::assemble([
             SQLiteIndexCell::encode($payload('a', 1)),
         ], $pageSize), $rightPage, 4, 5, 3, $payload('f', 60), $pageSize));
+    },
+    'collapses sqlite table interior root onto only child leaf after delete underflow' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 4), pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $rootPage = SQLiteTableInteriorPage::assemble([], 4, $pageSize);
+        $childPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'home', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(20, SQLiteRecord::encode([null, 'siteurl', 'https://example.test/wp', 'yes'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $rootPage . $childPage);
+
+        $plan = SQLiteBTreeRootCollapsePlan::collapseOnlyChild($database, 3, true);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $rootHeader = $postDatabase->pageHeader(3);
+        $rootCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $rootHeader);
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteBTreeRootCollapsePlan::class, get_class($plan));
+        $t->same(3, $plan->rootPageNumber);
+        $t->same(4, $plan->obsoleteChildPageNumber);
+        $t->same('table-interior', $plan->rootBeforeType);
+        $t->same('table-leaf', $plan->rootAfterType);
+        $t->same(0, $plan->rootBeforeCellCount);
+        $t->same(2, $plan->rootAfterCellCount);
+        $t->same([], $plan->childPageNumbers);
+        $t->same([4], $plan->freePlan->freedPageNumbers);
+        $t->same([4], $plan->freePlan->newTrunkPageNumbers);
+        $t->same(4, $plan->freePlan->firstFreelistTrunkPage);
+        $t->same(1, $plan->freePlan->freelistPageCount);
+        $t->same([], $plan->freePlan->clearedPageNumbers);
+        $t->same([1, 2, 3, 4], $plan->updatedPageNumbers());
+        $t->same('root-collapse-apply', $summary['action']);
+        $t->same(3, $summary['root_page']);
+        $t->same(4, $summary['obsolete_child_page']);
+        $t->same('table-leaf', $summary['root_after_type']);
+        $t->same(2, $summary['root_after_cells']);
+        $t->same([4], $summary['freed_pages']);
+        $t->same(1, $summary['freelist_page_count']);
+        $t->same(4, $summary['first_freelist_trunk_page']);
+        $t->same([1, 2, 3, 4], $summary['updated_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same([], $summary['secure_delete_cleared_pages']);
+        $t->same('table-leaf', $rootHeader->pageType);
+        $t->same(2, $rootHeader->cellCount);
+        $t->same([10, 20], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $rootCells));
+        $t->same('home', SQLiteTableRow::fromTableLeafCell($rootCells[0])->values()[1]);
+        $t->same('siteurl', SQLiteTableRow::fromTableLeafCell($rootCells[1])->values()[1]);
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same([4], $postDatabase->freelistAllocationOrder());
+        $t->same('root-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRootCollapsePlan::collapseOnlyChild($database, 4));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRootCollapsePlan::collapseOnlyChild(SQLiteDatabase::fromBytes(
+            $firstPage . $pointerMapPage . SQLiteTableInteriorPage::assemble([
+                SQLiteTableInteriorCell::encode(4, 10),
+            ], 4, $pageSize) . $childPage,
+        ), 3));
+    },
+    'collapses sqlite index interior root onto only child interior with pointer-map rewrites' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $payload = static fn (string $autoload, string $name, int $rowid): string => SQLiteRecord::encode([$autoload, $name, $rowid]);
+        $firstPage = substr_replace($makeFirstPage($pageSize, 7), pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            6 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            7 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $rootPage = SQLiteIndexInteriorPage::assemble([], 4, $pageSize);
+        $childPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode($payload('no', 'cron_lock', 10), $pageSize, null, 5),
+            SQLiteIndexCell::encode($payload('yes', 'home', 20), $pageSize, null, 6),
+        ], 7, $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $rootPage
+            . $childPage
+            . SQLiteIndexLeafPage::assemble([], $pageSize)
+            . SQLiteIndexLeafPage::assemble([], $pageSize)
+            . SQLiteIndexLeafPage::assemble([], $pageSize),
+        );
+
+        $plan = SQLiteBTreeRootCollapsePlan::collapseOnlyChild($database, 3, true);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $rootHeader = $postDatabase->pageHeader(3);
+        $rootCells = SQLiteIndexCell::parsePageCells($postDatabase->page(3), $rootHeader, $pageSize);
+        $summary = $plan->toArray();
+
+        $t->same(3, $plan->rootPageNumber);
+        $t->same(4, $plan->obsoleteChildPageNumber);
+        $t->same('index-interior', $plan->rootBeforeType);
+        $t->same('index-interior', $plan->rootAfterType);
+        $t->same(0, $plan->rootBeforeCellCount);
+        $t->same(2, $plan->rootAfterCellCount);
+        $t->same([5, 6, 7], $plan->childPageNumbers);
+        $t->same([5, 6, 7], array_keys($plan->pointerMapUpdates));
+        $t->same(['type' => SQLitePointerMapEntry::BTREE_PAGE, 'parent_page_number' => 3], $plan->pointerMapUpdates[6]);
+        $t->same([1, 2, 3, 4], $plan->updatedPageNumbers());
+        $t->same([4], $plan->freePlan->freedPageNumbers);
+        $t->same([4], $plan->freePlan->newTrunkPageNumbers);
+        $t->same(4, $plan->freePlan->firstFreelistTrunkPage);
+        $t->same(1, $plan->freePlan->freelistPageCount);
+        $t->same('root-collapse-apply', $summary['action']);
+        $t->same('index-interior', $summary['root_after_type']);
+        $t->same(2, $summary['root_after_cells']);
+        $t->same([5, 6, 7], $summary['child_page_numbers']);
+        $t->same([4], $summary['freed_pages']);
+        $t->same([1, 2, 3, 4], $summary['updated_page_numbers']);
+        $t->same('index-interior', $rootHeader->pageType);
+        $t->same(2, $rootHeader->cellCount);
+        $t->same(7, $rootHeader->rightMostPointer);
+        $t->same([5, 6], array_map(static fn (SQLiteIndexCell $cell): int => $cell->leftChildPage ?? 0, $rootCells));
+        $t->same([
+            ['no', 'cron_lock', 10],
+            ['yes', 'home', 20],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $rootCells));
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same(3, $postDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same(3, $postDatabase->pointerMapEntryForPage(7)->parentPageNumber);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRootCollapsePlan::collapseOnlyChild($database, 99));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRootCollapsePlan::collapseOnlyChild(SQLiteDatabase::fromBytes(
+            $firstPage . $pointerMapPage . SQLiteTableLeafPage::assemble([], $pageSize) . $childPage . str_repeat("\0", $pageSize * 3),
+        ), 3));
     },
     'moves sqlite last table leaf page into auto-vacuum freelist slot with parent and pointer-map rewrites' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

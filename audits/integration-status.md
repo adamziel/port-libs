@@ -119556,4 +119556,28 @@ Pre-root verification:
 - JSON decode for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
 - `git diff --check`: passed.
 
-Root verification: pending serialized no-argument root run from this exact candidate snapshot.
+Root verification:
+- Serialized no-argument root run under clean-integrator lock passed with `215 test files, 32923 assertions, 0 failures`.
+
+## Accepted pending root - libsqlite B-tree root collapse apply - 2026-05-27T07:32:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T071725Z.ready`.
+
+Selection rationale: libsqlite remains the priority lane; local `refs/heads/main` and cache-busted live Pages both reported exact source `efe07e337989225186424be613fb9480ffaca345`, so the dashboard guard was open. The selected current-base B-tree marker was the strongest sampled non-overlapping behavior delta, adding table/index interior root-collapse application after delete underflow, freelist release, auto-vacuum pointer-map rewrites, and a copied WordPress root-collapse smoke. It adds 73 focused assertions and moves lane metadata from `788` to `789` PHP passes and mapped coverage from `441` to `442`.
+
+Pre-root verification:
+- Runtime gates before focused checks: `/` free space `86460796` KiB, load `2.67`, and no exact no-argument root harness process.
+- Applied cleanly in detached worktree `.tmux-team/tmp/clean-candidates/libsqlite-btree-root-collapse-20260527T072052Z` from current `efe07e33`.
+- Status hygiene was reconciled so `latestCommit` begins with exact current accepted source `efe07e337989225186424be613fb9480ffaca345`, not `pending`.
+- Syntax checks passed for `SQLiteBTreeRootCollapsePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-btree-root-collapse.php`.
+- JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 7831 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-btree-root-collapse.php`: passed and emitted valid JSON showing `root-collapse-apply`, table-leaf root output, freelist page `[4]`, and obsolete child pointer-map type `free-page`.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification:
+- Serialized no-argument root run under clean-integrator lock passed with `215 test files, 32996 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts were removed after commit: `.ready`, `.patch`, and `.md`.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T071725Z` still contains modified/added lane files from the accepted handoff and was preserved as cleanup debt; no force removal or destructive cleanup was performed.

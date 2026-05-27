@@ -4465,3 +4465,27 @@ baseline. Lane `phpPass` moves from 787 to 788 and mapped coverage moves from
 441 to 442. Dependency closure: no new support component is needed; this
 reuses lane-local SELECT SQL parsing, scalar function dispatch, projection,
 predicate, grouped aggregate, and query-plan result evidence.
+
+## B-tree Root Collapse Scenario
+
+Copied WordPress `wp_options` repair tooling can now materialize the SQLite
+delete/rebalance path where an empty interior root has only one child left. The
+smoke `examples/wordpress-btree-root-collapse.php` reports the child table leaf
+copied into the root page, the obsolete child page released to the freelist, and
+auto-vacuum pointer-map state rewritten to `free-page` without requiring
+ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteBTreeRootCollapsePlan` for bounded table and index root-collapse page
+images, freelist release, secure-delete-compatible free planning, and
+auto-vacuum pointer-map ownership rewrites. Focused `SQLiteHeaderTest.php`
+passes at 7831 assertions with 0 failures; this slice adds 73 focused
+assertions over the local pre-slice test body. Lane `phpPass` moves from 788 to
+789 and mapped coverage moves from 441 to 442.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local b-tree page encoders, freelist planner, pointer-map diagnostics, and
+WordPress option row fixtures. Follow-up should broaden B-tree delete/rebalance
+materialization without repeating accepted page relocation, index-interior
+merge, overflow freelist release, bulk overflow freeblocks, or this
+root-collapse path.
