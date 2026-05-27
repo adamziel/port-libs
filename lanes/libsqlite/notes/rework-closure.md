@@ -1,5 +1,41 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT Composite GROUP BY Query Pipeline
+
+This isolated SQL execution/planner slice does not reuse stale May 25 rework
+markers and does not repeat accepted single-column grouped aggregate pipeline,
+query-plan composition, WHERE scalar operands, projection, join, wildcard,
+CASE, compound SELECT, or expression-index planning. It adds one bounded
+execution behavior cluster: `SQLiteSelectQuery` now accepts a non-empty
+`groupBy.columns` list and `SQLiteGroupedAggregate` builds composite SQLite
+group keys while preserving each grouping column for projection and final
+result ordering.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 5473 assertions,
+up from the current accepted B-tree interior redistribution baseline of 5340
+assertions (`+133`). The new assertions cover copied wp_options rows grouped
+by `autoload` plus option kind, composite key coalescing, projected grouping
+columns, HAVING predicates over aggregate summary rows, aggregate
+ORDER BY/LIMIT, NULL grouping keys, scalar/CASE projection over grouped rows,
+raw summary output, strict validation guards, and WordPress smoke output.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteGroupedAggregate.php
+php -l lanes/libsqlite/src/SQLiteSelectQuery.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local grouped aggregate summaries, SELECT predicate/projection/result
+helpers, scalar dispatch, SQLite BLOB wrappers, and pure PHP row arrays.
+
 ## 2026-05-27 SELECT GROUP BY/HAVING Query Pipeline
 
 This isolated SQL execution/planner slice does not reuse stale May 25 rework

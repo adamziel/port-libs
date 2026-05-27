@@ -140,7 +140,7 @@ final class SQLiteSelectQuery
      */
     private static function applyGroupBy(array $rows, array $groupBy): array
     {
-        $groupColumn = self::requiredString($groupBy, 'column', 'groupBy');
+        $groupColumn = self::groupColumns($groupBy);
         $valueColumn = self::requiredString($groupBy, 'valueColumn', 'groupBy');
 
         $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
@@ -252,6 +252,24 @@ final class SQLiteSelectQuery
         }
 
         return $join['columns'];
+    }
+
+    private static function groupColumns(array $groupBy): string|array
+    {
+        if (array_key_exists('columns', $groupBy)) {
+            if (!is_array($groupBy['columns']) || !array_is_list($groupBy['columns']) || $groupBy['columns'] === []) {
+                throw new \InvalidArgumentException('SQLite SELECT query groupBy columns must be a non-empty list');
+            }
+            foreach ($groupBy['columns'] as $column) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT query groupBy columns must be non-empty strings');
+                }
+            }
+
+            return $groupBy['columns'];
+        }
+
+        return self::requiredString($groupBy, 'column', 'groupBy');
     }
 
     /**

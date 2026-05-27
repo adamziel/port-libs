@@ -1,5 +1,43 @@
 # Integration Status
 
+## Integration accepted - libsqlite composite GROUP BY execution - 2026-05-27T02:47:51Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T023508Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `a56e098aaf0c5168dd52783ae6ab453509db5cae` (`Integrate libsqlite savepoint image rollback`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact source `a56e098aaf0c5168dd52783ae6ab453509db5cae`, generated `2026-05-27 02:43:28 UTC`, dashboard commit `b939e27f6a0b798d79990c2a49ba7fb8b161f65d`.
+- The source-moving guard was open for one libsqlite marker.
+
+Candidate evidence:
+- Selected older-base behavior marker `port-dev-libsqlite-sql-exec-20260527T023508Z.ready`, based on `e58d38b28d7f4df9b2d0b6d655f47e539c1e4544`.
+- Direct `git apply --check` failed only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`; implementation, test, example, and note hunks applied cleanly in a detached clean worktree at current source `a56e098a`.
+- Reconciled manifest/status counters from current source: libsqlite `phpPass` `756 -> 757`, mapped coverage `419 -> 420 / 1589`, and `latestCommit` now starts with exact accepted source `a56e098aaf0c5168dd52783ae6ab453509db5cae`.
+- Behavior delta extends `SQLiteSelectQuery` and `SQLiteGroupedAggregate` with composite `GROUP BY` row-array dispatch for copied `wp_options` aggregate previews.
+
+Focused verification:
+- `php -l` passed for `SQLiteGroupedAggregate.php`, `SQLiteSelectQuery.php`, `SQLiteHeaderTest.php`, and `wordpress-select-grouped-aggregate-preview.php`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5530 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php` passed and emitted valid multi-column grouped aggregate JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed.
+
+Runtime gates before serialized root:
+- `/` had more than `86000000` KiB available.
+- `/proc/loadavg` was below `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty.
+
+Serialized root result:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 30695 assertions, 0 failures`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, serialized root, and final atomic ref publication. Dashboard publication should run next before another source-moving marker.
+
+Cleanup:
+- Accepted marker `.ready`, `.patch`, and `.md` handoff files removed after the commit was safely on `main`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T023508Z` still has modified lane files matching the accepted patch, so it was preserved as cleanup debt instead of being removed.
+
 ## Integration accepted - libsqlite SELECT GROUP BY pipeline - 2026-05-27T02:34:00Z
 
 Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T022117Z.ready`.

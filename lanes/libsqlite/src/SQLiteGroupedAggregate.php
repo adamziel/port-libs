@@ -10,20 +10,26 @@ final class SQLiteGroupedAggregate
      * @param iterable<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarize(iterable $rows, string $groupColumn, string $valueColumn): array
+    public static function summarize(iterable $rows, string|array $groupColumn, string $valueColumn): array
     {
+        $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
         foreach ($rows as $row) {
-            if (!array_key_exists($groupColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite GROUP BY row is missing column {$groupColumn}");
+            $groupValues = [];
+            foreach ($groupColumns as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException("SQLite GROUP BY row is missing column {$column}");
+                }
+                $groupValues[$column] = $row[$column];
             }
             if (!array_key_exists($valueColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite aggregate row is missing column {$valueColumn}");
             }
 
-            $key = self::groupKey($row[$groupColumn]);
+            $key = self::compositeGroupKey($groupValues);
             $groups[$key] ??= [
-                'group' => $row[$groupColumn],
+                'group' => $groupValues[$groupColumns[0]],
+                'groupValues' => $groupValues,
                 'rows' => [],
                 'values' => [],
             ];
@@ -34,7 +40,7 @@ final class SQLiteGroupedAggregate
         $summaries = [];
         foreach ($groups as $group) {
             $values = $group['values'];
-            $summaries[] = [
+            $summary = [
                 'group' => $group['group'],
                 'countAll' => SQLiteNumericAggregate::countAll($group['rows']),
                 'countValue' => SQLiteNumericAggregate::countValue($values),
@@ -46,6 +52,10 @@ final class SQLiteGroupedAggregate
                 'max' => SQLiteNumericAggregate::max($values),
                 'groupConcat' => SQLiteTextAggregate::groupConcat($values, '|'),
             ];
+            foreach ($group['groupValues'] as $column => $value) {
+                $summary[$column] = $value;
+            }
+            $summaries[] = $summary;
         }
 
         return $summaries;
@@ -128,6 +138,47 @@ final class SQLiteGroupedAggregate
         }
 
         throw new \InvalidArgumentException('SQLite GROUP BY values must be scalar, BLOB, or NULL');
+    }
+
+    /**
+     * @return non-empty-list<string>
+     */
+    private static function groupColumns(string|array $groupColumn): array
+    {
+        if (is_string($groupColumn)) {
+            if ($groupColumn === '') {
+                throw new \InvalidArgumentException('SQLite GROUP BY column must be a non-empty string');
+            }
+
+            return [$groupColumn];
+        }
+
+        if (!array_is_list($groupColumn) || $groupColumn === []) {
+            throw new \InvalidArgumentException('SQLite GROUP BY columns must be a non-empty list');
+        }
+
+        $columns = [];
+        foreach ($groupColumn as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite GROUP BY columns must be non-empty strings');
+            }
+            $columns[] = $column;
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function compositeGroupKey(array $values): string
+    {
+        $parts = [];
+        foreach ($values as $column => $value) {
+            $parts[] = $column . '=' . self::groupKey($value);
+        }
+
+        return implode("\0", $parts);
     }
 
     private static function compareSqlValues(mixed $left, mixed $right): int
