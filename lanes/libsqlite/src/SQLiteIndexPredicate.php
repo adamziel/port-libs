@@ -25,7 +25,7 @@ final class SQLiteIndexPredicate
     ) {
     }
 
-    public function isImpliedByPointLookup(string $columnName, mixed $value): bool
+    public function isImpliedByPointLookup(string $columnName, mixed $value, string $collation = 'BINARY'): bool
     {
         if ($this->operator === self::AND) {
             if (!is_array($this->value)) {
@@ -33,7 +33,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if (!$predicate instanceof self || !$predicate->isImpliedByPointLookup($columnName, $value)) {
+                if (!$predicate instanceof self || !$predicate->isImpliedByPointLookup($columnName, $value, $collation)) {
                     return false;
                 }
             }
@@ -47,7 +47,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if ($predicate instanceof self && $predicate->isImpliedByPointLookup($columnName, $value)) {
+                if ($predicate instanceof self && $predicate->isImpliedByPointLookup($columnName, $value, $collation)) {
                     return true;
                 }
             }
@@ -61,17 +61,17 @@ final class SQLiteIndexPredicate
 
         return match ($this->operator) {
             self::IS_NOT_NULL => $value !== null,
-            self::EQUALS => self::valuesEqual($this->value, $value),
-            self::NOT_EQUALS => self::compareValuePredicate($value, $this->value, static fn (int $comparison): bool => $comparison !== 0),
-            self::LESS_THAN => self::compareValuePredicate($value, $this->value, static fn (int $comparison): bool => $comparison < 0),
-            self::LESS_THAN_OR_EQUAL => self::compareValuePredicate($value, $this->value, static fn (int $comparison): bool => $comparison <= 0),
-            self::GREATER_THAN => self::compareValuePredicate($value, $this->value, static fn (int $comparison): bool => $comparison > 0),
-            self::GREATER_THAN_OR_EQUAL => self::compareValuePredicate($value, $this->value, static fn (int $comparison): bool => $comparison >= 0),
+            self::EQUALS => self::valuesEqual($this->value, $value, $collation),
+            self::NOT_EQUALS => self::compareValuePredicate($value, $this->value, $collation, static fn (int $comparison): bool => $comparison !== 0),
+            self::LESS_THAN => self::compareValuePredicate($value, $this->value, $collation, static fn (int $comparison): bool => $comparison < 0),
+            self::LESS_THAN_OR_EQUAL => self::compareValuePredicate($value, $this->value, $collation, static fn (int $comparison): bool => $comparison <= 0),
+            self::GREATER_THAN => self::compareValuePredicate($value, $this->value, $collation, static fn (int $comparison): bool => $comparison > 0),
+            self::GREATER_THAN_OR_EQUAL => self::compareValuePredicate($value, $this->value, $collation, static fn (int $comparison): bool => $comparison >= 0),
             self::BETWEEN => is_array($this->value)
                 && array_key_exists('lower', $this->value)
                 && array_key_exists('upper', $this->value)
-                && self::compareValuePredicate($value, $this->value['lower'], static fn (int $comparison): bool => $comparison >= 0)
-                && self::compareValuePredicate($value, $this->value['upper'], static fn (int $comparison): bool => $comparison <= 0),
+                && self::compareValuePredicate($value, $this->value['lower'], $collation, static fn (int $comparison): bool => $comparison >= 0)
+                && self::compareValuePredicate($value, $this->value['upper'], $collation, static fn (int $comparison): bool => $comparison <= 0),
             default => false,
         };
     }
@@ -81,6 +81,7 @@ final class SQLiteIndexPredicate
         mixed $lowerInclusive,
         mixed $upperBound,
         bool $upperInclusive,
+        string $collation = 'BINARY',
     ): bool {
         if ($this->operator === self::AND) {
             if (!is_array($this->value)) {
@@ -88,7 +89,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if (!$predicate instanceof self || !$predicate->isImpliedByRangeLookup($columnName, $lowerInclusive, $upperBound, $upperInclusive)) {
+                if (!$predicate instanceof self || !$predicate->isImpliedByRangeLookup($columnName, $lowerInclusive, $upperBound, $upperInclusive, $collation)) {
                     return false;
                 }
             }
@@ -102,7 +103,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if ($predicate instanceof self && $predicate->isImpliedByRangeLookup($columnName, $lowerInclusive, $upperBound, $upperInclusive)) {
+                if ($predicate instanceof self && $predicate->isImpliedByRangeLookup($columnName, $lowerInclusive, $upperBound, $upperInclusive, $collation)) {
                     return true;
                 }
             }
@@ -116,15 +117,15 @@ final class SQLiteIndexPredicate
 
         return match ($this->operator) {
             self::IS_NOT_NULL => $lowerInclusive !== null || $upperBound !== null,
-            self::GREATER_THAN => self::rangeImpliesLowerBound($lowerInclusive, $this->value, false),
-            self::GREATER_THAN_OR_EQUAL => self::rangeImpliesLowerBound($lowerInclusive, $this->value, true),
-            self::LESS_THAN => self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value, false),
-            self::LESS_THAN_OR_EQUAL => self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value, true),
+            self::GREATER_THAN => self::rangeImpliesLowerBound($lowerInclusive, $this->value, false, $collation),
+            self::GREATER_THAN_OR_EQUAL => self::rangeImpliesLowerBound($lowerInclusive, $this->value, true, $collation),
+            self::LESS_THAN => self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value, false, $collation),
+            self::LESS_THAN_OR_EQUAL => self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value, true, $collation),
             self::BETWEEN => is_array($this->value)
                 && array_key_exists('lower', $this->value)
                 && array_key_exists('upper', $this->value)
-                && self::rangeImpliesLowerBound($lowerInclusive, $this->value['lower'], true)
-                && self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value['upper'], true),
+                && self::rangeImpliesLowerBound($lowerInclusive, $this->value['lower'], true, $collation)
+                && self::rangeImpliesUpperBound($upperBound, $upperInclusive, $this->value['upper'], true, $collation),
             default => false,
         };
     }
@@ -132,7 +133,7 @@ final class SQLiteIndexPredicate
     /**
      * @param list<mixed> $values
      */
-    public function isImpliedByInListLookup(string $columnName, array $values): bool
+    public function isImpliedByInListLookup(string $columnName, array $values, string $collation = 'BINARY'): bool
     {
         if ($this->operator === self::AND) {
             if (!is_array($this->value)) {
@@ -140,7 +141,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if (!$predicate instanceof self || !$predicate->isImpliedByInListLookup($columnName, $values)) {
+                if (!$predicate instanceof self || !$predicate->isImpliedByInListLookup($columnName, $values, $collation)) {
                     return false;
                 }
             }
@@ -154,7 +155,7 @@ final class SQLiteIndexPredicate
             }
 
             foreach ($this->value as $predicate) {
-                if ($predicate instanceof self && $predicate->isImpliedByInListLookup($columnName, $values)) {
+                if ($predicate instanceof self && $predicate->isImpliedByInListLookup($columnName, $values, $collation)) {
                     return true;
                 }
             }
@@ -186,7 +187,7 @@ final class SQLiteIndexPredicate
             }
             $matched = false;
             foreach ($this->value as $predicateValue) {
-                if (self::valuesEqual($predicateValue, $lookupValue)) {
+                if (self::valuesEqual($predicateValue, $lookupValue, $collation)) {
                     $matched = true;
                     break;
                 }
@@ -199,10 +200,14 @@ final class SQLiteIndexPredicate
         return true;
     }
 
-    private static function valuesEqual(mixed $left, mixed $right): bool
+    private static function valuesEqual(mixed $left, mixed $right, string $collation): bool
     {
         if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
             return $left == $right;
+        }
+
+        if (is_string($left) && is_string($right)) {
+            return self::compareValues($left, $right, $collation) === 0;
         }
 
         return $left === $right;
@@ -211,14 +216,14 @@ final class SQLiteIndexPredicate
     /**
      * @param callable(int): bool $accept
      */
-    private static function compareValuePredicate(mixed $left, mixed $right, callable $accept): bool
+    private static function compareValuePredicate(mixed $left, mixed $right, string $collation, callable $accept): bool
     {
-        $comparison = self::compareValues($left, $right);
+        $comparison = self::compareValues($left, $right, $collation);
 
         return $comparison !== null && $accept($comparison);
     }
 
-    private static function compareValues(mixed $left, mixed $right): ?int
+    private static function compareValues(mixed $left, mixed $right, string $collation): ?int
     {
         if ($left === null || $right === null) {
             return null;
@@ -227,15 +232,19 @@ final class SQLiteIndexPredicate
             return $left <=> $right;
         }
         if (is_string($left) && is_string($right)) {
-            return strcmp($left, $right);
+            return match (strtoupper($collation)) {
+                'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
+                'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+                default => strcmp($left, $right),
+            };
         }
 
         return null;
     }
 
-    private static function rangeImpliesLowerBound(mixed $lowerInclusive, mixed $predicateLower, bool $predicateInclusive): bool
+    private static function rangeImpliesLowerBound(mixed $lowerInclusive, mixed $predicateLower, bool $predicateInclusive, string $collation): bool
     {
-        $comparison = self::compareValues($lowerInclusive, $predicateLower);
+        $comparison = self::compareValues($lowerInclusive, $predicateLower, $collation);
         if ($comparison === null) {
             return false;
         }
@@ -246,9 +255,9 @@ final class SQLiteIndexPredicate
         return $comparison === 0 && $predicateInclusive;
     }
 
-    private static function rangeImpliesUpperBound(mixed $upperBound, bool $upperInclusive, mixed $predicateUpper, bool $predicateInclusive): bool
+    private static function rangeImpliesUpperBound(mixed $upperBound, bool $upperInclusive, mixed $predicateUpper, bool $predicateInclusive, string $collation): bool
     {
-        $comparison = self::compareValues($upperBound, $predicateUpper);
+        $comparison = self::compareValues($upperBound, $predicateUpper, $collation);
         if ($comparison === null) {
             return false;
         }
@@ -260,5 +269,19 @@ final class SQLiteIndexPredicate
         }
 
         return !$upperInclusive || $predicateInclusive;
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        $bytes = $value;
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($bytes[$i]);
+            if ($ord >= 0x41 && $ord <= 0x5a) {
+                $bytes[$i] = chr($ord + 0x20);
+            }
+        }
+
+        return $bytes;
     }
 }

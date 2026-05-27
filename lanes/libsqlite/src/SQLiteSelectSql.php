@@ -488,7 +488,9 @@ final class SQLiteSelectSql
             if (array_key_exists($name, $tables)) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} shadows an input table");
             }
-            $rows = self::execute($entry['sql'], $tables);
+            $rows = preg_match('/^values\s+/i', $entry['sql']) === 1
+                ? self::executeValuesClause($entry['sql'])
+                : self::execute($entry['sql'], $tables);
             if ($entry['columns'] !== []) {
                 $rows = self::renameCteColumns($rows, $entry['columns'], $name);
             }
@@ -544,8 +546,8 @@ final class SQLiteSelectSql
             }
             [$cteSql, $offset] = self::consumeParenthesized($sql, $offset);
             $cteSql = trim($cteSql);
-            if (!preg_match('/^select\s+/i', $cteSql)) {
-                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} body must be SELECT");
+            if (!preg_match('/^(select|values)\s+/i', $cteSql)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} body must be SELECT or VALUES");
             }
             $entries[] = ['name' => $name, 'columns' => $columns, 'sql' => $cteSql];
 
@@ -580,6 +582,57 @@ final class SQLiteSelectSql
         }
 
         return $renamed;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private static function executeValuesClause(string $sql): array
+    {
+        $sql = trim($sql);
+        if (preg_match('/^values\s+/i', $sql) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES clause must start with VALUES');
+        }
+
+        $offset = strlen('values');
+        $length = strlen($sql);
+        $rows = [];
+        $width = null;
+        while (true) {
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? null) !== '(') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES row must be parenthesized');
+            }
+            [$rowSql, $offset] = self::consumeParenthesized($sql, $offset);
+            $values = self::splitTopLevel($rowSql, ',');
+            if ($values === []) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES row cannot be empty');
+            }
+            if ($width === null) {
+                $width = count($values);
+            } elseif ($width !== count($values)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES rows must have the same width');
+            }
+
+            $row = [];
+            foreach ($values as $index => $valueSql) {
+                $expression = self::valueExpression($valueSql, []);
+                if (($expression['type'] ?? null) === 'subquery') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES row scalar subqueries are not supported');
+                }
+                $row['column' . ($index + 1)] = SQLiteSelectExpression::evaluate([], $expression);
+            }
+            $rows[] = $row;
+
+            $offset = self::skipWhitespace($sql, $offset);
+            if ($offset >= $length) {
+                return $rows;
+            }
+            if (($sql[$offset] ?? null) !== ',') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES rows must be comma separated');
+            }
+            $offset++;
+        }
     }
 
     /**
