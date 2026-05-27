@@ -118870,7 +118870,9 @@ Focused verification before root:
 - `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 6055 assertions, 0 failures`.
 - `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php`: passed and emitted valid JSON.
 
-Root verification: pending serialized no-argument root run from this exact candidate snapshot.
+Root verification:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32923 assertions, 0 failures`.
+- The only post-root edit was this audit result line; lane code, tests, example, manifest, and lane status were unchanged after the passing root run.
 
 Dashboard publication should run next after commit because this is one source-moving libsqlite acceptance.
 ## Integration accepted - libsqlite malformed UTF-8 UTF-16 record encoding - 2026-05-27T03:48:00Z
@@ -119540,3 +119542,18 @@ Cleanup:
 - Accepted marker artifacts were removed after commit: `.ready`, `.patch`, and `.md`.
 - The clean detached integration worktree was removed after commit.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260527T064758Z` still contains modified/added lane files from the accepted handoff and was preserved as cleanup debt; no force removal or destructive cleanup was performed.
+## Accepted pending root - libsqlite SELECT SQL subqueries - 2026-05-27T07:18:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T065309Z.ready`.
+
+Selection rationale: libsqlite remains the priority lane; the dashboard guard was open with local and live source `2b38154bdf81f481d2b4492528c8c83f1a0e705b`. This candidate was the strongest sampled non-overlapping behavior delta after scalar operators, adding parser-level correlated `EXISTS`/`NOT EXISTS` and single-column `IN`/`NOT IN` subquery execution for copied `wp_options` metadata. Direct patch apply on current `main` failed only in stale `lane-status.json` and notes files, so implementation/test/example/manifest hunks were bounded-replayed and `lane-status.json` was reconciled from current source evidence.
+
+Pre-root verification:
+- Runtime gates before focused checks: `/` free space `86343324` KiB then `86211532` KiB, load below `25`, and no exact `php tools/run-tests.php` root harness process.
+- Patch SHA-256 matched marker metadata: `6a64d1a8b441b25053bd4833cd1aa9d1c74813c622a4cdc7438251513c2c8706`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 7758 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-subquery.php`: passed and emitted valid JSON with public, plugin, and `NOT IN`-with-NULL option previews.
+- JSON decode for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: pending serialized no-argument root run from this exact candidate snapshot.

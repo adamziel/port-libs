@@ -36,6 +36,8 @@ final class SQLiteSelectPredicate
             'AND' => self::andValue($row, $predicate['terms'] ?? null),
             'OR' => self::orValue($row, $predicate['terms'] ?? null),
             'NOT' => self::notValue($row, $predicate['term'] ?? null),
+            'EXISTS' => self::exists($row, $predicate, false),
+            'NOT EXISTS' => self::exists($row, $predicate, true),
             '=', '==', 'IS' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison === 0, $operator === 'IS'),
             '!=', '<>', 'IS NOT' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison !== 0, $operator === 'IS NOT'),
             '<' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison < 0),
@@ -168,6 +170,12 @@ final class SQLiteSelectPredicate
     {
         $value = self::operand($row, $predicate, 'left');
         $values = $predicate['values'] ?? null;
+        if (array_key_exists('valuesSubquery', $predicate)) {
+            if (!is_callable($predicate['valuesSubquery'])) {
+                throw new \InvalidArgumentException('SQLite SELECT IN subquery predicate needs a callable');
+            }
+            $values = ($predicate['valuesSubquery'])($row);
+        }
         if (!is_array($values) || !array_is_list($values)) {
             throw new \InvalidArgumentException('SQLite SELECT IN predicate needs a list of values');
         }
@@ -199,6 +207,24 @@ final class SQLiteSelectPredicate
         }
 
         return $value === null || $sawNull ? null : false;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $predicate
+     */
+    private static function exists(array $row, array $predicate, bool $negate): bool
+    {
+        $subquery = $predicate['subquery'] ?? null;
+        if (!is_callable($subquery)) {
+            throw new \InvalidArgumentException('SQLite SELECT EXISTS predicate needs a subquery callable');
+        }
+
+        foreach ($subquery($row) as $unused) {
+            return !$negate;
+        }
+
+        return $negate;
     }
 
     /**

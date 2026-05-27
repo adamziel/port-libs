@@ -44,7 +44,7 @@ final class SQLiteSelectSql
         $tableEnd = self::firstOffset($clauseOffsets) ?? strlen($tail);
         $fromSql = trim(substr($tail, 0, $tableEnd));
         $where = isset($clauseOffsets['WHERE'])
-            ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'))
+            ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
         $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
         $source = self::sourcePlan($fromSql, $tables, $jsonConstraints);
@@ -71,7 +71,7 @@ final class SQLiteSelectSql
             $groupBy = self::groupBy($groupBySql, $select);
             if (isset($clauseOffsets['HAVING'])) {
                 $groupBy['having'] = self::rewriteAggregatePredicate(
-                    self::predicate(self::clauseText($tail, $clauseOffsets, 'HAVING')),
+                    self::predicate(self::clauseText($tail, $clauseOffsets, 'HAVING'), $tables),
                     $groupBy['valueColumn'],
                 );
             }
@@ -420,7 +420,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL CROSS JOIN does not support ON');
         }
 
-        $predicate = self::predicate($on[1]);
+        $predicate = self::predicate($on[1], $tables);
         $join['predicate'] = static function (array $left, array $right) use ($predicate): bool {
             return SQLiteSelectPredicate::filter([array_merge($left, $right)], $predicate) !== [];
         };
@@ -518,19 +518,28 @@ final class SQLiteSelectSql
     /**
      * @return array<string,mixed>
      */
-    private static function predicate(string $sql): array
+    private static function predicate(string $sql, array $tables = []): array
     {
         $orTerms = self::splitKeyword($sql, 'OR');
         if (count($orTerms) > 1) {
-            return ['operator' => 'OR', 'terms' => array_map(self::predicate(...), $orTerms)];
+            return ['operator' => 'OR', 'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $orTerms)];
         }
 
         $andTerms = self::splitKeyword($sql, 'AND');
         if (count($andTerms) > 1) {
-            return ['operator' => 'AND', 'terms' => array_map(self::predicate(...), $andTerms)];
+            return ['operator' => 'AND', 'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms)];
         }
 
         $sql = trim($sql);
+        if (preg_match('/^(not\s+)?exists\s*\((select\s+.+)\)$/is', $sql, $match) === 1) {
+            $subquerySql = trim($match[2]);
+
+            return [
+                'operator' => isset($match[1]) && trim($match[1]) !== '' ? 'NOT EXISTS' : 'EXISTS',
+                'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),
+            ];
+        }
+
         foreach (['NOT LIKE', 'LIKE', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
@@ -550,10 +559,33 @@ final class SQLiteSelectSql
         }
 
         if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/i', $sql, $match) === 1) {
+            $valuesSql = trim($match[3]);
+            if (preg_match('/^select\s+/i', $valuesSql) === 1) {
+                $left = self::valueExpression(trim($match[1]));
+
+                return [
+                    'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
+                    'left' => $left,
+                    'valuesSubquery' => static function (array $row) use ($valuesSql, $tables): array {
+                        $rows = self::correlatedSubqueryRows($valuesSql, $tables, $row);
+                        if ($rows === []) {
+                            return [];
+                        }
+                        $columns = array_keys($rows[0]);
+                        if (count($columns) !== 1) {
+                            throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery must return one column');
+                        }
+                        $column = $columns[0];
+
+                        return array_map(static fn (array $subqueryRow): mixed => $subqueryRow[$column], $rows);
+                    },
+                ];
+            }
+
             return [
                 'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
                 'left' => self::valueExpression(trim($match[1])),
-                'values' => array_map(self::valueExpression(...), self::splitTopLevel($match[3], ',')),
+                'values' => array_map(self::valueExpression(...), self::splitTopLevel($valuesSql, ',')),
             ];
         }
 
@@ -565,6 +597,38 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException('SQLite SELECT SQL predicate is not supported');
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param array<string,mixed> $outerRow
+     * @return list<array<string,mixed>>
+     */
+    private static function correlatedSubqueryRows(string $sql, array $tables, array $outerRow): array
+    {
+        $plan = self::plan($sql, $tables);
+        if (($plan['joins'] ?? []) !== []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL correlated subqueries support one FROM source');
+        }
+        if (array_key_exists('groupBy', $plan)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL correlated subqueries do not support GROUP BY');
+        }
+
+        $rows = $plan['from'] ?? null;
+        if (!is_array($rows) || !array_is_list($rows)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL subquery needs source rows');
+        }
+
+        $expanded = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL subquery source rows must be arrays');
+            }
+            $expanded[] = array_merge($outerRow, $row);
+        }
+        $plan['from'] = $expanded;
+
+        return SQLiteSelectQuery::execute($plan);
     }
 
     /**
