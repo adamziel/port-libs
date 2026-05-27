@@ -102,6 +102,7 @@ use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsFileControlState;
 use PortLibs\LibSqlite\SQLiteVfsFileHandle;
 use PortLibs\LibSqlite\SQLiteVfsFileLock;
+use PortLibs\LibSqlite\SQLiteVfsOpenFileControl;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockedFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockState;
@@ -20214,6 +20215,134 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $state->apply('persist_wal', 'maybe'));
         $t->throws(InvalidArgumentException::class, static fn () => $state->apply('name_hint', ''));
         $t->throws(InvalidArgumentException::class, static fn () => $state->applyMany([['value' => 1]]));
+    },
+    'applies sqlite vfs open file-control size hints to file handles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-open-file-control-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabase = $root . $databasePath;
+        if (!is_dir(dirname($localDatabase)) && !mkdir(dirname($localDatabase), 0777, true) && !is_dir(dirname($localDatabase))) {
+            throw new RuntimeException('failed to create VFS open-file-control test directory');
+        }
+        file_put_contents($localDatabase, str_repeat('a', 3000));
+
+        $open = SQLiteVfsOpenFileControl::forFilename(
+            $root,
+            'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared&vfs=unix&psow=1',
+            true,
+            true,
+            4096,
+            ['safe_append', 'powersafe_overwrite'],
+            'full',
+            false,
+            4096,
+            0
+        );
+        $snapshot = $open->snapshot();
+
+        $t->same('ready', $snapshot['status']);
+        $t->same($root, $snapshot['root']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $snapshot['state']['path']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $snapshot['stat']['path']);
+        $t->same($localDatabase, $snapshot['stat']['local_path']);
+        $t->same(true, $snapshot['stat']['exists']);
+        $t->same(3000, $snapshot['stat']['size']);
+        $t->same(4096, $snapshot['state']['controls']['chunk_size']);
+        $t->same(false, $snapshot['state']['controls']['persist_wal']);
+        $t->same(true, in_array('vfs-open-file-control-application', $snapshot['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-primitive', $snapshot['dependencies'], true));
+
+        $applied = $open->applyMany([
+            'persist_wal' => true,
+            ['op' => 'name_hint', 'value' => 'wp-options-import'],
+            ['op' => 'size_hint', 'value' => 5000],
+            'mmap_size' => 8192,
+        ]);
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same('ok', $applied['file_control']['status']);
+        $t->same(4, $applied['file_control']['applied']);
+        $t->same(3, $applied['file_control']['changed']);
+        $t->same(true, $applied['file_control']['controls']['persist_wal']);
+        $t->same('wp-options-import', $applied['file_control']['controls']['name_hint']);
+        $t->same(8192, $applied['file_control']['controls']['mmap_size']);
+        $t->same(1, count($applied['preallocations']));
+        $t->same('preallocated', $applied['preallocations'][0]['status']);
+        $t->same(5000, $applied['preallocations'][0]['requested_size']);
+        $t->same(8192, $applied['preallocations'][0]['target_size']);
+        $t->same(3000, $applied['preallocations'][0]['previous_size']);
+        $t->same(5192, $applied['preallocations'][0]['bytes_added']);
+        $t->same(4096, $applied['preallocations'][0]['chunk_size']);
+        $t->same('apply_chunked_size_hint_to_open_file', $applied['preallocations'][0]['reason']);
+        $t->same('ok', $applied['preallocations'][0]['operation']['status']);
+        $t->same(8192, $applied['preallocations'][0]['operation']['size']);
+        $t->same(5192, $applied['bytes_preallocated']);
+        $t->same(8192, $applied['stat']['size']);
+        $t->same(8192, filesize($localDatabase));
+        $t->same(str_repeat('a', 3000), substr(file_get_contents($localDatabase), 0, 3000));
+        $t->same(str_repeat("\0", 32), substr(file_get_contents($localDatabase), 3000, 32));
+        $t->same(true, in_array('vfs-size-hint-preallocation', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-xtruncate', $applied['preallocations'][0]['dependencies'], true));
+
+        $small = $open->applyMany([['op' => 'size_hint', 'value' => 4096]]);
+        $t->same('applied', $small['status']);
+        $t->same(1, $small['file_control']['applied']);
+        $t->same(0, $small['file_control']['changed']);
+        $t->same(1, count($small['preallocations']));
+        $t->same('skipped', $small['preallocations'][0]['status']);
+        $t->same(4096, $small['preallocations'][0]['target_size']);
+        $t->same(8192, $small['preallocations'][0]['previous_size']);
+        $t->same(0, $small['preallocations'][0]['bytes_added']);
+        $t->same('size_hint_does_not_extend_file', $small['preallocations'][0]['reason']);
+        $t->same(0, $small['bytes_preallocated']);
+        $t->same(8192, filesize($localDatabase));
+
+        $plainRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-open-file-control-plain-' . bin2hex(random_bytes(4));
+        $plainPath = '/srv/www/wp-content/database/plain.sqlite';
+        $plainLocal = $plainRoot . $plainPath;
+        if (!is_dir(dirname($plainLocal)) && !mkdir(dirname($plainLocal), 0777, true) && !is_dir(dirname($plainLocal))) {
+            throw new RuntimeException('failed to create plain VFS open-file-control test directory');
+        }
+        file_put_contents($plainLocal, str_repeat('b', 100));
+        $plain = SQLiteVfsOpenFileControl::forFilename($plainRoot, 'file:/srv/www/wp-content/database/plain.sqlite?mode=rw', true, true);
+        $plainApplied = $plain->applyMany([['op' => 'size_hint', 'value' => 513]]);
+        $t->same('preallocated', $plainApplied['preallocations'][0]['status']);
+        $t->same(513, $plainApplied['preallocations'][0]['target_size']);
+        $t->same(null, $plainApplied['preallocations'][0]['chunk_size']);
+        $t->same(413, $plainApplied['preallocations'][0]['bytes_added']);
+        $t->same(513, filesize($plainLocal));
+
+        $createdRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-open-file-control-create-' . bin2hex(random_bytes(4));
+        $created = SQLiteVfsOpenFileControl::forFilename($createdRoot, 'file:/srv/www/wp-content/database/new.sqlite?mode=rwc', false, true, 512, [], 'normal', false, 1024);
+        $createdApplied = $created->applyMany([['op' => 'size_hint', 'value' => 1500]]);
+        $t->same('preallocated', $createdApplied['preallocations'][0]['status']);
+        $t->same(2048, $createdApplied['preallocations'][0]['target_size']);
+        $t->same(2048, $createdApplied['bytes_preallocated']);
+        $t->same(true, is_file($createdRoot . '/srv/www/wp-content/database/new.sqlite'));
+        $t->same(2048, filesize($createdRoot . '/srv/www/wp-content/database/new.sqlite'));
+
+        $memory = SQLiteVfsOpenFileControl::forFilename($root, 'file::memory:?mode=memory', false, true, 512, [], 'off', false, 1024);
+        $memoryApply = $memory->applyMany([['op' => 'size_hint', 'value' => 4096], 'persist_wal' => true]);
+        $t->same('applied', $memoryApply['status']);
+        $t->same(0, $memoryApply['file_control']['applied']);
+        $t->same(0, count($memoryApply['preallocations']));
+        $t->same(0, $memoryApply['bytes_preallocated']);
+        $t->same(true, in_array('memory-open', $memoryApply['dependencies'], true));
+
+        $readOnly = SQLiteVfsOpenFileControl::forFilename($root, 'file:/srv/www/wp-content/database/.ht.sqlite?mode=ro', true, false);
+        $readOnlyApply = $readOnly->applyMany([['op' => 'size_hint', 'value' => 16384], 'mmap_size' => 4096]);
+        $t->same('applied', $readOnlyApply['status']);
+        $t->same('ignored', $readOnlyApply['file_control']['results'][0]['status']);
+        $t->same('size_hint_requires_writable_file_handle', $readOnlyApply['file_control']['results'][0]['reason']);
+        $t->same(0, count($readOnlyApply['preallocations']));
+        $t->same(8192, filesize($localDatabase));
+        $t->same(true, in_array('readonly-open', $readOnlyApply['dependencies'], true));
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVfsOpenFileControl('', $snapshot['capability']));
+        $t->throws(RuntimeException::class, static fn () => SQLiteVfsOpenFileControl::forFilename($root, 'file:/srv/www/wp-content/database/missing.sqlite?mode=rw', false, false));
+        $t->throws(InvalidArgumentException::class, static fn () => $open->applyMany([]));
+        $t->throws(InvalidArgumentException::class, static fn () => $open->applyMany([['op' => 'size_hint', 'value' => -1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenFileControl::forFilename($root, 'file:../escape.sqlite?mode=rwc', false, true)->applyMany([['op' => 'size_hint', 'value' => 100]]));
     },
     'plans sqlite vfs xsync flags and durable sync sequences' => static function (TestRunner $t): void {
         $database = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/.ht.sqlite', 'database', 'full');

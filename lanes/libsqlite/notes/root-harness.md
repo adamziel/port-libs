@@ -2096,6 +2096,39 @@ Dependency closure: no new shared support component is needed; the slice reuses
 lane-local WAL header/frame parsing, checksum validation, checkpoint image
 materialization, and copied WordPress WAL diagnostics.
 
+## VFS Open File-Control Apply Slice
+
+Focused lane verification for the dependency/open VFS open file-control
+application slice:
+
+```bash
+php -l lanes/libsqlite/src/SQLiteVfsOpenFileControl.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-open-file-control-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs open file-control size hints to file handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-open-file-control-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected VFS open file-control application
+test passed with 73 assertions and 0 failures. Full focused
+`SQLiteHeaderTest.php` passed with 8934 assertions and 0 failures in the
+worker handoff, adding 73 focused assertions over the 8861-assertion
+pre-slice worktree count. The WordPress smoke reported copied `wp_options`
+database handles applying SQLite xFileControl size hints through native PHP
+file handles, including chunk-size rounded preallocation plus persist-WAL,
+mmap-size, and name-hint state without requiring ext/sqlite.
+
+Non-overlap note: this slice builds on accepted VFS file-control state and
+file-handle primitives but does not repeat VFS lock byte ranges, lock-state
+planning, process file locks, locked writer, sync apply, rollback-journal
+apply, or pager checkpoint atomic apply.
+
+Dependency closure: no new shared support component is needed; the slice reuses
+lane-local open-plan, file-control state, and native PHP file-handle support.
+
 ## Temp-store Sorter B-tree Slice
 
 Focused lane verification for the temp-store sorter B-tree slice:
