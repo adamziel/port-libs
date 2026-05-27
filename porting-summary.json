@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 00:10:11 UTC",
-    "sourceCommit": "3852f0da5a0554a3b2be2ada1c42a24233ec9b1e",
-    "sourceCommitShort": "3852f0da5a05",
+    "generated": "2026-05-27 00:17:13 UTC",
+    "sourceCommit": "0ce4d2ef75516600c4b47e70d52f5f1fa46c695b",
+    "sourceCommitShort": "0ce4d2ef7551",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "10fc41abd9daadcd46cb3c889c286c778c4698df",
-    "dashboardCommitShort": "10fc41abd9da",
+    "dashboardCommit": "b39373abc4a32757ebbb8ec5708cdbeb0712acec",
+    "dashboardCommitShort": "b39373abc4a3",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "403",
             "coverage": "403 / 1589",
-            "php": "739 pass / 0 fail",
+            "php": "740 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "clean-integrated dependency/open lock-coo...",
-            "currentWork": "Latest dependency/open work adds focused assertions and dashboard evidence for SQLiteLock...",
-            "nextTarget": "Next dependency/open gap: explicit VFS file-control/page-cache write coordination or lock...",
+            "audit": "clean-integrated WAL hot rollback-journal...",
+            "currentWork": "Latest WAL/rollback work adds focused assertions and dashboard evidence for hot rollback-...",
+            "nextTarget": "Next WAL gap: durable WAL write/checkpoint persistence or rollback/savepoint behavior tha...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "accepte"
+            "commit": "pending"
         },
         {
             "library": "LightningCSS",
