@@ -811,6 +811,103 @@ final class SQLiteDatabase
         );
     }
 
+    public function planWordPressOptionInsertOrReplaceCurrent(
+        int $rowId,
+        string $optionName,
+        string $optionValue,
+        ?string $autoload = 'yes',
+        bool $allowAppend = true,
+    ): SQLiteWordPressOptionInsertOrReplacePlan {
+        if ($rowId < 1) {
+            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace rowid must be positive');
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table is not present');
+        }
+        if ($tableRootPage === 1) {
+            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning requires a table root page separate from sqlite_schema');
+        }
+
+        $tablePage = $this->page($tableRootPage);
+        $tableHeader = SQLiteBTreePageHeader::parsePage(
+            $tablePage,
+            $this->header->pageSize,
+            0,
+        );
+        if ($tableHeader->pageType !== 'table-leaf') {
+            throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently requires a single table leaf root page');
+        }
+
+        $insertIndexes = $this->supportedWordPressOptionIndexesForInsert($optionName, $autoload);
+        $remainingCells = [];
+        $deletedRowIds = [];
+        $deletedOptionNames = [];
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        foreach (SQLiteTableLeafCell::parsePageCells($tablePage, $tableHeader, $this->usablePageSize(), $overflowReader) as $cell) {
+            $option = SQLiteWordPressOption::fromTableRow(SQLiteTableRow::fromTableLeafCell($cell, $this->header->textEncoding));
+            if ($cell->rowId === $rowId || $option->optionName === $optionName) {
+                $deletedRowIds[$cell->rowId] = true;
+                $deletedOptionNames[$option->optionName] = true;
+                continue;
+            }
+
+            $remainingCells[] = [
+                'rowid' => $cell->rowId,
+                'cell' => substr($tablePage, $cell->offset, $cell->bytesRead),
+            ];
+        }
+
+        if ($deletedRowIds === []) {
+            return new SQLiteWordPressOptionInsertOrReplacePlan(
+                $this->planWordPressOptionInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend),
+                [],
+                [],
+            );
+        }
+
+        $pageImages = [
+            $tableRootPage => SQLiteTableLeafPage::assemble(
+                array_map(static fn (array $entry): string => $entry['cell'], $remainingCells),
+                $this->header->pageSize,
+                0,
+                $tablePage,
+                $this->usablePageSize(),
+            ),
+        ];
+        $deletedRowIdSet = $deletedRowIds;
+        foreach ($insertIndexes as $index) {
+            $record = $index['record'];
+            $rootPage = $record->rootPage;
+            if ($rootPage === null) {
+                throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
+            }
+            $indexPage = $this->page($rootPage);
+            $indexHeader = SQLiteBTreePageHeader::parsePage($indexPage, $this->header->pageSize, $rootPage === 1 ? 100 : 0);
+            if ($indexHeader->pageType !== 'index-leaf') {
+                throw new \InvalidArgumentException('SQLite wp_options insert-or-replace planning currently deletes conflicts from single-leaf indexes only');
+            }
+
+            $entries = array_values(array_filter(
+                $this->writableIndexLeafEntries($indexPage, $indexHeader, $index['columns']),
+                static fn (array $entry): bool => !isset($deletedRowIdSet[(int) ($entry['values'][count($index['columns'])] ?? 0)]),
+            ));
+            $pageImages[$rootPage] = $this->assembleWritableIndexLeafPage($entries, $rootPage === 1 ? 100 : 0, $indexPage);
+        }
+
+        ksort($pageImages);
+        $insertPlan = $this
+            ->withPageImages($pageImages)
+            ->planWordPressOptionInsert($rowId, $optionName, $optionValue, $autoload, $allowAppend);
+
+        return new SQLiteWordPressOptionInsertOrReplacePlan(
+            $insertPlan,
+            array_map('intval', array_keys($deletedRowIds)),
+            array_map('strval', array_keys($deletedOptionNames)),
+        );
+    }
+
     public function planWordPressOptionReplace(
         string $optionName,
         string $optionValue,

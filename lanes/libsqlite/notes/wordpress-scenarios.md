@@ -4934,3 +4934,27 @@ instead of aborting copied import diagnostics. The updated
 row-sourced wp_options JSONB joins and SQL-literal malformed JSONB hidden
 constraints. No new support component is needed; this reuses the existing
 native PHP JSONB validator, `SQLiteBlobValue`, and SELECT SQL dispatcher.
+
+## INSERT OR REPLACE Current Conflict Scenario
+
+Copied WordPress `wp_options` diagnostics now expose bounded SQLite
+`INSERT OR REPLACE` current-conflict behavior. The smoke
+`examples/wordpress-insert-or-replace-conflict-current.php` reports a UNIQUE
+`option_name` conflict deleting the old option row before inserting the
+incoming rowid and maintaining the automatic option_name index, without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated `insert-or-replace-conflict-current` slice:
+`SQLiteDatabase::planWordPressOptionInsertOrReplaceCurrent()` removes current
+rowid and UNIQUE `option_name` conflicts from bounded single-leaf `wp_options`
+table/index images, then reuses the existing insert planner for the incoming
+row. Focused `SQLiteHeaderTest.php` covers unique-name conflicts with a new
+rowid, simultaneous rowid plus unique-name conflicts, no-conflict fallback,
+change-count diagnostics, table rows, and automatic-index records.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SQLite table/index leaf writers, automatic-index column inference,
+record encoding, and copied WordPress option fixtures. Follow-up should wire
+the conflict planner into parser-level INSERT SQL execution or broaden conflict
+handling beyond this single-leaf current behavior without repeating accepted
+unique-index replacement or B-tree delete/freeblock clusters.

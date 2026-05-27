@@ -118,6 +118,7 @@ use PortLibs\LibSqlite\SQLiteWalOpenView;
 use PortLibs\LibSqlite\SQLiteShmIndex;
 use PortLibs\LibSqlite\SQLiteWindowFunction;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
+use PortLibs\LibSqlite\SQLiteWordPressOptionInsertOrReplacePlan;
 use PortLibs\LibSqlite\SQLiteWordPressOptionReplacementPlan;
 use PortLibs\LibSqlite\SQLiteWordPressOptionWritePlan;
 use PortLibs\LibSqlite\SQLiteVarint;
@@ -15182,6 +15183,110 @@ SQL;
         $rootOneDatabase = SQLiteDatabase::fromBytes($rootOneSchemaPage);
 
         $t->throws(InvalidArgumentException::class, static fn () => $rootOneDatabase->planWordPressOptionInsert(2, 'home', 'https://example.test/blog'));
+    },
+    'plans wordpress insert or replace by deleting current unique conflicts before insert' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'sqlite_autoindex_wp_options_1',
+                'wp_options',
+                3,
+                null,
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 3));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/home', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'blogname', 'Old Site', 'no'])),
+        ], $pageSize);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['blogname', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
+
+        $plan = $database->planWordPressOptionInsertOrReplaceCurrent(7, 'home', 'https://example.test/replaced-home', 'no');
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+            3 => $database->page(3),
+        ];
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $indexedHome = $postDatabase->wordpressOptionByIndexedName('home');
+
+        $t->same(SQLiteWordPressOptionInsertOrReplacePlan::class, get_class($plan));
+        $t->same([2], $plan->deletedRowIds);
+        $t->same(['home'], $plan->deletedOptionNames);
+        $t->same([2, 3], array_keys($plan->pageImages()));
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 7,
+            'option_name' => 'home',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'home', 'https://example.test/replaced-home', 'no'])),
+            'database_page_count' => 3,
+            'updated_page_numbers' => [2, 3],
+            'deleted_rowids' => [2],
+            'deleted_option_names' => ['home'],
+            'change_count' => 2,
+        ], $plan->toArray());
+        $t->same([1, 3, 7], array_map(static fn (SQLiteWordPressOption $option): int => $option->rowId, $options));
+        $t->same(['siteurl', 'blogname', 'home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test', 'Old Site', 'https://example.test/replaced-home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['yes', 'no', 'no'], array_map(static fn (SQLiteWordPressOption $option): ?string => $option->autoload, $options));
+        $t->same([
+            ['blogname', 3],
+            ['home', 7],
+            ['siteurl', 1],
+        ], $indexRecords);
+        $t->true($indexedHome instanceof SQLiteWordPressOption);
+        $t->same(7, $indexedHome?->rowId);
+        $t->same('https://example.test/replaced-home', $indexedHome?->optionValue);
+        $t->same('no', $indexedHome?->autoload);
+
+        $rowidAndNameConflictPlan = $database->planWordPressOptionInsertOrReplaceCurrent(1, 'home', 'https://merged.example', 'yes');
+        $rowidConflictPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+            3 => $database->page(3),
+        ];
+        foreach ($rowidAndNameConflictPlan->pageImages() as $pageNumber => $page) {
+            $rowidConflictPages[$pageNumber] = $page;
+        }
+        $rowidConflictDatabase = SQLiteDatabase::fromBytes(implode('', $rowidConflictPages));
+        $t->same([1, 2], $rowidAndNameConflictPlan->deletedRowIds);
+        $t->same(['siteurl', 'home'], $rowidAndNameConflictPlan->deletedOptionNames);
+        $t->same(3, $rowidAndNameConflictPlan->toArray()['change_count']);
+        $t->same([1, 3], array_map(static fn (SQLiteWordPressOption $option): int => $option->rowId, $rowidConflictDatabase->wordpressOptions()));
+        $t->same(['home', 'blogname'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $rowidConflictDatabase->wordpressOptions()));
+        $t->same([
+            ['blogname', 3],
+            ['home', 1],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $rowidConflictDatabase->indexCells(3)));
+
+        $freshPlan = $database->planWordPressOptionInsertOrReplaceCurrent(4, 'stylesheet', 'twentytwentyfive', 'yes');
+        $t->same([], $freshPlan->deletedRowIds);
+        $t->same([], $freshPlan->deletedOptionNames);
+        $t->same(1, $freshPlan->toArray()['change_count']);
+        $t->same([2, 3], array_keys($freshPlan->pageImages()));
     },
     'database reader rejects missing pages during btree traversal' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
         $page1 = $tableInteriorPage([[2, 1]], 3, 512, 100, $makeFirstPage(512, 1));
