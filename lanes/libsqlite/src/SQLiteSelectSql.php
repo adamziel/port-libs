@@ -2608,16 +2608,54 @@ final class SQLiteSelectSql
             };
         }
 
-        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+CURRENT\s+ROW\s+AND\s+(.+?)\s+FOLLOWING$/i', $sql, $match) !== 1) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports BETWEEN CURRENT ROW AND N FOLLOWING');
+        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports bounded BETWEEN frames');
         }
+
+        [$preceding, $following] = self::windowFrameBounds(trim($match[2]), trim($match[3]));
 
         return [
             'unit' => strtoupper($match[1]),
-            'preceding' => 0,
-            'following' => self::windowFrameOffsetValue(trim($match[2])),
+            'preceding' => $preceding,
+            'following' => $following,
             'exclude' => $exclude,
         ];
+    }
+
+    /**
+     * @return array{0:int|float,1:int|float}
+     */
+    private static function windowFrameBounds(string $startSql, string $endSql): array
+    {
+        $start = self::windowFrameBound($startSql);
+        $end = self::windowFrameBound($endSql);
+
+        if ($start['direction'] === 'FOLLOWING' || $end['direction'] === 'PRECEDING') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports start PRECEDING/CURRENT and end CURRENT/FOLLOWING bounds');
+        }
+
+        return [
+            $start['direction'] === 'PRECEDING' ? $start['offset'] : 0,
+            $end['direction'] === 'FOLLOWING' ? $end['offset'] : 0,
+        ];
+    }
+
+    /**
+     * @return array{direction:string,offset:int|float}
+     */
+    private static function windowFrameBound(string $sql): array
+    {
+        if (strcasecmp($sql, 'CURRENT ROW') === 0) {
+            return ['direction' => 'CURRENT', 'offset' => 0];
+        }
+        if (preg_match('/^(.+?)\s+(PRECEDING|FOLLOWING)$/i', $sql, $match) === 1) {
+            return [
+                'direction' => strtoupper($match[2]),
+                'offset' => self::windowFrameOffsetValue(trim($match[1])),
+            ];
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL window frame bound must be CURRENT ROW or N PRECEDING/FOLLOWING');
     }
 
     private static function windowFrameOffsetValue(string $sql): int|float

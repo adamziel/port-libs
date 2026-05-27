@@ -6,11 +6,11 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePragmaEncodingPageTempStoreState
 {
-    /** @var array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,database_empty:bool,temporary:bool}> */
+    /** @var array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}> */
     private array $schemas = [];
 
     /**
-     * @param array<string, array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,database_empty?:bool,temporary?:bool}> $schemas
+     * @param array<string, array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool}> $schemas
      */
     public function __construct(array $schemas = [])
     {
@@ -34,7 +34,7 @@ final class SQLitePragmaEncodingPageTempStoreState
     /**
      * @return array{
      *     status:string,
-     *     pragma:'encoding'|'page_size'|'page_count'|'temp_store',
+     *     pragma:'encoding'|'page_size'|'page_count'|'temp_store'|'auto_vacuum',
      *     schema:string,
      *     requested:int|string|null,
      *     effective:int|string,
@@ -55,16 +55,17 @@ final class SQLitePragmaEncodingPageTempStoreState
             'page_size' => $this->executePageSize($schema, $parsed['value']),
             'page_count' => $this->executePageCount($schema, $parsed['value']),
             'temp_store' => $this->executeTempStore($schema, $parsed['value']),
+            'auto_vacuum' => $this->executeAutoVacuum($schema, $parsed['value']),
         };
     }
 
     /**
-     * @return array{schema:string,pragma:'encoding'|'page_size'|'page_count'|'temp_store',value:string|null}
+     * @return array{schema:string,pragma:'encoding'|'page_size'|'page_count'|'temp_store'|'auto_vacuum',value:string|null}
      */
     public static function parse(string $sql): array
     {
         $trimmed = rtrim(trim($sql), " \t\r\n;");
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>encoding|page_size|page_count|temp_store)(?:\s*(?:=\s*(?<equals>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|[A-Za-z_][A-Za-z0-9_]*|\d+)|\(\s*(?<paren>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|[A-Za-z_][A-Za-z0-9_]*|\d+)\s*\)))?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>encoding|page_size|page_count|temp_store|auto_vacuum)(?:\s*(?:=\s*(?<equals>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|\d+)|\(\s*(?<paren>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|\d+)\s*\)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite PRAGMA encoding/page/temp_store SQL');
         }
 
@@ -83,7 +84,7 @@ final class SQLitePragmaEncodingPageTempStoreState
     }
 
     /**
-     * @return array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,database_empty:bool,temporary:bool}>
+     * @return array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}>
      */
     public function schemas(): array
     {
@@ -91,16 +92,20 @@ final class SQLitePragmaEncodingPageTempStoreState
     }
 
     /**
-     * @param array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,database_empty?:bool,temporary?:bool} $state
-     * @return array{encoding:string,page_size:int,page_count:int,temp_store:int,database_empty:bool,temporary:bool}
+     * @param array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool} $state
+     * @return array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}
      */
     private function normalizeSchemaState(array $state): array
     {
+        $pendingAutoVacuum = $state['pending_auto_vacuum'] ?? null;
+
         return [
             'encoding' => self::normalizeEncoding($state['encoding'] ?? 'UTF-8'),
             'page_size' => self::normalizePageSize($state['page_size'] ?? 4096),
             'page_count' => self::normalizeNonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count must be non-negative'),
             'temp_store' => self::normalizeTempStore($state['temp_store'] ?? 0),
+            'auto_vacuum' => self::normalizeAutoVacuum($state['auto_vacuum'] ?? 0),
+            'pending_auto_vacuum' => $pendingAutoVacuum === null ? null : self::normalizeAutoVacuum($pendingAutoVacuum),
             'database_empty' => (bool) ($state['database_empty'] ?? true),
             'temporary' => (bool) ($state['temporary'] ?? false),
         ];
@@ -239,6 +244,54 @@ final class SQLitePragmaEncodingPageTempStoreState
         ];
     }
 
+    /**
+     * @return array{status:string,pragma:'auto_vacuum',schema:string,requested:int|null,effective:int,changed:bool,rows:list<array{auto_vacuum:int}>,reason:string|null,requires_vacuum:bool,pending:int|null,page_count:int,dependencies:list<string>}
+     */
+    private function executeAutoVacuum(string $schema, ?string $requested): array
+    {
+        $before = $this->schemas[$schema]['auto_vacuum'];
+        $effective = $before;
+        $pending = $this->schemas[$schema]['pending_auto_vacuum'];
+        $reason = null;
+        $requiresVacuum = false;
+        $requestedValue = $requested === null ? null : self::normalizeAutoVacuum($requested);
+
+        if ($requestedValue !== null) {
+            if ($this->schemas[$schema]['temporary']) {
+                $reason = 'temporary_schema_auto_vacuum_is_connection_local';
+            } elseif ($requestedValue === 0 && $before !== 0) {
+                $pending = 0;
+                $requiresVacuum = true;
+                $reason = 'auto_vacuum_disable_requires_vacuum';
+            } elseif (!$this->schemas[$schema]['database_empty'] && $before === 0 && $requestedValue !== 0) {
+                $pending = $requestedValue;
+                $requiresVacuum = true;
+                $reason = 'auto_vacuum_enable_requires_vacuum';
+            } else {
+                $effective = $requestedValue;
+                $pending = null;
+                $this->schemas[$schema]['auto_vacuum'] = $effective;
+            }
+
+            $this->schemas[$schema]['pending_auto_vacuum'] = $pending;
+        }
+
+        return [
+            'status' => 'ok',
+            'pragma' => 'auto_vacuum',
+            'schema' => $schema,
+            'requested' => $requestedValue,
+            'effective' => $effective,
+            'changed' => $before !== $effective,
+            'rows' => [['auto_vacuum' => $effective]],
+            'reason' => $reason,
+            'requires_vacuum' => $requiresVacuum,
+            'pending' => $pending,
+            'page_count' => $this->schemas[$schema]['page_count'],
+            'dependencies' => ['sqlite-pragma-auto-vacuum-state'],
+        ];
+    }
+
     private static function normalizeEncoding(int|string $value): string
     {
         $text = strtoupper(str_replace(['_', ' '], ['-', ''], self::stripQuotes((string) $value)));
@@ -278,6 +331,24 @@ final class SQLitePragmaEncodingPageTempStoreState
 
         if (!in_array($normalized, [0, 1, 2], true)) {
             throw new \InvalidArgumentException('Unsupported SQLite temp_store mode');
+        }
+
+        return $normalized;
+    }
+
+    private static function normalizeAutoVacuum(int|string $value): int
+    {
+        $normalized = is_int($value) || ctype_digit((string) $value)
+            ? (int) $value
+            : match (strtolower(str_replace(['-', '_'], '', self::stripQuotes((string) $value)))) {
+                'none', 'off' => 0,
+                'full' => 1,
+                'incremental' => 2,
+                default => -1,
+            };
+
+        if (!in_array($normalized, [0, 1, 2], true)) {
+            throw new \InvalidArgumentException('Unsupported SQLite auto_vacuum mode');
         }
 
         return $normalized;

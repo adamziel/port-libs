@@ -2790,4 +2790,168 @@ MD);
             @rmdir($root);
         }
     },
+    'builds countability records from a guarded runner artifact directory' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-runner-artifact-directory-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $acceptedHead = '28488284c6b42b08db024e7e34c788f71b24a201';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/all.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-all-current-next27
+
+- Repository HEAD: `{$acceptedHead}`
+- Scratch: `/tmp/libsqlite-all-current-next27`
+- Log: `all.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `all`
+- Jobs: `2`
+- Timeout seconds: `1800`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `51`
+- Parsed summary: `0 errors out of 10785 tests`
+- Parsed errors: `0`
+- Parsed tests: `10785`
+- Runner time: `00:00:51`
+MD);
+        file_put_contents($root . '/all.log', "00:51 tcl(10785/10785) r0\n");
+
+        file_put_contents($root . '/focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-json-focused-current-next27
+
+- Repository HEAD: `{$acceptedHead}`
+- Scratch: `/tmp/libsqlite-json-focused-current-next27`
+- Log: `/tmp/not-used/focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `600`
+- Patterns: `json101.test json102.test`
+- Exit: `0`
+- Elapsed seconds: `3`
+- Parsed summary: `0 errors out of 650 tests`
+- Parsed errors: `0`
+- Parsed tests: `650`
+- Runner time: `00:00:03`
+MD);
+        file_put_contents($root . '/focused.log', "00:03 tcl(650/650) r0\n");
+
+        file_put_contents($root . '/stale.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-stale-current-next27
+
+- Repository HEAD: `1111111111111111111111111111111111111111`
+- Scratch: `/tmp/libsqlite-stale-current-next27`
+- Log: `stale.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `1800`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `67`
+- Parsed summary: `0 errors out of 22000 tests`
+- Parsed errors: `0`
+- Parsed tests: `22000`
+- Runner time: `00:01:07`
+MD);
+        file_put_contents($root . '/stale.log', "01:07 tcl(22000/22000) r0\n");
+
+        file_put_contents($root . '/failed.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-failed-current-next27
+
+- Repository HEAD: `{$acceptedHead}`
+- Scratch: `/tmp/libsqlite-failed-current-next27`
+- Log: `failed.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `1800`
+- Patterns: none
+- Exit: `1`
+- Elapsed seconds: `12`
+- Parsed summary: `1 errors out of 40 tests`
+- Parsed errors: `1`
+- Parsed tests: `40`
+- Runner time: `00:00:12`
+MD);
+        file_put_contents($root . '/failed.log', "1 errors out of 40 tests in 00:00:12\n");
+
+        try {
+            $record = $evidence->boundedRunnerArtifactDirectoryRecord($root, $acceptedHead);
+
+            $t->same('partially-countable', $record['status']);
+            $t->same($root, $record['artifact_directory']);
+            $t->same($acceptedHead, $record['accepted_repository_head']);
+            $t->same(4, $record['audit_file_count']);
+            $t->same(4, $record['artifact_count']);
+            $t->same(2, $record['countable_count']);
+            $t->same(2, $record['blocked_count']);
+            $t->same(0, $record['missing_count']);
+            $t->same(0, $record['active_count']);
+            $t->same(1, $record['failed_count']);
+            $t->same(0, $record['timed_out_count']);
+            $t->same([], $record['unreadable_audit_files']);
+            $t->same(['libsqlite-all-current-next27', 'libsqlite-json-focused-current-next27'], $record['countable_labels']);
+            $t->same(['libsqlite-failed-current-next27', 'libsqlite-stale-current-next27'], $record['blocked_labels']);
+            $t->same(['libsqlite-failed-current-next27'], $record['failed_labels']);
+            $t->same(11435, $record['tests_total']);
+            $t->same(0, $record['errors_total']);
+            $t->contains('publish the countable zero-error artifact entries', $record['next_gate']);
+            $t->contains('directory record discovers bounded runner audit/log pairs', $record['dependency_closure']);
+
+            $entries = [];
+            foreach ($record['entries'] as $entry) {
+                $entries[$entry['label']] = $entry;
+            }
+
+            $t->same('countable', $entries['libsqlite-all-current-next27']['status']);
+            $t->same(true, $entries['libsqlite-all-current-next27']['countable']);
+            $t->same(10785, $entries['libsqlite-all-current-next27']['tests']);
+            $t->same(0, $entries['libsqlite-all-current-next27']['errors']);
+            $t->same([], $entries['libsqlite-all-current-next27']['blocker_ids']);
+            $t->same('countable', $entries['libsqlite-json-focused-current-next27']['status']);
+            $t->same(650, $entries['libsqlite-json-focused-current-next27']['tests']);
+            $t->same('blocked', $entries['libsqlite-stale-current-next27']['status']);
+            $t->true(in_array('repository-head-mismatch', $entries['libsqlite-stale-current-next27']['blocker_ids'], true), 'Expected stale artifact to be blocked by accepted HEAD provenance');
+            $t->same('blocked', $entries['libsqlite-failed-current-next27']['status']);
+            $t->true(in_array('artifact-not-passed', $entries['libsqlite-failed-current-next27']['blocker_ids'], true), 'Expected failed artifact to remain blocked');
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
+    'keeps a missing guarded runner artifact directory explicit and uncounted' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $record = $evidence->boundedRunnerArtifactDirectoryRecord(
+            '/tmp/missing-libsqlite-runner-artifact-directory-current-next27',
+            '28488284c6b42b08db024e7e34c788f71b24a201'
+        );
+
+        $t->same('blocked-missing-artifact-directory', $record['status']);
+        $t->same('/tmp/missing-libsqlite-runner-artifact-directory-current-next27', $record['artifact_directory']);
+        $t->same(0, $record['artifact_count']);
+        $t->same(0, $record['countable_count']);
+        $t->same(0, $record['blocked_count']);
+        $t->same(1, $record['missing_count']);
+        $t->same([], $record['countable_labels']);
+        $t->same([], $record['blocked_labels']);
+        $t->same([], $record['entries']);
+        $t->same(0, $record['tests_total']);
+        $t->same(0, $record['errors_total']);
+        $t->contains('wait for the guarded bounded-runner artifact directory', $record['next_gate']);
+        $t->contains('directory record scans bounded runner audit/log artifacts only', $record['dependency_closure']);
+    },
 ];

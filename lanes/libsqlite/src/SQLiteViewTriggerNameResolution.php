@@ -241,7 +241,7 @@ final class SQLiteViewTriggerNameResolution
      */
     private static function pseudoColumns(string $sql, string $prefix): array
     {
-        preg_match_all('/\b' . preg_quote($prefix, '/') . '\s*\.\s*(["`\[]?[\w ]+["`\]]?)/i', $sql, $matches);
+        preg_match_all('/\b' . preg_quote($prefix, '/') . '\s*\.\s*("[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)/i', $sql, $matches);
         $columns = [];
         foreach ($matches[1] ?? [] as $column) {
             $columns[self::unquoteIdentifier($column)] = true;

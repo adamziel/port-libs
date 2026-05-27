@@ -5226,3 +5226,26 @@ behavior growth, not a newly hydrated upstream inventory unit.
 
 Dependency closure: no new shared support component is needed. This slice
 reuses lane-local savepoint state, WAL parsing, and durable checkpoint helpers.
+
+## JSONB Patch Indexed Generated current next27 Scenario
+
+`examples/wordpress-jsonb-patch-indexed-generated-current-next27.php` previews
+copied `wp_options` imports that query generated columns derived from
+`json_extract(jsonb_patch(option_value, PATCH), PATH)`. The planner chooses a
+partial covering generated-column index for autoloaded plugin settings, reports
+the canonical merge patch and JSON path, and keeps the behavior local to native
+PHP without requiring `ext/sqlite`.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-jsonb-patch-indexed-generated-current-next27` slice: added
+`SQLiteJsonbPatchGeneratedIndexPlan`, 53 focused PASS assertions in
+`SQLiteJsonbPatchIndexedGeneratedCurrentNext27Test.php`, and the WordPress
+smoke. `lane-status.json` `phpPass` moved from 9342 to 9395. Mapped upstream
+denominator coverage is unchanged because this is focused native PHP planner
+behavior, not a newly hydrated upstream inventory unit.
+
+Dependency closure: no new support component is needed; this reuses the native
+JSONB codec, JSON5 parser, merge-patch helper, JSON path validator, and
+lane-local planner metadata. Non-overlap: this does not repeat JSON table
+cursor/source/hidden/visible constraints, generic JSON scalar patch dispatch,
+expression ORDER BY, expression-index range-cost, B-tree, WAL, or VFS clusters.

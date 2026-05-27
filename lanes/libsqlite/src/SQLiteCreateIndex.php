@@ -21,6 +21,44 @@ final class SQLiteCreateIndex
         return self::parseColumns($sql, null);
     }
 
+    /**
+     * @return list<SQLiteIndexColumn>
+     */
+    public static function columnsAfterFirstExpression(string $sql): array
+    {
+        $index = self::indexedTermsAndTail($sql);
+        if ($index === null || count($index['terms']) < 2) {
+            return [];
+        }
+        if (self::parseIndexedColumn($index['terms'][0]) !== null) {
+            return [];
+        }
+
+        $whereOffset = self::findTopLevelKeyword($index['tail'], 'WHERE');
+        $partial = $whereOffset !== null;
+        $partialPredicate = $whereOffset === null
+            ? null
+            : self::parsePartialPredicate(substr($index['tail'], $whereOffset + strlen('WHERE')));
+
+        $columns = [];
+        foreach (array_slice($index['terms'], 1) as $term) {
+            $column = self::parseIndexedColumn($term);
+            if ($column === null) {
+                break;
+            }
+
+            $columns[] = new SQLiteIndexColumn(
+                $column['name'],
+                $column['collation'],
+                $column['descending'],
+                $partial,
+                $partialPredicate,
+            );
+        }
+
+        return $columns;
+    }
+
     public static function firstLowerExpression(string $sql): ?SQLiteIndexColumn
     {
         $index = self::indexedTermsAndTail($sql);
@@ -398,7 +436,7 @@ final class SQLiteCreateIndex
     private static function parseIndexedColumn(string $term): ?array
     {
         $term = trim($term);
-        $identifier = self::readIdentifier($term, 0);
+        $identifier = self::readPossiblyQualifiedIdentifier($term, 0);
         if ($identifier === null) {
             return null;
         }

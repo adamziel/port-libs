@@ -318,6 +318,45 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
+     */
+    public function applyHotJournalWalRecovery(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        string $walBytes,
+        string $databasePath,
+        ?int $databasePageSize = null,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        $plan = SQLitePagerHotJournalWalRecoveryPlan::recover(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $walBytes,
+            $databasePath,
+            $databasePageSize,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        $applied = $this->applyAtomicOperations(
+            $plan['operations'],
+            $plan['payloads'],
+            $plan['dependencies']
+        );
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param array<int, string> $databasePages 1-indexed page numbers to page images.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
      */
