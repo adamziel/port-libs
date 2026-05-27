@@ -2017,6 +2017,154 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerCurrentNextCountRecord(
+        string $currentArtifactDirectory,
+        string $nextArtifactDirectory,
+        string $currentAcceptedHead,
+        ?string $nextAcceptedHead = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite release-runner current/next count evidence requires a current accepted HEAD');
+        }
+
+        $nextHead = $nextAcceptedHead ?? $currentAcceptedHead;
+        if ($nextHead === '') {
+            throw new \InvalidArgumentException('SQLite release-runner current/next count evidence requires a next accepted HEAD');
+        }
+
+        $current = $this->boundedRunnerArtifactDirectoryHydration(
+            $currentArtifactDirectory,
+            $currentAcceptedHead,
+            $processSnapshot
+        );
+        $next = $this->boundedRunnerArtifactDirectoryHydration(
+            $nextArtifactDirectory,
+            $nextHead,
+            $processSnapshot
+        );
+
+        $currentLabels = $this->countableArtifactLabels($current);
+        $nextLabels = $this->countableArtifactLabels($next);
+        $newLabels = array_values(array_diff($nextLabels, $currentLabels));
+        sort($newLabels);
+        $lostLabels = array_values(array_diff($currentLabels, $nextLabels));
+        sort($lostLabels);
+
+        $currentCount = (int) ($current['countable_count'] ?? 0);
+        $nextCount = (int) ($next['countable_count'] ?? 0);
+        $currentBlocked = (int) ($current['blocked_count'] ?? 0);
+        $nextBlocked = (int) ($next['blocked_count'] ?? 0);
+        $currentArtifacts = (int) ($current['artifact_count'] ?? 0);
+        $nextArtifacts = (int) ($next['artifact_count'] ?? 0);
+        $currentMissingLogs = max(0, (int) ($current['audit_file_count'] ?? 0) - (int) ($current['stdout_file_count'] ?? 0));
+        $nextMissingLogs = max(0, (int) ($next['audit_file_count'] ?? 0) - (int) ($next['stdout_file_count'] ?? 0));
+
+        $blockers = [];
+        if ($currentArtifacts === 0) {
+            $blockers[] = [
+                'id' => 'current-artifacts-missing',
+                'evidence' => 'current accepted runner artifact directory has no hydrated audit/log artifacts to compare',
+                'status' => $current['status'] ?? 'unknown',
+            ];
+        }
+        if ($nextArtifacts === 0) {
+            $blockers[] = [
+                'id' => 'next-artifacts-missing',
+                'evidence' => 'next runner artifact directory has no hydrated audit/log artifacts to count',
+                'status' => $next['status'] ?? 'unknown',
+            ];
+        }
+        if ($currentBlocked > 0) {
+            $blockers[] = [
+                'id' => 'current-artifacts-blocked',
+                'evidence' => 'current artifact directory still contains blocked evidence and cannot be used as a clean count baseline',
+                'blocked_count' => $currentBlocked,
+            ];
+        }
+        if ($currentMissingLogs > 0) {
+            $blockers[] = [
+                'id' => 'current-artifact-logs-missing',
+                'evidence' => 'current artifact directory has audit files without paired runner logs',
+                'missing_log_count' => $currentMissingLogs,
+            ];
+        }
+        if ($nextBlocked > 0) {
+            $blockers[] = [
+                'id' => 'next-artifacts-blocked',
+                'evidence' => 'next artifact directory contains stale, failed, active, missing-log, or manifest-mismatched runner evidence',
+                'blocked_count' => $nextBlocked,
+            ];
+        }
+        if ($nextMissingLogs > 0) {
+            $blockers[] = [
+                'id' => 'next-artifact-logs-missing',
+                'evidence' => 'next artifact directory has audit files without paired runner logs',
+                'missing_log_count' => $nextMissingLogs,
+            ];
+        }
+        if ($nextCount < $currentCount) {
+            $blockers[] = [
+                'id' => 'next-count-regressed',
+                'evidence' => 'next countable runner artifacts are fewer than the current accepted baseline',
+                'current_countable_count' => $currentCount,
+                'next_countable_count' => $nextCount,
+                'lost_labels' => $lostLabels,
+            ];
+        }
+        if ($currentCount === 0 && $nextCount === 0) {
+            $blockers[] = [
+                'id' => 'no-countable-runner-artifacts',
+                'evidence' => 'neither current nor next artifact directory contains accepted-HEAD zero-error runner evidence',
+            ];
+        }
+
+        $status = 'blocked';
+        if ($blockers === []) {
+            $status = $nextCount > $currentCount ? 'next-count-increased' : 'current-count-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'current_artifact_directory' => $currentArtifactDirectory,
+            'next_artifact_directory' => $nextArtifactDirectory,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextHead,
+            'current_status' => $current['status'] ?? 'unknown',
+            'next_status' => $next['status'] ?? 'unknown',
+            'current_artifact_count' => $currentArtifacts,
+            'next_artifact_count' => $nextArtifacts,
+            'current_countable_count' => $currentCount,
+            'next_countable_count' => $nextCount,
+            'countable_delta' => $nextCount - $currentCount,
+            'current_blocked_count' => $currentBlocked,
+            'next_blocked_count' => $nextBlocked,
+            'current_missing_log_count' => $currentMissingLogs,
+            'next_missing_log_count' => $nextMissingLogs,
+            'current_countable_labels' => $currentLabels,
+            'next_countable_labels' => $nextLabels,
+            'new_countable_labels' => $newLabels,
+            'lost_countable_labels' => $lostLabels,
+            'current_tests_total' => $this->artifactDirectoryTestsTotal($current),
+            'next_tests_total' => $this->artifactDirectoryTestsTotal($next),
+            'tests_total_delta' => $this->artifactDirectoryTestsTotal($next) - $this->artifactDirectoryTestsTotal($current),
+            'current' => $current,
+            'next' => $next,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_next_artifacts' => $status !== 'blocked',
+            'next_gate' => match ($status) {
+                'next-count-increased' => 'accept the next current-HEAD runner artifact count increase and publish only its countable zero-error artifacts',
+                'current-count-preserved' => 'record that the next runner artifact set preserves current countability without launching a duplicate broad runner',
+                default => 'repair current/next runner artifact directories until current has a clean baseline and next has no blocked or regressed countable evidence',
+            },
+            'dependency_closure' => 'no new support component needed; current/next count evidence composes hydrated bounded-runner audit/log directories only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $artifactRecord
      * @return array<string, mixed>
      */
@@ -3872,6 +4020,30 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $hydration
+     * @return list<string>
+     */
+    private function countableArtifactLabels(array $hydration): array
+    {
+        $set = is_array($hydration['set'] ?? null) ? $hydration['set'] : [];
+        $labels = is_array($set['countable_labels'] ?? null) ? $set['countable_labels'] : [];
+        $labels = array_values(array_filter($labels, 'is_string'));
+        sort($labels);
+
+        return $labels;
+    }
+
+    /**
+     * @param array<string, mixed> $hydration
+     */
+    private function artifactDirectoryTestsTotal(array $hydration): int
+    {
+        $set = is_array($hydration['set'] ?? null) ? $hydration['set'] : [];
+
+        return is_int($set['tests_total'] ?? null) ? $set['tests_total'] : 0;
     }
 
     /**

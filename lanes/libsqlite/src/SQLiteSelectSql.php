@@ -1354,10 +1354,14 @@ final class SQLiteSelectSql
                         ],
                     ];
                     if (isset($argumentExpressions[1])) {
+                        $rootValue = SQLiteSelectExpression::evaluate($row, $argumentExpressions[1]);
+                        if ($rootValue === null) {
+                            return [];
+                        }
                         $constraints[] = [
                             'column' => 'root',
                             'operator' => '=',
-                            'value' => SQLiteSelectExpression::evaluate($row, $argumentExpressions[1]),
+                            'value' => $rootValue,
                         ];
                     }
 

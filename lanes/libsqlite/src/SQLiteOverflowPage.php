@@ -75,6 +75,61 @@ final class SQLiteOverflowPage
     }
 
     /**
+     * @param callable(int): string $pageReader
+     * @return list<array{current_page:int,next_page:int,payload_bytes:int,terminal:bool}>
+     */
+    public static function chainLinksFromChain(
+        int $firstPageNumber,
+        int $overflowPayloadLength,
+        callable $pageReader,
+        int $pageSize = 512,
+        ?int $usableSize = null,
+    ): array {
+        $usableSize ??= $pageSize;
+        self::validatePageShape($pageSize, $usableSize);
+
+        $pageNumbers = self::pageNumbersFromChain($firstPageNumber, $overflowPayloadLength, $pageReader, $pageSize, $usableSize);
+        $links = [];
+        $remainingBytes = $overflowPayloadLength;
+        $payloadCapacity = $usableSize - 4;
+        foreach ($pageNumbers as $index => $pageNumber) {
+            $page = $pageReader($pageNumber);
+            if (!is_string($page) || strlen($page) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite overflow page {$pageNumber} image length does not match page size");
+            }
+
+            $nextPage = self::readUInt32($page, 0);
+            $payloadBytes = min($payloadCapacity, $remainingBytes);
+            $remainingBytes -= $payloadBytes;
+            $links[] = [
+                'current_page' => $pageNumber,
+                'next_page' => $nextPage,
+                'payload_bytes' => $payloadBytes,
+                'terminal' => $index === count($pageNumbers) - 1,
+            ];
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return list<array{current_page:int,next_page:int,payload_bytes:int,terminal:bool}>
+     */
+    public static function chainLinksFromDatabase(
+        SQLiteDatabase $database,
+        int $firstPageNumber,
+        int $overflowPayloadLength,
+    ): array {
+        return self::chainLinksFromChain(
+            $firstPageNumber,
+            $overflowPayloadLength,
+            static fn (int $pageNumber): string => $database->page($pageNumber),
+            $database->header->pageSize,
+            $database->usablePageSize(),
+        );
+    }
+
+    /**
      * @return list<string>
      */
     public static function encodeChain(

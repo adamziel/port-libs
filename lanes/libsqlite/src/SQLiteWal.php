@@ -874,6 +874,85 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{mode:string,status:string,current_reader_end_frame:int|null,current_shm:array<string,mixed>,checkpoint:array<string,mixed>,next_wal_frame_count:int,next_wal_header:array<string, int|string>|null,next_read_marks:list<int|null>,next_read_mark_plan:array<string,mixed>,next_reader_slot:int|null,next_reader_frame:int|null,current_reader_kept_snapshot:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,dependencies:list<string>}
+     */
+    public function restartReadMarkTransition(string $databaseBytes, SQLiteShmIndex $shm, string $mode = 'restart'): array
+    {
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL read-mark restart mode: {$mode}");
+        }
+
+        $currentShm = $shm->checkpointPlan();
+        $readerEndFrame = $currentShm['checkpoint_pinned_frame'];
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
+
+        if ($checkpoint['wal_bytes'] === '') {
+            $nextWal = null;
+            $nextWalFrameCount = 0;
+        } else {
+            $nextWal = self::parse($checkpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+            $nextWalFrameCount = $nextWal->frameCount();
+        }
+
+        $nextReadMarks = [];
+        foreach ($currentShm['read_marks'] as $mark) {
+            $keepCurrentReader = $checkpoint['busy']
+                && $mark['read_lock_held']
+                && $mark['valid']
+                && $mark['frame'] !== null
+                && $mark['frame'] > 0
+                && $mark['frame'] <= $this->frameCount();
+            $nextReadMarks[] = $keepCurrentReader ? $mark['frame'] : null;
+        }
+
+        if (!$checkpoint['busy']) {
+            $nextReadMarks[0] = 0;
+        }
+
+        $nextReadMarkPlan = $nextWal === null
+            ? [
+                'mx_frame' => 0,
+                'last_commit_frame' => null,
+                'checkpoint_pinned_frame' => null,
+                'checkpoint_can_finish' => true,
+                'reset_blocked' => false,
+                'read_marks' => [],
+                'reusable_slots' => array_keys($nextReadMarks),
+                'recommended_reader_slot' => 0,
+                'recommended_reader_frame' => 0,
+            ]
+            : $nextWal->readMarkPlan($nextReadMarks);
+
+        $nextReaderSlot = $nextReadMarkPlan['recommended_reader_slot'];
+        $nextReaderFrame = $checkpoint['busy']
+            ? ($nextReadMarkPlan['recommended_reader_frame'] ?? null)
+            : 0;
+
+        return [
+            'mode' => $mode,
+            'status' => $checkpoint['busy'] ? 'current-reader-pinned' : 'restart-ready',
+            'current_reader_end_frame' => $readerEndFrame,
+            'current_shm' => $currentShm,
+            'checkpoint' => $checkpoint,
+            'next_wal_frame_count' => $nextWalFrameCount,
+            'next_wal_header' => $checkpoint['wal_header'],
+            'next_read_marks' => $nextReadMarks,
+            'next_read_mark_plan' => $nextReadMarkPlan,
+            'next_reader_slot' => $nextReaderSlot,
+            'next_reader_frame' => $nextReaderFrame,
+            'current_reader_kept_snapshot' => $checkpoint['busy'] && $readerEndFrame !== null,
+            'next_reader_uses_database' => $nextWalFrameCount === 0,
+            'next_reader_uses_restarted_wal' => $nextWal !== null && $nextWalFrameCount === 0 && $checkpoint['wal_bytes_length'] === 32,
+            'dependencies' => [
+                'sqlite-shm-index',
+                'wal-index-read-marks',
+                'sqlite-wal-checkpoint-restart',
+                'wal-current-next-reader-boundary',
+            ],
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

@@ -58,23 +58,39 @@ final class SQLiteVdbeSorterCursor
      */
     public function currentRecord(array $columns): ?array
     {
-        if ($this->eof()) {
+        return $this->recordAt($this->position, $columns, 'current');
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<mixed>|null
+     */
+    public function nextRecord(array $columns): ?array
+    {
+        return $this->recordAt($this->position + 1, $columns, 'next');
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string>|string $affinities
+     * @param list<string> $collations
+     * @param list<bool> $descending
+     * @param list<string|null> $nulls
+     */
+    public function compareCurrentToNext(
+        array $columns,
+        array|string $affinities = [],
+        array $collations = [],
+        array $descending = [],
+        array $nulls = []
+    ): ?int {
+        $current = $this->currentRecord($columns);
+        $next = $this->nextRecord($columns);
+        if ($current === null || $next === null) {
             return null;
         }
-        if ($columns === [] || !array_is_list($columns)) {
-            throw new \InvalidArgumentException('SQLite VDBE sorter current record columns must be a non-empty list');
-        }
 
-        $row = $this->current();
-        $record = [];
-        foreach ($columns as $column) {
-            if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite VDBE sorter current row is missing column {$column}");
-            }
-            $record[] = $row[$column];
-        }
-
-        return $record;
+        return SQLiteVdbeSortCompare::compareRecords($current, $next, $affinities, $collations, $descending, $nulls);
     }
 
     public function currentValue(string $column): mixed
@@ -102,5 +118,30 @@ final class SQLiteVdbeSorterCursor
     public function remainingRows(): array
     {
         return array_slice($this->rows, $this->position);
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<mixed>|null
+     */
+    private function recordAt(int $position, array $columns, string $label): ?array
+    {
+        if ($position >= count($this->rows)) {
+            return null;
+        }
+        if ($columns === [] || !array_is_list($columns)) {
+            throw new \InvalidArgumentException("SQLite VDBE sorter {$label} record columns must be a non-empty list");
+        }
+
+        $row = $this->rows[$position];
+        $record = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite VDBE sorter {$label} row is missing column {$column}");
+            }
+            $record[] = $row[$column];
+        }
+
+        return $record;
     }
 }
