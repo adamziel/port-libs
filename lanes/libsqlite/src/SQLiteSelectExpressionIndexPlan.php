@@ -74,6 +74,9 @@ final class SQLiteSelectExpressionIndexPlan
         $estimatedRows = 0;
         $estimatedCost = 0;
         $orderBySatisfied = true;
+        $stat4Used = false;
+        $stat4CurrentNext = [];
+        $residualPredicateRequired = false;
         foreach ($arms as $position => $arm) {
             if (!is_array($arm)) {
                 throw new \InvalidArgumentException('SQLite SELECT expression-index OR planner terms must be predicates');
@@ -87,6 +90,15 @@ final class SQLiteSelectExpressionIndexPlan
             $estimatedRows += (int) $plan['estimatedRows'];
             $estimatedCost += (int) $plan['estimatedCost'];
             $orderBySatisfied = $orderBySatisfied && (bool) $plan['orderBySatisfied'];
+            $stat4Used = $stat4Used || (bool) $plan['stat4Used'];
+            $residualPredicateRequired = $residualPredicateRequired || (bool) $plan['residualPredicateRequired'];
+            $stat4CurrentNext[] = [
+                'position' => $position,
+                'name' => $plan['name'] ?? null,
+                'operator' => $plan['operator'],
+                'values' => $plan['values'],
+                'currentNext' => $plan['stat4CurrentNext'],
+            ];
             if (is_string($plan['name'] ?? null)) {
                 $indexNames[$plan['name']] = true;
             }
@@ -102,25 +114,98 @@ final class SQLiteSelectExpressionIndexPlan
                 'orderBySatisfied' => $plan['orderBySatisfied'],
                 'trailingColumns' => $plan['trailingColumns'],
                 'coveringExpressions' => $plan['coveringExpressions'] ?? [],
+                'stat4Used' => $plan['stat4Used'],
+                'stat4Estimate' => $plan['stat4Estimate'],
+                'stat4CurrentNext' => $plan['stat4CurrentNext'],
+                'residualPredicateRequired' => $plan['residualPredicateRequired'],
+                'type' => $plan['type'],
+                'column' => $plan['column'],
+                'path' => $plan['path'] ?? null,
             ];
         }
 
         $uniqueIndexNames = array_keys($indexNames);
         sort($uniqueIndexNames, SORT_STRING);
+        $sameIndexPointRewrite = self::sameIndexPointOrRewrite($armPlans);
 
         return [
             'usable' => true,
             'type' => 'or-partial-covering',
+            'strategy' => $sameIndexPointRewrite === null ? 'or-rowid-union' : 'or-to-in-partial-expression',
             'partial' => true,
             'covering' => true,
             'arms' => $armPlans,
             'armCount' => count($armPlans),
             'indexNames' => $uniqueIndexNames,
             'usesSingleIndex' => count($uniqueIndexNames) === 1,
-            'estimatedRows' => $estimatedRows,
+            'estimatedRows' => $sameIndexPointRewrite['estimatedRows'] ?? $estimatedRows,
             'estimatedCost' => $estimatedCost + max(0, count($armPlans) - 1) * 4,
             'orderBySatisfied' => $orderBySatisfied,
             'dedupeRowidsRequired' => count($armPlans) > 1,
+            'stat4Used' => $stat4Used,
+            'stat4CurrentNext' => $stat4CurrentNext,
+            'residualPredicateRequired' => $residualPredicateRequired,
+            'inRewrite' => $sameIndexPointRewrite,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $armPlans
+     * @return null|array{index:string|null,type:string,column:string,path:string|null,values:list<mixed>,estimatedRows:int}
+     */
+    private static function sameIndexPointOrRewrite(array $armPlans): ?array
+    {
+        if (count($armPlans) < 2) {
+            return null;
+        }
+
+        $first = $armPlans[0];
+        if (($first['operator'] ?? null) !== 'point') {
+            return null;
+        }
+
+        $index = $first['name'] ?? null;
+        $type = $first['type'] ?? null;
+        $column = $first['column'] ?? null;
+        $path = $first['path'] ?? null;
+        if (!is_string($type) || !is_string($column)) {
+            return null;
+        }
+
+        $values = [];
+        $estimatedRowsByValue = [];
+        foreach ($armPlans as $arm) {
+            if (
+                ($arm['operator'] ?? null) !== 'point'
+                || ($arm['name'] ?? null) !== $index
+                || ($arm['type'] ?? null) !== $type
+                || ($arm['column'] ?? null) !== $column
+                || ($arm['path'] ?? null) !== $path
+            ) {
+                return null;
+            }
+
+            $value = $arm['values'] ?? null;
+            $key = serialize($value);
+            if (!array_key_exists($key, $estimatedRowsByValue)) {
+                $values[] = $value;
+                $estimatedRowsByValue[$key] = max(1, (int) ($arm['estimatedRows'] ?? 1));
+                continue;
+            }
+
+            $estimatedRowsByValue[$key] = min(
+                $estimatedRowsByValue[$key],
+                max(1, (int) ($arm['estimatedRows'] ?? 1))
+            );
+        }
+
+        return [
+            'index' => is_string($index) ? $index : null,
+            'type' => $type,
+            'column' => $column,
+            'path' => is_string($path) ? $path : null,
+            'values' => $values,
+            'estimatedRows' => array_sum($estimatedRowsByValue),
         ];
     }
 

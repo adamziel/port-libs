@@ -6685,6 +6685,256 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $gapRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerDenominatorGapBurnupCurrentNext53(
+        array $gapRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite denominator gap burnup requires current and next accepted HEAD values');
+        }
+        if ($gapRows === []) {
+            throw new \InvalidArgumentException('SQLite denominator gap burnup requires at least one gap row');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $buckets = [];
+        $readyIds = [];
+        $advancedIds = [];
+        $preservedIds = [];
+        $blockedIds = [];
+        $regressedIds = [];
+        $targetScripts = [];
+        $currentMappedTotal = 0;
+        $nextMappedTotal = 0;
+        $currentScriptTotal = 0;
+        $nextScriptTotal = 0;
+        $denominatorTotal = 0;
+
+        foreach ($gapRows as $label => $row) {
+            if (!is_array($row)) {
+                $id = is_string($label) ? $label : 'gap-' . (string) count($entries);
+                $blockedIds[] = $id;
+                $blockers[] = [
+                    'id' => 'denominator-gap-row-invalid',
+                    'gap_id' => $id,
+                    'evidence' => 'denominator gap row is not an array',
+                ];
+                continue;
+            }
+
+            $id = is_string($row['id'] ?? null) && $row['id'] !== ''
+                ? $row['id']
+                : (is_string($label) ? $label : 'gap-' . (string) count($entries));
+            $bucket = is_string($row['bucket'] ?? null) && $row['bucket'] !== '' ? $row['bucket'] : 'unclassified';
+            $currentMapped = max(0, $this->denominatorAuditInt($row, 'current_mapped'));
+            $nextMapped = max(0, $this->denominatorAuditInt($row, 'next_mapped'));
+            $currentScripts = max(0, $this->denominatorAuditInt($row, 'current_countable_scripts'));
+            $nextScripts = max(0, $this->denominatorAuditInt($row, 'next_countable_scripts'));
+            $rowTotal = max(0, $this->denominatorAuditInt($row, 'denominator_total'));
+            $scripts = array_values(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && str_ends_with($script, '.test')
+            ));
+            sort($scripts, SORT_STRING);
+            foreach ($scripts as $script) {
+                $targetScripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if ($nextMapped < $currentMapped) {
+                $rowBlockers[] = 'mapped-count-regressed';
+            }
+            if ($nextScripts < $currentScripts) {
+                $rowBlockers[] = 'countable-script-count-regressed';
+            }
+            if (($row['hydrated'] ?? true) !== true) {
+                $rowBlockers[] = 'gap-scripts-not-hydrated';
+            }
+            if (($row['next_artifact_present'] ?? false) === true) {
+                $rowBlockers[] = 'next-artifact-already-present';
+            }
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            if (is_string($row['blocker'] ?? null) && $row['blocker'] !== '') {
+                $rowBlockers[] = $row['blocker'];
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $mappedDelta = $nextMapped - $currentMapped;
+            $scriptDelta = $nextScripts - $currentScripts;
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blockedIds[] = $id;
+                if (in_array('mapped-count-regressed', $rowBlockers, true) || in_array('countable-script-count-regressed', $rowBlockers, true)) {
+                    $regressedIds[] = $id;
+                }
+                $blockers[] = [
+                    'id' => 'denominator-gap-row-blocked',
+                    'gap_id' => $id,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($mappedDelta > 0 || $scriptDelta > 0) {
+                $movement = 'advanced';
+                $advancedIds[] = $id;
+                $readyIds[] = $id;
+            } else {
+                $movement = 'preserved';
+                $preservedIds[] = $id;
+            }
+
+            if (!isset($buckets[$bucket])) {
+                $buckets[$bucket] = [
+                    'bucket' => $bucket,
+                    'rows' => 0,
+                    'advanced' => 0,
+                    'preserved' => 0,
+                    'blocked' => 0,
+                    'current_mapped' => 0,
+                    'next_mapped' => 0,
+                    'mapped_delta' => 0,
+                    'current_countable_scripts' => 0,
+                    'next_countable_scripts' => 0,
+                    'script_delta' => 0,
+                    'denominator_total' => 0,
+                ];
+            }
+            $buckets[$bucket]['rows']++;
+            $buckets[$bucket][$movement]++;
+            $buckets[$bucket]['current_mapped'] += $currentMapped;
+            $buckets[$bucket]['next_mapped'] += $nextMapped;
+            $buckets[$bucket]['mapped_delta'] += max(0, $mappedDelta);
+            $buckets[$bucket]['current_countable_scripts'] += $currentScripts;
+            $buckets[$bucket]['next_countable_scripts'] += $nextScripts;
+            $buckets[$bucket]['script_delta'] += max(0, $scriptDelta);
+            $buckets[$bucket]['denominator_total'] += $rowTotal;
+
+            $currentMappedTotal += $currentMapped;
+            $nextMappedTotal += $nextMapped;
+            $currentScriptTotal += $currentScripts;
+            $nextScriptTotal += $nextScripts;
+            $denominatorTotal += $rowTotal;
+
+            $entries[] = [
+                'id' => $id,
+                'bucket' => $bucket,
+                'status' => $movement,
+                'current_mapped' => $currentMapped,
+                'next_mapped' => $nextMapped,
+                'mapped_delta' => $mappedDelta,
+                'current_countable_scripts' => $currentScripts,
+                'next_countable_scripts' => $nextScripts,
+                'script_delta' => $scriptDelta,
+                'denominator_total' => $rowTotal,
+                'scripts' => $scripts,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        ksort($buckets, SORT_STRING);
+        sort($readyIds, SORT_STRING);
+        sort($advancedIds, SORT_STRING);
+        sort($preservedIds, SORT_STRING);
+        sort($blockedIds, SORT_STRING);
+        sort($regressedIds, SORT_STRING);
+        $targetScripts = array_keys($targetScripts);
+        sort($targetScripts, SORT_STRING);
+
+        $mappedDeltaTotal = $nextMappedTotal - $currentMappedTotal;
+        $scriptDeltaTotal = $nextScriptTotal - $currentScriptTotal;
+        $status = 'blocked';
+        if ($blockers === [] && ($mappedDeltaTotal > 0 || $scriptDeltaTotal > 0)) {
+            $status = 'current-next53-denominator-burnup-ready';
+        } elseif ($blockers === [] && $mappedDeltaTotal === 0 && $scriptDeltaTotal === 0) {
+            $status = 'current-next53-denominator-preserved';
+        } elseif ($advancedIds !== [] && $regressedIds === []) {
+            $status = 'current-next53-denominator-burnup-partial';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'bucket_count' => count($buckets),
+            'denominator_total' => $denominatorTotal,
+            'current_mapped_total' => $currentMappedTotal,
+            'next_mapped_total' => $nextMappedTotal,
+            'mapped_delta_total' => $blockers === [] ? max(0, $mappedDeltaTotal) : 0,
+            'current_countable_script_total' => $currentScriptTotal,
+            'next_countable_script_total' => $nextScriptTotal,
+            'countable_script_delta_total' => $blockers === [] ? max(0, $scriptDeltaTotal) : 0,
+            'burnup_percent' => $denominatorTotal > 0 ? round(($nextMappedTotal / $denominatorTotal) * 100, 2) : 0.0,
+            'advanced_count' => count($advancedIds),
+            'preserved_count' => count($preservedIds),
+            'blocked_count' => count($blockedIds),
+            'regressed_count' => count($regressedIds),
+            'ready_gap_ids' => $readyIds,
+            'advanced_gap_ids' => $advancedIds,
+            'preserved_gap_ids' => $preservedIds,
+            'blocked_gap_ids' => $blockedIds,
+            'regressed_gap_ids' => $regressedIds,
+            'target_script_count' => count($targetScripts),
+            'target_scripts' => $targetScripts,
+            'buckets' => array_values($buckets),
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_denominator_gap_burnup' => $status === 'current-next53-denominator-burnup-ready',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => match ($status) {
+                'current-next53-denominator-burnup-ready' => 'publish the admitted current-next53 denominator burnup rows and launch only the remaining ready focused runner scripts through the guarded runner',
+                'current-next53-denominator-preserved' => 'preserve current denominator coverage without claiming new mapped movement',
+                'current-next53-denominator-burnup-partial' => 'preserve advanced rows but repair blocked or duplicate-runner evidence before counting current-next53 movement',
+                default => 'keep denominator burnup uncounted until regressed rows, duplicate runners, and focused PHP admission blockers are repaired',
+            },
+            'dependency_closure' => 'no new support component needed; current-next53 denominator burnup composes lane-local gap rows, script counts, active-runner gates, and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param list<string> $scripts
      * @return array<string, mixed>
      */

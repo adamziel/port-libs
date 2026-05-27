@@ -261,6 +261,11 @@ final class SQLiteVdbeWindowAggregateCursor
         return SQLiteNumericAggregate::countAll($this->currentFrameRows(false));
     }
 
+    public function countFilteredAll(): int
+    {
+        return SQLiteNumericAggregate::countAll($this->currentFrameRows(true));
+    }
+
     public function countValue(): int
     {
         return SQLiteNumericAggregate::countValue($this->currentValues());
@@ -433,7 +438,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}>
+     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,countAll:int,countFilteredAll:int,countValue:int,sum:int|float|null,total:float,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}>
      */
     public function drainSummaries(mixed $separator = ',', bool $applyValueFilter = false): array
     {
@@ -441,6 +446,10 @@ final class SQLiteVdbeWindowAggregateCursor
         while (!$this->eof()) {
             $summary = $this->currentSummary();
             $summary['value'] = $this->requireCurrentRow()[$this->valueColumn];
+            $summary['countAll'] = $this->countAll();
+            $summary['countFilteredAll'] = $this->countFilteredAll();
+            $summary['countValue'] = $this->countValue();
+            $summary['sum'] = $this->sum();
             $summary['total'] = $this->total();
             $summary['groupConcat'] = $this->groupConcat($separator);
             $summary['firstValue'] = $this->firstValue($applyValueFilter);

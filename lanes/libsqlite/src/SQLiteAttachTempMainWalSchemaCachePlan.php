@@ -77,6 +77,58 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
 
     /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, cache?:string|null}> $schemas
+     * @param list<string> $statements
+     * @return array<string,mixed>
+     */
+    public static function currentNextSql(array $schemas, array $statements, string $sourceSchema = 'main'): array
+    {
+        $preparedTables = [];
+        $statementPlans = [];
+        foreach ($statements as $offset => $sql) {
+            if (!is_string($sql) || trim($sql) === '') {
+                throw new \InvalidArgumentException('SQLite prepared SQL statement cannot be empty');
+            }
+
+            $tables = self::statementTables($sql);
+            foreach ($tables as $table) {
+                $preparedTables[] = $table;
+            }
+            $statementPlans[(string) $offset] = [
+                'sql' => $sql,
+                'tables' => $tables,
+                'read_only' => self::statementReadOnly($sql),
+            ];
+        }
+
+        $plan = self::currentNext($schemas, array_values(array_unique($preparedTables)), $sourceSchema);
+        foreach ($statementPlans as $offset => $statementPlan) {
+            $tables = [];
+            $reprepare = false;
+            $schemasRead = [];
+            foreach ($statementPlan['tables'] as $table) {
+                $resolution = $plan['prepared_tables'][$table];
+                $tables[$table] = $resolution;
+                $reprepare = $reprepare || $resolution['requires_reprepare'];
+                if (!in_array($resolution['schema'], $schemasRead, true)) {
+                    $schemasRead[] = $resolution['schema'];
+                }
+            }
+
+            $statementPlans[$offset]['resolved_tables'] = $tables;
+            $statementPlans[$offset]['schemas'] = $schemasRead;
+            $statementPlans[$offset]['requires_reprepare'] = $reprepare;
+        }
+
+        $plan['operation'] = 'attach-temp-main-wal-schema-cache-sql';
+        $plan['statement_count'] = count($statementPlans);
+        $plan['statements'] = $statementPlans;
+        $plan['dependencies'][] = 'sqlite-attach-temp-wal-schema-cache-sql-current-next53';
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, cache?:string|null}> $schemas
      * @return array<string,array{schema_cookie:int, wal_schema_cookie:int|null, wal_frames:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables:list<string>, indexes:list<string>, file:string|null, cache:string|null}>
      */
     private static function normalizeSchemas(array $schemas): array
@@ -265,5 +317,55 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
         }
 
         return strtolower($trimmed);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function statementTables(string $sql): array
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($sql));
+        if ($normalized === null || $normalized === '') {
+            throw new \InvalidArgumentException('SQLite prepared SQL statement cannot be empty');
+        }
+
+        $tables = [];
+        $patterns = [
+            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (!preg_match_all($pattern, $normalized, $matches)) {
+                continue;
+            }
+            foreach ($matches[1] as $match) {
+                $table = self::normalizeSqlName($match);
+                if (!in_array($table, $tables, true)) {
+                    $tables[] = $table;
+                }
+            }
+        }
+
+        if ($tables === []) {
+            throw new \InvalidArgumentException('SQLite prepared SQL statement has no bounded table reference');
+        }
+
+        return $tables;
+    }
+
+    private static function statementReadOnly(string $sql): bool
+    {
+        return preg_match('/^\s*(?:SELECT|WITH|PRAGMA)\b/i', $sql) === 1;
+    }
+
+    private static function normalizeSqlName(string $name): string
+    {
+        $parts = preg_split('/\s*\.\s*/', trim($name));
+        if ($parts === false || $parts === []) {
+            throw new \InvalidArgumentException('SQLite table name cannot be empty');
+        }
+
+        return implode('.', array_map([self::class, 'normalizeName'], $parts));
     }
 }

@@ -252,6 +252,95 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @param list<int|null> $currentReadMarks
+     * @return array{status:string,savepoint:string,mode:string,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,current_read_marks:array<string,mixed>,current_reader_kept_snapshot:bool,next_reader_sees_released_savepoint:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_preserved_wal:bool,images_match:bool,dependencies:list<string>}
+     */
+    public static function readerCurrentNextAfterRelease(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $databaseBytes,
+        array $pageNumbers,
+        array $currentReadMarks,
+        string $mode = 'passive'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release reader boundary requires at least one page number');
+        }
+        if ($currentReadMarks === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release reader boundary requires read marks');
+        }
+
+        $release = $savepoints->releasePlan($savepoint);
+        $readMarkPlan = $wal->readMarkPlan($currentReadMarks);
+        $currentReaderEndFrame = $readMarkPlan['checkpoint_pinned_frame']
+            ?? $readMarkPlan['recommended_reader_frame']
+            ?? $wal->frameCount();
+        if ($currentReaderEndFrame === null || $currentReaderEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release reader frame must be non-negative');
+        }
+
+        $checkpoint = $wal->durableCheckpointResult($databaseBytes, $mode, $readMarkPlan['checkpoint_pinned_frame']);
+        $nextWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($checkpoint['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint release reader boundary pages must be integers');
+            }
+
+            $current[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($checkpoint['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($checkpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $currentFrames = self::visibilityColumn($current, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+        return [
+            'status' => $checkpoint['busy'] ? 'busy' : 'ready',
+            'savepoint' => $savepoint,
+            'mode' => $checkpoint['mode'],
+            'released_frame_names' => $release['released_frame_names'],
+            'merged_page_numbers' => $release['merged_page_numbers'],
+            'target_is_transaction' => $release['target_is_transaction'],
+            'result_depth' => $release['result_depth'],
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $checkpoint['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'current_reader_images' => $currentImages,
+            'next_reader_images' => $nextImages,
+            'current_read_marks' => $readMarkPlan,
+            'current_reader_kept_snapshot' => $currentImages !== $nextImages || $currentReaderEndFrame !== $nextReaderEndFrame,
+            'next_reader_sees_released_savepoint' => (bool) array_intersect($release['merged_page_numbers'], array_column($next, 'page_number')),
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'next_reader_uses_preserved_wal' => $checkpoint['wal_action'] === 'preserve_wal',
+            'images_match' => $currentImages === $nextImages,
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                ['sqlite-wal-savepoint-release-reader-current-next', 'wordpress-import-release-reader-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,stages:list<array{stage:string,reader:string,end_frame:int,wal_bytes_length:int,wal_action:string|null,sources:list<string>,frame_indexes:list<int|null>,page_numbers:list<int>,images:list<string>}>,before_reader:list<array<string,mixed>>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string>,current_reader_sources:list<string>,next_reader_sources:list<string>,before_reader_frame_indexes:list<int|null>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_current_images_match:bool,current_to_next_images_match:bool,rolled_back_frame_indexes:list<int>,rolled_back_page_numbers:list<int>,yield_count:int,dependencies:list<string>}
      */
     public static function yieldReaderSavepointCurrentNext(
