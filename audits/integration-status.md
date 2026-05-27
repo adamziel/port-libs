@@ -1,5 +1,28 @@
 # Integration Status
 
+## Integration accepted - libsqlite SELECT GROUP BY pipeline - 2026-05-27T02:34:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T022117Z.ready`.
+
+Decision: accepted pending serialized root and final commit. The marker was based on `131b31693047579eb155516588982b76198a6ce6`; current accepted source at intake was `b803d38fd2519736400a0a9860e89a99ebf68187`, and cache-busted live Pages already reported that exact source, so the dashboard guard was open. The patch failed direct apply only on stale `lanes/libsqlite/lane-status.json`; implementation, test, example, manifest, and notes hunks applied cleanly with `git apply --exclude=lanes/libsqlite/lane-status.json`, and lane status was reconciled from the current source.
+
+Accepted behavior: `SQLiteSelectQuery` now wires bounded `GROUP BY` / `HAVING` aggregate dispatch into the SELECT pipeline after `FROM` / joins / `WHERE` and before projection, `DISTINCT`, final `ORDER BY`, `LIMIT`, and `OFFSET`. The slice adds copied `wp_options` grouped aggregate smoke coverage and does not repeat the latest B-tree interior redistribution, JSON table windows, scalar WHERE operands, or accepted projection/join/compound/CASE/wildcard/query-plan clusters.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/src/SQLiteSelectQuery.php`: pass.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: pass.
+- `php -l lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php`: pass.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 5420 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php`: pass.
+- Manifest/status JSON decode: pass.
+- `git diff --check -- lanes/libsqlite`: pass.
+
+Dashboard-visible movement recorded in the candidate: libsqlite `phpPass` `754 -> 755`, mapped coverage `417 / 1589 -> 418 / 1589`, and focused `SQLiteHeaderTest.php` movement from the accepted `5340` assertion baseline to `5420`.
+
+Serialized root: passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root`: `215 test files, 30585 assertions, 0 failures`.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T022117Z` still has the accepted lane-local files modified, so it was preserved. Clean integrator worktree `.tmux-team/worktrees/clean-integrator-libsqlite-sql-20260527T023024` has root-run `.tmp-root` artifacts and was also preserved rather than force-removed.
+
 ## Integration accepted - libsqlite indexed LIKE/GLOB prefix ranges - 2026-05-26T18:43:29Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T183717Z.ready`.

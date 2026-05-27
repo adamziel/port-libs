@@ -1,5 +1,39 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT GROUP BY/HAVING Query Pipeline
+
+This isolated SQL execution/planner slice does not reuse stale May 25 rework
+markers and does not repeat accepted grouped aggregate standalone helpers,
+SELECT query-plan composition, WHERE residual predicate basics, projection,
+join, wildcard, CASE, compound SELECT, or expression-index planning. It adds
+one bounded execution behavior cluster: `SQLiteSelectQuery` now wires
+GROUP BY/HAVING aggregate dispatch into the SELECT pipeline after
+FROM/JOIN/WHERE and before projection/result clauses.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 5420 assertions,
+up from the current accepted B-tree interior redistribution baseline of 5340 assertions (`+80`). The new
+assertions cover aggregate ORDER BY/LIMIT/OFFSET, HAVING predicates over
+aggregate summary rows, projected summary columns, scalar `printf()` labels,
+CASE buckets, DISTINCT over projected aggregate rows, final ORDER BY, NULL-only
+aggregate groups, empty groups, strict validation guards, and copied WordPress
+option-summary smoke output.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectQuery.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-grouped-aggregate-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local grouped aggregate summaries, SELECT predicate/projection/result
+helpers, scalar dispatch, and pure PHP row arrays.
+
 ## 2026-05-27 SELECT WHERE Scalar Expression Operands
 
 This isolated scalar SQL execution/planner slice does not reuse stale May 25

@@ -17608,4 +17608,196 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [['bad']], 'select' => [['type' => 'wildcard']]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'USING', 'rows' => [], 'columns' => 'option_id']]]));
     },
+    'executes sqlite select query plans with group by having aggregate projection and result clauses' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24, 'kind' => 'core'],
+            ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 24, 'kind' => 'core'],
+            ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'bytes' => 9, 'kind' => 'core'],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'autoload' => 'no', 'bytes' => 12, 'kind' => 'cache'],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'autoload' => 'no', 'bytes' => 110, 'kind' => 'cache'],
+            ['option_id' => 6, 'option_name' => 'legacy_null', 'autoload' => 'no', 'bytes' => null, 'kind' => 'cache'],
+            ['option_id' => 7, 'option_name' => 'orphaned', 'autoload' => null, 'bytes' => 3, 'kind' => 'orphan'],
+            ['option_id' => 8, 'option_name' => 'orphaned_again', 'autoload' => null, 'bytes' => 7, 'kind' => 'orphan'],
+            ['option_id' => 9, 'option_name' => 'bad_payload', 'autoload' => 'maybe', 'bytes' => null, 'kind' => 'draft'],
+        ];
+
+        $summary = SQLiteSelectQuery::execute([
+            'from' => $options,
+            'where' => [
+                'operator' => 'NOT LIKE',
+                'left' => ['column' => 'option_name'],
+                'right' => 'bad%',
+            ],
+            'groupBy' => [
+                'column' => 'autoload',
+                'valueColumn' => 'bytes',
+                'having' => [
+                    'operator' => 'AND',
+                    'terms' => [
+                        ['operator' => '>=', 'left' => ['column' => 'countAll'], 'right' => 2],
+                        ['operator' => '>', 'left' => ['column' => 'total'], 'right' => 9],
+                    ],
+                ],
+                'orderBy' => [
+                    ['column' => 'sum', 'direction' => 'DESC'],
+                    ['column' => 'group'],
+                ],
+            ],
+            'select' => [
+                ['type' => 'column', 'name' => 'group', 'alias' => 'autoload'],
+                ['type' => 'column', 'name' => 'countAll', 'alias' => 'rows'],
+                ['type' => 'column', 'name' => 'countValue', 'alias' => 'nonnull_bytes'],
+                ['type' => 'column', 'name' => 'countDistinct', 'alias' => 'distinct_byte_values'],
+                ['type' => 'column', 'name' => 'sum', 'alias' => 'byte_sum'],
+                ['type' => 'column', 'name' => 'total', 'alias' => 'byte_total'],
+                ['type' => 'function', 'name' => 'printf', 'alias' => 'label', 'arguments' => [
+                    'autoload:%s rows:%d',
+                    ['type' => 'function', 'name' => 'coalesce', 'arguments' => [
+                        ['type' => 'column', 'name' => 'group'],
+                        'NULL',
+                    ]],
+                    ['type' => 'column', 'name' => 'countAll'],
+                ]],
+                ['type' => 'case', 'alias' => 'bucket', 'branches' => [
+                    ['when' => ['type' => 'column', 'name' => 'sum'], 'then' => 'has-bytes'],
+                ], 'else' => 'empty'],
+                ['type' => 'column', 'name' => 'groupConcat', 'alias' => 'concat_bytes'],
+            ],
+            'distinct' => ['autoload', 'byte_sum'],
+            'orderBy' => [
+                ['column' => 'byte_sum', 'direction' => 'DESC'],
+                ['column' => 'autoload'],
+            ],
+            'limit' => 3,
+        ]);
+
+        $t->same(3, count($summary));
+        $t->same(['no', 'yes', null], array_column($summary, 'autoload'));
+        $t->same([3, 3, 2], array_column($summary, 'rows'));
+        $t->same([2, 3, 2], array_column($summary, 'nonnull_bytes'));
+        $t->same([2, 2, 2], array_column($summary, 'distinct_byte_values'));
+        $t->same([122, 57, 10], array_column($summary, 'byte_sum'));
+        $t->same([122.0, 57.0, 10.0], array_column($summary, 'byte_total'));
+        $t->same(['autoload:no rows:3', 'autoload:yes rows:3', 'autoload:NULL rows:2'], array_column($summary, 'label'));
+        $t->same(['has-bytes', 'has-bytes', 'has-bytes'], array_column($summary, 'bucket'));
+        $t->same(['12|110', '24|24|9', '3|7'], array_column($summary, 'concat_bytes'));
+        $t->same(['autoload', 'rows', 'nonnull_bytes', 'distinct_byte_values', 'byte_sum', 'byte_total', 'label', 'bucket', 'concat_bytes'], array_keys($summary[0]));
+        $t->same('no', $summary[0]['autoload']);
+        $t->same(3, $summary[0]['rows']);
+        $t->same(2, $summary[0]['nonnull_bytes']);
+        $t->same(2, $summary[0]['distinct_byte_values']);
+        $t->same(122, $summary[0]['byte_sum']);
+        $t->same(122.0, $summary[0]['byte_total']);
+        $t->same('autoload:no rows:3', $summary[0]['label']);
+        $t->same('has-bytes', $summary[0]['bucket']);
+        $t->same('12|110', $summary[0]['concat_bytes']);
+        $t->same('yes', $summary[1]['autoload']);
+        $t->same(3, $summary[1]['rows']);
+        $t->same(3, $summary[1]['nonnull_bytes']);
+        $t->same(2, $summary[1]['distinct_byte_values']);
+        $t->same(57, $summary[1]['byte_sum']);
+        $t->same(57.0, $summary[1]['byte_total']);
+        $t->same('autoload:yes rows:3', $summary[1]['label']);
+        $t->same('has-bytes', $summary[1]['bucket']);
+        $t->same('24|24|9', $summary[1]['concat_bytes']);
+        $t->same(null, $summary[2]['autoload']);
+        $t->same(2, $summary[2]['rows']);
+        $t->same(2, $summary[2]['nonnull_bytes']);
+        $t->same(2, $summary[2]['distinct_byte_values']);
+        $t->same(10, $summary[2]['byte_sum']);
+        $t->same(10.0, $summary[2]['byte_total']);
+        $t->same('autoload:NULL rows:2', $summary[2]['label']);
+        $t->same('has-bytes', $summary[2]['bucket']);
+        $t->same('3|7', $summary[2]['concat_bytes']);
+
+        $paged = SQLiteSelectQuery::execute([
+            'from' => $options,
+            'groupBy' => [
+                'column' => 'autoload',
+                'valueColumn' => 'bytes',
+                'orderBy' => [['column' => 'group']],
+                'limit' => 2,
+                'offset' => 1,
+            ],
+        ]);
+        $t->same(2, count($paged));
+        $t->same(['maybe', 'no'], array_column($paged, 'group'));
+        $t->same([1, 3], array_column($paged, 'countAll'));
+        $t->same([null, 122], array_column($paged, 'sum'));
+        $t->same(null, $paged[0]['sum']);
+        $t->same(0.0, $paged[0]['total']);
+        $t->same(null, $paged[0]['avg']);
+        $t->same(null, $paged[0]['min']);
+        $t->same(null, $paged[0]['max']);
+        $t->same(null, $paged[0]['groupConcat']);
+        $t->same('maybe', $paged[0]['group']);
+        $t->same(122, $paged[1]['sum']);
+        $t->same(122.0, $paged[1]['total']);
+        $t->same(61.0, $paged[1]['avg']);
+        $t->same(12, $paged[1]['min']);
+        $t->same(110, $paged[1]['max']);
+        $t->same('12|110', $paged[1]['groupConcat']);
+
+        $noGroups = SQLiteSelectQuery::execute([
+            'from' => $options,
+            'where' => ['operator' => '=', 'left' => ['column' => 'kind'], 'right' => 'missing'],
+            'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes'],
+        ]);
+        $t->same([], $noGroups);
+
+        $nullHaving = SQLiteSelectQuery::execute([
+            'from' => $options,
+            'groupBy' => [
+                'column' => 'autoload',
+                'valueColumn' => 'bytes',
+                'having' => ['operator' => 'IS NULL', 'left' => ['column' => 'sum']],
+            ],
+        ]);
+        $t->same(['maybe'], array_column($nullHaving, 'group'));
+        $t->same([1], array_column($nullHaving, 'countAll'));
+        $t->same([0], array_column($nullHaving, 'countValue'));
+        $t->same(null, $nullHaving[0]['sum']);
+        $t->same(0.0, $nullHaving[0]['total']);
+        $t->same(null, $nullHaving[0]['avg']);
+        $t->same(null, $nullHaving[0]['min']);
+        $t->same(null, $nullHaving[0]['max']);
+        $t->same(null, $nullHaving[0]['groupConcat']);
+
+        $distinctAggregateProjection = SQLiteSelectQuery::execute([
+            'from' => [
+                ['autoload' => 'yes', 'bytes' => 1],
+                ['autoload' => 'yes', 'bytes' => 2],
+                ['autoload' => 'YES', 'bytes' => 3],
+                ['autoload' => 'YES', 'bytes' => 0],
+            ],
+            'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes'],
+            'select' => [
+                ['type' => 'function', 'name' => 'upper', 'alias' => 'autoload_key', 'arguments' => [
+                    ['type' => 'column', 'name' => 'group'],
+                ]],
+                ['type' => 'case', 'alias' => 'nonzero', 'branches' => [
+                    ['when' => ['type' => 'column', 'name' => 'sum'], 'then' => 'yes'],
+                ], 'else' => 'no'],
+                ['type' => 'column', 'name' => 'countAll', 'alias' => 'rows'],
+            ],
+            'distinct' => ['autoload_key', 'nonzero'],
+            'orderBy' => [['column' => 'autoload_key']],
+        ]);
+        $t->same(1, count($distinctAggregateProjection));
+        $t->same('YES', $distinctAggregateProjection[0]['autoload_key']);
+        $t->same('yes', $distinctAggregateProjection[0]['nonzero']);
+        $t->same(2, $distinctAggregateProjection[0]['rows']);
+        $t->same(['autoload_key', 'nonzero', 'rows'], array_keys($distinctAggregateProjection[0]));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => 'autoload']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => '', 'valueColumn' => 'bytes']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes', 'having' => 'bad']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes', 'orderBy' => 'sum']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes', 'limit' => '1']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes', 'limit' => 1, 'offset' => '1']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes', 'offset' => 1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [['autoload' => [], 'bytes' => 1]], 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [['autoload' => 'yes', 'bytes' => []]], 'groupBy' => ['column' => 'autoload', 'valueColumn' => 'bytes']]));
+    },
 ];

@@ -23,6 +23,14 @@ final class SQLiteSelectQuery
             $rows = SQLiteSelectPredicate::filter($rows, $where);
         }
 
+        if (array_key_exists('groupBy', $plan)) {
+            $groupBy = $plan['groupBy'];
+            if (!is_array($groupBy)) {
+                throw new \InvalidArgumentException('SQLite SELECT query groupBy clause must be an aggregate plan');
+            }
+            $rows = self::applyGroupBy($rows, $groupBy);
+        }
+
         if (array_key_exists('select', $plan)) {
             $select = $plan['select'];
             if (!is_array($select) || !array_is_list($select)) {
@@ -123,6 +131,48 @@ final class SQLiteSelectQuery
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $groupBy
+     * @return list<array<string,mixed>>
+     */
+    private static function applyGroupBy(array $rows, array $groupBy): array
+    {
+        $groupColumn = self::requiredString($groupBy, 'column', 'groupBy');
+        $valueColumn = self::requiredString($groupBy, 'valueColumn', 'groupBy');
+
+        $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
+
+        if (array_key_exists('having', $groupBy)) {
+            if (!is_array($groupBy['having'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query HAVING clause must be a predicate');
+            }
+            $summaries = SQLiteSelectPredicate::filter($summaries, $groupBy['having']);
+        }
+
+        if (array_key_exists('orderBy', $groupBy)) {
+            if (!is_array($groupBy['orderBy']) || !array_is_list($groupBy['orderBy'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query aggregate orderBy terms must be a list');
+            }
+            $summaries = SQLiteSelectResult::orderBy($summaries, $groupBy['orderBy']);
+        }
+
+        if (array_key_exists('limit', $groupBy)) {
+            if (!is_int($groupBy['limit'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query aggregate limit must be an integer');
+            }
+            $offset = $groupBy['offset'] ?? 0;
+            if (!is_int($offset)) {
+                throw new \InvalidArgumentException('SQLite SELECT query aggregate offset must be an integer');
+            }
+            $summaries = SQLiteSelectResult::limitOffset($summaries, $groupBy['limit'], $offset);
+        } elseif (array_key_exists('offset', $groupBy)) {
+            throw new \InvalidArgumentException('SQLite SELECT query aggregate offset requires limit');
+        }
+
+        return $summaries;
     }
 
     /**

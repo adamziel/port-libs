@@ -2,6 +2,28 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT Grouped Aggregate Query Scenario
+
+Copied WordPress option import previews can now run grouped aggregate summaries
+through the bounded `SQLiteSelectQuery` pipeline without requiring the SQLite
+extension. The smoke `examples/wordpress-select-grouped-aggregate-preview.php`
+reports copied `wp_options` rows grouped by `autoload`, filtered by HAVING,
+ordered by aggregate totals, projected through summary/scalar columns, and
+finally ordered as SELECT result rows.
+
+Status delta 2026-05-27 isolated SQL execution/planner slice: updated
+`SQLiteSelectQuery` so GROUP BY/HAVING aggregate dispatch composes after
+FROM/JOIN/WHERE and before SELECT projection, DISTINCT, ORDER BY, LIMIT, and
+OFFSET. Focused assertions cover aggregate ORDER BY/LIMIT/OFFSET, projected
+summary columns, scalar labels, CASE buckets, DISTINCT, final ORDER BY, NULL
+aggregate groups, empty groups, validation guards, and copied WordPress smoke
+output. The focused lane test count moves from the current accepted B-tree interior redistribution baseline
+of 5340 assertions to 5420 assertions, +80. Lane `phpPass` moves from 754 to
+755 and mapped coverage moves from 417 to 418. Dependency closure: no new
+support component is needed; this reuses lane-local grouped aggregate,
+predicate, projection, result ordering, scalar dispatch, and pure PHP row-array
+helpers.
+
 ## SELECT WHERE Scalar Expression Scenario
 
 Copied WordPress option import previews can now model scalar expression
