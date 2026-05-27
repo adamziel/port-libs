@@ -4308,3 +4308,26 @@ value coercion, and bounded SELECT planner arrays. Follow-up should wire these
 ranked decisions into broader parser/executor planning without repeating
 accepted expression ORDER BY, GROUP BY/HAVING, SQL text JOIN, or first-pass
 expression-index planner work.
+
+## B-tree Bulk Overflow Delete Freeblock Scenario
+
+Copied WordPress transient cleanup can now delete an option and its timeout
+partner from table and secondary-index leaf pages in one bounded mutation. The
+smoke `examples/wordpress-bulk-delete-overflow-freeblocks.php` reports
+coalesced reusable freeblocks, secure-delete payload clearing, remaining
+`siteurl`/`home` rows and index records, and obsolete table/index overflow page
+numbers for a later freelist release path without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree delete/rebalance slice: added
+`SQLiteTableLeafPage::deleteCellsByRowIdsWithOverflowRelease()` and
+`SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease()` with
+focused assertions for table and index leaf page images, overflow release
+aggregation, freeblock integrity, secure-delete reports, and malformed bulk
+delete guards. Focused `SQLiteHeaderTest.php` passed at 7054 assertions, +56
+over the current accepted 6998 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local table/index leaf encoders, overflow chain helpers, freeblock
+integrity reports, and secure-delete mutation path. Follow-up should connect
+the returned obsolete overflow pages to full freelist and auto-vacuum
+pointer-map application for arbitrary SQL DELETE.

@@ -119309,3 +119309,29 @@ Dashboard publication should run next after the final commit because this is a s
 
 Cleanup debt:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T051619Z` still contains modified/added accepted lane files after publication, so it was preserved rather than removed.
+## Integration candidate accepted for root - libsqlite bulk overflow freeblocks - 2026-05-27T05:35:20Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T052515Z.ready`.
+
+Decision before root: bounded replay accepted for serialized root verification from current source `1f26605ddbc3d622ca8d98722c5e1fa0d1e824fc` (`Integrate libsqlite locked VFS writer`). The original marker was based on `e053593a64d3d9d542a9db035552c66ca35e1a2d`; implementation, test, example, and WordPress scenario hunks applied cleanly in a detached current-source worktree, while stale `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and `notes/root-harness.md` hunks were intentionally not applied and were reconciled from current source counters.
+
+Scope:
+- Added bulk overflow delete/freeblock APIs for table leaf rowids and index leaf record values.
+- Added focused `SQLiteHeaderTest.php` coverage for adjacent overflow-backed table/index deletes, coalesced reusable freeblocks, secure-delete payload clearing, and obsolete overflow page reporting.
+- Added copied WordPress transient cleanup smoke `lanes/libsqlite/examples/wordpress-bulk-delete-overflow-freeblocks.php`.
+- Reconciled libsqlite status/manifest to `779 pass / 0 fail` and mapped coverage `435 / 1589` pending root acceptance.
+
+Focused verification before root:
+- Runtime gates before focused checks: `/` free space `92263044` KiB, load `1.62`, no exact no-argument root runner active.
+- PHP lint passed for changed source, test, and example files.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 7111 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-bulk-delete-overflow-freeblocks.php`: passed and emitted valid JSON.
+- `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json` decoded successfully.
+- `git diff --check`: clean.
+
+Root verification: pending serialized no-argument root harness under clean-integrator lock.
+
+Root verification completed:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32276 assertions, 0 failures`.
+- Final action: commit this single source-moving libsqlite marker, then remove only accepted marker files. Dashboard publication should run next for the new source.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T052515Z` still contains modified lane files from the accepted handoff, so it was preserved and left registered rather than removed.

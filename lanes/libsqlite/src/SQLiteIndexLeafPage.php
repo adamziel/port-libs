@@ -248,6 +248,68 @@ final class SQLiteIndexLeafPage
     }
 
     /**
+     * @param list<list<mixed>> $recordValuesList
+     * @param callable(int, int): list<int> $overflowPageNumbers
+     * @return array{page:string,record_values:list<list<mixed>>,obsolete_overflow_page_numbers:list<int>,deleted:list<array{record_values:list<mixed>,obsolete_overflow_page_numbers:list<int>,deleted_local_payload_length:int,deleted_cell_bytes:int}>}
+     */
+    public static function deleteCellsByRecordValuesWithOverflowRelease(
+        string $page,
+        array $recordValuesList,
+        callable $overflowPageNumbers,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        int $textEncoding = 1,
+        bool $secureDelete = false,
+        ?callable $overflowReader = null,
+    ): array {
+        if ($recordValuesList === []) {
+            throw new \InvalidArgumentException('SQLite index leaf bulk overflow deletion requires at least one record value list');
+        }
+
+        $deletedPage = $page;
+        $deleted = [];
+        $obsoleteOverflowPageNumbers = [];
+        foreach ($recordValuesList as $recordValues) {
+            if (!is_array($recordValues)) {
+                throw new \InvalidArgumentException('SQLite index leaf bulk overflow deletion records must be value lists');
+            }
+
+            $delete = self::deleteCellByRecordValuesWithOverflowRelease(
+                $deletedPage,
+                $recordValues,
+                $overflowPageNumbers,
+                $pageSize,
+                $headerOffset,
+                $usableSize,
+                $textEncoding,
+                $secureDelete,
+                $overflowReader,
+            );
+            $deletedPage = $delete['page'];
+            $obsoleteOverflowPageNumbers = array_values(array_unique(array_merge(
+                $obsoleteOverflowPageNumbers,
+                $delete['obsolete_overflow_page_numbers'],
+            )));
+            $deleted[] = [
+                'record_values' => $delete['record_values'],
+                'obsolete_overflow_page_numbers' => $delete['obsolete_overflow_page_numbers'],
+                'deleted_local_payload_length' => $delete['deleted_local_payload_length'],
+                'deleted_cell_bytes' => $delete['deleted_cell_bytes'],
+            ];
+        }
+
+        sort($obsoleteOverflowPageNumbers);
+
+        return [
+            'page' => $deletedPage,
+            'record_values' => array_values($recordValuesList),
+            'obsolete_overflow_page_numbers' => $obsoleteOverflowPageNumbers,
+            'deleted' => $deleted,
+        ];
+    }
+
+    /**
      * @param list<mixed> $recordValues
      */
     public static function insertCellByRecordValuesReusingFreeblock(

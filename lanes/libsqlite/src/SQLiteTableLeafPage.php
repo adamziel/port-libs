@@ -230,6 +230,64 @@ final class SQLiteTableLeafPage
         return $deletedPage;
     }
 
+    /**
+     * @param list<int> $rowIds
+     * @param callable(int, int): list<int> $overflowPageNumbers
+     * @return array{page:string,rowids:list<int>,obsolete_overflow_page_numbers:list<int>,deleted:list<array{rowid:int,obsolete_overflow_page_numbers:list<int>,deleted_local_payload_length:int,deleted_cell_bytes:int}>}
+     */
+    public static function deleteCellsByRowIdsWithOverflowRelease(
+        string $page,
+        array $rowIds,
+        callable $overflowPageNumbers,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        bool $secureDelete = false,
+    ): array {
+        if ($rowIds === []) {
+            throw new \InvalidArgumentException('SQLite table leaf bulk overflow deletion requires at least one rowid');
+        }
+
+        $deletedPage = $page;
+        $deleted = [];
+        $obsoleteOverflowPageNumbers = [];
+        foreach ($rowIds as $rowId) {
+            if (!is_int($rowId)) {
+                throw new \InvalidArgumentException('SQLite table leaf bulk overflow deletion rowids must be integers');
+            }
+
+            $delete = self::deleteCellByRowIdWithOverflowRelease(
+                $deletedPage,
+                $rowId,
+                $overflowPageNumbers,
+                $pageSize,
+                $headerOffset,
+                $usableSize,
+                $secureDelete,
+            );
+            $deletedPage = $delete['page'];
+            $obsoleteOverflowPageNumbers = array_values(array_unique(array_merge(
+                $obsoleteOverflowPageNumbers,
+                $delete['obsolete_overflow_page_numbers'],
+            )));
+            $deleted[] = [
+                'rowid' => $delete['rowid'],
+                'obsolete_overflow_page_numbers' => $delete['obsolete_overflow_page_numbers'],
+                'deleted_local_payload_length' => $delete['deleted_local_payload_length'],
+                'deleted_cell_bytes' => $delete['deleted_cell_bytes'],
+            ];
+        }
+
+        sort($obsoleteOverflowPageNumbers);
+
+        return [
+            'page' => $deletedPage,
+            'rowids' => array_values($rowIds),
+            'obsolete_overflow_page_numbers' => $obsoleteOverflowPageNumbers,
+            'deleted' => $deleted,
+        ];
+    }
+
     public static function insertCellByRowIdReusingFreeblock(
         string $page,
         int $rowId,
