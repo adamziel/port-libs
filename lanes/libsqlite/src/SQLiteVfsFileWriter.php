@@ -250,6 +250,42 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param array<int, string> $databasePages 1-indexed page numbers to page images.
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
+     */
+    public function applyTemporaryRollbackJournalCommit(
+        string $databasePath,
+        string $journalPath,
+        string $journalBytes,
+        array $databasePages,
+        int $pageSize,
+        string $syncMode = 'full',
+        string $requestedJournalMode = 'delete',
+    ): array {
+        $plan = SQLiteRollbackJournalCommitPlan::commitTemporary(
+            $databasePath,
+            $journalPath,
+            $journalBytes,
+            $databasePages,
+            $pageSize,
+            $syncMode,
+            $requestedJournalMode,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        $payloads = [$plan['journal_path'] => $journalBytes];
+        foreach ($databasePages as $pageNumber => $pageImage) {
+            $payloads[$databasePath . '#page:' . $pageNumber] = $pageImage;
+        }
+
+        $applied = $this->applyOperations($plan['operations'], $payloads, $plan['dependencies']);
+        $applied['commit'] = $plan;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{database_path:string,journal_bytes:string,database_pages:array<int,string>}> $databaseCommits
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
      */

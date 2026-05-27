@@ -149,4 +149,70 @@ final class SQLiteRollbackJournalCommitPlan
             'dependencies' => ['sqlite-rollback-journal-commit', 'durable-journal-before-database-write', 'vfs-file-write-coordination'],
         ];
     }
+
+    /**
+     * @param array<int, string> $databasePages 1-indexed page numbers to page images.
+     * @return array{database_path:string,journal_path:string,page_size:int,sync_mode:string,journal_mode:string,requested_journal_mode:string,temporary:bool,read_only:bool,immutable:bool,database_pages:list<int>,database_bytes:int,journal_bytes:int,operations:list<array{op:string,path:string,offset?:int,bytes?:int,durable?:bool,reason:string,payload_key?:string}>,dependencies:list<string>}
+     */
+    public static function commitTemporary(
+        string $databasePath,
+        string $journalPath,
+        string $journalBytes,
+        array $databasePages,
+        int $pageSize,
+        string $syncMode = 'full',
+        string $requestedJournalMode = 'delete',
+        bool $readOnly = false,
+        bool $immutable = false,
+    ): array {
+        if ($journalPath === '') {
+            throw new \InvalidArgumentException('SQLite temporary rollback-journal commit requires a journal path');
+        }
+        if ($journalPath === $databasePath . '-journal') {
+            throw new \InvalidArgumentException('SQLite temporary rollback-journal commit requires a distinct temporary journal path');
+        }
+
+        $plan = self::commit($databasePath, $journalBytes, $databasePages, $pageSize, $syncMode, 'delete', $readOnly, $immutable);
+        $requestedJournalMode = strtolower($requestedJournalMode);
+        if (!in_array($requestedJournalMode, ['delete', 'truncate', 'persist'], true)) {
+            throw new \InvalidArgumentException('SQLite temporary rollback-journal commit requested journal mode must be delete, truncate, or persist');
+        }
+
+        $defaultJournalPath = $plan['journal_path'];
+        foreach ($plan['operations'] as $index => $operation) {
+            if (($operation['path'] ?? null) !== $defaultJournalPath) {
+                continue;
+            }
+
+            $plan['operations'][$index]['path'] = $journalPath;
+            if (($operation['payload_key'] ?? null) === $defaultJournalPath) {
+                $plan['operations'][$index]['payload_key'] = $journalPath;
+            }
+        }
+
+        $plan['journal_path'] = $journalPath;
+        $plan['journal_mode'] = 'delete';
+        $plan['temporary'] = true;
+        $plan['requested_journal_mode'] = $requestedJournalMode;
+        $plan['operations'][0]['reason'] = 'write_temporary_rollback_journal_before_database_pages';
+        foreach ($plan['operations'] as $index => $operation) {
+            if (($operation['op'] ?? null) === 'sync' && ($operation['path'] ?? null) === $journalPath) {
+                $plan['operations'][$index]['reason'] = $syncMode === 'extra' ? 'sync_temporary_rollback_journal_fullfsync' : 'sync_temporary_rollback_journal';
+            }
+            if (($operation['op'] ?? null) === 'delete' && ($operation['path'] ?? null) === $journalPath) {
+                $plan['operations'][$index]['reason'] = 'delete_temporary_rollback_journal_after_commit';
+            }
+        }
+        $lastIndex = count($plan['operations']) - 1;
+        if (($plan['operations'][$lastIndex]['op'] ?? null) === 'sync_directory') {
+            $plan['operations'][$lastIndex]['path'] = dirname($journalPath);
+            $plan['operations'][$lastIndex]['reason'] = 'persist_temporary_rollback_journal_deletion';
+        }
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-temp-rollback-journal-delete-on-commit']
+        )));
+
+        return $plan;
+    }
 }
