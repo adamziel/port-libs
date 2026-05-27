@@ -785,7 +785,7 @@
         "currentSlice": "Native SQLite database header/parser and WordPress fixture/preflight helpers, now including lane-local connection-state counters for last_insert_rowid(), changes(), and total_changes() previews alongside accepted scalar, aggregate, JSON, WAL, rollback, savepoint, B-tree, encoding/collation, and upstream-suite evidence."
     },
     "wordpressScenario": "SQLite fallback/read/write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, decoded ORDER BY result windows with LIMIT/OFFSET, option_id rowid range reads with table-interior branch pruning around unrelated damaged branches, large option_value overflow reads, generated overflow-page chain writes for large option fixtures and large replacements, secure-delete clearing for obsolete overflow pages returned as freelist leaves, auto-vacuum pointer-map updates for inserted and replaced large-option overflow chains plus planned table/index b-tree roots and child pages after splits or root growth, UTF-16LE/UTF-16BE record serialization for database images whose header text encoding is not UTF-8, non-contiguous reusable overflow-page fixtures that respect reserved bytes, actual freelist trunk/leaf inspection plus allocation-plan, free-plan, auto-vacuum pointer-map mutation preflight, bounded insert-plan, bounded single-leaf, root-growth, no-split multi-page, same-depth leaf-split, parent-root-split, and non-root parent-split secondary-index insert planning, bounded table-root leaf-growth replacement preflight plus multi-page table replacement preflight for rows stored below interior table pages including larger replacements that split target leaves and update roomy lower parents, grow a full table-interior root into two lower interior pages, or split a full non-root table-interior parent and promote the divider into its root, bounded sqlite_autoindex-backed UNIQUE/PRIMARY KEY option_name and autoload/option_name insert/replacement planning including parent-root split UNIQUE option_name inserts, bounded single-leaf and parent-root split composite autoload/option_name insert planning, multi-page no-rebalance, same-depth leaf-split, parent-root split, two-child root-collapse, multi-sibling source-leaf redistribution, root-parent source-leaf merge/free-listing, non-root-parent source-leaf merge/free-listing when the lower parent remains sufficiently populated, two-child-root collapse after non-root composite-index parent underflow, and multi-child-root adjacent interior-parent merge after non-root composite-index parent underflow during autoload replacement, plus bounded replacement-plan header/trunk/table/index/overflow/pointer-map page-image mutations for repair preflight, explicit and automatic index-backed option lookups, callback-backed custom-collation point/range and equality-prefix recovery paths, expression-index recovery for lower/upper/trim/substr/length/CAST/json_extract/JSON ->>/JSON -> paths, JSON5 and JSONB option-value verification and focused JSONB mutation/preflight helpers, bounded index traversal that avoids unrelated or damaged branches, native varint and record serialization preflight for generated wp_options payloads, table-leaf cell/page assembly and table-leaf rowid deletion plus table-interior, option_name, and composite index-leaf/interior page assembly for minimal fixture generation or repair planning, sqlite_sequence AUTOINCREMENT counter inspection, native next-ID/explicit-import sequence state for WordPress ID continuity checks, and b-tree page freeblock/free-space inspection for page-local WordPress database recovery diagnostics. Latest scenario examples/wordpress-core-scalar-option-default.php reports random()/randomblob() token and nonce preview diagnostics for copied wp_options repair workflows.",
-    "nextTask": "Next upstream-suite closure gap: parse or run only supervisor-approved guarded broad release/all artifacts through duplicate-runner, timeout, accepted-HEAD, and SQLite manifest provenance gates; do not count timeout or sanitizer artifacts as release/all parity.",
+    "nextTask": "Next B-tree gap: parent/interior redistribution materialization or pointer-map-aware page moves beyond accepted merge/freeblock/overflow/tail-truncation/leaf-redistribution work.",
     "wordpressScenarioLatest": "The B-tree leaf merge apply smoke reports copied wp_options autoload-index sibling merge materialization after delete underflow, including merged records, obsolete sibling free-page release, secure-delete handling, freelist header updates, and auto-vacuum pointer-map rewrites without requiring ext/sqlite.",
     "evidence": {
         "focusedRuns": {
@@ -825,7 +825,7 @@
         "focusedSelectWildcardProjection": "The 2026-05-26 isolated priority SQL wildcard projection slice maps one additional focused SELECT projection evidence row for star and table-star expansion over copied wp_options joined rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
         "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, GLOB, nested boolean, SQL NULL truth-table, and BLOB identity semantics over copied wp_options-style rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
     },
-    "currentWork": "Latest B-tree work adds bounded leaf sibling merge application planning for copied wp_options maintenance previews, composing merged table/index leaf pages with obsolete sibling freelist and pointer-map page-image updates.",
+    "currentWork": "Latest B-tree work adds focused native PHP assertions for table/index leaf sibling redistribution after delete underflow, covering replacement parent dividers and no-freelist page image updates.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and WordPress option-key assembly diagnostics without requiring ext/sqlite.",
@@ -885,7 +885,8 @@
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence"
         },
-        "focusedWalOpenView": "The 2026-05-26 clean-integrated WAL/open slice maps one additional focused WAL/pager evidence row for bounded sidecar WAL database opening. Native smoke covers committed page overlays, effective database image materialization, checkpoint result passthrough, database-only fallback, sidecar file discovery, uncommitted tail preservation, malformed WAL rejection, and copied wp_options reads without requiring ext/sqlite."
+        "focusedWalOpenView": "The 2026-05-26 clean-integrated WAL/open slice maps one additional focused WAL/pager evidence row for bounded sidecar WAL database opening. Native smoke covers committed page overlays, effective database image materialization, checkpoint result passthrough, database-only fallback, sidecar file discovery, uncommitted tail preservation, malformed WAL rejection, and copied wp_options reads without requiring ext/sqlite.",
+        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -933,12 +934,14 @@
             "status": "mapped-native",
             "phpAssertions": 71,
             "upstreamClaim": "no fresh upstream execution; reuses accepted WAL/pager evidence"
-        }
+        },
+        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
         "focusedWordPressOverflowDeleteNextPointerRelease": "The 2026-05-26 isolated B-tree delete/rebalance slice maps one additional focused overflow/delete evidence row for deriving obsolete overflow pages from actual next-page pointers before freeing them. Native smoke covers non-contiguous overflow page chains, secure-delete leaf clearing, new freelist trunk promotion, auto-vacuum pointer-map free-page rewrites, freelist allocation order, and copied wp_options transient deletion diagnostics without requiring ext/sqlite or a fresh upstream run.",
-        "focusedBtreeLeafFreeblockReuse": "The 2026-05-26 clean-integrated B-tree leaf freeblock-reuse slice maps one additional focused leaf freeblock-reuse row for inserting table and index leaf cells into reusable freeblocks left by deletes. Native smoke covers sorted table rowid and index-record pointer insertion, reusable freeblock splitting, whole-remainder fragmented-byte accounting, free-space deltas, duplicate rejection, and copied wp_options transient delete/reinsert diagnostics without requiring ext/sqlite or a fresh upstream run."
+        "focusedBtreeLeafFreeblockReuse": "The 2026-05-26 clean-integrated B-tree leaf freeblock-reuse slice maps one additional focused leaf freeblock-reuse row for inserting table and index leaf cells into reusable freeblocks left by deletes. Native smoke covers sorted table rowid and index-record pointer insertion, reusable freeblock splitting, whole-remainder fragmented-byte accounting, free-space deltas, duplicate rejection, and copied wp_options transient delete/reinsert diagnostics without requiring ext/sqlite or a fresh upstream run.",
+        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run."
     },
     "mappedUpstreamTests": {
         "nativePortParity": {
@@ -987,6 +990,14 @@
                 "phpPass": 1,
                 "phpFail": 0,
                 "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted file URI/open admission evidence while adding native VFS sidecar policy assertions."
+            },
+            "focusedBtreeLeafRedistributionPlan": {
+                "upstreamScope": "SQLite b-tree delete/rebalance sibling redistribution for table and index leaves after underflow, represented as bounded PHP page-image planning rather than full pager mutation.",
+                "nativeEvidence": "SQLiteBTreeLeafRedistributionPlan focused PHP coverage plus copied wp_options index redistribution smoke.",
+                "status": "mapped-focused-native",
+                "phpPass": 1,
+                "phpFail": 0,
+                "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance evidence while adding native leaf redistribution assertions."
             }
         },
         "sqlExecutionPlanner": {
@@ -1006,7 +1017,8 @@
         "focusedSelectExpressionIndexPlan": "The SELECT expression-index plan smoke reports copied wp_options WHERE predicates routed to lower(option_name), length(option_name), and CAST(option_value AS INTEGER) expression indexes, including root pages, expression type, safe partial-index satisfaction, and residual predicate requirements without requiring ext/sqlite.",
         "focusedVfsSidecarPlan": "The VFS sidecar preflight smoke reports copied WordPress database main, -wal, -shm, rollback-journal, super-journal glob, and temp-directory path planning for writable, immutable read-only, nolock repair, and create-copy opens without requiring ext/sqlite or a shared VFS component.",
         "focusedJsonObjectAggregateWindow": "The JSON aggregate option summary smoke reports copied wp_options values summarized through json_group_object() DISTINCT, ORDER BY, DISTINCT ORDER BY, FILTER, and bounded ROWS window frames with uppercase JSONB dispatch, alongside the accepted json_group_array() aggregate/window previews, without requiring ext/sqlite.",
-        "wordpressBtreeLeafMergeApply": "Copied wp_options autoload-index sibling merge application smoke reports merged leaf records, obsolete sibling freelist release, secure-delete handling, header freelist counts, and pointer-map free-page rewrites for repair/import previews without requiring ext/sqlite."
+        "wordpressBtreeLeafMergeApply": "Copied wp_options autoload-index sibling merge application smoke reports merged leaf records, obsolete sibling freelist release, secure-delete handling, header freelist counts, and pointer-map free-page rewrites for repair/import previews without requiring ext/sqlite.",
+        "wordpressBtreeLeafRedistribution": "The B-tree leaf redistribution smoke reports copied wp_options table and autoload-index sibling redistribution after delete underflow, including moved cells, replacement parent dividers, updated page images, before/after free-space deltas, and no freelist release for repair/import previews without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",
@@ -1015,7 +1027,8 @@
         "focusedWalOpenView": "The 2026-05-26 clean-integrated WAL/open slice maps one additional focused WAL/pager evidence row for bounded sidecar WAL database opening. Native smoke covers committed page overlays, effective database image materialization, checkpoint result passthrough, database-only fallback, sidecar file discovery, uncommitted tail preservation, malformed WAL rejection, and copied wp_options reads without requiring ext/sqlite.",
         "focusedVfsSidecarPlan": "The 2026-05-27 isolated dependency/open slice adds bounded SQLite VFS sidecar path and policy planning for copied WordPress database preflight diagnostics, reusing accepted file URI and open-plan evidence without claiming a fresh upstream run.",
         "focusedJsonObjectAggregateWindow": "The 2026-05-27 clean-integrated JSON object aggregate/window slice adds bounded json_group_object() DISTINCT/ORDER BY/DISTINCT ORDER BY and ROWS window frame helpers for copied WordPress option aggregate previews, reusing accepted JSON aggregate/window evidence without claiming a fresh upstream run.",
-        "btreeLeafMergeApplicationPlan": "SQLiteBTreeLeafMergeApplicationPlan composes accepted leaf merge plans with SQLiteDatabase::planPageFree() page images so table/index merged pages, freelist trunk updates, and pointer-map changes can be applied as a bounded page-image set."
+        "btreeLeafMergeApplicationPlan": "SQLiteBTreeLeafMergeApplicationPlan composes accepted leaf merge plans with SQLiteDatabase::planPageFree() page images so table/index merged pages, freelist trunk updates, and pointer-map changes can be applied as a bounded page-image set.",
+        "btreeLeafRedistributionPlan": "SQLiteBTreeLeafRedistributionPlan composes table/index leaf siblings into redistributed left/right page images, reports replacement parent separators, and leaves both sibling pages allocated for bounded delete/rebalance previews."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1034,6 +1047,14 @@
             "phpFail": 0,
             "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted JSON aggregate/window evidence while adding native object aggregate assertions and a WordPress smoke update."
         },
-        "0": "libsqlite-wal-shm-index-preflight-20260527"
+        "0": "libsqlite-wal-shm-index-preflight-20260527",
+        "focusedBtreeLeafRedistributionPlan": {
+            "upstreamScope": "SQLite b-tree leaf sibling redistribution after delete underflow for table and index leaves represented as bounded PHP page-image diagnostics.",
+            "nativeEvidence": "SQLiteBTreeLeafRedistributionPlan focused PHP coverage plus copied WordPress index redistribution smoke.",
+            "status": "mapped-focused-native",
+            "phpPass": 1,
+            "phpFail": 0,
+            "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance evidence while adding native redistribution assertions and a WordPress smoke."
+        }
     }
 }

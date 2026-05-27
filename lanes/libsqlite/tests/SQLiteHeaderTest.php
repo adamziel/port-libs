@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
+use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteBusyHandler;
@@ -1987,6 +1988,118 @@ return [
             $mergePlan,
             true,
         ));
+    },
+    'redistributes sqlite table leaf siblings after delete underflow without freeing pages' => static function (TestRunner $t): void {
+        $leftPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'autoload_a', 'a:1:{}', 'yes'])),
+        ]);
+        $rightPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(11, SQLiteRecord::encode([null, 'autoload_b', 'a:1:{}', 'yes'])),
+            SQLiteTableLeafCell::encode(12, SQLiteRecord::encode([null, 'autoload_c', 'a:1:{}', 'yes'])),
+            SQLiteTableLeafCell::encode(13, SQLiteRecord::encode([null, 'autoload_d', 'a:1:{}', 'yes'])),
+        ]);
+
+        $plan = SQLiteBTreeLeafRedistributionPlan::tableLeaf($leftPage, $rightPage, 3, 4, 5);
+        $leftHeader = SQLiteBTreePageHeader::parsePage($plan->leftPage, 512);
+        $rightHeader = SQLiteBTreePageHeader::parsePage($plan->rightPage, 512);
+        $leftRows = SQLiteTableLeafCell::parsePageCells($plan->leftPage, $leftHeader);
+        $rightRows = SQLiteTableLeafCell::parsePageCells($plan->rightPage, $rightHeader);
+        $action = $plan->rebalanceAction();
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteBTreeLeafRedistributionPlan::class, get_class($plan));
+        $t->same('table-leaf', $plan->pageType);
+        $t->same(3, $plan->leftPageNumber);
+        $t->same(4, $plan->rightPageNumber);
+        $t->same(5, $plan->parentPageNumber);
+        $t->same([10, 11], $plan->leftKeys);
+        $t->same([12, 13], $plan->rightKeys);
+        $t->same(2, count($plan->leftCells));
+        $t->same(2, count($plan->rightCells));
+        $t->same([3 => $plan->leftPage, 4 => $plan->rightPage], $plan->pageImages());
+        $t->same([10, 11], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $leftRows));
+        $t->same([12, 13], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $rightRows));
+        $t->same(['autoload_a', 'autoload_b'], array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $leftRows));
+        $t->same(['autoload_c', 'autoload_d'], array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $rightRows));
+        $t->same('replace-parent-divider', $plan->divider['action']);
+        $t->same(11, $plan->divider['old_separator_key']);
+        $t->same(12, $plan->divider['new_separator_key']);
+        $t->same('table-leaf-sibling-redistribute', $action['action']);
+        $t->same(['left' => 1, 'right' => 3], $action['before_cells']);
+        $t->same(['left' => 2, 'right' => 2], $action['after_cells']);
+        $t->same(1, $action['moved_cell_count']);
+        $t->same(3, $action['left_page']);
+        $t->same(4, $action['right_page']);
+        $t->same(5, $action['parent_page']);
+        $t->true($action['delta_free_space_bytes']['left'] < 0);
+        $t->true($action['delta_free_space_bytes']['right'] > 0);
+        $t->same('table-leaf', $summary['page_type']);
+        $t->same(2, $summary['left_cell_count']);
+        $t->same(2, $summary['right_cell_count']);
+        $t->same([3, 4], $summary['updated_page_numbers']);
+        $t->same([], $summary['removed_page_numbers']);
+        $t->same($plan->divider, $summary['updated_parent_divider']);
+        $t->same([$action], $summary['actions']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::tableLeaf($rightPage, $leftPage, 4, 3, 5));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::tableLeaf($leftPage, $rightPage, 3, 3, 5));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::tableLeaf(SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_a', 10])),
+        ]), $rightPage, 3, 4, 5));
+    },
+    'redistributes sqlite index leaf siblings after delete underflow without freelist changes' => static function (TestRunner $t): void {
+        $leftPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cache_a', 10])),
+        ]);
+        $rightPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_a', 11])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_b', 12])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_c', 13])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_d', 14])),
+        ]);
+
+        $plan = SQLiteBTreeLeafRedistributionPlan::indexLeaf($leftPage, $rightPage, 8, 9, 2);
+        $leftHeader = SQLiteBTreePageHeader::parsePage($plan->leftPage, 512);
+        $rightHeader = SQLiteBTreePageHeader::parsePage($plan->rightPage, 512);
+        $leftRecords = array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, SQLiteIndexCell::parsePageCells($plan->leftPage, $leftHeader));
+        $rightRecords = array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, SQLiteIndexCell::parsePageCells($plan->rightPage, $rightHeader));
+        $action = $plan->rebalanceAction();
+        $summary = $plan->toArray();
+
+        $t->same('index-leaf', $plan->pageType);
+        $t->same(8, $plan->leftPageNumber);
+        $t->same(9, $plan->rightPageNumber);
+        $t->same(2, $plan->parentPageNumber);
+        $t->same(3, count($plan->leftCells));
+        $t->same(2, count($plan->rightCells));
+        $t->same([0, 1, 2], $plan->leftKeys);
+        $t->same([0, 1], $plan->rightKeys);
+        $t->same([
+            ['no', 'cache_a', 10],
+            ['yes', 'autoload_a', 11],
+            ['yes', 'autoload_b', 12],
+        ], $leftRecords);
+        $t->same([
+            ['yes', 'autoload_c', 13],
+            ['yes', 'autoload_d', 14],
+        ], $rightRecords);
+        $t->same('replace-parent-divider', $plan->divider['action']);
+        $t->same(['yes', 'autoload_a', 11], $plan->divider['old_separator_record']);
+        $t->same(['yes', 'autoload_c', 13], $plan->divider['new_separator_record']);
+        $t->same('index-leaf-sibling-redistribute', $action['action']);
+        $t->same(['left' => 1, 'right' => 4], $action['before_cells']);
+        $t->same(['left' => 3, 'right' => 2], $action['after_cells']);
+        $t->same(2, $action['moved_cell_count']);
+        $t->same([8, 9], $summary['updated_page_numbers']);
+        $t->same([], $summary['removed_page_numbers']);
+        $t->same(1, count($summary['actions']));
+        $t->true($action['delta_free_space_bytes']['left'] < 0);
+        $t->true($action['delta_free_space_bytes']['right'] > 0);
+        $t->same([8 => $plan->leftPage, 9 => $plan->rightPage], $plan->pageImages());
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::indexLeaf($rightPage, $leftPage, 9, 8, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::indexLeaf($leftPage, $rightPage, 0, 9, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafRedistributionPlan::indexLeaf(SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ]), $rightPage, 8, 9, 2));
     },
     'inserts sqlite table leaf cells into reusable freeblocks after delete' => static function (TestRunner $t): void {
         $page = SQLiteTableLeafPage::assemble([

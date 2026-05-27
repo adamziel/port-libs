@@ -118184,3 +118184,31 @@ Final gates:
 - Accepted marker `.ready`, `.patch`, `.md`, and isolated prompt files were removed after publication.
 - Remaining ready-marker count after cleanup: `6917` total ready markers, including `3649` libsqlite ready markers.
 - Dashboard publication should run next because `refs/heads/main` moved.
+
+## Integration accepted - libsqlite B-tree leaf redistribution - 2026-05-27T01:06:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T005334Z.ready`.
+
+Decision: accepted via bounded replay from older base `2d3e198308e5c19ab5770093ff366565f9b080b4` onto current accepted source `c5a54adc0e036c703f44cfb321bc269b4564f757`. Direct patch application failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation/test/example/note hunks applied cleanly, and manifest/status were reconciled from current accepted files.
+
+Dashboard guard evidence:
+- Cache-busted live Pages `sourceCommit` matched local `refs/heads/main` at `c5a54adc0e036c703f44cfb321bc269b4564f757`, generated `2026-05-27 01:00:21 UTC`, dashboard `f5979fd2b07722b84819965cda926a7c18b15e37`.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4909 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-index-redistribute-delete-rebalance.php` emitted valid JSON.
+- `git diff --check` passed before the root run.
+
+Runtime gates before root:
+- `df -Pk /` above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load below `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` empty before starting the serialized root harness.
+
+Root result: pending in this entry; final result is recorded below after the serialized lock-protected run.
+
+Root result update for the B-tree leaf redistribution acceptance:
+- Serialized no-argument root harness passed under the clean-integrator lock with `TMPDIR=$candidate/.tmp-root`: `215 test files, 30043 assertions, 0 failures`.
+
+Cleanup debt:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T005334Z` still contains modified and added libsqlite files after the accepted commit, so it was preserved and left registered. Accepted ready/patch/metadata marker files were removed after the amended commit advanced `refs/heads/main`.

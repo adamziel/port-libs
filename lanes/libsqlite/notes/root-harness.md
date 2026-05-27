@@ -1729,3 +1729,32 @@ Dependency closure: no new shared support component is needed. This is a
 lane-local bounded VFS/open admission helper that reuses existing file URI,
 open-plan, and busy-handler behavior while recording the remaining activation
 gate for a future real process/file-lock VFS.
+
+## B-tree Leaf Redistribution Delete/Rebalance Slice
+
+Focused lane verification for the B-tree delete/rebalance leaf redistribution
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeLeafRedistributionPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-index-redistribute-delete-rebalance.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-redistribute-delete-rebalance.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 4909 assertions, and 0 failures on current accepted
+`c5a54adc`. The WordPress smoke reported a
+copied `wp_options` autoload-index delete/rebalance preview that redistributes
+cells from a fuller right sibling into an underfilled left sibling, updates the
+parent divider record, preserves both sibling pages, and makes no freelist
+change. Manifest/status JSON decoded successfully; lane diff check passed. The
+root harness was not run because this was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local B-tree page header parser, table/index leaf page assemblers, table
+and index cell encoders, record encoding, and existing WordPress B-tree
+diagnostic smoke pattern.
