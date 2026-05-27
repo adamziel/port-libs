@@ -119009,3 +119009,27 @@ Serialized root verification is pending under the clean-integrator lock from thi
 Root verification completed: `php tools/run-tests.php` passed with `215 test files, 31561 assertions, 0 failures` using repo-local `TMPDIR` under the clean-integrator lock. Final acceptance and marker cleanup are pending atomic ref publication.
 
 Final decision: accepted as `a7a273837d6799f8754858ba72907c023700475f` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T040556Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Dashboard publication should run next for this accepted source.
+
+## Integration accepted - libsqlite B-tree index page move - 2026-05-27T04:24:00Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T041339Z.ready`.
+
+Dashboard guard evidence: local `refs/heads/main` and cache-busted live Pages both reported `ad61f3963a3c7251e6a5a953b2a75c82ae894791` before marker intake, so the source-moving guard was open for one libsqlite marker.
+
+Candidate evidence: marker lane `libsqlite`, base `bddc2238ab6be66d4bb399dabb9d35bb2aba5954`, patch sha256 matched marker metadata (`ea50135c9c01602c6ec10429b38eaae518cfabbc3aff46272f2e821cbac7c635`). Full patch conflicted only in moved manifest/status/notes files on current `ad61f396`; implementation, test, and example hunks applied cleanly with status/manifest counters reconciled from current source.
+
+Accepted behavior: added `SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot()` for auto-vacuum index leaf relocation into a freelist slot, index-parent left-child/right-most pointer rewrites, moved-page and overflow pointer-map ownership updates, plus `wordpress-autovacuum-index-page-move.php` smoke coverage.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/src/SQLiteBTreePageMovePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-autovacuum-index-page-move.php` passed.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-autovacuum-index-page-move.php` passed and emitted valid JSON.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 6457 assertions, 0 failures`.
+- `git diff --check` passed.
+
+Runtime gates before serialized root: pending immediate recheck under lock discipline. Serialized root verification is pending from this exact staged candidate snapshot.
+
+Root verification completed: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under the clean-integrator lock with `215 test files, 31622 assertions, 0 failures`.
+
+Final decision: accepted as `fe31ba460975099499bf94c6d90429a32dc0aa1b` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T041339Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Accepted ready marker, patch, metadata, and isolated prompt files were removed after `refs/heads/main` publication. Dashboard publication should run next for this accepted source.

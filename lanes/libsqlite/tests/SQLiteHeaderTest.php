@@ -2415,6 +2415,186 @@ return [
             3,
         ));
     },
+    'moves sqlite last index leaf page into auto-vacuum freelist slot with overflow pointer-map rewrites' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 9), pack('N', 4), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 2), 36, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            5 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            6 => [SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 9],
+            7 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            8 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            9 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $freelistTrunkPage = substr_replace(str_repeat("\0", $pageSize), pack('N', 1), 4, 4);
+        $freelistTrunkPage = substr_replace($freelistTrunkPage, pack('N', 5), 8, 4);
+        $largeOptionName = str_repeat('z-autoload-fragment-', 24);
+        $largePayload = SQLiteRecord::encode(['yes', $largeOptionName, 203]);
+        $overflowCell = SQLiteIndexCell::encodeWithOverflowPages($largePayload, 6, $pageSize);
+        $parentPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_m', 150]), $pageSize, null, 7),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_t', 180]), $pageSize, null, 8),
+        ], 9, $pageSize);
+        $leftLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cron_lock', 10])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_a', 11])),
+        ], $pageSize);
+        $middleLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_n', 150])),
+        ], $pageSize);
+        $sourceLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_z', 201])),
+            $overflowCell['cell'],
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $parentPage
+            . $freelistTrunkPage
+            . str_repeat("\0", $pageSize)
+            . $overflowCell['overflowPages'][0]
+            . $leftLeafPage
+            . $middleLeafPage
+            . $sourceLeafPage,
+        );
+
+        $plan = SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot($database, 9, 3);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            if ($pageNumber <= $plan->databasePageCount) {
+                $pages[$pageNumber] = $page;
+            }
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $postParentHeader = $postDatabase->pageHeader(3);
+        $postParentCells = SQLiteIndexCell::parsePageCells($postDatabase->page(3), $postParentHeader, $postDatabase->usablePageSize());
+        $movedLeafHeader = $postDatabase->pageHeader(5);
+        $movedLeafCells = SQLiteIndexCell::parsePageCells(
+            $postDatabase->page(5),
+            $movedLeafHeader,
+            $postDatabase->usablePageSize(),
+            static fn (int $firstOverflowPage, int $byteCount): string => substr($postDatabase->page($firstOverflowPage), 4, $byteCount),
+        );
+        $summary = $plan->toArray();
+
+        $t->same(9, $plan->sourcePageNumber);
+        $t->same(5, $plan->targetPageNumber);
+        $t->same(3, $plan->parentPageNumber);
+        $t->same(8, $plan->databasePageCount);
+        $t->same([5], $plan->allocationPlan->allocatedPageNumbers);
+        $t->same([], $plan->allocationPlan->appendedPageNumbers);
+        $t->same(4, $plan->allocationPlan->firstFreelistTrunkPage);
+        $t->same(1, $plan->allocationPlan->freelistPageCount);
+        $t->same([1, 2, 3, 4, 5], $plan->updatedPageNumbers());
+        $t->same([2], $plan->updatedPointerMapPageNumbers);
+        $t->same('auto-vacuum-index-leaf-page-move', $summary['action']);
+        $t->same(9, $summary['source_page']);
+        $t->same(5, $summary['target_page']);
+        $t->same(3, $summary['parent_page']);
+        $t->same(8, $summary['database_page_count']);
+        $t->same([5], $summary['allocated_page_numbers']);
+        $t->same(1, $summary['freelist_page_count']);
+        $t->same(4, $summary['first_freelist_trunk_page']);
+        $t->same(['kind' => 'right-most', 'page' => 3, 'before' => 9, 'after' => 5], $summary['parent_pointer_update']);
+        $t->same([1, 2, 3, 4, 5], $summary['updated_page_numbers']);
+        $t->same([4], $summary['updated_freelist_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same(8, $postDatabase->header->databaseSizePages);
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same('index-interior', $postParentHeader->pageType);
+        $t->same(2, $postParentHeader->cellCount);
+        $t->same(5, $postParentHeader->rightMostPointer);
+        $t->same([7, 8], array_map(static fn (SQLiteIndexCell $cell): ?int => $cell->leftChildPage, $postParentCells));
+        $t->same([
+            ['yes', 'autoload_m', 150],
+            ['yes', 'autoload_t', 180],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $postParentCells));
+        $t->same('index-leaf', $movedLeafHeader->pageType);
+        $t->same(2, $movedLeafHeader->cellCount);
+        $t->same([
+            ['yes', 'autoload_z', 201],
+            ['yes', $largeOptionName, 203],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $movedLeafCells));
+        $t->same($largePayload, $movedLeafCells[1]->payload);
+        $t->same(6, $movedLeafCells[1]->firstOverflowPage);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same('first-overflow-page', $postDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same(5, $postDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+
+        $leftChildParentPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_m', 150]), $pageSize, null, 9),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_t', 180]), $pageSize, null, 7),
+        ], 8, $pageSize);
+        $leftChildDatabase = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $leftChildParentPage
+            . $freelistTrunkPage
+            . str_repeat("\0", $pageSize)
+            . $overflowCell['overflowPages'][0]
+            . $leftLeafPage
+            . $middleLeafPage
+            . $sourceLeafPage,
+        );
+        $leftChildPlan = SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot($leftChildDatabase, 9, 3);
+        $leftChildPages = [];
+        for ($pageNumber = 1; $pageNumber <= $leftChildPlan->databasePageCount; $pageNumber++) {
+            $leftChildPages[$pageNumber] = $leftChildDatabase->page($pageNumber);
+        }
+        foreach ($leftChildPlan->pageImages as $pageNumber => $page) {
+            if ($pageNumber <= $leftChildPlan->databasePageCount) {
+                $leftChildPages[$pageNumber] = $page;
+            }
+        }
+        $leftChildPostDatabase = SQLiteDatabase::fromBytes(implode('', $leftChildPages));
+        $leftChildPostHeader = $leftChildPostDatabase->pageHeader(3);
+        $leftChildPostCells = SQLiteIndexCell::parsePageCells($leftChildPostDatabase->page(3), $leftChildPostHeader, $leftChildPostDatabase->usablePageSize());
+        $t->same(5, $leftChildPlan->targetPageNumber);
+        $t->same(8, $leftChildPlan->databasePageCount);
+        $t->same(['kind' => 'left-child', 'page' => 3, 'before' => 9, 'after' => 5], $leftChildPlan->parentPointerUpdate);
+        $t->same(['kind' => 'left-child', 'page' => 3, 'before' => 9, 'after' => 5], $leftChildPlan->toArray()['parent_pointer_update']);
+        $t->same([1, 2, 3, 4, 5], $leftChildPlan->updatedPageNumbers());
+        $t->same([2], $leftChildPlan->updatedPointerMapPageNumbers);
+        $t->same(8, $leftChildPostDatabase->header->databaseSizePages);
+        $t->same(2, $leftChildPostHeader->cellCount);
+        $t->same(8, $leftChildPostHeader->rightMostPointer);
+        $t->same([5, 7], array_map(static fn (SQLiteIndexCell $cell): ?int => $cell->leftChildPage, $leftChildPostCells));
+        $t->same([
+            ['yes', 'autoload_m', 150],
+            ['yes', 'autoload_t', 180],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $leftChildPostCells));
+        $t->same('btree-page', $leftChildPostDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(3, $leftChildPostDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same('first-overflow-page', $leftChildPostDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same(5, $leftChildPostDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same([4], $leftChildPostDatabase->freelistPageNumbers());
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot($database, 8, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot($database, 9, 7));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastIndexLeafIntoFreelistSlot(
+            SQLiteDatabase::fromBytes(substr_replace($firstPage, pack('N', 0), 52, 4) . str_repeat("\0", $pageSize * 8)),
+            9,
+            3,
+        ));
+    },
     'redistributes sqlite table leaf siblings after delete underflow without freeing pages' => static function (TestRunner $t): void {
         $leftPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'autoload_a', 'a:1:{}', 'yes'])),
