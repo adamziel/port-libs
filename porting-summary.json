@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 22:44:40 UTC",
-    "sourceCommit": "6267226e860814366d75a0820b52533d4740785a",
-    "sourceCommitShort": "6267226e8608",
+    "generated": "2026-05-27 22:54:11 UTC",
+    "sourceCommit": "7f2e907cdacec133fa2b2281a4367be65c1ac7e0",
+    "sourceCommitShort": "7f2e907cdace",
     "sourceBranch": "main",
-    "dashboardCommit": "da2e8d5c0cc854fd3dc2e754ad8f1fdbd326dcb5",
-    "dashboardCommitShort": "da2e8d5c0cc8",
+    "dashboardCommit": "e92d3f75e51e48dfbcf36545b7224b01ffb2ea6b",
+    "dashboardCommitShort": "e92d3f75e51e",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "462",
             "coverage": "462 / 1589",
-            "php": "17920 pass / 0 fail",
+            "php": "18565 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch38 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch38 closure over JSONB generated-index B-tree updates, WAL hot-journal savep...",
-            "nextTarget": "Publish batch38 dashboard status, consume accepted batch38 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch38 subset: focused, full libsqlite, and...",
-            "commit": "431cbbf"
+            "audit": "Batch48 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch48 closure over JSONB table upsert covering-index maintenance, WAL checkpoi...",
+            "nextTarget": "Publish batch48 dashboard status, consume accepted batch48 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch48 subset: focused, full libsqlite, and...",
+            "commit": "5e9e5bb"
         },
         {
             "library": "LightningCSS",
