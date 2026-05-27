@@ -4873,3 +4873,16 @@ lookup, and copied WordPress option WAL diagnostics. Follow-up should continue
 WAL/pager transaction application and durable recovery/checkpoint paths without
 repeating accepted VFS writer, savepoint rollback, rollback-journal commit, or
 this current-reader visibility composition.
+
+## SELECT SQL JSONB Literal Malformed Edge Dispatch Scenario
+
+Status delta 2026-05-27 isolated `jsonb-malformed-edge-dispatch` slice:
+`SQLiteSelectSql` now parses SQLite `X'...'` BLOB literals and feeds SQL-literal
+JSONB BLOBs through `json_each()` / `json_tree()` source and hidden-constraint
+dispatch. Valid JSONB literals expand through parser-level SELECT SQL, while
+malformed JSONB literals such as `X'1c00'` produce empty JSON table rowsets
+instead of aborting copied import diagnostics. The updated
+`examples/wordpress-select-sql-json-malformed-jsonb-join.php` smoke covers both
+row-sourced wp_options JSONB joins and SQL-literal malformed JSONB hidden
+constraints. No new support component is needed; this reuses the existing
+native PHP JSONB validator, `SQLiteBlobValue`, and SELECT SQL dispatcher.

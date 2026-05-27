@@ -511,7 +511,7 @@ final class SQLiteSelectSql
             return [
                 'name' => $function,
                 'alias' => $alias,
-                'rows' => SQLiteJsonTablePlan::visibleRows($function, $jsonConstraints),
+                'rows' => self::jsonTableRowsForSql($function, $jsonConstraints),
             ];
         }
         if (!array_key_exists($name, $tables) || !is_array($tables[$name]) || !array_is_list($tables[$name])) {
@@ -588,7 +588,7 @@ final class SQLiteSelectSql
                         return [];
                     }
 
-                    return self::qualifiedRows(SQLiteJsonTablePlan::visibleRows($function, $constraints), $alias);
+                    return self::qualifiedRows(self::jsonTableRowsForSql($function, $constraints), $alias);
                 },
             ];
         }
@@ -607,8 +607,22 @@ final class SQLiteSelectSql
         return [
             'name' => $function,
             'alias' => $alias,
-            'rows' => SQLiteJsonTablePlan::visibleRows($function, $constraints),
+            'rows' => self::jsonTableRowsForSql($function, $constraints),
         ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array<string,mixed>>
+     */
+    private static function jsonTableRowsForSql(string $function, array $constraints): array
+    {
+        $plan = SQLiteJsonTablePlan::validatedPlan($function, $constraints);
+        if (!$plan['runnable'] && ($plan['jsonInputKind'] === 'jsonb' || $plan['jsonInputKind'] === 'sql-null')) {
+            return [];
+        }
+
+        return SQLiteJsonTablePlan::visibleRows($function, $constraints);
     }
 
     private static function literalExpressionValue(array $expression, string $context): mixed
@@ -1112,6 +1126,18 @@ final class SQLiteSelectSql
         }
         if (strcasecmp($sql, 'NULL') === 0) {
             return ['type' => 'literal', 'value' => null];
+        }
+        if (preg_match("/^[xX]'([0-9A-Fa-f]*)'$/", $sql, $match) === 1) {
+            if (strlen($match[1]) % 2 !== 0) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL BLOB literal must have an even number of hex digits');
+            }
+
+            $bytes = hex2bin($match[1]);
+            if (!is_string($bytes)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL BLOB literal is malformed');
+            }
+
+            return ['type' => 'literal', 'value' => new SQLiteBlobValue($bytes)];
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
             return ['type' => 'column', 'name' => $sql];

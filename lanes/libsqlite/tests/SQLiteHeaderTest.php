@@ -24093,6 +24093,61 @@ SQL;
         $t->same([], $malformedDynamicRows);
         $t->same([], $nullDynamicRows);
 
+        $jsonbLiteralHex = bin2hex(SQLiteJsonB::encode([
+            'rules' => [
+                ['name' => 'seo', 'priority' => 2],
+                ['name' => 'cache', 'priority' => 7],
+            ],
+        ]));
+        $jsonbLiteralRows = SQLiteSelectSql::execute(
+            "SELECT key, atom AS priority, fullkey FROM json_tree(X'{$jsonbLiteralHex}', '$.rules') WHERE key = 'priority' ORDER BY priority DESC",
+            [],
+        );
+        $t->same(2, count($jsonbLiteralRows));
+        $t->same(['priority', 'priority'], array_column($jsonbLiteralRows, 'key'));
+        $t->same([7, 2], array_column($jsonbLiteralRows, 'priority'));
+        $t->same(['$.rules[1].priority', '$.rules[0].priority'], array_column($jsonbLiteralRows, 'fullkey'));
+        $t->same(['key', 'priority', 'fullkey'], array_keys($jsonbLiteralRows[0]));
+        $t->same('priority', $jsonbLiteralRows[0]['key']);
+        $t->same(7, $jsonbLiteralRows[0]['priority']);
+        $t->same('$.rules[1].priority', $jsonbLiteralRows[0]['fullkey']);
+        $t->same(2, $jsonbLiteralRows[1]['priority']);
+        $t->same('$.rules[0].priority', $jsonbLiteralRows[1]['fullkey']);
+
+        $malformedJsonbLiteralRows = SQLiteSelectSql::execute("SELECT key, atom FROM json_tree(X'1c00', '$.rules')", []);
+        $t->same([], $malformedJsonbLiteralRows);
+        $malformedJsonbHiddenRows = SQLiteSelectSql::execute("SELECT key, atom FROM json_each WHERE json = X'1c00' AND root = '$.rules' ORDER BY key", []);
+        $t->same([], $malformedJsonbHiddenRows);
+        $malformedJsonbLiteralPlan = SQLiteSelectSql::plan("SELECT key FROM json_each WHERE json = X'1c00'", []);
+        $t->same(['from', 'select'], array_keys($malformedJsonbLiteralPlan));
+        $t->same([], $malformedJsonbLiteralPlan['from']);
+        $t->same('key', $malformedJsonbLiteralPlan['select'][0]['name']);
+        $validJsonbHiddenPlan = SQLiteSelectSql::plan("SELECT key, atom FROM json_tree WHERE json = x'{$jsonbLiteralHex}' AND root = '$.rules' AND key = 'priority' ORDER BY atom DESC", []);
+        $t->same(['from', 'select', 'where', 'orderBy'], array_keys($validJsonbHiddenPlan));
+        $t->same(7, count($validJsonbHiddenPlan['from']));
+        $t->same('rules', $validJsonbHiddenPlan['from'][0]['key']);
+        $t->same('array', $validJsonbHiddenPlan['from'][0]['type']);
+        $t->same('priority', $validJsonbHiddenPlan['from'][3]['key']);
+        $t->same(2, $validJsonbHiddenPlan['from'][3]['atom']);
+        $t->same('priority', $validJsonbHiddenPlan['from'][6]['key']);
+        $t->same(7, $validJsonbHiddenPlan['from'][6]['atom']);
+        $t->same('=', $validJsonbHiddenPlan['where']['operator']);
+        $t->same('key', $validJsonbHiddenPlan['where']['left']['name']);
+        $t->same('priority', $validJsonbHiddenPlan['where']['right']['value']);
+        $t->same([['column' => 'atom', 'direction' => 'DESC']], $validJsonbHiddenPlan['orderBy']);
+        $validJsonbHiddenRows = SQLiteSelectQuery::execute($validJsonbHiddenPlan);
+        $t->same(2, count($validJsonbHiddenRows));
+        $t->same(['priority', 'priority'], array_column($validJsonbHiddenRows, 'key'));
+        $t->same([7, 2], array_column($validJsonbHiddenRows, 'atom'));
+        $t->same('priority', $validJsonbHiddenRows[0]['key']);
+        $t->same(7, $validJsonbHiddenRows[0]['atom']);
+        $literalBlobRows = SQLiteSelectSql::execute("SELECT X'4142' AS payload FROM wp_options", ['wp_options' => [['option_id' => 1]]]);
+        $t->same(1, count($literalBlobRows));
+        $t->true($literalBlobRows[0]['payload'] instanceof SQLiteBlobValue);
+        $t->same('4142', bin2hex($literalBlobRows[0]['payload']->bytes));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT X'123' AS payload FROM wp_options", ['wp_options' => [['option_id' => 1]]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT X'zz' AS payload FROM wp_options", ['wp_options' => [['option_id' => 1]]]));
+
         $dynamicGroupedRows = SQLiteSelectSql::execute(
             "SELECT o.autoload AS autoload, count(*) AS rows, sum(j.atom) AS priority_sum FROM wp_options AS o JOIN json_tree(o.option_value, '$.rules') AS j ON j.key = 'priority' GROUP BY o.autoload HAVING sum(j.atom) >= 4 ORDER BY priority_sum DESC",
             ['wp_options' => $dynamicJsonOptions],
