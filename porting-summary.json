@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 13:36:26 UTC",
-    "sourceCommit": "d42b240bc97eb6b63c8b1bb1d1a66cf1eed30182",
-    "sourceCommitShort": "d42b240bc97e",
+    "generated": "2026-05-27 13:52:06 UTC",
+    "sourceCommit": "e749a66666b148318136be0152f61920004d2a1a",
+    "sourceCommitShort": "e749a66666b1",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "47d001fe81551215337ad9699ef3b17c8126b9b9",
-    "dashboardCommitShort": "47d001fe8155",
+    "dashboardCommit": "2319ae134d5a699e80525f2bc3a3ffdf83e59cb5",
+    "dashboardCommitShort": "2319ae134d5a",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -87,7 +87,7 @@
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
             "audit": "SELECT SQL JSON negative-path execution s...",
-            "currentWork": "Clean-integrated parser-level SELECT SQL json_extract/jsonb_extract expression dispatch f...",
+            "currentWork": "Added bounded WAL checkpoint current-reader visibility composition for copied wp_options...",
             "nextTarget": "Continue non-overlapping JSON planner/JSONB pushdown, WAL/pager durability, or broader SQ...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
             "commit": "integra"
