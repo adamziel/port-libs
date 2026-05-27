@@ -118777,3 +118777,31 @@ Serialized root verification:
 
 Cleanup:
 - The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T030741Z` still contains modified and added accepted lane files, so it was preserved as cleanup debt instead of removed.
+
+## Integration accepted - libsqlite SELECT SQL JOIN text dispatch - 2026-05-27T03:28:49Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T031601Z.ready`.
+
+Decision: accepted a bounded replay from current clean source `a708c39bda52c578f2c2844ab2e3d7882f643551`. The marker base was `4c6dff8aaff84109b673edbcc4330ac024fb23f5`; direct apply failed only for moved `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and lane notes. Implementation, test, and WordPress smoke hunks applied cleanly after excluding stale evidence files, and the evidence files were reconciled from current accepted source.
+
+Scope:
+- Added bounded `SQLiteSelectSql` parsing/execution for INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT.
+- Added copied WordPress `wp_options` SQL JOIN smoke at `lanes/libsqlite/examples/wordpress-select-sql-join-preview.php`.
+- Updated focused manifest/status/WordPress scenario evidence for one additional mapped native focused row.
+
+Verification before root:
+- Dashboard guard was open: cache-busted live Pages reported exact source `a708c39bda52c578f2c2844ab2e3d7882f643551`, generated `2026-05-27 03:25:03 UTC`, dashboard commit `9fe7953d684b14d92c59d0c9f84e8c1148ed7844`.
+- Runtime gates before focused checks were open: `/` had `104212788` KiB available, one-minute load was `1.81`, and no exact no-argument `php tools/run-tests.php` row was active.
+- `php -l lanes/libsqlite/src/SQLiteSelectSql.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-sql-join-preview.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5918 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-join-preview.php` passed and emitted valid JSON.
+- `jq empty lanes/libsqlite/lane-status.json lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 31083 assertions, 0 failures`.
+
+Cleanup:
+- The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T031601Z` still contains modified and added accepted lane files plus stale lane notes, so it was preserved as cleanup debt instead of removed.

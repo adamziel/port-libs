@@ -848,7 +848,7 @@
         "focusedJsonTableWindowRanking": "2026-05-27 isolated JSON-table/window focused test passed with 60 assertions; smoke lanes/libsqlite/examples/wordpress-json-table-window-ranking.php passed.",
         "focusedSelectGroupedAggregateQuery": "The 2026-05-27 isolated SQL execution/planner slice maps one additional focused SELECT execution row for GROUP BY/HAVING aggregate dispatch inside SQLiteSelectQuery over copied wp_options summaries. Native smoke covers aggregate ORDER BY/LIMIT/OFFSET, projected summary columns, scalar labels, CASE buckets, DISTINCT, final ORDER BY, NULL aggregate groups, validation guards, and no fresh upstream execution."
     },
-    "currentWork": "Latest B-tree slice adds table-interior sibling merge materialization with freelist release and pointer-map rewrites for copied wp_options repair previews.",
+    "currentWork": "Latest SQL execution slice adds bounded SELECT SQL JOIN text dispatch for copied wp_options metadata previews.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and WordPress option-key assembly diagnostics without requiring ext/sqlite.",
@@ -868,7 +868,8 @@
             "focusedCoreMathScalarFunction": "The 2026-05-26 isolated SQL execution/planner scalar math slice adds bounded core math dispatch for copied wp_options diagnostics, reusing accepted SQL expression/scalar evidence without claiming a fresh upstream run.",
             "focusedJsonTableRowidAlias": "Run on 2026-05-26 reused accepted static JSON table/window evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers rowid, _rowid_, and oid aliases for json_each/json_tree residual predicates and ORDER BY/LIMIT paging after hidden json/root planning, mapping each alias to the virtual table id column.",
             "focusedCoreNumericDistinctAggregateFunction": "The 2026-05-26 isolated SQL execution/planner numeric aggregate DISTINCT slice maps one additional focused aggregate evidence row for sum(DISTINCT X), total(DISTINCT X), and avg(DISTINCT X), reusing accepted aggregate/expression evidence without claiming a fresh upstream run. Native smoke covers NULL skipping, duplicate storage-class keys, text and BLOB numeric coercion, empty-DISTINCT results, state wrapper finalization, strict type errors, and WordPress option-size diagnostics without requiring ext/sqlite.",
-            "focusedUpstreamReleaseBlockerClosureRecord": "Run on 2026-05-26 did not start a duplicate broad upstream testfixture. Native evidence composes artifact-set countability records, release admission ledgers, explicit supervisor non-portability exclusions, active-runner duplicate gates, and rerun decisions into one release-blocker closure record for clean integrator admission."
+            "focusedUpstreamReleaseBlockerClosureRecord": "Run on 2026-05-26 did not start a duplicate broad upstream testfixture. Native evidence composes artifact-set countability records, release admission ledgers, explicit supervisor non-portability exclusions, active-runner duplicate gates, and rerun decisions into one release-blocker closure record for clean integrator admission.",
+            "focusedSelectSqlJoinTextExecution": "The 2026-05-27 clean-integrated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SELECT SQL JOIN text dispatch over copied wp_options metadata previews, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT. Native focused coverage reached 5918 assertions and no fresh upstream testfixture/all/release run was launched."
         }
     },
     "focusedCoverage": {
@@ -917,7 +918,8 @@
             "mappedDetails": {
                 "focusedBtreeInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree table-interior merge slice maps one additional focused B-tree delete/rebalance evidence row for materializing table-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run."
             }
-        }
+        },
+        "focusedSelectSqlJoinTextExecution": "The 2026-05-27 clean-integrated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SELECT SQL JOIN text dispatch over copied wp_options metadata previews, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT. Native focused coverage reached 5918 assertions and no fresh upstream testfixture/all/release run was launched."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -1089,7 +1091,8 @@
         "wordpressBtreeLeafRedistribution": "The B-tree leaf redistribution smoke reports copied wp_options table and autoload-index sibling redistribution after delete underflow, including moved cells, replacement parent dividers, updated page images, before/after free-space deltas, and no freelist release for repair/import previews without requiring ext/sqlite.",
         "focusedSelectGroupedAggregateQuery": "The SELECT grouped aggregate preview smoke reports copied wp_options rows executed through bounded GROUP BY/HAVING aggregate dispatch, projected summary columns, DISTINCT, final ORDER BY, and result limits without requiring ext/sqlite.",
         "focusedSelectSqlTextExecution": "The SELECT SQL preview smoke reports copied wp_options rows executed from bounded SQL text through native query-plan dispatch, including projection aliases, scalar functions, WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite.",
-        "focusedJsonTableHostJoinRows": "The JSON table host-join smoke reports copied wp_options rows expanded through json_each/json_tree joins with hidden json/root constraints, residual predicates, JSONB/subtype inputs, rowid aliases, INNER/LEFT join handling, and NULL/malformed payload diagnostics without requiring ext/sqlite."
+        "focusedJsonTableHostJoinRows": "The JSON table host-join smoke reports copied wp_options rows expanded through json_each/json_tree joins with hidden json/root constraints, residual predicates, JSONB/subtype inputs, rowid aliases, INNER/LEFT join handling, and NULL/malformed payload diagnostics without requiring ext/sqlite.",
+        "focusedSelectSqlJoinTextExecution": "The SELECT SQL JOIN preview smoke reports copied wp_options rows joined to bounded option metadata from SQLite SELECT text through native query-plan dispatch, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table-qualified predicates, aliases, ORDER BY, and LIMIT without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",
@@ -1102,7 +1105,8 @@
         "btreeLeafRedistributionPlan": "SQLiteBTreeLeafRedistributionPlan composes table/index leaf siblings into redistributed left/right page images, reports replacement parent separators, and leaves both sibling pages allocated for bounded delete/rebalance previews.",
         "focusedJsonTableWindowRanking": "SQLiteJsonTablePlan::windowedRows() composes accepted JSON table hidden constraints, residual filtering, ordering, LIMIT/OFFSET, JSONB/subtype inputs, and bounded SQLite window metadata for copied WordPress option JSON diagnostics.",
         "focusedSelectGroupedAggregateQuery": "SQLiteSelectQuery now composes accepted grouped aggregate summaries into the SELECT pipeline after FROM/JOIN/WHERE and before projection/result clauses, including HAVING predicates, aggregate ORDER BY/LIMIT/OFFSET, scalar projection, DISTINCT, and final ORDER BY over copied WordPress option diagnostics.",
-        "focusedVfsLockByteRangePlan": "SQLiteLockByteRangePlan composes accepted open-admission decisions with SQLite pending/reserved/shared lock byte offsets, shared-slot bounds, nolock suppression, and failed-open propagation for copied WordPress database lock diagnostics."
+        "focusedVfsLockByteRangePlan": "SQLiteLockByteRangePlan composes accepted open-admission decisions with SQLite pending/reserved/shared lock byte offsets, shared-slot bounds, nolock suppression, and failed-open propagation for copied WordPress database lock diagnostics.",
+        "focusedSelectSqlJoinTextExecution": "SQLiteSelectSql composes bounded SQL text JOIN clauses into accepted SQLiteSelectQuery row production, preserving aliases, table-qualified predicates, table-star projection, LEFT null-extension, CROSS joins, chained joins, ORDER BY, and LIMIT over copied WordPress option diagnostics."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1137,6 +1141,17 @@
             "phpPass": 1,
             "phpFail": 0,
             "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted JSON table/window evidence while adding 60 native assertions and a WordPress smoke."
+        },
+        "focusedSelectSqlJoinTextExecution": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite SELECT SQL text JOIN parsing and execution for INNER JOIN, LEFT JOIN, CROSS JOIN, chained joins, aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT, represented as bounded PHP query-plan dispatch rather than full VDBE execution.",
+            "nativeEvidence": "SQLiteSelectSql focused PHP coverage plus copied WordPress SELECT SQL JOIN preview smoke.",
+            "phpAssertions": 76,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-select-sql-join-preview.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence"
         }
     },
     "wordpress": {

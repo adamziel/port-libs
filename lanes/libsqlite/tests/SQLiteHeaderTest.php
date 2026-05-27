@@ -18730,6 +18730,120 @@ SQL;
         $t->same(1, count($quoted));
         $t->same('blogname', $quoted[0]['name']);
 
+        $meta = [
+            ['option_id' => 1, 'source' => 'core', 'priority' => 10],
+            ['option_id' => 2, 'source' => 'core', 'priority' => 20],
+            ['option_id' => 3, 'source' => 'theme', 'priority' => 30],
+            ['option_id' => 5, 'source' => 'plugin', 'priority' => 40],
+            ['option_id' => 9, 'source' => 'orphan', 'priority' => 50],
+        ];
+        $flags = [
+            ['source' => 'core', 'flag' => 'autoloaded'],
+            ['source' => 'theme', 'flag' => 'display'],
+            ['source' => 'plugin', 'flag' => 'update'],
+        ];
+
+        $innerJoin = SQLiteSelectSql::execute(
+            "SELECT wp_options.option_name AS name, m.source AS source, m.priority AS priority FROM wp_options INNER JOIN option_meta AS m ON wp_options.option_id = m.option_id WHERE m.priority >= 20 ORDER BY priority DESC, name ASC LIMIT 3",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(3, count($innerJoin));
+        $t->same(['_site_transient_update_plugins', 'blogname', 'home'], array_column($innerJoin, 'name'));
+        $t->same(['plugin', 'theme', 'core'], array_column($innerJoin, 'source'));
+        $t->same([40, 30, 20], array_column($innerJoin, 'priority'));
+        $t->same(['name', 'source', 'priority'], array_keys($innerJoin[0]));
+        $t->same('_site_transient_update_plugins', $innerJoin[0]['name']);
+        $t->same('plugin', $innerJoin[0]['source']);
+        $t->same(40, $innerJoin[0]['priority']);
+        $t->same('blogname', $innerJoin[1]['name']);
+        $t->same('theme', $innerJoin[1]['source']);
+        $t->same(30, $innerJoin[1]['priority']);
+        $t->same('home', $innerJoin[2]['name']);
+        $t->same('core', $innerJoin[2]['source']);
+        $t->same(20, $innerJoin[2]['priority']);
+
+        $leftJoin = SQLiteSelectSql::execute(
+            "SELECT wp_options.option_id AS id, wp_options.option_name AS name, m.source AS source, coalesce(m.priority, 0) AS priority FROM wp_options LEFT JOIN option_meta m ON wp_options.option_id = m.option_id WHERE wp_options.option_id >= 4 ORDER BY id ASC",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(3, count($leftJoin));
+        $t->same([4, 5, 6], array_column($leftJoin, 'id'));
+        $t->same(['_transient_feed', '_site_transient_update_plugins', 'orphaned'], array_column($leftJoin, 'name'));
+        $t->same([null, 'plugin', null], array_column($leftJoin, 'source'));
+        $t->same([0, 40, 0], array_column($leftJoin, 'priority'));
+        $t->same(4, $leftJoin[0]['id']);
+        $t->same('_transient_feed', $leftJoin[0]['name']);
+        $t->same(null, $leftJoin[0]['source']);
+        $t->same(0, $leftJoin[0]['priority']);
+        $t->same(5, $leftJoin[1]['id']);
+        $t->same('_site_transient_update_plugins', $leftJoin[1]['name']);
+        $t->same('plugin', $leftJoin[1]['source']);
+        $t->same(40, $leftJoin[1]['priority']);
+        $t->same(6, $leftJoin[2]['id']);
+        $t->same('orphaned', $leftJoin[2]['name']);
+        $t->same(null, $leftJoin[2]['source']);
+        $t->same(0, $leftJoin[2]['priority']);
+
+        $crossJoin = SQLiteSelectSql::execute(
+            "SELECT wp_options.option_name AS name, f.flag AS flag FROM wp_options CROSS JOIN option_flags AS f WHERE wp_options.option_id = 1 AND f.source = 'core' ORDER BY flag",
+            ['wp_options' => $options, 'option_flags' => $flags],
+        );
+        $t->same(1, count($crossJoin));
+        $t->same('siteurl', $crossJoin[0]['name']);
+        $t->same('autoloaded', $crossJoin[0]['flag']);
+        $t->same(['name', 'flag'], array_keys($crossJoin[0]));
+
+        $chainedJoin = SQLiteSelectSql::execute(
+            "SELECT wp_options.option_name AS name, m.source AS source, f.flag AS flag, m.priority AS priority FROM wp_options JOIN option_meta AS m ON wp_options.option_id = m.option_id LEFT JOIN option_flags AS f ON m.source = f.source WHERE wp_options.autoload = 'yes' ORDER BY priority DESC",
+            ['wp_options' => $options, 'option_meta' => $meta, 'option_flags' => $flags],
+        );
+        $t->same(3, count($chainedJoin));
+        $t->same(['blogname', 'home', 'siteurl'], array_column($chainedJoin, 'name'));
+        $t->same(['theme', 'core', 'core'], array_column($chainedJoin, 'source'));
+        $t->same(['display', 'autoloaded', 'autoloaded'], array_column($chainedJoin, 'flag'));
+        $t->same([30, 20, 10], array_column($chainedJoin, 'priority'));
+        $t->same('blogname', $chainedJoin[0]['name']);
+        $t->same('theme', $chainedJoin[0]['source']);
+        $t->same('display', $chainedJoin[0]['flag']);
+        $t->same('home', $chainedJoin[1]['name']);
+        $t->same('core', $chainedJoin[1]['source']);
+        $t->same('autoloaded', $chainedJoin[1]['flag']);
+        $t->same('siteurl', $chainedJoin[2]['name']);
+        $t->same('core', $chainedJoin[2]['source']);
+        $t->same('autoloaded', $chainedJoin[2]['flag']);
+
+        $tableStarJoin = SQLiteSelectSql::execute(
+            "SELECT m.* FROM wp_options JOIN option_meta AS m ON wp_options.option_id = m.option_id WHERE m.source = 'theme'",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(1, count($tableStarJoin));
+        $t->same(['option_id', 'source', 'priority'], array_keys($tableStarJoin[0]));
+        $t->same(3, $tableStarJoin[0]['option_id']);
+        $t->same('theme', $tableStarJoin[0]['source']);
+        $t->same(30, $tableStarJoin[0]['priority']);
+
+        $joinPlan = SQLiteSelectSql::plan(
+            "SELECT wp_options.option_name AS name, m.source AS source FROM wp_options JOIN option_meta AS m ON wp_options.option_id = m.option_id WHERE m.source IN ('core', 'theme') ORDER BY name",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(['from', 'select', 'joins', 'where', 'orderBy'], array_keys($joinPlan));
+        $t->same(6, count($joinPlan['from']));
+        $t->same('siteurl', $joinPlan['from'][0]['wp_options.option_name']);
+        $t->same(1, count($joinPlan['joins']));
+        $t->same('INNER', $joinPlan['joins'][0]['type']);
+        $t->same(5, count($joinPlan['joins'][0]['rows']));
+        $t->same(10, $joinPlan['joins'][0]['rows'][0]['m.priority']);
+        $t->true(is_callable($joinPlan['joins'][0]['predicate']));
+        $t->same('IN', $joinPlan['where']['operator']);
+        $t->same('m.source', $joinPlan['where']['left']['name']);
+        $t->same('core', $joinPlan['where']['values'][0]['value']);
+        $t->same('theme', $joinPlan['where']['values'][1]['value']);
+        $t->same([['column' => 'name']], $joinPlan['orderBy']);
+        $joinPlanRows = SQLiteSelectQuery::execute($joinPlan);
+        $t->same(3, count($joinPlanRows));
+        $t->same(['blogname', 'home', 'siteurl'], array_column($joinPlanRows, 'name'));
+        $t->same(['theme', 'core', 'core'], array_column($joinPlanRows, 'source'));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('DELETE FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM missing', ['wp_options' => $options]));
@@ -18740,5 +18854,11 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1 AND 2', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN meta', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options RIGHT JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta USING (option_id)', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta ON wp_options.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN missing ON wp_options.option_id = missing.option_id', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta AS 1bad ON wp_options.option_id = 1bad.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options CROSS JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
     },
 ];

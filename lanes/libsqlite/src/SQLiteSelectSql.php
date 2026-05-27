@@ -39,18 +39,16 @@ final class SQLiteSelectSql
 
         $clauseOffsets = self::tailClauseOffsets($tail);
         $tableEnd = self::firstOffset($clauseOffsets) ?? strlen($tail);
-        $table = trim(substr($tail, 0, $tableEnd));
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL table name must be a simple identifier');
-        }
-        if (!array_key_exists($table, $tables) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL table {$table} is not available");
-        }
+        $fromSql = trim(substr($tail, 0, $tableEnd));
+        $source = self::sourcePlan($fromSql, $tables);
 
         $plan = [
-            'from' => $tables[$table],
+            'from' => $source['from'],
             'select' => self::selectList($selectSql),
         ];
+        if ($source['joins'] !== []) {
+            $plan['joins'] = $source['joins'];
+        }
 
         if (isset($clauseOffsets['WHERE'])) {
             $plan['where'] = self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'));
@@ -65,6 +63,174 @@ final class SQLiteSelectSql
         }
 
         return $plan;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
+     */
+    private static function sourcePlan(string $sql, array $tables): array
+    {
+        $joinOffset = self::firstJoinOffset($sql);
+        $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
+        $base = self::tableReference($baseSql, $tables);
+        $joins = [];
+
+        if ($joinOffset !== null) {
+            $joinSql = trim(substr($sql, $joinOffset));
+            while ($joinSql !== '') {
+                [$join, $joinSql] = self::consumeJoin($joinSql, $tables);
+                $joins[] = $join;
+            }
+        }
+
+        return [
+            'from' => $joins === [] ? $base['rows'] : self::qualifiedRows($base['rows'], $base['alias']),
+            'joins' => $joins,
+        ];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}
+     */
+    private static function tableReference(string $sql, array $tables): array
+    {
+        $parts = preg_split('/\s+/', trim($sql));
+        if ($parts === false || $parts === [] || $parts[0] === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL table name cannot be empty');
+        }
+        if (count($parts) > 3 || (isset($parts[1]) && strcasecmp($parts[1], 'AS') === 0 && !isset($parts[2]))) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL table reference must be a simple table with optional alias');
+        }
+
+        $name = $parts[0];
+        self::assertBareIdentifier($name, 'SQLite SELECT SQL table name');
+        if (!array_key_exists($name, $tables) || !is_array($tables[$name]) || !array_is_list($tables[$name])) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL table {$name} is not available");
+        }
+
+        $alias = $name;
+        if (isset($parts[1])) {
+            if (strcasecmp($parts[1], 'AS') === 0) {
+                $alias = $parts[2];
+            } else {
+                $alias = $parts[1];
+            }
+            self::assertBareIdentifier($alias, 'SQLite SELECT SQL table alias');
+        }
+
+        return ['name' => $name, 'alias' => $alias, 'rows' => $tables[$name]];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function qualifiedRows(array $rows, string $prefix): array
+    {
+        $qualified = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL table rows must be arrays');
+            }
+            $qualifiedRow = [];
+            foreach ($row as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL table rows must have named columns');
+                }
+                $qualifiedRow[str_contains($column, '.') ? $column : $prefix . '.' . $column] = $value;
+            }
+            $qualified[] = $qualifiedRow;
+        }
+
+        return $qualified;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{0:array<string,mixed>,1:string}
+     */
+    private static function consumeJoin(string $sql, array $tables): array
+    {
+        if (preg_match('/^(left\s+join|inner\s+join|cross\s+join|join)\s+/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN clause is not supported');
+        }
+
+        $keyword = strtoupper(preg_replace('/\s+/', ' ', $match[1]));
+        $type = match ($keyword) {
+            'JOIN', 'INNER JOIN' => 'INNER',
+            'LEFT JOIN' => 'LEFT',
+            'CROSS JOIN' => 'CROSS',
+            default => throw new \InvalidArgumentException('SQLite SELECT SQL JOIN type is not supported'),
+        };
+
+        $rest = trim(substr($sql, strlen($match[0])));
+        $boundary = self::nextJoinConditionOffset($rest);
+        if ($boundary === null && $type === 'CROSS') {
+            $nextJoin = self::firstJoinOffset($rest);
+            $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
+            $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
+            $table = self::tableReference($tableSql, $tables);
+
+            return [[
+                'type' => 'CROSS',
+                'rows' => self::qualifiedRows($table['rows'], $table['alias']),
+            ], $remaining];
+        }
+        if ($boundary === null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
+        }
+
+        $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables);
+        $conditionSql = trim(substr($rest, $boundary));
+        $nextJoin = self::nextJoinAfterCondition($conditionSql);
+        $condition = $nextJoin === null ? $conditionSql : trim(substr($conditionSql, 0, $nextJoin));
+        $remaining = $nextJoin === null ? '' : trim(substr($conditionSql, $nextJoin));
+
+        $join = [
+            'type' => $type,
+            'rows' => self::qualifiedRows($table['rows'], $table['alias']),
+        ];
+
+        if (preg_match('/^using\s*\((.*)\)$/i', $condition, $using) === 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING is not supported for qualified SQL text rows');
+        }
+
+        if (preg_match('/^on\s+(.+)$/i', $condition, $on) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
+        }
+        if ($type === 'CROSS') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CROSS JOIN does not support ON');
+        }
+
+        $predicate = self::predicate($on[1]);
+        $join['predicate'] = static function (array $left, array $right) use ($predicate): bool {
+            return SQLiteSelectPredicate::filter([array_merge($left, $right)], $predicate) !== [];
+        };
+        if ($type === 'LEFT') {
+            $join['rightColumns'] = self::collectColumns($join['rows']);
+        }
+
+        return [$join, $remaining];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function collectColumns(array $rows): array
+    {
+        $columns = [];
+        foreach ($rows as $row) {
+            foreach ($row as $column => $unused) {
+                if (!in_array($column, $columns, true)) {
+                    $columns[] = $column;
+                }
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -469,5 +635,43 @@ final class SQLiteSelectSql
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $value) !== 1) {
             throw new \InvalidArgumentException("{$context} must be a simple identifier");
         }
+    }
+
+    private static function assertBareIdentifier(string $value, string $context): void
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
+            throw new \InvalidArgumentException("{$context} must be a simple identifier");
+        }
+    }
+
+    private static function firstJoinOffset(string $sql): ?int
+    {
+        $offsets = [];
+        foreach (['LEFT JOIN', 'INNER JOIN', 'CROSS JOIN', 'JOIN'] as $keyword) {
+            $offset = self::keywordOffset($sql, $keyword);
+            if ($offset !== null) {
+                $offsets[] = $offset;
+            }
+        }
+
+        return $offsets === [] ? null : min($offsets);
+    }
+
+    private static function nextJoinConditionOffset(string $sql): ?int
+    {
+        $offsets = [];
+        foreach (['ON', 'USING'] as $keyword) {
+            $offset = self::keywordOffset($sql, $keyword);
+            if ($offset !== null) {
+                $offsets[] = $offset;
+            }
+        }
+
+        return $offsets === [] ? null : min($offsets);
+    }
+
+    private static function nextJoinAfterCondition(string $sql): ?int
+    {
+        return self::firstJoinOffset($sql);
     }
 }

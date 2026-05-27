@@ -3960,6 +3960,29 @@ Dependency closure: no new support component is needed. This reuses lane-local
 parser/VDBE execution to JOIN clauses, GROUP BY SQL text, expression ORDER BY,
 or range-cost planner decisions.
 
+## SELECT SQL JOIN Text Preview Scenario
+
+Copied WordPress database diagnostics can now execute bounded SELECT SQL text
+with JOIN clauses through the native query-plan executor. The smoke
+`examples/wordpress-select-sql-join-preview.php` reports copied `wp_options`
+rows joined to bounded option metadata with INNER JOIN, LEFT JOIN
+null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON
+predicates, table-star projection, ORDER BY, and LIMIT without requiring
+ext/sqlite.
+
+Status delta 2026-05-27 clean integration replay: extended `SQLiteSelectSql`
+JOIN parsing and dispatch on current source `a708c39b`. Focused
+`SQLiteHeaderTest.php` passed at 5918 assertions, up from the accepted 5842
+assertion JSON host-join baseline. The WordPress SQL JOIN smoke emitted valid
+JSON.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local SELECT text parsing, accepted row-array JOIN production, projection,
+predicate, result ordering, and scalar dispatch. Follow-up should broaden SQL
+text execution to GROUP BY/HAVING text, expression ORDER BY, range-cost planner
+decisions, or broader parser/VDBE execution without repeating this JOIN text
+slice.
+
 ## Table-Interior Merge Delete Rebalance Scenario
 
 Copied WordPress database repair tooling can now preview table b-tree interior
