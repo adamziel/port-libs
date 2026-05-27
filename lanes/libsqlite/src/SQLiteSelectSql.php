@@ -639,6 +639,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor columns");
         }
         $queueOrder = self::recursiveQueueOrder($recursiveSql, $columns);
+        [$recursiveSql, $queueLimit, $queueOffset] = self::recursiveQueueLimitOffset($recursiveSql, $tables);
         $queue = self::normalizeRecursiveRows($anchorRows, $columns, $name);
         if ($operator === 'UNION') {
             $queue = self::deduplicateRecursiveRows($queue);
@@ -657,7 +658,18 @@ final class SQLiteSelectSql
             if (!is_array($current)) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} queue row is malformed");
             }
-            $rows[] = $current;
+            if ($queueOffset > 0) {
+                $queueOffset--;
+            } elseif ($queueLimit !== 0) {
+                $rows[] = $current;
+                if ($queueLimit !== null) {
+                    $queueLimit--;
+                }
+            }
+            if ($queueLimit === 0) {
+                $queue = [];
+                break;
+            }
             $stepTables = $tables;
             $stepTables[$name] = [$current];
             $stepRows = self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name);
@@ -678,6 +690,28 @@ final class SQLiteSelectSql
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{0:string,1:?int,2:int}
+     */
+    private static function recursiveQueueLimitOffset(string $recursiveSql, array $tables): array
+    {
+        $limitOffset = self::keywordOffset($recursiveSql, 'LIMIT');
+        if ($limitOffset === null) {
+            return [$recursiveSql, null, 0];
+        }
+
+        [$limit, $offset] = self::limitOffset(trim(substr($recursiveSql, $limitOffset + strlen('LIMIT'))), $tables);
+        if ($limit < 0) {
+            $limit = null;
+        }
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE OFFSET must be non-negative');
+        }
+
+        return [trim(substr($recursiveSql, 0, $limitOffset)), $limit, $offset];
     }
 
     /**
@@ -1053,7 +1087,7 @@ final class SQLiteSelectSql
         }
 
         $name = $parts[0];
-        self::assertBareIdentifier($name, 'SQLite SELECT SQL table name');
+        self::assertIdentifier($name, 'SQLite SELECT SQL table name');
         if (strcasecmp($name, 'json_each') === 0 || strcasecmp($name, 'json_tree') === 0) {
             $function = strtolower($name);
             $alias = $function;
@@ -1072,11 +1106,12 @@ final class SQLiteSelectSql
                 'rows' => self::jsonTableRowsForSql($function, $jsonConstraints),
             ];
         }
-        if (!array_key_exists($name, $tables) || !is_array($tables[$name]) || !array_is_list($tables[$name])) {
+        $resolvedTable = self::resolveTableRows($name, $tables);
+        if ($resolvedTable === null) {
             throw new \InvalidArgumentException("SQLite SELECT SQL table {$name} is not available");
         }
 
-        $alias = $name;
+        $alias = $resolvedTable['alias'];
         if (isset($parts[1])) {
             if (strcasecmp($parts[1], 'AS') === 0) {
                 $alias = $parts[2];
@@ -1086,7 +1121,53 @@ final class SQLiteSelectSql
             self::assertBareIdentifier($alias, 'SQLite SELECT SQL table alias');
         }
 
-        return ['name' => $name, 'alias' => $alias, 'rows' => $tables[$name]];
+        return ['name' => $resolvedTable['name'], 'alias' => $alias, 'rows' => $resolvedTable['rows']];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function resolveTableRows(string $name, array $tables): ?array
+    {
+        $normalized = strtolower($name);
+        if (str_contains($normalized, '.')) {
+            if (array_key_exists($name, $tables) && is_array($tables[$name]) && array_is_list($tables[$name])) {
+                return ['name' => $name, 'alias' => substr($name, strrpos($name, '.') + 1), 'rows' => $tables[$name]];
+            }
+
+            foreach ($tables as $tableName => $rows) {
+                if (strtolower((string) $tableName) === $normalized && is_array($rows) && array_is_list($rows)) {
+                    return ['name' => (string) $tableName, 'alias' => substr((string) $tableName, strrpos((string) $tableName, '.') + 1), 'rows' => $rows];
+                }
+            }
+
+            return null;
+        }
+
+        foreach (['temp.' . $name, 'main.' . $name] as $qualifiedName) {
+            foreach ($tables as $tableName => $rows) {
+                if (strtolower((string) $tableName) === strtolower($qualifiedName) && is_array($rows) && array_is_list($rows)) {
+                    return ['name' => (string) $tableName, 'alias' => $name, 'rows' => $rows];
+                }
+            }
+        }
+
+        if (array_key_exists($name, $tables) && is_array($tables[$name]) && array_is_list($tables[$name])) {
+            return ['name' => $name, 'alias' => $name, 'rows' => $tables[$name]];
+        }
+
+        foreach ($tables as $tableName => $rows) {
+            $tableName = (string) $tableName;
+            if (!is_array($rows) || !array_is_list($rows) || !str_contains($tableName, '.')) {
+                continue;
+            }
+            if (strcasecmp(substr($tableName, strrpos($tableName, '.') + 1), $name) === 0) {
+                return ['name' => $tableName, 'alias' => $name, 'rows' => $rows];
+            }
+        }
+
+        return null;
     }
 
     /**

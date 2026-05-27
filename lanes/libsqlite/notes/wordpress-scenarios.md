@@ -5161,6 +5161,28 @@ slice reuses lane-local SELECT planner arrays and native PHP stat parsing only.
 ## FTS5 Option Search
 
 `examples/wordpress-fts5-option-search.php` previews copied `wp_options` text through bounded FTS5-style MATCH ranking and snippet diagnostics. It reports selected option ids, highlighted snippets, and ascending bm25-like ranks for `search cache` without requiring `ext/sqlite`.
+
+## FTS5 Schema Import current next26
+
+`examples/wordpress-fts5-schema-import-current-next26.php` previews imported
+WordPress FTS5 virtual-table DDL before full virtual-table execution. It
+reports indexed and `UNINDEXED` columns, tokenizer options, prefix lengths,
+external-content rebuild admission, content-rowid mapping, shadow-table names,
+and contentless-table actions without requiring `ext/sqlite`.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-wordpress-schema-import-fts-current-next26` slice: added
+`SQLiteFts5SchemaImportPlan`, `SQLiteFts5SchemaImportCurrentNext26Test.php`,
+and a WordPress smoke. Focused verification:
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteFts5SchemaImportCurrentNext26Test.php`
+reported `1 test files, 62 assertions, 0 failures` with 60 PASS lines, so
+`lane-status.json` `phpPass` moved from 8739 to 8799. Mapped upstream denominator coverage moves
+from 461 to 462 for the focused FTS5 virtual-table schema import row.
+
+Dependency closure: no new shared support component is needed. This slice
+reuses lane-local SQL tokenization and schema planning only. Follow-up should
+wire imported FTS5 schema plans into parser-level virtual-table `MATCH`
+execution or choose a distinct upstream FTS release blocker.
 ## JSON Scalar SQL Input Mutation next13 Scenario
 
 Copied WordPress `wp_options` fixtures can contain numeric option values that

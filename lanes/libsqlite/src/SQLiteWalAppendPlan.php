@@ -242,6 +242,81 @@ final class SQLiteWalAppendPlan
     }
 
     /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,database_path:string,wal_path:string,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_database_page_count:int,next_database_page_count:int,appended_frame_count:int,committed_transaction_count:int,uncommitted_transaction_count:int,uncommitted_tail_visible:bool,images_match:bool,append:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function readerWriterSnapshotBoundary(
+        SQLiteWal $wal,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $pageNumbers,
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL append snapshot boundary requires at least one page number');
+        }
+
+        $append = self::appendTransactions($wal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $currentEndFrame = $wal->frameCount();
+        $nextWal = SQLiteWal::parse($append['wal_bytes'], $wal->header->pageSize, true);
+        $nextEndFrame = $append['last_commit_frame'] ?? $currentEndFrame;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL append snapshot boundary pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame, true);
+            $next[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame, true);
+        }
+
+        $uncommittedTailVisible = false;
+        foreach ($next as $entry) {
+            $frameIndex = $entry['frame_index'] ?? null;
+            if (is_int($frameIndex) && $frameIndex > $nextEndFrame) {
+                $uncommittedTailVisible = true;
+                break;
+            }
+        }
+
+        return [
+            'status' => 'planned',
+            'reason' => $append['committed_transaction_count'] > 0
+                ? 'next_reader_sees_committed_append_current_reader_pinned'
+                : 'append_has_no_committed_next_snapshot',
+            'database_path' => $databasePath,
+            'wal_path' => $append['wal_path'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_database_page_count' => $wal->readerSnapshot($databaseBytes, $currentEndFrame)['database_page_count'],
+            'next_database_page_count' => $nextWal->readerSnapshot($databaseBytes, $nextEndFrame)['database_page_count'],
+            'appended_frame_count' => $append['appended_frame_count'],
+            'committed_transaction_count' => $append['committed_transaction_count'],
+            'uncommitted_transaction_count' => $append['uncommitted_transaction_count'],
+            'uncommitted_tail_visible' => $uncommittedTailVisible,
+            'images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'append' => $append,
+            'dependencies' => array_values(array_unique(array_merge(
+                $append['dependencies'],
+                ['sqlite-wal-reader-writer-snapshot-boundary']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     private static function checksumSeed(SQLiteWal $wal): array
@@ -298,44 +373,47 @@ final class SQLiteWalAppendPlan
     /**
      * @return array<string,mixed>
      */
-    private static function safeReaderVisibility(SQLiteWal $wal, string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame): array
+    private static function safeReaderVisibility(SQLiteWal $wal, string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame, bool $errorSource = false): array
     {
+        $endFrame = $snapshotEndFrame ?? $wal->frameCount();
         try {
             return $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $snapshotEndFrame);
-        } catch (\OutOfBoundsException $e) {
+        } catch (\Throwable $error) {
+            $snapshot = $wal->readerSnapshot($databaseBytes, min($endFrame, $wal->frameCount()));
+
             return [
                 'page_number' => $pageNumber,
-                'source' => 'missing',
+                'source' => $errorSource ? 'error' : 'missing',
                 'frame_index' => null,
                 'database_offset' => null,
-                'image' => null,
-                'snapshot_end_frame' => $snapshotEndFrame ?? $wal->frameCount(),
-                'snapshot_commit_frame' => ($wal->readerSnapshot($databaseBytes, $snapshotEndFrame)['commit_frame'])?->index,
-                'database_page_count' => $wal->readerSnapshot($databaseBytes, $snapshotEndFrame)['database_page_count'],
-                'error' => $e->getMessage(),
+                'image' => $errorSource ? '' : null,
+                'snapshot_end_frame' => $endFrame,
+                'snapshot_commit_frame' => $snapshot['commit_frame']?->index,
+                'database_page_count' => $snapshot['database_page_count'],
+                'error' => $error->getMessage(),
             ];
         }
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $entries
      * @return list<mixed>
      */
-    private static function visibilityColumn(array $rows, string $column): array
+    private static function visibilityColumn(array $entries, string $column): array
     {
-        return array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows);
+        return array_map(static fn (array $entry): mixed => $entry[$column] ?? null, $entries);
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $entries
      * @return list<string>
      */
-    private static function visibilityErrors(array $rows): array
+    private static function visibilityErrors(array $entries): array
     {
         $errors = [];
-        foreach ($rows as $row) {
-            if (isset($row['error'])) {
-                $errors[] = (string) $row['error'];
+        foreach ($entries as $entry) {
+            if (isset($entry['error'])) {
+                $errors[] = (string) $entry['error'];
             }
         }
 
@@ -343,11 +421,11 @@ final class SQLiteWalAppendPlan
     }
 
     /**
-     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $entries
      * @return list<string|null>
      */
-    private static function visibilityImages(array $rows): array
+    private static function visibilityImages(array $entries): array
     {
-        return array_map(static fn (array $row): ?string => isset($row['image']) && is_string($row['image']) ? $row['image'] : null, $rows);
+        return array_map(static fn (array $entry): ?string => isset($entry['image']) && is_string($entry['image']) ? $entry['image'] : null, $entries);
     }
 }

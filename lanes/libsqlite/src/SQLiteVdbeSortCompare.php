@@ -29,7 +29,54 @@ final class SQLiteVdbeSortCompare
             throw new \InvalidArgumentException('SQLite VDBE comparison records must have the same number of fields');
         }
 
+        foreach (self::comparisonSteps($left, $right, $affinities, $collations, $descending, $nulls) as $step) {
+            if ($step['result'] !== 0) {
+                return $step['result'];
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     * @param list<string>|string $affinities
+     * @param list<string> $collations
+     * @param list<bool> $descending
+     * @param list<string|null> $nulls
+     * @return list<array{
+     *     index:int,
+     *     affinity:string,
+     *     collation:string,
+     *     descending:bool,
+     *     nulls:string|null,
+     *     left:mixed,
+     *     right:mixed,
+     *     leftStorageClass:string,
+     *     rightStorageClass:string,
+     *     comparison:int,
+     *     result:int,
+     *     decided:bool
+     * }>
+     */
+    public static function comparisonSteps(
+        array $left,
+        array $right,
+        array|string $affinities = [],
+        array $collations = [],
+        array $descending = [],
+        array $nulls = []
+    ): array {
+        if (!array_is_list($left) || !array_is_list($right)) {
+            throw new \InvalidArgumentException('SQLite VDBE comparison records must be lists');
+        }
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite VDBE comparison records must have the same number of fields');
+        }
+
         $affinityList = self::affinityList($affinities, count($left));
+        $steps = [];
         foreach ($left as $index => $leftValue) {
             $collation = strtoupper($collations[$index] ?? 'BINARY');
             [$leftValue, $rightValue] = self::applySlotAffinity($leftValue, $right[$index], $affinityList[$index]);
@@ -41,19 +88,32 @@ final class SQLiteVdbeSortCompare
                 $collation
             );
             $explicitNullComparison = self::compareExplicitNulls($leftValue, $rightValue, $nulls[$index] ?? null);
+            $explicitNullPlacement = $explicitNullComparison !== null;
             if ($explicitNullComparison !== null) {
                 $comparison = $explicitNullComparison;
-                if ($comparison !== 0) {
-                    return $comparison;
-                }
             }
             $comparison ??= self::compareNulls($leftValue, $rightValue);
-            if ($comparison !== 0) {
-                return ($descending[$index] ?? false) ? -$comparison : $comparison;
+            $result = $comparison === 0 || $explicitNullPlacement ? $comparison : (($descending[$index] ?? false) ? -$comparison : $comparison);
+            $steps[] = [
+                'index' => $index,
+                'affinity' => $affinityList[$index],
+                'collation' => $collation,
+                'descending' => $descending[$index] ?? false,
+                'nulls' => $nulls[$index] ?? null,
+                'left' => $leftValue,
+                'right' => $rightValue,
+                'leftStorageClass' => SQLiteAffinityComparison::storageClass($leftValue),
+                'rightStorageClass' => SQLiteAffinityComparison::storageClass($rightValue),
+                'comparison' => $comparison,
+                'result' => $result,
+                'decided' => $result !== 0,
+            ];
+            if ($result !== 0) {
+                break;
             }
         }
 
-        return 0;
+        return $steps;
     }
 
     /**
@@ -96,6 +156,78 @@ final class SQLiteVdbeSortCompare
         });
 
         return array_column($ordered, 0);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @param list<string>|string $affinities
+     * @param list<string> $collations
+     * @param list<bool> $descending
+     * @param list<string|null> $nulls
+     * @return list<array{
+     *     row:array<string,mixed>,
+     *     record:list<mixed>,
+     *     sequence:int,
+     *     previousSequence:int|null,
+     *     comparison:int|null,
+     *     stableTie:bool,
+     *     steps:list<array<string,mixed>>
+     * }>
+     */
+    public static function sortedRowTrace(
+        array $rows,
+        array $columns,
+        array|string $affinities = [],
+        array $collations = [],
+        array $descending = [],
+        array $nulls = []
+    ): array {
+        if ($columns === [] || !array_is_list($columns)) {
+            throw new \InvalidArgumentException('SQLite VDBE sort columns must be a non-empty list');
+        }
+
+        $entries = [];
+        foreach ($rows as $sequence => $row) {
+            $record = [];
+            foreach ($columns as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException("SQLite VDBE sort row is missing column {$column}");
+                }
+                $record[] = $row[$column];
+            }
+            $entries[] = [
+                'row' => $row,
+                'record' => $record,
+                'sequence' => $sequence,
+                'previousSequence' => null,
+                'comparison' => null,
+                'stableTie' => false,
+                'steps' => [],
+            ];
+        }
+
+        usort($entries, static function (array $left, array $right) use ($affinities, $collations, $descending, $nulls): int {
+            $comparison = self::compareRecords($left['record'], $right['record'], $affinities, $collations, $descending, $nulls);
+
+            return $comparison !== 0 ? $comparison : $left['sequence'] <=> $right['sequence'];
+        });
+
+        $ordered = $entries;
+        foreach ($ordered as $index => $entry) {
+            if ($index === 0) {
+                continue;
+            }
+            $previous = $ordered[$index - 1];
+            $steps = self::comparisonSteps($previous['record'], $entry['record'], $affinities, $collations, $descending, $nulls);
+            $comparison = self::compareRecords($previous['record'], $entry['record'], $affinities, $collations, $descending, $nulls);
+            $ordered[$index]['previousSequence'] = $previous['sequence'];
+            $ordered[$index]['comparison'] = $comparison;
+            $ordered[$index]['stableTie'] = $comparison === 0 && $previous['sequence'] < $entry['sequence'];
+            $ordered[$index]['steps'] = $steps;
+        }
+
+        return $ordered;
     }
 
     /**
