@@ -1,5 +1,43 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Focused Runner Artifact-Set Admission
+
+Date: 2026-05-27
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::focusedRunnerArtifactSetAdmission()`. The helper
+summarizes a batch of already parsed bounded-runner artifacts and counts only
+accepted-HEAD, matching SQLite-manifest, zero-error artifacts that include
+explicit selected `.test` patterns. Stale-head, wrong-manifest, failed, active,
+invalid, and broad release/all artifacts remain blocked and visible. The record
+deduplicates selected script names and deliberately keeps
+`counts_as_release_parity` false so broad release/all closure still flows
+through the existing release countability gates.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change removes a concrete countability gap
+for selected-subset audit/log batches: integrators can publish focused Tcl
+evidence from a mixed artifact set without accidentally admitting stale
+artifacts or broad release/all parity.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteFocusedRunnerArtifactSetAdmissionTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteFocusedRunnerArtifactSetAdmissionTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php lanes/libsqlite/tests/SQLiteFocusedRunnerArtifactSetAdmissionTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Focused PASS-line delta: 2017 to 2043, +26. The new focused test file reported
+`1 test files, 50 assertions, 0 failures`; the combined suite-evidence focused
+run reported `2 test files, 862 assertions, 0 failures`.
+
+Dependency closure: no new support component is needed. This composes existing
+bounded-runner artifact records, focused artifact admission, accepted HEAD
+provenance, and SQLite manifest UUID gates only.
+
 ## Focused Native Mapping: Bounded Runner SQLite Source Provenance Gate
 
 Date: 2026-05-27

@@ -79,6 +79,7 @@ echo json_encode([
         'nextWeeklyCron' => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26 16:12:34', 'weekday 0', 'start of day']),
         'unixepoch' => SQLiteCoreScalarFunction::sqlFunctionArguments('unixepoch', ['2026-05-26 16:12:34']),
         'strftime' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y-%m-%dT%H:%M:%SZ', 1779811954, 'unixepoch']),
+        'strftimeFields' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%G-W%V-%u %I:%M:%f %p', '2024-12-31 23:59:59.125']),
         'timediff' => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-27 18:42:34', '2026-05-26 16:12:34']),
     ],
     'capabilityPreview' => [

@@ -441,7 +441,7 @@ final class SQLiteCreateIndex
      */
     private static function parseTrimExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if (
             $function === null
@@ -503,7 +503,7 @@ final class SQLiteCreateIndex
      */
     private static function parseUnaryColumnFunctionExpression(string $term, string $functionName): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], $functionName) !== 0) {
             return null;
@@ -546,7 +546,7 @@ final class SQLiteCreateIndex
      */
     private static function parseSubstringExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if (
             $function === null
@@ -604,7 +604,7 @@ final class SQLiteCreateIndex
      */
     private static function parseLengthExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], 'length') !== 0) {
             return null;
@@ -647,7 +647,7 @@ final class SQLiteCreateIndex
      */
     private static function parseIntegerCastExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], 'cast') !== 0) {
             return null;
@@ -699,7 +699,7 @@ final class SQLiteCreateIndex
      */
     private static function parseJsonExtractExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $function = self::readIdentifier($term, 0);
         if ($function === null || strcasecmp($function[0], 'json_extract') !== 0) {
             return null;
@@ -756,7 +756,7 @@ final class SQLiteCreateIndex
      */
     private static function parseJsonTextOperatorExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $column = self::readPossiblyQualifiedIdentifier($term, 0);
         if ($column === null) {
             return null;
@@ -795,7 +795,7 @@ final class SQLiteCreateIndex
      */
     private static function parseJsonValueOperatorExpressionColumn(string $term): ?array
     {
-        $term = trim($term);
+        $term = self::normalizeExpressionIndexTerm($term);
         $column = self::readPossiblyQualifiedIdentifier($term, 0);
         if ($column === null) {
             return null;
@@ -912,6 +912,29 @@ final class SQLiteCreateIndex
             'collation' => $collation,
             'descending' => $descending,
         ];
+    }
+
+    private static function normalizeExpressionIndexTerm(string $term): string
+    {
+        $term = trim($term);
+        while (($term[0] ?? null) === '(') {
+            $close = self::matchingParen($term, 0);
+            if ($close === null) {
+                return $term;
+            }
+
+            $inner = trim(substr($term, 1, $close - 1));
+            $suffix = trim(substr($term, $close + 1));
+            if ($suffix !== '') {
+                $inner .= ' ' . $suffix;
+            }
+            if ($inner === $term) {
+                return $term;
+            }
+            $term = $inner;
+        }
+
+        return $term;
     }
 
     /**

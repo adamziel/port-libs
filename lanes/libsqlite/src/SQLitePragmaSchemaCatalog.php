@@ -57,6 +57,7 @@ final class SQLitePragmaSchemaCatalog
                 'table_xinfo' => $this->tableInfo($parsed['target'], true),
                 'index_list' => $this->indexList($parsed['target']),
                 'index_info' => $this->indexInfo($parsed['target']),
+                'index_xinfo' => $this->indexXInfo($parsed['target']),
             },
         ];
     }
@@ -152,13 +153,57 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info', schema: string|null, target: string}
+     * @return list<array{seqno: int, cid: int, name: string|null, desc: int, coll: string, key: int}>
+     */
+    public function indexXInfo(string $indexName): array
+    {
+        $index = $this->findIndex($indexName);
+        if ($index === null) {
+            return [];
+        }
+
+        $tableColumns = $this->tableColumns($index->tableName);
+        $tableColumnNames = array_map(static fn (array $column): string => strtolower($column['name']), $tableColumns);
+        $terms = $index->sql === null
+            ? $this->autoIndexColumnTerms($index)
+            : self::indexTermsFromCreateIndex($index->sql);
+
+        $rows = [];
+        foreach ($terms as $seqno => $term) {
+            $columnName = $term['expression'] ? null : $term['name'];
+            $cid = $columnName === null ? -2 : array_search(strtolower($columnName), $tableColumnNames, true);
+            $rows[] = [
+                'seqno' => $seqno,
+                'cid' => $cid === false ? -2 : $cid,
+                'name' => $columnName,
+                'desc' => $term['descending'] ? 1 : 0,
+                'coll' => $term['collation'],
+                'key' => 1,
+            ];
+        }
+
+        foreach ($this->auxiliaryIndexTerms($index, $terms, $tableColumns) as $term) {
+            $rows[] = [
+                'seqno' => count($rows),
+                'cid' => $term['cid'],
+                'name' => $term['name'],
+                'desc' => 0,
+                'coll' => 'BINARY',
+                'key' => 0,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo', schema: string|null, target: string}
      */
     private static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, and index_info are supported');
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
+            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, and index_xinfo are supported');
         }
 
         return [
@@ -247,6 +292,64 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return list<array{name: string, expression: bool, collation: string, descending: bool}>
+     */
+    private static function indexTermsFromCreateIndex(string $sql): array
+    {
+        $body = self::parenthesizedBody($sql);
+        if ($body === null) {
+            return [];
+        }
+
+        $terms = [];
+        foreach (self::splitTopLevel($body, ',') as $term) {
+            $term = trim($term);
+            $identifier = self::readIdentifier($term, 0);
+            $isExpression = $identifier === null || self::termStartsWithExpression($term, $identifier['end']);
+            $terms[] = [
+                'name' => $isExpression ? $term : $identifier['identifier'],
+                'expression' => $isExpression,
+                'collation' => self::termCollation($term),
+                'descending' => self::termDescending($term),
+            ];
+        }
+
+        return $terms;
+    }
+
+    private static function termStartsWithExpression(string $term, int $identifierEnd): bool
+    {
+        $tail = ltrim(substr($term, $identifierEnd));
+        if ($tail === '') {
+            return false;
+        }
+
+        return $tail[0] === '(' || preg_match('/^(?:\+|-|\*|\/|%|\|\||->|->>)/', $tail) === 1;
+    }
+
+    private static function termCollation(string $term): string
+    {
+        $offset = self::findTopLevelKeyword($term, 'COLLATE');
+        if ($offset === null) {
+            return 'BINARY';
+        }
+        $identifier = self::readIdentifier($term, $offset + strlen('COLLATE'));
+
+        return $identifier === null ? 'BINARY' : strtoupper($identifier['identifier']);
+    }
+
+    private static function termDescending(string $term): bool
+    {
+        $descOffset = self::findTopLevelKeyword($term, 'DESC');
+        if ($descOffset === null) {
+            return false;
+        }
+        $ascOffset = self::findTopLevelKeyword($term, 'ASC');
+
+        return $ascOffset === null || $descOffset > $ascOffset;
+    }
+
+    /**
      * @return list<string>
      */
     private static function columnsFromCreateIndex(string $sql): array
@@ -291,13 +394,82 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return list<array{name: string, expression: false, collation: string, descending: false}>
+     */
+    private function autoIndexColumnTerms(SQLiteSchemaRecord $index): array
+    {
+        return array_map(
+            static fn (string $columnName): array => [
+                'name' => $columnName,
+                'expression' => false,
+                'collation' => 'BINARY',
+                'descending' => false,
+            ],
+            $this->autoIndexColumns($index),
+        );
+    }
+
+    private function findIndex(string $indexName): ?SQLiteSchemaRecord
+    {
+        foreach ($this->records as $record) {
+            if ($record->type === 'index' && strcasecmp($record->name, $indexName) === 0) {
+                return $record;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{cid: int, name: string|null}>
+     */
+    private function auxiliaryIndexTerms(SQLiteSchemaRecord $index, array $terms, array $tableColumns): array
+    {
+        $indexedNames = [];
+        foreach ($terms as $term) {
+            if (!$term['expression']) {
+                $indexedNames[strtolower($term['name'])] = true;
+            }
+        }
+
+        if (!$this->tableWithoutRowid($index->tableName)) {
+            return [['cid' => -1, 'name' => null]];
+        }
+
+        $auxiliary = [];
+        foreach ($tableColumns as $cid => $column) {
+            if (!$column['primaryKey'] || isset($indexedNames[strtolower($column['name'])])) {
+                continue;
+            }
+            $auxiliary[] = ['cid' => $cid, 'name' => $column['name']];
+        }
+
+        return $auxiliary;
+    }
+
+    private function tableWithoutRowid(string $tableName): bool
+    {
+        $sql = $this->tables[strtolower($tableName)]->sql ?? '';
+
+        return preg_match('/\)\s*WITHOUT\s+ROWID\b/i', $sql) === 1;
+    }
+
+    /**
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: bool, hidden: int}>
+     */
+    private function tableColumns(string $tableName): array
+    {
+        return self::columnsFromCreateTable($this->tables[strtolower($tableName)]->sql ?? '');
+    }
+
+    /**
      * @return list<string>
      */
     private function tableColumnNames(string $tableName): array
     {
         return array_map(
             static fn (array $column): string => strtolower($column['name']),
-            self::columnsFromCreateTable($this->tables[strtolower($tableName)]->sql ?? ''),
+            $this->tableColumns($tableName),
         );
     }
 
@@ -405,15 +577,44 @@ final class SQLitePragmaSchemaCatalog
             return null;
         }
         $value = ltrim(substr($tail, $offset + strlen('DEFAULT')));
-        $end = strlen($value);
-        foreach ([' COLLATE ', ' NOT ', ' NULL ', ' PRIMARY ', ' UNIQUE ', ' CHECK ', ' REFERENCES ', ' GENERATED '] as $keyword) {
-            $found = stripos($value, $keyword);
-            if ($found !== false) {
+
+        $end = self::defaultValueEnd($value);
+
+        return trim(substr($value, 0, $end));
+    }
+
+    private static function defaultValueEnd(string $value): int
+    {
+        $length = strlen($value);
+        if ($length === 0) {
+            return 0;
+        }
+
+        $first = $value[0];
+        if ($first === "'" || $first === '"' || $first === '`') {
+            return self::skipQuoted($value, 0, $first) + 1;
+        }
+        if ($first === '[') {
+            return self::skipBracketQuoted($value, 0) + 1;
+        }
+        if ($first === '(') {
+            $close = self::matchingParen($value, 0);
+
+            return $close === null ? $length : $close + 1;
+        }
+        if (($first === 'X' || $first === 'x') && isset($value[1]) && $value[1] === "'") {
+            return self::skipQuoted($value, 1, "'") + 1;
+        }
+
+        $end = $length;
+        foreach (['COLLATE', 'NOT NULL', 'PRIMARY KEY', 'UNIQUE', 'CHECK', 'REFERENCES', 'GENERATED'] as $keyword) {
+            $found = self::findTopLevelKeyword($value, $keyword);
+            if ($found !== null && $found > 0) {
                 $end = min($end, $found);
             }
         }
 
-        return trim(substr($value, 0, $end));
+        return $end;
     }
 
     private static function generatedHiddenCode(string $tail): int

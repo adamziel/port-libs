@@ -18,11 +18,12 @@ final class SQLiteSelectExpression
             'column' => self::columnValue($row, self::requiredString($expression, 'name', 'column expression')),
             'literal' => $expression['value'] ?? null,
             'function' => self::functionValue($row, $expression),
+            'cast' => self::castValue($row, $expression),
             'unary' => self::unaryValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
             'row' => self::rowValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, unary, binary, row, or subquery'),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, cast, unary, binary, row, or subquery'),
         };
     }
 
@@ -167,6 +168,32 @@ final class SQLiteSelectExpression
         }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function castValue(array $row, array $expression): mixed
+    {
+        $operandExpression = $expression['operand'] ?? null;
+        if (!is_array($operandExpression)) {
+            throw new \InvalidArgumentException('SQLite SELECT CAST expression needs an operand');
+        }
+        $target = strtolower(self::requiredString($expression, 'target', 'CAST expression'));
+        $value = self::evaluate($row, $operandExpression);
+        if ($value === null) {
+            return null;
+        }
+
+        return match ($target) {
+            'int', 'integer' => self::integerOperand($value),
+            'real', 'float', 'double' => (float) self::numericOperand($value),
+            'numeric' => self::numericOperand($value),
+            'text', 'char', 'clob', 'varchar' => self::textValue($value),
+            'blob', 'none' => new SQLiteBlobValue(self::textValue($value)),
+            default => throw new \InvalidArgumentException("SQLite SELECT CAST target {$target} is not supported"),
+        };
     }
 
     /**

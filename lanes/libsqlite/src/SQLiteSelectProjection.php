@@ -45,13 +45,13 @@ final class SQLiteSelectProjection
     {
         $kind = $expression['type'] ?? null;
 
-        if ($kind === 'column' || $kind === 'literal' || $kind === 'function' || $kind === 'unary' || $kind === 'binary' || $kind === 'subquery') {
+        if ($kind === 'column' || $kind === 'literal' || $kind === 'function' || $kind === 'cast' || $kind === 'unary' || $kind === 'binary' || $kind === 'subquery') {
             return SQLiteSelectExpression::evaluate($row, $expression);
         }
 
         return match ($kind) {
             'case' => self::caseValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, unary, binary, subquery, case, or wildcard'),
+            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, cast, unary, binary, subquery, case, or wildcard'),
         };
     }
 

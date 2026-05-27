@@ -38,6 +38,8 @@ final class SQLiteSelectPredicate
             'NOT' => self::notValue($row, $predicate['term'] ?? null),
             'EXISTS' => self::exists($row, $predicate, false),
             'NOT EXISTS' => self::exists($row, $predicate, true),
+            'IS DISTINCT FROM' => self::distinctFrom($row, $predicate, true),
+            'IS NOT DISTINCT FROM' => self::distinctFrom($row, $predicate, false),
             '=', '==', 'IS' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison === 0, $operator === 'IS'),
             '!=', '<>', 'IS NOT' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison !== 0, $operator === 'IS NOT'),
             '<' => self::compare($row, $predicate, static fn (int $comparison): bool => $comparison < 0),
@@ -120,6 +122,26 @@ final class SQLiteSelectPredicate
     /**
      * @param array<string,mixed> $row
      * @param array<string,mixed> $predicate
+     */
+    private static function distinctFrom(array $row, array $predicate, bool $distinct): bool
+    {
+        $left = self::operand($row, $predicate, 'left');
+        $right = self::operand($row, $predicate, 'right');
+        if ($left === null || $right === null) {
+            $matched = $left !== $right;
+
+            return $distinct ? $matched : !$matched;
+        }
+
+        $comparison = self::compareValues($left, $right, true);
+        $matched = $comparison !== 0;
+
+        return $distinct ? $matched : !$matched;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $predicate
      * @param callable(int): bool $accept
      */
     private static function compare(array $row, array $predicate, callable $accept, bool $nullsEqual = false): ?bool
@@ -183,14 +205,20 @@ final class SQLiteSelectPredicate
         $sawNull = false;
         $matched = false;
         foreach ($values as $candidateExpression) {
-            $candidate = self::valueExpression($row, $candidateExpression);
+            $candidate = is_array($candidateExpression) && array_is_list($candidateExpression)
+                ? $candidateExpression
+                : self::valueExpression($row, $candidateExpression);
             if ($candidate === null) {
                 $sawNull = true;
                 continue;
             }
-            if ($value !== null && self::compareValues($value, $candidate) === 0) {
+            $comparison = $value === null ? null : self::compareValues($value, $candidate);
+            if ($comparison === 0) {
                 $matched = true;
                 break;
+            }
+            if ($comparison === null) {
+                $sawNull = true;
             }
         }
 
@@ -304,8 +332,8 @@ final class SQLiteSelectPredicate
             return match ($type) {
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
-                'function', 'unary', 'binary', 'row', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, unary, binary, row, or subquery'),
+                'function', 'cast', 'unary', 'binary', 'row', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, cast, unary, binary, row, or subquery'),
             };
         }
 
@@ -341,17 +369,34 @@ final class SQLiteSelectPredicate
 
         self::assertValue($left);
         self::assertValue($right);
-        if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
-            return strcmp($left->bytes, $right->bytes);
+        $leftRank = self::sortRank($left);
+        $rightRank = self::sortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
         }
-        if ((is_bool($left) || is_int($left) || is_float($left)) && (is_bool($right) || is_int($right) || is_float($right))) {
+        if ($leftRank === 1) {
             return ((float) $left) <=> ((float) $right);
         }
-        if (is_string($left) && is_string($right)) {
-            return strcmp($left, $right);
+
+        $leftText = $left instanceof SQLiteBlobValue ? $left->bytes : (string) $left;
+        $rightText = $right instanceof SQLiteBlobValue ? $right->bytes : (string) $right;
+
+        return strcmp($leftText, $rightText);
+    }
+
+    private static function sortRank(mixed $value): int
+    {
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 3;
         }
 
-        return null;
+        throw new \InvalidArgumentException('SQLite SELECT comparison values must be scalar, BLOB, or NULL');
     }
 
     /**

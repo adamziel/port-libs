@@ -1165,7 +1165,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach (['NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
+        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
                 continue;
@@ -1206,12 +1206,15 @@ final class SQLiteSelectSql
                 return [
                     'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
                     'left' => $left,
-                    'valuesSubquery' => static function (array $row) use ($valuesSql, $tables): array {
+                    'valuesSubquery' => static function (array $row) use ($valuesSql, $tables, $left): array {
                         $rows = self::correlatedSubqueryRows($valuesSql, $tables, $row);
                         if ($rows === []) {
                             return [];
                         }
                         $columns = array_keys($rows[0]);
+                        if (($left['type'] ?? null) === 'row') {
+                            return array_map(static fn (array $subqueryRow): array => array_values($subqueryRow), $rows);
+                        }
                         if (count($columns) !== 1) {
                             throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery must return one column');
                         }
@@ -1324,6 +1327,14 @@ final class SQLiteSelectSql
                 'type' => 'unary',
                 'operator' => $sql[0],
                 'operand' => self::valueExpression($match[1], $tables),
+            ];
+        }
+
+        if (preg_match('/^cast\s*\((.+)\s+as\s+([A-Za-z][A-Za-z0-9]*)\)$/is', $sql, $match) === 1) {
+            return [
+                'type' => 'cast',
+                'operand' => self::valueExpression($match[1], $tables),
+                'target' => $match[2],
             ];
         }
 
@@ -1634,7 +1645,18 @@ final class SQLiteSelectSql
             }
 
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
-                $order = ['column' => $expressionSql];
+                if (self::selectProvidesColumn($select, $expressionSql)) {
+                    $order = ['column' => $expressionSql];
+                } else {
+                    $alias = '__sqlite_order_column_' . $index;
+                    $select[] = [
+                        'type' => 'column',
+                        'name' => $expressionSql,
+                        'alias' => $alias,
+                        'hiddenOrderColumn' => true,
+                    ];
+                    $order = ['column' => $alias];
+                }
             } else {
                 $expression = self::valueExpression($expressionSql, $tables);
                 if ($aggregateValueColumn !== null) {
@@ -1654,6 +1676,26 @@ final class SQLiteSelectSql
         }
 
         return $terms;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function selectProvidesColumn(array $select, string $column): bool
+    {
+        foreach ($select as $term) {
+            if (($term['type'] ?? null) === 'wildcard') {
+                return true;
+            }
+            if (($term['alias'] ?? null) === $column) {
+                return true;
+            }
+            if (($term['type'] ?? null) === 'column' && ($term['name'] ?? null) === $column && !isset($term['alias'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1706,23 +1748,35 @@ final class SQLiteSelectSql
     {
         $commaParts = self::splitTopLevel($sql, ',');
         if (count($commaParts) === 2) {
-            foreach ($commaParts as $part) {
-                if (preg_match('/^[+-]?[0-9]+$/', trim($part)) !== 1) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT comma form must be integer offset and limit');
-                }
-            }
-
-            return [(int) trim($commaParts[1]), (int) trim($commaParts[0])];
+            return [self::limitInteger($commaParts[1]), self::limitInteger($commaParts[0])];
         }
         if (count($commaParts) > 2) {
             throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT comma form must have offset and limit');
         }
 
-        if (preg_match('/^([+-]?[0-9]+)(?:\s+offset\s+([+-]?[0-9]+))?$/i', trim($sql), $match) !== 1) {
+        $offsetParts = self::splitTopLevelByKeyword(trim($sql), 'OFFSET');
+        if (count($offsetParts) > 2 || $offsetParts[0] === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT must be integer with optional OFFSET');
         }
 
-        return [(int) $match[1], isset($match[2]) ? (int) $match[2] : 0];
+        return [
+            self::limitInteger($offsetParts[0]),
+            isset($offsetParts[1]) && $offsetParts[1] !== '' ? self::limitInteger($offsetParts[1]) : 0,
+        ];
+    }
+
+    private static function limitInteger(string $sql): int
+    {
+        $expression = self::valueExpression($sql, []);
+        if (($expression['type'] ?? null) === 'subquery') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT scalar subqueries are not supported');
+        }
+        $value = SQLiteSelectExpression::evaluate([], $expression);
+        if (!is_int($value) && !is_float($value) && !is_bool($value)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT expression must evaluate to numeric');
+        }
+
+        return (int) $value;
     }
 
     /**

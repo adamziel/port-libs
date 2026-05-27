@@ -1423,6 +1423,133 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */
+    public function focusedRunnerArtifactSetAdmission(array $artifactRecords, string $acceptedRepositoryHead): array
+    {
+        $entries = [];
+        $countable = [];
+        $blocked = [];
+        $failed = [];
+        $active = [];
+        $stale = [];
+        $broad = [];
+        $testsTotal = 0;
+        $errorsTotal = 0;
+        $scriptSelections = [];
+
+        foreach ($artifactRecords as $label => $artifact) {
+            $entryLabel = is_string($label) ? $label : 'artifact-' . (string) count($entries);
+            if (!is_array($artifact)) {
+                $blocked[] = $entryLabel;
+                $entries[] = [
+                    'label' => $entryLabel,
+                    'status' => 'blocked',
+                    'countable' => false,
+                    'artifact_status' => 'invalid',
+                    'testset' => null,
+                    'patterns' => [],
+                    'tests' => null,
+                    'errors' => null,
+                    'blocker_count' => 1,
+                    'blocker_ids' => ['artifact-record-invalid'],
+                    'admission' => null,
+                ];
+                continue;
+            }
+
+            $admission = $this->focusedRunnerArtifactAdmission($artifact, $acceptedRepositoryHead);
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $patterns = array_values(array_filter(
+                is_array($requested['patterns'] ?? null) ? $requested['patterns'] : [],
+                'is_string'
+            ));
+            $blockerIds = array_values(array_filter(array_map(
+                static fn ($blocker): ?string => is_array($blocker) && is_string($blocker['id'] ?? null) ? $blocker['id'] : null,
+                is_array($admission['blockers'] ?? null) ? $admission['blockers'] : []
+            )));
+            $artifactStatus = is_string($admission['artifact_status'] ?? null) ? $admission['artifact_status'] : 'unknown';
+            $tests = is_int($admission['tests'] ?? null) ? $admission['tests'] : null;
+            $errors = is_int($admission['errors'] ?? null) ? $admission['errors'] : null;
+            $isCountable = ($admission['countable'] ?? false) === true;
+
+            if ($isCountable) {
+                $countable[] = $entryLabel;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+                foreach ($patterns as $pattern) {
+                    $scriptSelections[$pattern] = true;
+                }
+            } else {
+                $blocked[] = $entryLabel;
+            }
+
+            if ($artifactStatus === 'failed') {
+                $failed[] = $entryLabel;
+            }
+            if (in_array('active-runner-still-running', $blockerIds, true)) {
+                $active[] = $entryLabel;
+            }
+            if (in_array('repository-head-mismatch', $blockerIds, true)) {
+                $stale[] = $entryLabel;
+            }
+            if (in_array('focused-patterns-missing', $blockerIds, true)) {
+                $broad[] = $entryLabel;
+            }
+
+            $entries[] = [
+                'label' => $entryLabel,
+                'status' => $isCountable ? 'countable' : 'blocked',
+                'countable' => $isCountable,
+                'artifact_status' => $artifactStatus,
+                'testset' => $admission['testset'] ?? null,
+                'patterns' => $patterns,
+                'tests' => $tests,
+                'errors' => $errors,
+                'blocker_count' => (int) ($admission['blocker_count'] ?? 0),
+                'blocker_ids' => $blockerIds,
+                'admission' => $admission,
+            ];
+        }
+
+        ksort($scriptSelections);
+
+        $status = 'blocked-empty-focused-artifact-set';
+        if ($entries !== []) {
+            $status = $blocked === [] ? 'focused-evidence-countable' : ($countable === [] ? 'blocked' : 'partially-countable-focused-evidence');
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => count($entries),
+            'countable_count' => count($countable),
+            'blocked_count' => count($blocked),
+            'failed_count' => count($failed),
+            'active_count' => count($active),
+            'stale_head_count' => count($stale),
+            'broad_artifact_count' => count($broad),
+            'countable_labels' => $countable,
+            'blocked_labels' => $blocked,
+            'failed_labels' => $failed,
+            'active_labels' => $active,
+            'stale_head_labels' => $stale,
+            'broad_artifact_labels' => $broad,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'unique_script_count' => count($scriptSelections),
+            'unique_scripts' => array_keys($scriptSelections),
+            'counts_as_release_parity' => false,
+            'entries' => $entries,
+            'next_gate' => $countable !== []
+                ? 'record only countable focused artifacts as focused upstream evidence; route broad release/all artifacts to release countability gates'
+                : 'do not count this focused artifact set until at least one selected-script artifact has zero-error results, accepted HEAD provenance, matching SQLite manifest UUID, and no active runner',
+            'dependency_closure' => 'no new support component needed; focused artifact-set admission composes focused runner admission records only',
+        ];
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
     public function acceptedHeadArtifactProvenanceBatch(array $artifactRecords, string $acceptedRepositoryHead): array
     {
         $entries = [];
