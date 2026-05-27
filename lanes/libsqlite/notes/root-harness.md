@@ -1,5 +1,40 @@
 # libsqlite Root Harness Notes
 
+## WAL Pager Checkpoint Atomic Apply Slice
+
+Date: 2026-05-27
+
+Focused lane verification for the WAL pager checkpoint atomic apply slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/examples/wordpress-pager-checkpoint-atomic-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite pager checkpoint transactions atomically through vfs handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-pager-checkpoint-atomic-apply.php
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
+pager checkpoint atomic apply test passed with 63 assertions and 0 failures.
+The full focused `SQLiteHeaderTest.php` passed at 1 test file, 8467 assertions,
+0 failures in this isolated worktree. The WordPress smoke reports copied
+`wp_options` WAL checkpoint transactions applied through bounded native PHP
+file handles after shared/reserved/pending/exclusive lock escalation, database
+page materialization, WAL truncate/reset persistence, durable sync diagnostics,
+lock release, and rollback of partial database writes if a later WAL sidecar
+operation fails. Root harness status: not run - isolated micro-slice.
+
+This slice does not repeat accepted WAL byte truncation, VFS savepoint rollback
+apply, rollback-journal commit, super-journal commit, VFS sync apply, VFS
+locked writer, or WAL checkpoint transaction planning. It wires those accepted
+building blocks into one atomic pager checkpoint transaction application path
+with rollback-on-write-failure semantics. Dependency closure: no new shared
+support component is needed; the implementation reuses lane-local WAL parsing,
+lock coordination, checkpoint transaction planning, sync planning, and native
+PHP VFS file-handle writer primitives. Follow-up should target crash-recovery
+state-machine edges or broader pager transaction state beyond this checkpoint
+apply path.
+
 ## Isolated WAL Hot Rollback-Journal Recovery Slice
 
 Date: 2026-05-27

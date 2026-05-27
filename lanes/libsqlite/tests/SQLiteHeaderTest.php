@@ -20541,6 +20541,143 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'plugin-settings', $dirtyDatabase, $pageSize, $databasePath, $wal));
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'missing', $dirtyDatabase, $pageSize, $databasePath));
     },
+    'applies sqlite pager checkpoint transactions atomically through vfs handles' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-pager-checkpoint-atomic-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabase = $root . $databasePath;
+        $localWal = $localDatabase . '-wal';
+        $pageSize = 512;
+
+        $databaseBytes = $makeFirstPage($pageSize, 3)
+            . str_pad('base wp_options table page', $pageSize, "\0")
+            . str_pad('base autoload index page', $pageSize, "\0");
+
+        $salt1 = 0x33445566;
+        $salt2 = 0x77889900;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walBytes = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+        $walPageTwo = str_pad('checkpointed siteurl option page', $pageSize, "\0");
+        $walPageThree = str_pad('checkpointed autoload index page', $pageSize, "\0");
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $walPageTwo);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 3, $walPageThree);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $locks = new SQLiteLockCoordinator();
+        $applied = (new SQLiteVfsFileWriter($root))->applyPagerCheckpointTransaction(
+            $locks,
+            'wp-import-checkpoint',
+            $wal,
+            $databaseBytes,
+            $databasePath,
+            'truncate'
+        );
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same(true, $applied['atomic']);
+        $t->same(true, $applied['locks_released']);
+        $t->same([], $locks->holders());
+        $t->same(4, $applied['applied']);
+        $t->same(strlen($databaseBytes), $applied['bytes_written']);
+        $t->same(0, $applied['bytes_truncated']);
+        $t->same(0, $applied['files_deleted']);
+        $t->same(1, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(true, in_array('sqlite-pager-checkpoint-transaction', $applied['dependencies'], true));
+        $t->same(true, in_array('sqlite-pager-atomic-checkpoint-apply', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-atomic-rollback-on-write-failure', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-write-application', $applied['dependencies'], true));
+        $t->same('ready', $applied['transaction']['status']);
+        $t->same(true, $applied['transaction']['can_checkpoint']);
+        $t->same('truncate', $applied['transaction']['mode']);
+        $t->same($databasePath, $applied['transaction']['database_path']);
+        $t->same(['shared', 'reserved', 'pending', 'exclusive'], array_column($applied['transaction']['lock_sequence'], 'requested'));
+        $t->same(['ready', 'ready', 'ready', 'ready'], array_column($applied['transaction']['lock_sequence'], 'status'));
+        $t->same('truncate_wal', $applied['transaction']['write_plan']['wal_action']);
+        $t->same(strlen($databaseBytes), $applied['transaction']['write_plan']['database_bytes']);
+        $t->same(0, $applied['transaction']['write_plan']['wal_bytes']);
+        $t->same('checkpoint_database_pages', $applied['transaction']['write_plan']['operations'][0]['reason']);
+        $t->same('sync_checkpointed_database', $applied['transaction']['write_plan']['operations'][1]['reason']);
+        $t->same('truncate_reset_wal', $applied['transaction']['write_plan']['operations'][2]['reason']);
+        $t->same('persist_database_and_wal_directory_entries', $applied['transaction']['write_plan']['operations'][3]['reason']);
+        $t->same('write', $applied['operations'][0]['op']);
+        $t->same($databasePath, $applied['operations'][0]['path']);
+        $t->same($localDatabase, $applied['operations'][0]['local_path']);
+        $t->same(strlen($databaseBytes), $applied['operations'][0]['bytes']);
+        $t->same('sync', $applied['operations'][1]['op']);
+        $t->same(true, $applied['operations'][1]['durable']);
+        $t->same('truncate', $applied['operations'][2]['op']);
+        $t->same($databasePath . '-wal', $applied['operations'][2]['path']);
+        $t->same($localWal, $applied['operations'][2]['local_path']);
+        $t->same(0, $applied['operations'][2]['bytes']);
+        $t->same('sync_directory', $applied['operations'][3]['op']);
+        $t->same(dirname($databasePath), $applied['operations'][3]['path']);
+
+        $checkpointedDatabase = file_get_contents($localDatabase);
+        $t->same(strlen($databaseBytes), strlen($checkpointedDatabase));
+        $t->same($walPageTwo, substr($checkpointedDatabase, $pageSize, $pageSize));
+        $t->same($walPageThree, substr($checkpointedDatabase, $pageSize * 2, $pageSize));
+        $t->same('', file_get_contents($localWal));
+        $t->same(false, str_contains($checkpointedDatabase, 'base wp_options table page'));
+        $t->same(false, str_contains($checkpointedDatabase, 'base autoload index page'));
+
+        $blockedLocks = new SQLiteLockCoordinator(['theme-preview-reader' => 'shared']);
+        $blocked = (new SQLiteVfsFileWriter($root))->applyPagerCheckpointTransaction(
+            $blockedLocks,
+            'wp-import-checkpoint',
+            $wal,
+            $databaseBytes,
+            $databasePath,
+            'restart',
+            null,
+            SQLiteBusyHandler::timeout(10, 5)
+        );
+        $t->same('busy-timeout', $blocked['status']);
+        $t->same(0, $blocked['applied']);
+        $t->same(false, $blocked['locks_released']);
+        $t->same(true, $blocked['atomic']);
+        $t->same(false, $blocked['transaction']['can_checkpoint']);
+        $t->same('exclusive writer is blocked until readers and writers drain', $blocked['transaction']['reason']);
+        $t->same('theme-preview-reader', $blocked['transaction']['lock_sequence'][3]['blocking'][0]['connection']);
+        $t->same('shared reader must drain before exclusive lock', $blocked['transaction']['lock_sequence'][3]['blocking'][0]['reason']);
+        $t->same([['connection' => 'theme-preview-reader', 'level' => 'shared']], $blockedLocks->holders());
+
+        $failureRoot = sys_get_temp_dir() . '/port-libsqlite-pager-checkpoint-atomic-fail-' . bin2hex(random_bytes(4));
+        $failureDatabase = $failureRoot . $databasePath;
+        $failureWal = $failureDatabase . '-wal';
+        if (!is_dir(dirname($failureDatabase)) && !mkdir(dirname($failureDatabase), 0777, true) && !is_dir(dirname($failureDatabase))) {
+            throw new RuntimeException('failed to create test directory');
+        }
+        $originalDatabase = str_pad('original db image before failed checkpoint', strlen($databaseBytes), "\0");
+        file_put_contents($failureDatabase, $originalDatabase);
+        mkdir($failureWal, 0777, true);
+        $failureLocks = new SQLiteLockCoordinator();
+        $failingWriter = new SQLiteVfsFileWriter($failureRoot);
+
+        $t->throws(RuntimeException::class, static fn () => $failingWriter->applyPagerCheckpointTransaction(
+            $failureLocks,
+            'wp-import-checkpoint',
+            $wal,
+            $databaseBytes,
+            $databasePath,
+            'restart'
+        ));
+        $t->same($originalDatabase, file_get_contents($failureDatabase));
+        $t->same(true, is_dir($failureWal));
+        $t->same([], $failureLocks->holders());
+
+        $t->throws(LogicException::class, static fn () => (new SQLiteVfsFileWriter($root, true))->applyPagerCheckpointTransaction($locks, 'wp-import-checkpoint', $wal, $databaseBytes, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileWriter($root))->applyPagerCheckpointTransaction($locks, '', $wal, $databaseBytes, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileWriter($root))->applyPagerCheckpointTransaction($locks, 'wp-import-checkpoint', $wal, $databaseBytes, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileWriter($root))->applyPagerCheckpointTransaction($locks, 'wp-import-checkpoint', $wal, $databaseBytes, $databasePath, 'bad'));
+    },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];
 

@@ -32,6 +32,75 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,transaction:array<string, mixed>,locks_released:bool,atomic:bool}
+     */
+    public function applyPagerCheckpointTransaction(
+        SQLiteLockCoordinator $locks,
+        string $connection,
+        SQLiteWal $wal,
+        string $databaseBytes,
+        string $databasePath,
+        string $mode = 'passive',
+        ?int $readerEndFrame = null,
+        ?SQLiteBusyHandler $busyHandler = null
+    ): array {
+        $plan = SQLitePagerCheckpointTransactionPlan::plan(
+            $locks,
+            $connection,
+            $wal,
+            $databaseBytes,
+            $databasePath,
+            $mode,
+            $readerEndFrame,
+            $busyHandler,
+            $this->readOnly,
+            $this->immutable
+        );
+        if (!$plan['can_checkpoint'] || $plan['write_plan'] === null) {
+            return [
+                'status' => $plan['status'],
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge($plan['dependencies'], ['sqlite-pager-atomic-checkpoint-apply']))),
+                'transaction' => $plan,
+                'locks_released' => false,
+                'atomic' => true,
+            ];
+        }
+
+        foreach ($plan['lock_sequence'] as $lockPlan) {
+            $locks->set($connection, (string) $lockPlan['requested']);
+        }
+
+        try {
+            $result = $wal->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
+            $payloads = [
+                $plan['write_plan']['database_path'] => $result['database_bytes'],
+                $plan['write_plan']['wal_path'] => $result['wal_bytes'],
+            ];
+            $applied = $this->applyAtomicOperations(
+                $plan['write_plan']['operations'],
+                $payloads,
+                array_values(array_unique(array_merge($plan['dependencies'], ['sqlite-pager-atomic-checkpoint-apply'])))
+            );
+        } finally {
+            $locks->release($connection);
+        }
+
+        $applied['transaction'] = $plan;
+        $applied['locks_released'] = true;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>}
      */
     public function applyWalRecovery(SQLiteWal $wal, string $databaseBytes, string $databasePath): array
@@ -398,6 +467,29 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array<string, mixed>> $operations
+     * @param array<string, string> $payloads
+     * @param list<string> $dependencies
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
+     */
+    public function applyAtomicOperations(array $operations, array $payloads = [], array $dependencies = []): array
+    {
+        $snapshots = $this->snapshotsForOperations($operations);
+
+        try {
+            return $this->applyOperations(
+                $operations,
+                $payloads,
+                array_values(array_unique(array_merge($dependencies, ['vfs-atomic-rollback-on-write-failure'])))
+            );
+        } catch (\Throwable $throwable) {
+            $this->restoreSnapshots($snapshots);
+
+            throw $throwable;
+        }
+    }
+
+    /**
      * @param list<array{status:string,path:string,target:string,mode:string,flags:int,flag_names:list<string>,durable:bool,data_only:bool,directory:bool,allowed:bool,reason:string|null,dependencies:list<string>}> $plans
      * @return array{status:string,root:string,applied:int,skipped:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
      */
@@ -490,6 +582,62 @@ final class SQLiteVfsFileWriter
         }
 
         return $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $operations
+     * @return array<string, array{exists:bool,bytes:string|null,is_dir:bool}>
+     */
+    private function snapshotsForOperations(array $operations): array
+    {
+        $snapshots = [];
+        foreach ($operations as $operation) {
+            $op = isset($operation['op']) ? (string) $operation['op'] : '';
+            if (!in_array($op, ['write', 'truncate', 'delete', 'sync'], true)) {
+                continue;
+            }
+            $path = isset($operation['path']) ? (string) $operation['path'] : '';
+            if ($path === '') {
+                throw new \InvalidArgumentException('SQLite VFS operation requires a path');
+            }
+            $localPath = $this->localPath($path);
+            if (array_key_exists($localPath, $snapshots)) {
+                continue;
+            }
+            $snapshots[$localPath] = [
+                'exists' => is_file($localPath),
+                'bytes' => is_file($localPath) ? file_get_contents($localPath) : null,
+                'is_dir' => is_dir($localPath),
+            ];
+        }
+
+        return $snapshots;
+    }
+
+    /**
+     * @param array<string, array{exists:bool,bytes:string|null,is_dir:bool}> $snapshots
+     */
+    private function restoreSnapshots(array $snapshots): void
+    {
+        foreach ($snapshots as $localPath => $snapshot) {
+            if ($snapshot['is_dir']) {
+                continue;
+            }
+            if (!$snapshot['exists']) {
+                if (is_file($localPath) && !unlink($localPath)) {
+                    throw new \RuntimeException("SQLite VFS could not restore absent file: {$localPath}");
+                }
+                continue;
+            }
+
+            $directory = dirname($localPath);
+            if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                throw new \RuntimeException("SQLite VFS could not recreate directory while restoring: {$directory}");
+            }
+            if (file_put_contents($localPath, $snapshot['bytes']) === false) {
+                throw new \RuntimeException("SQLite VFS could not restore file snapshot: {$localPath}");
+            }
+        }
     }
 
     private function writeAt(string $path, int $offset, string $data): void
