@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePragmaLockingMode;
+use PortLibs\LibSqlite\SQLitePragmaSchemaCatalog;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -14,7 +15,9 @@ if ($databasePath === null) {
     exit(1);
 }
 
-$snapshot = SQLitePragmaSnapshot::fromDatabase(SQLiteDatabase::fromFile($databasePath));
+$database = SQLiteDatabase::fromFile($databasePath);
+$snapshot = SQLitePragmaSnapshot::fromDatabase($database);
+$schemaCatalog = SQLitePragmaSchemaCatalog::fromDatabase($database);
 $lockingMode = new SQLitePragmaLockingMode();
 $exclusiveLockingMode = $lockingMode->execute('PRAGMA locking_mode = EXCLUSIVE');
 $normalLockingMode = $lockingMode->execute('PRAGMA locking_mode = NORMAL');
@@ -41,5 +44,10 @@ echo json_encode([
         'exclusive' => $exclusiveLockingMode,
         'normal' => $normalLockingMode,
         'temp' => $lockingMode->execute('PRAGMA temp.locking_mode'),
+    ],
+    'schemaPragmas' => [
+        'table_info' => $schemaCatalog->execute('PRAGMA table_info(wp_options)')['rows'],
+        'table_xinfo' => $schemaCatalog->execute('PRAGMA table_xinfo(wp_options)')['rows'],
+        'index_list' => $schemaCatalog->execute('PRAGMA index_list(wp_options)')['rows'],
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

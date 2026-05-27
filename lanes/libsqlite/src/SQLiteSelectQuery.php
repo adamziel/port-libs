@@ -46,15 +46,20 @@ final class SQLiteSelectQuery
 
         $distinct = null;
         if (array_key_exists('distinct', $plan)) {
-            if (!is_array($plan['distinct']) || !array_is_list($plan['distinct'])) {
+            if ($plan['distinct'] === true) {
+                $distinct = $rows === [] ? null : array_keys($rows[0]);
+            } elseif (!is_array($plan['distinct']) || !array_is_list($plan['distinct'])) {
                 throw new \InvalidArgumentException('SQLite SELECT query distinct columns must be a list');
+            } else {
+                $distinct = $plan['distinct'];
             }
-            foreach ($plan['distinct'] as $column) {
-                if (!is_string($column)) {
-                    throw new \InvalidArgumentException('SQLite SELECT query distinct columns must be strings');
+            if ($distinct !== null) {
+                foreach ($distinct as $column) {
+                    if (!is_string($column)) {
+                        throw new \InvalidArgumentException('SQLite SELECT query distinct columns must be strings');
+                    }
                 }
             }
-            $distinct = $plan['distinct'];
         }
 
         $orderBy = $plan['orderBy'] ?? [];

@@ -98,6 +98,23 @@ final class SQLiteSelectExpression
 
             return SQLiteJsonExtract::extractSqlFunction($normalized, $value, ...$paths);
         }
+        if ($normalized === 'json_type' || $normalized === 'json_array_length') {
+            if (count($evaluated) < 1 || count($evaluated) > 2) {
+                throw new \InvalidArgumentException('SQLite SELECT expression json_type() and json_array_length() expect one or two arguments');
+            }
+
+            $value = $evaluated[0];
+            if ($value !== null && !is_string($value) && !$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue) {
+                throw new \InvalidArgumentException('SQLite SELECT expression JSON inspection argument must be text, JSONB, JSON subtype, or NULL');
+            }
+
+            $path = array_key_exists(1, $evaluated) ? $evaluated[1] : '$';
+            if ($path !== null && !is_string($path)) {
+                throw new \InvalidArgumentException('SQLite SELECT expression JSON inspection path must be text or NULL');
+            }
+
+            return SQLiteJsonInspection::inspectionSqlFunction($normalized, $value, $path);
+        }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
     }

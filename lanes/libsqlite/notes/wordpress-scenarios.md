@@ -2,6 +2,34 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## INSERT SELECT Conflict Scenario
+
+Copied WordPress archive/import staging can now model SQLite conflict handling
+for `INSERT OR IGNORE ... SELECT` and `INSERT OR REPLACE ... SELECT` without
+ext/sqlite. The smoke
+`examples/wordpress-insert-select-conflict-current.php` reports skipped
+current/prior unique `option_name` rows for IGNORE, deleted current/prior
+conflicts for REPLACE, and final archive row names.
+
+Status delta 2026-05-27 isolated DML conflict slice: updated
+`SQLiteInsertSelectSql` to parse conflict actions and apply caller-supplied
+UNIQUE metadata across current and newly inserted row-array state. Focused
+assertions cover IGNORE skips, REPLACE delete-before-insert behavior, conflicts
+against prior inserted rows, composite UNIQUE keys, SQL NULL non-conflicts,
+parameterized SELECT sources, ABORT/FAIL/ROLLBACK conflict errors, and
+malformed unique metadata guards. Focused verification passed at
+`SQLiteHeaderTest.php` plus `SQLiteInsertSelectConflictTest.php`: 2 test files,
+9775 assertions, 0 failures. The patch contributes 27 PASS cases: one
+`SQLiteHeaderTest.php` corpus case plus 26 split
+`SQLiteInsertSelectConflictTest.php` cases. Lane `phpPass` moves from 803 to
+830.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+SELECT SQL execution and pure PHP WordPress option fixtures. Non-overlap: this
+avoids accepted low-level `INSERT OR REPLACE` option planning and accepted
+`UPDATE FROM` conflict behavior by covering parser-level
+`INSERT INTO ... SELECT` conflict execution only.
+
 ## PRAGMA Locking Mode Preflight Scenario
 
 Copied WordPress database preflight can now report SQLite `PRAGMA locking_mode`
@@ -5028,3 +5056,26 @@ Follow-up should wire this row-array update preview into lower-level table/index
 page write planning without repeating accepted INSERT OR REPLACE conflict
 planning, UPDATE/DELETE LIMIT row selection, or this parser-level UPDATE FROM
 current-conflict behavior.
+
+## JSON Inspection SELECT SQL Scenario
+
+Copied WordPress `wp_options` JSON diagnostics now expose parser-level SQLite
+`json_type()` and `json_array_length()` expression dispatch. The smoke
+`examples/wordpress-json-inspection-select-sql.php` reports strict JSON and
+JSONB plugin settings projected through SELECT SQL text with mode type/count
+metadata, without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated `json-inspection-select-sql` slice:
+`SQLiteSelectExpression` dispatches `json_type()` and `json_array_length()`
+through the existing native JSON inspection implementation after evaluating SQL
+expression arguments. Focused `SQLiteJsonInspectionSqlTest.php` adds 33
+TestRunner PASS cases covering strict JSON, JSON5, JSONB, cast-text BLOBs,
+SQL BLOB literals, SQL NULL path handling, predicates, ORDER BY expressions,
+aliases, uppercase function names, malformed text, malformed superficial JSONB,
+and arity/type guards.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local JSON inspection, JSON5 parser, JSONB codec, `SQLiteBlobValue`, and
+SELECT SQL parser/executor. Follow-up should target non-overlapping JSON
+planner/JSONB behavior rather than accepted JSON table source/cursor/hidden or
+visible-constraint clusters, or this inspection-function expression dispatch.
