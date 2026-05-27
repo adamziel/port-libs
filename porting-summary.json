@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 17:10:46 UTC",
-    "sourceCommit": "26e256a5defd424b5af99f8d49cb920c3901d59a",
-    "sourceCommitShort": "26e256a5defd",
-    "sourceBranch": "main",
-    "dashboardCommit": "7d36b685edfdf6a8cfea801ad8eacf34f085acac",
-    "dashboardCommitShort": "7d36b685edfd",
+    "generated": "2026-05-27 17:22:18 UTC",
+    "sourceCommit": "93e8c5b9276d3bf22c095dce1708834c88ddc0a4",
+    "sourceCommitShort": "93e8c5b9276d",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "d96506f44f8d7f749831a8097fb9f341113bae1b",
+    "dashboardCommitShort": "d96506f44f8d",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "450",
-            "coverage": "450 / 1589",
-            "php": "1051 pass / 0 fail",
+            "mapped": "451",
+            "coverage": "451 / 1589",
+            "php": "1336 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch verification passed: php -l on chan...",
-            "currentWork": "Integrated high-yield libsqlite batch: SELECT DISTINCT parser/result execution (+31 PASS)...",
-            "nextTarget": "Run root for the accepted high-yield batch, publish dashboard if green, then continue int...",
+            "audit": "Batch3 verification passed: php -l on cha...",
+            "currentWork": "Integrated high-yield libsqlite batch3: unary/bitwise expression parsing and execution (+...",
+            "nextTarget": "Publish dashboard for batch3, then keep 10-11 workers on current-source high-yield slices...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
-            "commit": "yield-b"
+            "commit": "current"
         },
         {
             "library": "LightningCSS",
