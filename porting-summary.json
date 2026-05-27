@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 11:44:55 UTC",
-    "sourceCommit": "3409e9c529cce1b03e85c3d78a5ab55a09e3ca8d",
-    "sourceCommitShort": "3409e9c529cc",
+    "generated": "2026-05-27 11:58:21 UTC",
+    "sourceCommit": "49c6f948a3af2fb5d152d49dd63c54a613950f7d",
+    "sourceCommitShort": "49c6f948a3af",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "6075e3b462ecd5bb950614234f5508de0cff5f9e",
-    "dashboardCommitShort": "6075e3b462ec",
+    "dashboardCommit": "47c47b998dd47b32f38e6c1423d228f61bdcb343",
+    "dashboardCommitShort": "47c47b998dd4",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -85,12 +85,12 @@
             "coverage": "447 / 1589",
             "php": "797 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "bounded parser-level SELECT SQL compound text dispatch...",
-            "audit": "Upstream-suite source provenance countabi...",
-            "currentWork": "B-tree freeblock/freelist rebalance planning now keeps non-empty leaf freeblock page imag...",
-            "nextTarget": "Continue non-overlapping B-tree delete/rebalance materialization by applying freeblock/fr...",
+            "phase": "bounded SQLite xFileControl-style state application for...",
+            "audit": "Dependency/open VFS file-control state sl...",
+            "currentWork": "Bounded SQLite xFileControl-style state application for open VFS handles is integrated wh...",
+            "nextTarget": "Wire VFS file-control state into broader pager/open execution or durable transaction coor...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
-            "commit": "5c5fb81"
+            "commit": "integra"
         },
         {
             "library": "LightningCSS",
