@@ -145,6 +145,112 @@ final class SQLiteWalSavepointCheckpointPlan
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $currentReadMarks
+     * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_read_marks:array<string,mixed>,next_read_marks:array<string,mixed>,current_reader_kept_wal_snapshot:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_preserved_wal:bool,images_match:bool,dependencies:list<string>}
+     */
+    public static function readerPinCurrentNextAfterRollbackTo(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        array $currentReadMarks,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader pin requires at least one page number');
+        }
+        if ($currentReadMarks === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader pin requires read marks');
+        }
+
+        $currentReadPlan = $wal->readMarkPlan($currentReadMarks);
+        $currentReaderEndFrame = $currentReadPlan['checkpoint_pinned_frame']
+            ?? $currentReadPlan['last_commit_frame']
+            ?? $wal->frameCount();
+        if ($currentReaderEndFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader pin requires a positive reader frame');
+        }
+
+        $checkpoint = self::afterRollbackTo($savepoints, $savepoint, $wal, $walBytes, $databaseBytes, $mode, $currentReaderEndFrame);
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+        $nextReadPlan = $nextWal?->readMarkPlan($nextReaderEndFrame > 0 ? [$nextReaderEndFrame] : [0]) ?? [
+            'mx_frame' => 0,
+            'last_commit_frame' => null,
+            'checkpoint_pinned_frame' => null,
+            'checkpoint_can_finish' => true,
+            'reset_blocked' => false,
+            'read_marks' => [[
+                'slot' => 0,
+                'frame' => 0,
+                'active' => true,
+                'valid' => true,
+                'stale' => false,
+                'pins_checkpoint' => false,
+                'reason' => 'database_only_reader_after_wal_reset',
+            ]],
+            'reusable_slots' => [],
+            'recommended_reader_slot' => null,
+            'recommended_reader_frame' => null,
+        ];
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint reader pin pages must be integers');
+            }
+
+            $current[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $currentFrames = self::visibilityColumn($current, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+
+        return [
+            'status' => $checkpoint['status'],
+            'savepoint' => $savepoint,
+            'mode' => $checkpoint['mode'],
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'current_read_marks' => $currentReadPlan,
+            'next_read_marks' => $nextReadPlan,
+            'current_reader_kept_wal_snapshot' => in_array('wal', $currentSources, true),
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'next_reader_uses_preserved_wal' => $durable['wal_action'] === 'preserve_wal',
+            'images_match' => $currentImages === $nextImages,
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                ['sqlite-wal-savepoint-reader-pin-current-next']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}
      */
     private static function databasePageVisibility(string $databaseBytes, int $pageSize, int $pageNumber): array
