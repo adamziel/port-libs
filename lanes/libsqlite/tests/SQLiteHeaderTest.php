@@ -82,6 +82,7 @@ use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 use PortLibs\LibSqlite\SQLiteVfsSidecarPlan;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
+use PortLibs\LibSqlite\SQLiteShmIndex;
 use PortLibs\LibSqlite\SQLiteWindowFunction;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteWordPressOptionReplacementPlan;
@@ -13356,6 +13357,135 @@ SQL;
         $t->same(0, $empty['recommended_reader_slot']);
         $t->same(null, $empty['recommended_reader_frame']);
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readMarkPlan([-1]));
+    },
+    'loads sqlite shm wal-index headers and checkpoint read marks' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $encodedPageSize = (1 << 24) | (1 << 16) | $pageSize;
+        $header = pack(
+            'V*',
+            3007000,
+            2,
+            17,
+            $encodedPageSize,
+            6,
+            4,
+            0x11111111,
+            0x22222222,
+            0x33333333,
+            0x44444444,
+            0x55555555,
+            0x66666666
+        );
+        $checkpoint = pack('V*', 2, 0, 3, 6, 0xffffffff, 9)
+            . "\x00\x01\x00\x00\x01\x00\x00\x00"
+            . pack('V*', 5, 0);
+        $shmBytes = $header . $header . $checkpoint . str_repeat("\0", 256);
+
+        $index = SQLiteShmIndex::parse($shmBytes);
+        $t->same('little-endian', $index->byteOrder);
+        $t->same(true, $index->headersMatch);
+        $t->same(3007000, $index->header['version']);
+        $t->same(17, $index->header['change_counter']);
+        $t->same($pageSize, $index->header['page_size']);
+        $t->same(true, $index->header['initialized']);
+        $t->same(true, $index->header['big_endian_checksums']);
+        $t->same(6, $index->header['mx_frame']);
+        $t->same(4, $index->header['database_page_count']);
+        $t->same(2, $index->header['backfill_hint']);
+        $t->same([0x11111111, 0x22222222], $index->header['frame_checksum']);
+        $t->same([0x33333333, 0x44444444], $index->header['salt']);
+        $t->same([0x55555555, 0x66666666], $index->header['checksum']);
+        $t->same(2, $index->backfilledFrameCount);
+        $t->same(5, $index->backfillAttemptedFrameCount);
+
+        $plan = $index->checkpointPlan();
+        $t->same('ready', $plan['status']);
+        $t->same(false, $plan['checkpoint_can_finish']);
+        $t->same(true, $plan['reset_blocked']);
+        $t->same(true, $plan['headers_match']);
+        $t->same(6, $plan['mx_frame']);
+        $t->same(2, $plan['backfilled_frame_count']);
+        $t->same(5, $plan['backfill_attempted_frame_count']);
+        $t->same(3, $plan['checkpoint_pinned_frame']);
+        $t->same([3, 4], $plan['reusable_slots']);
+        $t->same(['sqlite-shm-index', 'wal-index-read-marks', 'checkpoint-backfill-state'], $plan['dependencies']);
+        $t->same(5, count($plan['read_marks']));
+
+        $t->same(0, $plan['read_marks'][0]['slot']);
+        $t->same(0, $plan['read_marks'][0]['frame']);
+        $t->same(true, $plan['read_marks'][0]['active']);
+        $t->same(true, $plan['read_marks'][0]['valid']);
+        $t->same(true, $plan['read_marks'][0]['stale']);
+        $t->same(false, $plan['read_marks'][0]['pins_checkpoint']);
+        $t->same('database_only_reader', $plan['read_marks'][0]['reason']);
+
+        $t->same(1, $plan['read_marks'][1]['slot']);
+        $t->same(3, $plan['read_marks'][1]['frame']);
+        $t->same(true, $plan['read_marks'][1]['active']);
+        $t->same(true, $plan['read_marks'][1]['valid']);
+        $t->same(true, $plan['read_marks'][1]['stale']);
+        $t->same(true, $plan['read_marks'][1]['pins_checkpoint']);
+        $t->same('reader_pins_checkpoint_backfill', $plan['read_marks'][1]['reason']);
+
+        $t->same(2, $plan['read_marks'][2]['slot']);
+        $t->same(6, $plan['read_marks'][2]['frame']);
+        $t->same(false, $plan['read_marks'][2]['stale']);
+        $t->same(false, $plan['read_marks'][2]['pins_checkpoint']);
+        $t->same('pins_latest_commit', $plan['read_marks'][2]['reason']);
+
+        $t->same(3, $plan['read_marks'][3]['slot']);
+        $t->same(null, $plan['read_marks'][3]['frame']);
+        $t->same(false, $plan['read_marks'][3]['active']);
+        $t->same(true, $plan['read_marks'][3]['valid']);
+        $t->same('unused_slot', $plan['read_marks'][3]['reason']);
+
+        $t->same(4, $plan['read_marks'][4]['slot']);
+        $t->same(9, $plan['read_marks'][4]['frame']);
+        $t->same(true, $plan['read_marks'][4]['active']);
+        $t->same(false, $plan['read_marks'][4]['valid']);
+        $t->same('beyond_wal_mx_frame', $plan['read_marks'][4]['reason']);
+
+        $array = $index->toArray();
+        $t->same('little-endian', $array['byte_order']);
+        $t->same(2, $array['backfilled_frame_count']);
+        $t->same(5, $array['backfill_attempted_frame_count']);
+        $t->same(3, $array['checkpoint_plan']['checkpoint_pinned_frame']);
+
+        $staleCopy = SQLiteShmIndex::parse($header . substr_replace($header, pack('V', 18), 8, 4) . $checkpoint);
+        $t->same(false, $staleCopy->headersMatch);
+        $t->same('stale-header-copy', $staleCopy->checkpointPlan()['status']);
+
+        $bigHeader = pack('N*', 3007000, 0, 7, $pageSize, 2, 2, 1, 2, 3, 4, 5, 6);
+        $bigCheckpoint = pack('N*', 0, 0, 2, 0xffffffff, 0xffffffff, 0xffffffff)
+            . str_repeat("\0", 8)
+            . pack('N*', 2, 0);
+        $big = SQLiteShmIndex::parse($bigHeader . $bigHeader . $bigCheckpoint, 'big-endian');
+        $t->same('big-endian', $big->byteOrder);
+        $t->same(2, $big->header['mx_frame']);
+        $t->same(true, $big->checkpointPlan()['checkpoint_can_finish']);
+
+        $path = tempnam(sys_get_temp_dir(), 'sqlite-shm-index-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary SHM fixture');
+        }
+        try {
+            file_put_contents($path, $shmBytes);
+            $fromFile = SQLiteShmIndex::fromFile($path);
+            $t->same(6, $fromFile->header['mx_frame']);
+        } finally {
+            @unlink($path);
+        }
+
+        $badShort = substr($shmBytes, 0, 120);
+        $badPageSize = substr_replace($shmBytes, pack('V', (1 << 24) | 500), 12, 4);
+        $badBackfillHint = substr_replace($shmBytes, pack('V', 7), 4, 4);
+        $badBackfillCounter = substr_replace($shmBytes, pack('V', 7), 96, 4);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::parse($badShort));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::parse($badPageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::parse($badBackfillHint));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::parse($badBackfillCounter));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::parse($shmBytes, 'middle-endian'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteShmIndex::fromFile('/path/that/does/not/exist.sqlite-shm'));
     },
     'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

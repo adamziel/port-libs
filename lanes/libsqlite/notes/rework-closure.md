@@ -205,3 +205,39 @@ lane-local B-tree leaf merge materialization, SQLiteDatabase freelist mutation,
 pointer-map update planning, page header parsing, and record/cell encoders.
 Next B-tree work should move to broader redistribution or parent divider/
 rightmost write application.
+
+## 2026-05-27 Dependency/Open SHM Wal-Index Loader
+
+This isolated dependency-suite slice adds bounded `-shm` wal-index loading
+without repeating accepted sidecar path planning, page-cache loading, lock
+coordination, WAL open-view materialization, or WAL read-mark helpers.
+`SQLiteShmIndex` parses the duplicated wal-index headers, validates page-size
+and backfill counters, reads checkpoint backfill state, classifies five SQLite
+reader marks, reports reusable slots, and marks stale header copies for later
+VFS/file-control integration.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4823 assertions,
+up from the accepted 4683 baseline (`+140`). The selected SHM-index test adds
+71 assertions covering little- and big-endian SHM headers, initialized/checksum
+flags, salts/checksums, checkpoint pinned-frame diagnostics, invalid read marks,
+unused reusable slots, stale duplicated headers, `fromFile()` loading, and
+malformed short/page-size/backfill/byte-order guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteShmIndex.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-shm-index-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite shm wal-index headers and checkpoint read marks"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-shm-index-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local native PHP support component for SQLite SHM/wal-index sidecars and
+reuses accepted WAL, open, sidecar, page-cache, and lock-coordination evidence.
+Next dependency/open work should connect this to WAL-open/checkpoint
+persistence or a bounded native file-control/locking adapter.

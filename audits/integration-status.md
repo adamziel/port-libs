@@ -118159,3 +118159,28 @@ Scope:
 - Updates the libsqlite upstream manifest, lane status, and notes for the accepted behavior slice.
 - Does not repeat accepted JSON projection, duplicate hidden constraints, malformed JSONB diagnostics, LIKE/ESCAPE residuals, JSON object aggregate/window behavior, or B-tree/VFS work.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T004120Z` still contains modified tracked files matching the handoff, so it was preserved and left registered rather than removed.
+## Integration accepted - libsqlite SHM index preflight - 2026-05-27T00:55:06Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T004657Z.ready`.
+
+Decision: accepting a bounded-rebased libsqlite dependency/open behavior slice. The marker was based on `a17fb234ab6d3eb2619a7936fa4b955066e30246`; direct apply against current `2d3e198308e5c19ab5770093ff366565f9b080b4` conflicted only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`. Implementation, test, example, and note hunks applied cleanly with those two files excluded, then manifest/status were reconciled from current accepted source.
+
+Dashboard guard: cache-busted live `porting-summary.json` reported `sourceCommit` `2d3e198308e5c19ab5770093ff366565f9b080b4`, matching local `refs/heads/main`, so the source-moving guard was open for exactly one libsqlite marker.
+
+Focused evidence:
+- `php -l lanes/libsqlite/src/SQLiteShmIndex.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-shm-index-preflight.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4847 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-shm-index-preflight.php` passed and emitted WAL SHM index/read-mark diagnostics.
+
+Runtime gate before focused checks: `/` had `128119140` KiB available, load average was `2.63`, and no exact no-argument root harness was running.
+
+Final gates:
+- `git diff --cached --check` passed before root.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 29981 assertions, 0 failures`.
+- Atomic publication to `refs/heads/main` completed after audit-only amends; final commit hash is reported by `git show refs/heads/main`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T004657Z` still contains the accepted patch as modified/untracked files; preserved as cleanup debt instead of removing.
+- Accepted marker `.ready`, `.patch`, `.md`, and isolated prompt files were removed after publication.
+- Remaining ready-marker count after cleanup: `6917` total ready markers, including `3649` libsqlite ready markers.
+- Dashboard publication should run next because `refs/heads/main` moved.
