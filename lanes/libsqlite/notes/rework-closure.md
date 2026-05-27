@@ -615,3 +615,41 @@ predicate filtering, and row materialization. Follow-up should connect this
 cursor lifecycle to parser/VDBE-style execution with correlated host-column
 arguments without repeating accepted host-row joins or literal SELECT/FROM
 parser wiring.
+
+## 2026-05-27 WAL Pager Checkpoint Transaction
+
+This isolated WAL slice does not repeat accepted WAL checkpoint byte
+materialization, VFS file-writer application, hot rollback-journal application,
+savepoint page-image rollback, WAL byte truncation, or the queued savepoint VFS
+apply handoff. It adds the pager transaction admission step before checkpoint
+apply: compose SQLite lock acquisition, busy-handler outcomes, accepted WAL
+checkpoint write plans, restart/truncate WAL sidecar decisions, and operation
+ordering into one bounded plan.
+
+Focused assertion delta: selected `SQLiteHeaderTest.php` coverage passed at
+6528 assertions, +71 over the accepted 6457 baseline. Coverage includes
+PASSIVE shared-lock checkpoints, RESTART/TRUNCATE lock escalation through
+shared/reserved/pending/exclusive, reader-limited busy checkpoints, pending
+writer blockers, shared-reader exclusive-lock blockers, busy-handler
+dependencies, restart header writes, truncate sidecar operations, invalid mode
+guards, empty path guards, read-only/immutable guards, and malformed database
+image rejection.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLitePagerCheckpointTransactionPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-transaction.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-checkpoint-transaction.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local WAL parsing/checkpoint planning, VFS file-write planning,
+lock-coordinator, and busy-handler components. Follow-up should connect pager
+transaction state and durable fsync/lock policy to native VFS application
+without repeating this admission planner, accepted file-writer application,
+rollback-journal apply, or WAL byte-truncation preview work.

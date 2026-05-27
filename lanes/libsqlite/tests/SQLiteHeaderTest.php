@@ -60,6 +60,7 @@ use PortLibs\LibSqlite\SQLiteLockByteRangePlan;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
 use PortLibs\LibSqlite\SQLitePageCache;
+use PortLibs\LibSqlite\SQLitePagerCheckpointTransactionPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -14650,6 +14651,112 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, substr($baseDatabase, 1), '/tmp/wp.sqlite'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'bogus'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'passive', -1));
+    },
+    'plans sqlite pager checkpoint transactions with locks and wal writes' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x73737373;
+        $salt2 = 0x84848484;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 61, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walHeader = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $walBytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $baseDatabase = $makeFirstPage($pageSize, 3) . str_repeat('b', $pageSize) . str_repeat('c', $pageSize);
+        $walBytes = $appendFrame($walHeader, $checksumSeed, 2, 0, str_repeat('2', $pageSize));
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 3, str_repeat('3', $pageSize));
+        $wal = SQLiteWal::parse($walBytes, null, true);
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+
+        $passive = SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'passive');
+        $t->same('ready', $passive['status']);
+        $t->same(true, $passive['can_checkpoint']);
+        $t->same('wp-import', $passive['connection']);
+        $t->same('passive', $passive['mode']);
+        $t->same($databasePath, $passive['database_path']);
+        $t->same('passive_checkpoint_complete', $passive['reason']);
+        $t->same(['sqlite-pager-checkpoint-transaction', 'sqlite-lock-coordinator', 'sqlite-wal-checkpoint', 'durable-sidecar-write', 'vfs-file-write-coordination'], $passive['dependencies']);
+        $t->same(1, count($passive['lock_sequence']));
+        $t->same('shared', $passive['lock_sequence'][0]['requested']);
+        $t->same(true, $passive['lock_sequence'][0]['can_acquire']);
+        $t->same([], $passive['lock_sequence'][0]['blocking']);
+        $t->same(null, $passive['busy']);
+        $t->same('passive', $passive['write_plan']['mode']);
+        $t->same('preserve_wal', $passive['write_plan']['wal_action']);
+        $t->same(5, count($passive['write_plan']['operations']));
+        $t->same('checkpoint_database_pages', $passive['write_plan']['operations'][0]['reason']);
+        $t->same('preserve_wal_sidecar', $passive['write_plan']['operations'][2]['reason']);
+
+        $restart = SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'restart');
+        $t->same('ready', $restart['status']);
+        $t->same(true, $restart['can_checkpoint']);
+        $t->same('restart', $restart['mode']);
+        $t->same('restart_checkpoint_can_reset_wal', $restart['reason']);
+        $t->same(4, count($restart['lock_sequence']));
+        $t->same(['shared', 'reserved', 'pending', 'exclusive'], array_column($restart['lock_sequence'], 'requested'));
+        $t->same([true, true, true, true], array_column($restart['lock_sequence'], 'can_acquire'));
+        $t->same('restart_wal', $restart['write_plan']['wal_action']);
+        $t->same(32, $restart['write_plan']['wal_bytes']);
+        $t->same('write_restarted_wal_header', $restart['write_plan']['operations'][2]['reason']);
+        $t->same('sync_wal_sidecar', $restart['write_plan']['operations'][3]['reason']);
+        $t->same('persist_database_and_wal_directory_entries', $restart['write_plan']['operations'][4]['reason']);
+
+        $truncate = SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'truncate');
+        $t->same('ready', $truncate['status']);
+        $t->same(true, $truncate['can_checkpoint']);
+        $t->same('truncate', $truncate['mode']);
+        $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $truncate['reason']);
+        $t->same('truncate_wal', $truncate['write_plan']['wal_action']);
+        $t->same(0, $truncate['write_plan']['wal_bytes']);
+        $t->same('truncate', $truncate['write_plan']['operations'][2]['op']);
+        $t->same('truncate_reset_wal', $truncate['write_plan']['operations'][2]['reason']);
+
+        $readerBlocked = SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'restart', 1);
+        $t->same('busy', $readerBlocked['status']);
+        $t->same(false, $readerBlocked['can_checkpoint']);
+        $t->same('reader_blocks_checkpoint_completion', $readerBlocked['reason']);
+        $t->same(4, count($readerBlocked['lock_sequence']));
+        $t->same('preserve_wal', $readerBlocked['write_plan']['wal_action']);
+        $t->same(true, $readerBlocked['write_plan']['busy']);
+        $t->same(null, $readerBlocked['busy']);
+
+        $pendingWriter = new SQLiteLockCoordinator(['writer' => 'pending']);
+        $blockedShared = SQLitePagerCheckpointTransactionPlan::plan($pendingWriter, 'wp-import', $wal, $baseDatabase, $databasePath, 'passive', null, SQLiteBusyHandler::timeout(25, 5));
+        $t->same('busy-timeout', $blockedShared['status']);
+        $t->same(false, $blockedShared['can_checkpoint']);
+        $t->same('new reader is blocked by pending or exclusive writer lock', $blockedShared['reason']);
+        $t->same(1, count($blockedShared['lock_sequence']));
+        $t->same('shared', $blockedShared['lock_sequence'][0]['requested']);
+        $t->same(false, $blockedShared['lock_sequence'][0]['can_acquire']);
+        $t->same('writer', $blockedShared['lock_sequence'][0]['blocking'][0]['connection']);
+        $t->same('pending lock blocks new shared readers', $blockedShared['lock_sequence'][0]['blocking'][0]['reason']);
+        $t->same('busy-timeout', $blockedShared['busy']['status']);
+        $t->same(25, $blockedShared['busy']['timeout_ms']);
+        $t->same(['sqlite-pager-checkpoint-transaction', 'sqlite-lock-coordinator', 'busy-handler'], $blockedShared['dependencies']);
+        $t->same(null, $blockedShared['write_plan']);
+
+        $readerHeld = new SQLiteLockCoordinator(['reader-one' => 'shared']);
+        $blockedExclusive = SQLitePagerCheckpointTransactionPlan::plan($readerHeld, 'wp-import', $wal, $baseDatabase, $databasePath, 'full');
+        $t->same('busy-cancelled', $blockedExclusive['status']);
+        $t->same(false, $blockedExclusive['can_checkpoint']);
+        $t->same('exclusive writer is blocked until readers and writers drain', $blockedExclusive['reason']);
+        $t->same(4, count($blockedExclusive['lock_sequence']));
+        $t->same(['shared', 'reserved', 'pending', 'exclusive'], array_column($blockedExclusive['lock_sequence'], 'requested'));
+        $t->same([true, true, true, false], array_column($blockedExclusive['lock_sequence'], 'can_acquire'));
+        $t->same('reader-one', $blockedExclusive['lock_sequence'][3]['blocking'][0]['connection']);
+        $t->same('shared reader must drain before exclusive lock', $blockedExclusive['lock_sequence'][3]['blocking'][0]['reason']);
+        $t->same(null, $blockedExclusive['write_plan']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'invalid'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), '', $wal, $baseDatabase, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, ''));
+        $t->throws(LogicException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'passive', null, null, true));
+        $t->throws(LogicException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'passive', null, null, false, true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, substr($baseDatabase, 1), $databasePath));
     },
     'applies sqlite vfs wal checkpoint file writes to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

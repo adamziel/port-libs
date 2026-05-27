@@ -4182,3 +4182,22 @@ predicate filtering, and row materialization. Follow-up should connect this
 cursor lifecycle to parser/VDBE-style execution with correlated host-column
 arguments without repeating accepted host-row joins or literal SELECT/FROM
 parser wiring.
+
+## WAL Checkpoint Transaction Scenario
+
+Copied WordPress import and repair tooling can now plan WAL checkpoint
+admission before applying checkpoint bytes. The smoke
+`examples/wordpress-wal-checkpoint-transaction.php` reports a restart-ready
+checkpoint with shared/reserved/pending/exclusive lock sequencing, WAL sidecar
+write operation reasons, and a reader-blocked truncate checkpoint that surfaces
+the blocking connection and busy outcome without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated WAL slice: added
+`SQLitePagerCheckpointTransactionPlan`. Focused `SQLiteHeaderTest.php` passed
+at 6528 assertions, +71 over the accepted 6457 baseline, covering passive,
+restart, truncate, reader-limited, pending-writer, shared-reader, malformed
+input, read-only, immutable, and empty-path checkpoint transaction cases.
+
+Dependency closure: no new shared support component is needed. The slice reuses
+accepted lane-local WAL checkpoint planning, VFS write planning,
+lock-coordinator, and busy-handler behavior.
