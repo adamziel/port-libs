@@ -118361,3 +118361,22 @@ Cleanup:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T013523Z` still contains the accepted lane changes as modified/added files, so it was preserved and left registered as cleanup debt.
 
 Pending final gate: atomic commit/ref publication.
+## Integration accepted - libsqlite upstream runner pgrep gate - 2026-05-27T01:54:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260527T014535Z.ready`.
+
+Decision: accepting one current-base libsqlite upstream-runner suite-blocker marker from source `5fbc8465fe16de7202fe0aa591fad9dac560f19a` after live Pages reported the same source at generated time `2026-05-27 01:47:20 UTC`.
+
+Scope: `SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` now ignores `pgrep` probe command lines in supplied process snapshots, preventing the duplicate broad-suite runner gate from blocking on its own safety probe while retaining blockers for real `testfixture`, bounded runner, `make test`, and `mptest` processes. The slice adds focused assertions and maps `focusedUpstreamActiveRunnerPgrepSnapshotScripts=1`, moving libsqlite mapped coverage from `412` to `413`; `phpPass` remains `750`.
+
+Focused verification in detached clean worktree `.tmux-team/tmp/clean-candidates/libsqlite-upstream-runner-20260527T014535Z` with repo-local `TMPDIR=.tmp-root`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed.
+- Manifest/status JSON decode: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed, `1 test files, 722 assertions, 0 failures`.
+- `git diff --check`: passed.
+
+Serialized root verification in the same detached clean worktree with repo-local `TMPDIR=.tmp-root`:
+- `php tools/run-tests.php`: passed, `215 test files, 30291 assertions, 0 failures`.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-upstream-runner-20260527T014535Z` still has modified libsqlite files after the accepted commit, so it was preserved and left registered. Accepted ready/patch/metadata artifacts were removed after publication to `refs/heads/main`.

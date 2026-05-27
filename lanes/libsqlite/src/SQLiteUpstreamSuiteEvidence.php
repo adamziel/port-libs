@@ -906,7 +906,7 @@ final class SQLiteUpstreamSuiteEvidence
         $active = [];
         foreach (preg_split('/\R/', $processSnapshot) ?: [] as $line) {
             $line = trim($line);
-            if ($line === '' || str_contains($line, 'grep -E')) {
+            if ($line === '' || str_contains($line, 'grep -E') || preg_match('/(?:^|\s)pgrep(?:\s|$)/', $line) === 1) {
                 continue;
             }
 

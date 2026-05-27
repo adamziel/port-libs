@@ -10570,3 +10570,32 @@ Dependency closure: no new shared support component is needed for this bounded
 slice. It reuses lane-local WAL parsing, checkpoint mode result planning, and
 durable sidecar byte materialization. A real VFS writer remains a future
 activation gate requiring native file write, sync, and truncate execution.
+
+## Focused Runner Gate: Ignore pgrep Probe Commands
+
+Date: 2026-05-27
+
+This isolated upstream-suite micro-slice removes a duplicate-runner gate false
+positive: `SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` now ignores
+`pgrep` probe command lines in supplied process snapshots. The gate still blocks
+real broad `testfixture`, guarded bounded-runner wrapper, `make test`, and
+`mptest` processes, but the safety probe used to check for those processes no
+longer blocks launch/countability evidence by matching its own pattern text.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 412 to 413 by adding
+`focusedUpstreamActiveRunnerPgrepSnapshotScripts=1`. No fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run was launched from
+this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+```
+
+Dependency closure: no new support component is needed. This slice composes
+lane-local runner evidence parsing only and does not require a shared process,
+VFS, Tcl, or SQLite support component.

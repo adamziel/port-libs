@@ -747,6 +747,29 @@ TXT;
         $t->same('mptest', $gate['active'][1]['tier']);
         $t->contains('make -C .upstream-cache/libsqlite-build-port-libsqlite mptest', $gate['active'][1]['command']);
     },
+    'ignores pgrep duplicate-runner probe commands in active broad runner snapshots' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $snapshot = <<<'TXT'
+3862016 /bin/bash -c pgrep -af 'testfixture|run-sqlite-tcl-bounded-runner|make -C .*libsqlite.*(test|mptest)' || true
+3862017 pgrep -af testfixture|run-sqlite-tcl-bounded-runner|all|release|mptest
+3862018 grep -E 'testfixture|run-sqlite-tcl-bounded-runner|all|release|mptest'
+3862019 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+TXT;
+
+        $gate = $evidence->activeFullSuiteRunnerGate($snapshot);
+
+        $t->same('clear', $gate['status']);
+        $t->same(0, $gate['active_count']);
+        $t->same([], $gate['active_tiers']);
+        $t->same([], $gate['active']);
+        $t->contains('no active broad SQLite full-suite runner detected', $gate['next_gate']);
+
+        $launch = $evidence->broadSuiteLaunchGate($snapshot, true, 2, '/tmp/missing-libsqlite-broad-suite-root');
+
+        $t->same('clear', $launch['active_gate']['status']);
+        $t->true(!in_array('active-runner-still-running', array_column($launch['blockers'], 'id'), true), 'Expected pgrep probe not to block launch gate as active runner');
+        $t->true(in_array('command-manifest-not-ready', array_column($launch['blockers'], 'id'), true), 'Expected real command-manifest blocker to remain');
+    },
     'parses active broad foreground runner snapshots with ps stat and cpu fields' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $snapshot = <<<'TXT'
