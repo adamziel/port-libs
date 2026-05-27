@@ -1107,6 +1107,7 @@ return [
                                 'Set-Cookie' => [
                                     'deploy_gate=root; Path=/; Secure',
                                     'deploy_gate=redirect; Path=/redirected.git; Secure',
+                                    'spaced_path_gate=redirect; Path= /redirected.git ; Secure',
                                     'deploy_gate=receive; Path=/redirected.git/git-receive-pack; Secure',
                                     'replace_gate=stale; Path=/redirected.git; Secure',
                                     'replace_gate=fresh; Path=/redirected.git; Secure',
@@ -1137,7 +1138,7 @@ return [
 
         $t->same(true, $pathSpecificOrderResponse->isSuccessful());
         $t->same(
-            'deploy_gate=receive; deploy_gate=redirect; replace_gate=fresh; deploy_gate=root',
+            'deploy_gate=receive; deploy_gate=redirect; spaced_path_gate=redirect; replace_gate=fresh; deploy_gate=root',
             $pathSpecificOrderRequests[2]['headers']['Cookie']
         );
         $t->same(false, str_contains($pathSpecificOrderRequests[2]['headers']['Cookie'], 'replace_gate=stale'));
