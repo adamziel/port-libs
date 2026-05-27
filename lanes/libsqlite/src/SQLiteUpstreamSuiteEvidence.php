@@ -3679,6 +3679,150 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param list<string> $acceptedHeads
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamBurnupCurrentNext33(
+        array $acceptedHeads,
+        ?string $repoRoot = null,
+        ?string $artifactDirectory = null,
+        string $processSnapshot = '',
+        int $jobs = 1
+    ): array {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release runner burnup jobs must be at least 1');
+        }
+
+        $heads = [];
+        foreach ($acceptedHeads as $head) {
+            if (!is_string($head) || trim($head) === '') {
+                throw new \InvalidArgumentException('SQLite release runner burnup requires non-empty accepted repository HEAD values');
+            }
+            $heads[] = trim($head);
+        }
+        if ($heads === []) {
+            throw new \InvalidArgumentException('SQLite release runner burnup requires at least one accepted repository HEAD');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $artifactRoot = $artifactDirectory ?? $root . '/.tmux-team/tmp/sqlite-runner-artifacts';
+        $hydration = $this->upstreamRunnerHydrationGate($jobs, $root);
+        $commandManifest = $this->fullSuiteCommandManifest($jobs, $root);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $records = [];
+        $countableHeads = [];
+        $missingHeads = [];
+        foreach ($heads as $index => $head) {
+            $provenance = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+                $artifactRoot,
+                $head,
+                $processSnapshot
+            );
+            $count = (int) ($provenance['current_accepted_count'] ?? 0);
+            $records[] = [
+                'head' => $head,
+                'index' => $index,
+                'status' => $count > 0 ? 'countable-artifact-present' : 'missing-countable-artifact',
+                'current_accepted_count' => $count,
+                'blocked_count' => (int) ($provenance['blocked_count'] ?? 0),
+                'artifact_count' => (int) ($provenance['artifact_count'] ?? 0),
+                'next_gate' => $provenance['next_gate'] ?? null,
+            ];
+
+            if ($count > 0) {
+                $countableHeads[] = $head;
+            } else {
+                $missingHeads[] = $head;
+            }
+        }
+
+        $prefixCountable = 0;
+        foreach ($records as $record) {
+            if (($record['status'] ?? null) !== 'countable-artifact-present') {
+                break;
+            }
+            $prefixCountable++;
+        }
+
+        $firstMissingHead = $missingHeads[0] ?? null;
+        $blockers = [];
+        if ($firstMissingHead !== null) {
+            $blockers[] = [
+                'id' => 'next-accepted-artifact-missing',
+                'evidence' => 'no zero-error bounded runner artifact matches the next uncounted accepted source',
+                'head' => $firstMissingHead,
+            ];
+        }
+        if (($hydration['status'] ?? null) !== 'hydrated') {
+            $blockers[] = [
+                'id' => 'runner-hydration-incomplete',
+                'evidence' => (string) ($hydration['missing_count'] ?? 0) . ' runner inputs are missing',
+                'missing' => is_array($hydration['missing'] ?? null) ? $hydration['missing'] : [],
+            ];
+        }
+        if (($commandManifest['status'] ?? null) !== 'ready') {
+            $blockers[] = [
+                'id' => 'command-manifest-blocked',
+                'evidence' => (string) ($commandManifest['blocked_command_count'] ?? 0) . ' release/upstream commands are blocked',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+                'active_tiers' => is_array($active['active_tiers'] ?? null) ? $active['active_tiers'] : [],
+            ];
+        }
+
+        $allCountable = count($countableHeads) === count($heads);
+        $readyForNext = !$allCountable
+            && $prefixCountable === count($countableHeads)
+            && ($hydration['status'] ?? null) === 'hydrated'
+            && ($commandManifest['status'] ?? null) === 'ready'
+            && ($active['status'] ?? null) === 'clear';
+
+        $status = 'blocked';
+        if ($allCountable) {
+            $status = 'all-accepted-heads-countable';
+        } elseif ($readyForNext) {
+            $status = 'ready-for-next-accepted-head-runner';
+        }
+
+        return [
+            'status' => $status,
+            'artifact_directory' => $artifactRoot,
+            'jobs' => $jobs,
+            'head_count' => count($heads),
+            'countable_head_count' => count($countableHeads),
+            'missing_head_count' => count($missingHeads),
+            'prefix_countable_head_count' => $prefixCountable,
+            'burnup_percent' => round((count($countableHeads) / count($heads)) * 100, 2),
+            'countable_heads' => $countableHeads,
+            'missing_heads' => $missingHeads,
+            'next_missing_head' => $firstMissingHead,
+            'ready_to_launch_next_guarded_runner' => $readyForNext,
+            'hydration_status' => $hydration['status'] ?? 'unknown',
+            'command_manifest_status' => $commandManifest['status'] ?? 'unknown',
+            'command_count' => (int) ($commandManifest['command_count'] ?? 0),
+            'runnable_command_count' => (int) ($commandManifest['runnable_command_count'] ?? 0),
+            'blocked_command_count' => (int) ($commandManifest['blocked_command_count'] ?? 0),
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'records' => $records,
+            'counts_as_release_parity' => $allCountable,
+            'next_gate' => match ($status) {
+                'all-accepted-heads-countable' => 'record the burnup as complete only after manifest/status also names the countable accepted-HEAD artifacts',
+                'ready-for-next-accepted-head-runner' => 'launch at most one guarded runner for the next missing accepted source, then count only a zero-error artifact with matching provenance',
+                default => 'preserve counted accepted-head artifacts and resolve hydration, command-manifest, or duplicate-runner blockers before launching another broad runner',
+            },
+            'dependency_closure' => 'no new support component needed; current-next33 burnup composes accepted-head artifact provenance, runner hydration, command manifest, and duplicate-runner gates only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function releaseRunnerSuiteMapCurrentNext32(

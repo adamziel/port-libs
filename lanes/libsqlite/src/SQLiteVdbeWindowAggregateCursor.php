@@ -119,6 +119,65 @@ final class SQLiteVdbeWindowAggregateCursor
     /**
      * @return list<array<string,mixed>>
      */
+    public function currentPeerRows(bool $applyFilter = false): array
+    {
+        $this->requireCurrentRow();
+        [$start, $end] = $this->currentPeerRange();
+        $rows = array_slice($this->orderedRows, $start, $end - $start + 1);
+        if (!$applyFilter || $this->filterColumn === null) {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, fn (array $row): bool => self::isSqlTrue($row[$this->filterColumn])));
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    public function currentPeerValues(bool $applyFilter = true): array
+    {
+        return array_map(fn (array $row): mixed => $row[$this->valueColumn], $this->currentPeerRows($applyFilter));
+    }
+
+    /**
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,peerStart:int,peerEnd:int,peerRows:int,filteredPeerRows:int,rowids:list<mixed>,values:list<mixed>}
+     */
+    public function currentPeerSummary(string $rowidColumn = 'rowid'): array
+    {
+        $this->requireCurrentRow();
+        [$start, $end] = $this->currentPeerRange();
+        $rows = $this->currentPeerRows(false);
+
+        return [
+            'position' => $this->position,
+            'partitionKey' => $this->currentPartitionKey(),
+            'orderKey' => $this->currentOrderKey(),
+            'peerStart' => $start,
+            'peerEnd' => $end,
+            'peerRows' => $end - $start + 1,
+            'filteredPeerRows' => count($this->currentPeerRows(true)),
+            'rowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $rows),
+            'values' => $this->currentPeerValues(false),
+        ];
+    }
+
+    /**
+     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,peerStart:int,peerEnd:int,peerRows:int,filteredPeerRows:int,rowids:list<mixed>,values:list<mixed>}>
+     */
+    public function drainPeerSummaries(string $rowidColumn = 'rowid'): array
+    {
+        $summaries = [];
+        while (!$this->eof()) {
+            $summaries[] = $this->currentPeerSummary($rowidColumn);
+            $this->next();
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public function currentFrameRows(bool $applyFilter = false): array
     {
         $this->requireCurrentRow();
@@ -300,6 +359,25 @@ final class SQLiteVdbeWindowAggregateCursor
         return [$partitionStart, $partitionEnd];
     }
 
+    /**
+     * @return array{0:int,1:int}
+     */
+    private function currentPeerRange(): array
+    {
+        $peerStart = $this->position;
+        while ($peerStart > 0 && $this->samePeer($peerStart - 1, $this->position)) {
+            $peerStart--;
+        }
+
+        $peerEnd = $this->position;
+        $last = count($this->orderedRows) - 1;
+        while ($peerEnd < $last && $this->samePeer($peerEnd + 1, $this->position)) {
+            $peerEnd++;
+        }
+
+        return [$peerStart, $peerEnd];
+    }
+
     private function samePartition(int $left, int $right): bool
     {
         if ($this->partitionColumns === []) {
@@ -312,6 +390,19 @@ final class SQLiteVdbeWindowAggregateCursor
             $this->partitionAffinities,
             $this->partitionCollations
         ) === 0;
+    }
+
+    private function samePeer(int $left, int $right): bool
+    {
+        return $this->samePartition($left, $right)
+            && SQLiteVdbeSortCompare::compareRecords(
+                $this->record($this->orderedRows[$left], $this->orderColumns),
+                $this->record($this->orderedRows[$right], $this->orderColumns),
+                $this->orderAffinities,
+                $this->orderCollations,
+                $this->orderDescending,
+                $this->orderNulls
+            ) === 0;
     }
 
     /**
