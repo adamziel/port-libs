@@ -3959,3 +3959,26 @@ Dependency closure: no new support component is needed. This reuses lane-local
 `SQLiteSelectResult`, and scalar function dispatch. Follow-up should broaden
 parser/VDBE execution to JOIN clauses, GROUP BY SQL text, expression ORDER BY,
 or range-cost planner decisions.
+
+## Table-Interior Merge Delete Rebalance Scenario
+
+Copied WordPress database repair tooling can now preview table b-tree interior
+sibling merge materialization after delete underflow. The smoke
+`examples/wordpress-table-interior-merge-delete-rebalance.php` reports merged
+child pointers, obsolete sibling release to the freelist, parent divider
+removal, auto-vacuum pointer-map ownership rewrites, and secure-delete page
+clearing without requiring ext/sqlite.
+
+Status delta 2026-05-27 clean integration: added
+`SQLiteBTreeInteriorMergePlan` and
+`SQLiteBTreeInteriorMergeApplicationPlan` with focused assertions covering
+table-interior merge eligibility, merged cell ordering, rightmost pointer
+preservation, parent divider metadata, obsolete sibling freelist release,
+pointer-map updates, secure-delete clearing, and malformed sibling/page-shape
+guards. Focused `SQLiteHeaderTest.php` passed at 5765 assertions.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local table interior cell/page assembly, database page access, freelist
+mutation, pointer-map update planning, and secure-delete clearing. Follow-up
+should move to page-move/pointer-map integration or broader delete/rebalance
+write application.

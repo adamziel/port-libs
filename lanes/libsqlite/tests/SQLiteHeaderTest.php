@@ -5,6 +5,8 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreeInteriorMergeApplicationPlan;
+use PortLibs\LibSqlite\SQLiteBTreeInteriorMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeInteriorRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
@@ -2101,6 +2103,159 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorRedistributionPlan::tableInterior(SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
         ], $pageSize), $rightPage, 4, 5, 3, 200, $pageSize));
+    },
+    'plans sqlite table interior sibling merges after delete underflow with child pointer-map rewrites' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $leftPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(6, 100),
+        ], 7, $pageSize);
+        $rightPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(8, 300),
+        ], 9, $pageSize);
+
+        $plan = SQLiteBTreeInteriorMergePlan::tableInterior($leftPage, $rightPage, 4, 5, 3, 200, $pageSize);
+        $mergedHeader = SQLiteBTreePageHeader::parsePage($plan->mergedPage, $pageSize);
+        $mergedCells = SQLiteTableInteriorCell::parsePageCells($plan->mergedPage, $mergedHeader);
+        $summary = $plan->toArray();
+        $mergeAction = $plan->mergeAction();
+        $freeAction = $plan->freePageAction();
+
+        $t->same(SQLiteBTreeInteriorMergePlan::class, get_class($plan));
+        $t->same('table-interior', $plan->pageType);
+        $t->same(4, $plan->leftPageNumber);
+        $t->same(5, $plan->rightPageNumber);
+        $t->same(3, $plan->parentPageNumber);
+        $t->same(200, $plan->dividerKey);
+        $t->same(512, $plan->pageSize);
+        $t->same(512, $plan->usableSize);
+        $t->same([100, 200, 300], $plan->mergedKeys);
+        $t->same([6, 7, 8, 9], $plan->mergedChildPageNumbers);
+        $t->same([6, 7, 8, 9], array_keys($plan->pointerMapUpdates));
+        $t->same(['type' => SQLitePointerMapEntry::BTREE_PAGE, 'parent_page_number' => 4], $plan->pointerMapUpdates[8]);
+        $t->same([4 => $plan->mergedPage], $plan->pageImages());
+        $t->same('table-interior', $mergedHeader->pageType);
+        $t->same(3, $mergedHeader->cellCount);
+        $t->same(9, $mergedHeader->rightMostPointer);
+        $t->same([100, 200, 300], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $mergedCells));
+        $t->same([6, 7, 8], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $mergedCells));
+        $t->same('table-interior-sibling-merge', $mergeAction['action']);
+        $t->same(4, $mergeAction['page']);
+        $t->same(1, $mergeAction['before_cells']);
+        $t->same(3, $mergeAction['after_cells']);
+        $t->same([4, 5], $mergeAction['merged_from_pages']);
+        $t->same(5, $mergeAction['obsolete_page']);
+        $t->same(3, $mergeAction['parent_page']);
+        $t->same(200, $mergeAction['divider_key']);
+        $t->true($mergeAction['delta_free_space_bytes'] < 0);
+        $t->same('free-page', $freeAction['action']);
+        $t->same(5, $freeAction['page']);
+        $t->same(3, $freeAction['parent_page']);
+        $t->same('right_interior_sibling_merged_into_left', $freeAction['reason']);
+        $t->same('table-interior', $summary['page_type']);
+        $t->same(4, $summary['merged_page']);
+        $t->same(5, $summary['obsolete_page']);
+        $t->same(3, $summary['parent_page']);
+        $t->same(3, $summary['merged_cell_count']);
+        $t->same([6, 7, 8, 9], $summary['merged_child_page_numbers']);
+        $t->same(['action' => 'remove-parent-divider', 'old_separator_key' => 200], $summary['removed_parent_divider']);
+        $t->same([6, 7, 8, 9], $summary['pointer_map_update_pages']);
+        $t->same([4], $summary['updated_page_numbers']);
+        $t->same([5], $summary['removed_page_numbers']);
+        $t->same([$mergeAction, $freeAction], $summary['actions']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergePlan::tableInterior($rightPage, $leftPage, 5, 4, 3, 200, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergePlan::tableInterior($leftPage, $rightPage, 4, 4, 3, 200, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergePlan::tableInterior(SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize), $rightPage, 4, 5, 3, 200, $pageSize));
+    },
+    'applies sqlite table interior sibling merge with auto-vacuum freelist and pointer-map updates' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 9), pack('N', 3), 52, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 56, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            6 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            7 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            8 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            9 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $leftPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(6, 100),
+        ], 7, $pageSize);
+        $rightPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(8, 300),
+        ], 9, $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . SQLiteTableInteriorPage::assemble([SQLiteTableInteriorCell::encode(4, 200)], 5, $pageSize)
+            . $leftPage
+            . $rightPage
+            . str_repeat("\0", $pageSize * 4),
+        );
+        $mergePlan = SQLiteBTreeInteriorMergePlan::tableInterior($leftPage, $rightPage, 4, 5, 3, 200, $pageSize);
+
+        $application = SQLiteBTreeInteriorMergeApplicationPlan::apply($database, $mergePlan, true);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($application->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $mergedHeader = $postDatabase->pageHeader(4);
+        $mergedCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(4), $mergedHeader);
+        $summary = $application->toArray();
+
+        $t->same(SQLiteBTreeInteriorMergeApplicationPlan::class, get_class($application));
+        $t->same($mergePlan, $application->mergePlan);
+        $t->same([1, 2, 4, 5], $application->updatedPageNumbers());
+        $t->same([1, 2, 5], array_keys($application->freePlan->pageImages()));
+        $t->same([5], $application->freePlan->freedPageNumbers);
+        $t->same([5], $application->freePlan->newTrunkPageNumbers);
+        $t->same(5, $application->freePlan->firstFreelistTrunkPage);
+        $t->same(1, $application->freePlan->freelistPageCount);
+        $t->same([], $application->freePlan->clearedPageNumbers);
+        $t->same([2], array_keys($application->freePlan->updatedPointerMapPages));
+        $t->same('table-interior-sibling-merge-apply', $summary['action']);
+        $t->same(4, $summary['merged_page']);
+        $t->same(5, $summary['obsolete_page']);
+        $t->same(3, $summary['parent_page']);
+        $t->same([6, 7, 8, 9], $summary['merged_child_page_numbers']);
+        $t->same([5], $summary['freed_pages']);
+        $t->same(1, $summary['freelist_page_count']);
+        $t->same(5, $summary['first_freelist_trunk_page']);
+        $t->same([1, 2, 4, 5], $summary['updated_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same([], $summary['secure_delete_cleared_pages']);
+        $t->same('table-interior', $mergedHeader->pageType);
+        $t->same(3, $mergedHeader->cellCount);
+        $t->same(9, $mergedHeader->rightMostPointer);
+        $t->same([100, 200, 300], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $mergedCells));
+        $t->same([6, 7, 8], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $mergedCells));
+        $t->same(5, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([5], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(8)->typeName());
+        $t->same(4, $postDatabase->pointerMapEntryForPage(8)->parentPageNumber);
+        $t->same(4, $postDatabase->pointerMapEntryForPage(9)->parentPageNumber);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergeApplicationPlan::apply(
+            SQLiteDatabase::fromBytes(substr_replace($firstPage, pack('n', 1024), 16, 2) . str_repeat("\0", 1024 * 8)),
+            $mergePlan,
+        ));
     },
     'redistributes sqlite table leaf siblings after delete underflow without freeing pages' => static function (TestRunner $t): void {
         $leftPage = SQLiteTableLeafPage::assemble([

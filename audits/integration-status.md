@@ -118711,3 +118711,35 @@ Root, diff-check, final commit, marker cleanup, and dashboard-next evidence are 
 Final commit evidence: committed as `Integrate libsqlite SELECT SQL text executor` from the clean detached candidate. Serialized root verification passed under the clean-integrator lock with repo-local `TMPDIR=$candidate/.tmp-root`: `215 test files, 30850 assertions, 0 failures`. Final pre-publication checks confirmed `git diff --check` passed, local `refs/heads/main` and live Pages both still reported source `cf60d66e5b99acdf4652d3acfe26cd830a5ac6c5`, and the dashboard should publish the accepted SELECT SQL text executor source next.
 
 Cleanup evidence: removed the accepted ready marker, patch, and metadata files after `refs/heads/main` moved to the verified commit. The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T025059Z` still has the accepted lane files modified/added relative to its detached base, so it was preserved and left registered as cleanup debt rather than force-removed.
+## Integration accepted - libsqlite B-tree table-interior merge application - 2026-05-27T03:12:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T025943Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `bab3be4e5a4217ca76ad4083c495fa46b40a4ebe` (`Integrate libsqlite SELECT SQL text executor`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `bab3be4e5a4217ca76ad4083c495fa46b40a4ebe`, generated `2026-05-27 03:04:52 UTC`, dashboard commit `8b5cac3c12d5c660b0334a6f11615d69c5ed5c0e`.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it adds non-overlapping B-tree source behavior, focused assertions, and a WordPress smoke.
+- Full patch was older-base and conflicted only in manifest/status/notes; implementation, test, and example hunks applied cleanly from current `main` after excluding stale manifest/status/notes and were reconciled minimally.
+- Added `SQLiteBTreeInteriorMergePlan`, `SQLiteBTreeInteriorMergeApplicationPlan`, `wordpress-table-interior-merge-delete-rebalance.php`, focused assertions, and current-source manifest/status/notes.
+
+Focused verification:
+- `php -l` passed for the new B-tree source files, updated test file, and WordPress smoke.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5765 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-table-interior-merge-delete-rebalance.php` emitted valid JSON.
+- `jq`/JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `git diff --check -- lanes/libsqlite audits/integration-status.md` passed before root.
+
+Expected dashboard-visible delta:
+- `phpPass`: `759 -> 760`.
+- Mapped coverage: `421 -> 422`.
+- Focused `SQLiteHeaderTest.php`: `5685 -> 5765` assertions.
+
+Serialized root verification:
+- `TMPDIR=.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 30930 assertions, 0 failures`.
+
+Cleanup:
+- The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T025943Z` still contains modified and added lane files matching the accepted patch, so it was preserved as cleanup debt instead of removed.

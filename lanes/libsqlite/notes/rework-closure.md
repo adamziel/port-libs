@@ -448,3 +448,28 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses existing
 lane-local JSON table planning, residual predicate evaluation, row ordering,
 JSONB/BLOB wrappers, JSON subtype values, and bounded window semantics.
+
+## 2026-05-27 B-tree Table-Interior Merge Application
+
+This clean-integrated B-tree delete/rebalance slice does not repeat accepted
+leaf merge materialization, leaf redistribution, or table-interior
+redistribution. It adds table-interior sibling merge materialization after
+delete underflow, including parent divider removal, obsolete sibling freelist
+release, pointer-map ownership rewrites, and secure-delete page clearing.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeInteriorMergePlan.php
+php -l lanes/libsqlite/src/SQLiteBTreeInteriorMergeApplicationPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-table-interior-merge-delete-rebalance.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-table-interior-merge-delete-rebalance.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local table interior page/cell assembly, database page images, freelist
+mutation, pointer-map planning, and secure-delete behavior.
