@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 01:14:15 UTC",
-    "sourceCommit": "7ddc2f06694b1d2e4f750896b91ae7233680229e",
-    "sourceCommitShort": "7ddc2f06694b",
+    "generated": "2026-05-27 01:23:05 UTC",
+    "sourceCommit": "90bf1b47d7bf3a369fdd89d834ec233be971fc14",
+    "sourceCommitShort": "90bf1b47d7bf",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "629a074f6b11d51148f9abd40b7da346b7716076",
-    "dashboardCommitShort": "629a074f6b11",
+    "dashboardCommit": "749b49b52acb27e2a1687f8f62b3123ef39d387c",
+    "dashboardCommitShort": "749b49b52acb",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "408",
-            "coverage": "408 / 1589",
-            "php": "746 pass / 0 fail",
+            "mapped": "409",
+            "coverage": "409 / 1589",
+            "php": "747 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded-rebased JSON table subtype handof...",
-            "currentWork": "Latest JSON table work adds focused assertions for json_each/json_tree hidden JSON constr...",
-            "nextTarget": "Next JSON table gap: planner-level constraint propagation beyond accepted projection, dup...",
+            "audit": "bounded-replayed WAL durable checkpoint s...",
+            "currentWork": "Latest WAL work adds focused assertions for durable checkpoint database/WAL sidecar mater...",
+            "nextTarget": "Next WAL gap: wire durable checkpoint database/WAL bytes into bounded VFS/file write coor...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "c8c5bb3"
+            "commit": "b2bd6f0"
         },
         {
             "library": "LightningCSS",
