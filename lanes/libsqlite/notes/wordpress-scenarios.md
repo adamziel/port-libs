@@ -2,6 +2,28 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Table SELECT SQL Source Scenario
+
+Copied WordPress option diagnostics can now run bounded SQLite SELECT text
+whose `FROM` or `JOIN` source is `json_tree()` / `json_each()` without
+requiring the SQLite extension. The smoke
+`examples/wordpress-select-sql-json-table.php` reports copied plugin settings
+queried through parser-level JSON table sources, including predicate filters,
+ordering, joins back to `wp_options`, and left-join NULL extension.
+
+Status delta 2026-05-27 isolated JSON table/window slice: updated
+`SQLiteSelectSql` so table references recognize literal `json_each()` and
+`json_tree()` sources with optional aliases, translate the JSON/root arguments
+to the existing JSON table planner, and expose virtual rows to existing SELECT
+WHERE, JOIN, GROUP BY, ORDER BY, LIMIT, and projection dispatch. Focused
+assertions cover simple `json_tree` scans, `json_each` array scans, joins to
+copied `wp_options`, empty JSON left joins, grouped JSON table aggregates,
+plan-shape checks, SQL NULL inputs, and malformed source guards. The focused
+lane test count in this bounded replay worktree is 6525 assertions, +68 over the current 6457-assertion baseline. Lane `phpPass` moves from 770 to 771 and mapped coverage moves from 426 to 427. Dependency closure: no new support
+component is needed; this reuses lane-local `SQLiteSelectSql`,
+`SQLiteJsonTablePlan`, JSON path/JSON5/JSONB parsing, SELECT predicate,
+projection, join, grouped aggregate, and result-ordering helpers.
+
 ## SELECT SQL Text Grouped Aggregate Scenario
 
 Copied WordPress option import previews can now run bounded `GROUP BY` and

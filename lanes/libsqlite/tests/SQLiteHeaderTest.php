@@ -19862,6 +19862,108 @@ SQL;
         $t->same(2, $groupPlanRows[0]['rows']);
         $t->same(122, $groupPlanRows[0]['byte_sum']);
 
+        $settingsJson = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":4,"autoload":true}],"flags":["alpha","beta"]}}';
+        $jsonRows = SQLiteSelectSql::execute(
+            "SELECT key, atom AS priority, fullkey FROM json_tree('{$settingsJson}', '$.plugin.rules') WHERE type = 'integer' ORDER BY priority DESC LIMIT 2",
+            [],
+        );
+        $t->same(2, count($jsonRows));
+        $t->same(['priority', 'priority'], array_column($jsonRows, 'key'));
+        $t->same([7, 4], array_column($jsonRows, 'priority'));
+        $t->same(['$.plugin.rules[1].priority', '$.plugin.rules[2].priority'], array_column($jsonRows, 'fullkey'));
+        $t->same(['key', 'priority', 'fullkey'], array_keys($jsonRows[0]));
+        $t->same('priority', $jsonRows[0]['key']);
+        $t->same(7, $jsonRows[0]['priority']);
+        $t->same('$.plugin.rules[1].priority', $jsonRows[0]['fullkey']);
+        $t->same(4, $jsonRows[1]['priority']);
+        $t->same('$.plugin.rules[2].priority', $jsonRows[1]['fullkey']);
+
+        $eachRows = SQLiteSelectSql::execute(
+            "SELECT key, value, atom, type FROM json_each('[''alpha'',''beta'',''gamma'']') WHERE atom NOT IN ('beta') ORDER BY key DESC",
+            [],
+        );
+        $t->same(2, count($eachRows));
+        $t->same([2, 0], array_column($eachRows, 'key'));
+        $t->same(['gamma', 'alpha'], array_column($eachRows, 'value'));
+        $t->same(['gamma', 'alpha'], array_column($eachRows, 'atom'));
+        $t->same(['text', 'text'], array_column($eachRows, 'type'));
+        $t->same(['key', 'value', 'atom', 'type'], array_keys($eachRows[0]));
+        $t->same(2, $eachRows[0]['key']);
+        $t->same('gamma', $eachRows[0]['atom']);
+        $t->same(0, $eachRows[1]['key']);
+        $t->same('alpha', $eachRows[1]['atom']);
+
+        $joinedJsonRows = SQLiteSelectSql::execute(
+            "SELECT o.option_name AS option_name, j.key AS json_key, j.atom AS enabled FROM wp_options AS o JOIN json_tree('{$settingsJson}', '$.plugin.rules') AS j ON j.type = 'true' WHERE o.option_id = 1 ORDER BY json_key",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($joinedJsonRows));
+        $t->same(['siteurl', 'siteurl'], array_column($joinedJsonRows, 'option_name'));
+        $t->same(['autoload', 'autoload'], array_column($joinedJsonRows, 'json_key'));
+        $t->same([1, 1], array_column($joinedJsonRows, 'enabled'));
+        $t->same(['option_name', 'json_key', 'enabled'], array_keys($joinedJsonRows[0]));
+        $t->same('siteurl', $joinedJsonRows[0]['option_name']);
+        $t->same('autoload', $joinedJsonRows[0]['json_key']);
+        $t->same(1, $joinedJsonRows[0]['enabled']);
+        $t->same('siteurl', $joinedJsonRows[1]['option_name']);
+        $t->same(1, $joinedJsonRows[1]['enabled']);
+
+        $leftJsonRows = SQLiteSelectSql::execute(
+            "SELECT o.option_name AS option_name, j.key AS json_key FROM wp_options AS o LEFT JOIN json_each(NULL) AS j ON j.key = 0 WHERE o.option_id = 2",
+            ['wp_options' => $options],
+        );
+        $t->same(1, count($leftJsonRows));
+        $t->same('home', $leftJsonRows[0]['option_name']);
+        $t->same(null, $leftJsonRows[0]['json_key']);
+        $t->same(['option_name', 'json_key'], array_keys($leftJsonRows[0]));
+
+        $groupedJsonRows = SQLiteSelectSql::execute(
+            "SELECT type, count(*) AS rows, sum(atom) AS atom_sum, max(atom) AS max_atom FROM json_tree('{$settingsJson}', '$.plugin.rules') GROUP BY type HAVING count(*) >= 2 ORDER BY rows DESC, type ASC LIMIT 3",
+            [],
+        );
+        $t->same(3, count($groupedJsonRows));
+        $t->same(['integer', 'object', 'text'], array_column($groupedJsonRows, 'type'));
+        $t->same([3, 3, 3], array_column($groupedJsonRows, 'rows'));
+        $t->same([13, null, 0], array_column($groupedJsonRows, 'atom_sum'));
+        $t->same([7, null, 'seo'], array_column($groupedJsonRows, 'max_atom'));
+        $t->same(['type', 'rows', 'atom_sum', 'max_atom'], array_keys($groupedJsonRows[0]));
+        $t->same('integer', $groupedJsonRows[0]['type']);
+        $t->same(3, $groupedJsonRows[0]['rows']);
+        $t->same(13, $groupedJsonRows[0]['atom_sum']);
+        $t->same(7, $groupedJsonRows[0]['max_atom']);
+        $t->same('object', $groupedJsonRows[1]['type']);
+        $t->same(3, $groupedJsonRows[1]['rows']);
+        $t->same(null, $groupedJsonRows[1]['max_atom']);
+
+        $jsonPlan = SQLiteSelectSql::plan(
+            "SELECT key, atom FROM json_each('[''seo'',''cache'']') AS j WHERE type = 'text' ORDER BY key DESC LIMIT 1",
+            [],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy', 'limit', 'offset'], array_keys($jsonPlan));
+        $t->same(2, count($jsonPlan['from']));
+        $t->same(0, $jsonPlan['from'][0]['key']);
+        $t->same('seo', $jsonPlan['from'][0]['atom']);
+        $t->same(2, count($jsonPlan['select']));
+        $t->same('key', $jsonPlan['select'][0]['name']);
+        $t->same('atom', $jsonPlan['select'][1]['name']);
+        $t->same('=', $jsonPlan['where']['operator']);
+        $t->same('type', $jsonPlan['where']['left']['name']);
+        $t->same('text', $jsonPlan['where']['right']['value']);
+        $t->same([['column' => 'key', 'direction' => 'DESC']], $jsonPlan['orderBy']);
+        $t->same(1, $jsonPlan['limit']);
+        $t->same(0, $jsonPlan['offset']);
+
+        $nullJsonRows = SQLiteSelectSql::execute("SELECT key FROM json_tree(NULL)", []);
+        $t->same([], $nullJsonRows);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each()', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_each('[1]', '$', '$.extra')", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each(7)', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('[1]', 1)", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('[1]', '$.bad[')", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('{bad')", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_group_array('[1]')", []));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('DELETE FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM missing', ['wp_options' => $options]));

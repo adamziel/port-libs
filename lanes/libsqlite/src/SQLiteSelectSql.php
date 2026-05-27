@@ -111,6 +111,11 @@ final class SQLiteSelectSql
      */
     private static function tableReference(string $sql, array $tables): array
     {
+        $jsonTable = self::jsonTableReference($sql);
+        if ($jsonTable !== null) {
+            return $jsonTable;
+        }
+
         $parts = preg_split('/\s+/', trim($sql));
         if ($parts === false || $parts === [] || $parts[0] === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL table name cannot be empty');
@@ -136,6 +141,56 @@ final class SQLiteSelectSql
         }
 
         return ['name' => $name, 'alias' => $alias, 'rows' => $tables[$name]];
+    }
+
+    /**
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function jsonTableReference(string $sql): ?array
+    {
+        if (preg_match('/^(json_each|json_tree)\s*\((.*)\)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i', trim($sql), $match) !== 1) {
+            return null;
+        }
+
+        $function = strtolower($match[1]);
+        $argumentSql = trim($match[2]);
+        if ($argumentSql === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JSON table source needs a JSON argument');
+        }
+
+        $argumentExpressions = array_map(self::valueExpression(...), self::splitTopLevel($argumentSql, ','));
+        if (count($argumentExpressions) < 1 || count($argumentExpressions) > 2) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JSON table source supports one or two arguments');
+        }
+
+        $constraints = [
+            ['column' => 'json', 'operator' => '=', 'value' => self::literalExpressionValue($argumentExpressions[0], 'JSON table source')],
+        ];
+        if (isset($argumentExpressions[1])) {
+            $constraints[] = [
+                'column' => 'root',
+                'operator' => '=',
+                'value' => self::literalExpressionValue($argumentExpressions[1], 'JSON table root'),
+            ];
+        }
+
+        $alias = isset($match[3]) && $match[3] !== '' ? $match[3] : $function;
+        self::assertBareIdentifier($alias, 'SQLite SELECT SQL JSON table alias');
+
+        return [
+            'name' => $function,
+            'alias' => $alias,
+            'rows' => SQLiteJsonTablePlan::visibleRows($function, $constraints),
+        ];
+    }
+
+    private static function literalExpressionValue(array $expression, string $context): mixed
+    {
+        if (($expression['type'] ?? null) !== 'literal' || !array_key_exists('value', $expression)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL {$context} argument must be a literal");
+        }
+
+        return $expression['value'];
     }
 
     /**
@@ -225,6 +280,9 @@ final class SQLiteSelectSql
         };
         if ($type === 'LEFT') {
             $join['rightColumns'] = self::collectColumns($join['rows']);
+            if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
+                $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
+            }
         }
 
         return [$join, $remaining];
@@ -246,6 +304,17 @@ final class SQLiteSelectSql
         }
 
         return $columns;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function qualifiedJsonTableColumns(string $alias): array
+    {
+        return array_map(
+            static fn (string $column): string => $alias . '.' . $column,
+            ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        );
     }
 
     /**

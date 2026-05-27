@@ -119033,3 +119033,38 @@ Runtime gates before serialized root: pending immediate recheck under lock disci
 Root verification completed: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under the clean-integrator lock with `215 test files, 31622 assertions, 0 failures`.
 
 Final decision: accepted as `fe31ba460975099499bf94c6d90429a32dc0aa1b` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T041339Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Accepted ready marker, patch, metadata, and isolated prompt files were removed after `refs/heads/main` publication. Dashboard publication should run next for this accepted source.
+
+## Integration accepted - libsqlite JSON table SELECT SQL sources - 2026-05-27T04:31:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T042207Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `a1baf4acea44b582b90012ef8e3cf78eeb7c165c` (`Integrate libsqlite index page move`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `a1baf4acea44b582b90012ef8e3cf78eeb7c165c`, generated `2026-05-27 04:26:39 UTC`, dashboard `36b0707499d7f585af99010ea5de27982dc921ba`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Direct patch apply from current `a1baf4ac` failed only on stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, tests, notes, and smoke hunks applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-json-table-20260527T0429Z`.
+- Reconciled libsqlite counters from current source: `phpPass` `770 -> 771`, mapped coverage `426 -> 427`, focused `SQLiteHeaderTest.php` baseline `6457 -> 6525` assertions.
+- Implemented parser-level `json_each()` / `json_tree()` table sources in bounded `SQLiteSelectSql` FROM/JOIN parsing, including aliases, literal JSON/root arguments, predicates, ordering, joins, grouped aggregates, NULL left-join extension, and malformed source guards.
+
+Verification before serialized root:
+- Runtime gates before focused checks: `df -Pk /` reported `92896280` KiB available, `/proc/loadavg` one-minute load was `1.56`, and no exact no-argument root harness was running.
+- `php -l lanes/libsqlite/src/SQLiteSelectSql.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-sql-json-table.php`: passed.
+- JSON decode for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 6525 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-json-table.php`: passed and emitted valid JSON.
+- `git diff --check`: pending final staged check.
+
+Runtime gates before serialized root:
+- `df -Pk /` reported `92769964` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.78`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\\.php$'` returned no exact no-argument root harness rows.
+
+Root verification completed: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under the clean-integrator lock with `215 test files, 31690 assertions, 0 failures`.
+
+Final decision: accepted as `885f053a3d4ae967058e3f3f0a6065e25684c6e6` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T042207Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Accepted ready marker, patch, metadata, and isolated prompt files were removed after `refs/heads/main` publication. Dashboard publication should run next for this accepted source.

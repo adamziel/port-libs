@@ -1,5 +1,37 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: JSON Table SELECT SQL Sources
+
+Date: 2026-05-27
+
+This isolated JSON table/window micro-slice maps one focused JSON table-valued
+behavior row for parser-level `json_each()` / `json_tree()` sources in bounded
+SELECT SQL text. The native implementation composes existing JSON table
+planning with `SQLiteSelectSql` source parsing, so literal JSON/root arguments
+produce virtual rows that can flow through WHERE predicates, joins, grouped
+aggregates, ORDER BY, LIMIT, and projection dispatch.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1. No fresh upstream `testfixture`, `make test`, `mptest`, `all`,
+or `release` run was started from this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-json-table.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-json-table.php
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta after bounded replay on current a1baf4ac source: 6457 to 6525 assertions, +68 in this worktree.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local `SQLiteJsonTablePlan`, JSON path/JSON5/JSONB parsing, SELECT
+predicate, projection, join, grouped aggregate, and result-ordering helpers.
+
 ## Focused Native Mapping: Focused Tcl Artifact Admission
 
 Date: 2026-05-27
