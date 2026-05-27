@@ -118949,3 +118949,34 @@ Root verification is pending under the clean-integrator lock from this exact can
 Root verification completed: `php tools/run-tests.php` passed with `215 test files, 31422 assertions, 0 failures` using repo-local `TMPDIR` under the clean-integrator lock. Final acceptance and marker cleanup are pending atomic ref publication.
 
 Final decision: accepted as `1773db063a86234941e00e22cbdf723c035cc89d` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T035152Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Dashboard publication should run next for this accepted source.
+## Integration accepted - libsqlite B-tree auto-vacuum page move - 2026-05-27T04:10:00Z
+
+Candidate selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T035948Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before replay was `ff7d7b51bdfb3bf3cc1800b3e09e437c6cc7a001` (`Integrate libsqlite VFS rollback journal apply`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `ff7d7b51bdfb3bf3cc1800b3e09e437c6cc7a001`, `generated` `2026-05-27 04:06:37 UTC`, and `dashboardCommit` `ee1b726cda4063120979e49797ab61fc25bd9988`, so the source-moving guard was open.
+
+Replay/apply evidence:
+- Marker base was older source `9fa6b520717d2f9c744a8e73a65744c135bd8d0a`.
+- Direct apply against a clean detached `ff7d7b51` worktree failed only for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, and `lanes/libsqlite/notes/rework-closure.md`.
+- Bounded replay applied the implementation, focused test, and WordPress smoke hunks cleanly; manifest/status counters were reconciled from current source.
+- Accepted delta adds `SQLiteBTreePageMovePlan`, `wordpress-autovacuum-page-move.php`, focused B-tree page-move assertions, mapped coverage `423 -> 424`, and committed libsqlite `phpPass` `767 -> 768`.
+
+Focused verification before root:
+- Runtime gate: `df -Pk /` reported `96612728` KiB available, one-minute load was `2.65`, and no exact no-argument root harness process was running.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6315 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-autovacuum-page-move.php` passed and emitted valid JSON.
+- `php -l` passed for `SQLiteBTreePageMovePlan.php`, `wordpress-autovacuum-page-move.php`, and `SQLiteHeaderTest.php`.
+- JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `git diff --cached --check` passed before the serialized root run.
+
+Serialized root verification:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock env TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed from the staged candidate snapshot: `215 test files, 31480 assertions, 0 failures`.
+
+Decision: accepted for commit. Dashboard publication should run next after the source-moving commit lands.
+
+Cleanup debt:
+- The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T035948Z` still contains modified lane files after the accepted patch was committed on `main`, so it was preserved and left registered. Only the ready marker handoff artifacts were removed.

@@ -11,6 +11,7 @@ use PortLibs\LibSqlite\SQLiteBTreeInteriorRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
+use PortLibs\LibSqlite\SQLiteBTreePageMovePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteBusyHandler;
@@ -2256,6 +2257,161 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorMergeApplicationPlan::apply(
             SQLiteDatabase::fromBytes(substr_replace($firstPage, pack('n', 1024), 16, 2) . str_repeat("\0", 1024 * 8)),
             $mergePlan,
+        ));
+    },
+    'moves sqlite last table leaf page into auto-vacuum freelist slot with parent and pointer-map rewrites' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 8), pack('N', 4), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 2), 36, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            5 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            6 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            7 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            8 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $freelistTrunkPage = substr_replace(str_repeat("\0", $pageSize), pack('N', 1), 4, 4);
+        $freelistTrunkPage = substr_replace($freelistTrunkPage, pack('N', 5), 8, 4);
+        $parentPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(6, 100),
+            SQLiteTableInteriorCell::encode(7, 150),
+        ], 8, $pageSize);
+        $leftLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'autoload_a', 'a:1:{}', 'yes'])),
+        ]);
+        $middleLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(150, SQLiteRecord::encode([null, 'autoload_m', 'a:1:{}', 'yes'])),
+        ]);
+        $sourceLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(201, SQLiteRecord::encode([null, 'autoload_z', 'a:1:{}', 'yes'])),
+            SQLiteTableLeafCell::encode(202, SQLiteRecord::encode([null, 'transient_z', 's:5:"value";', 'no'])),
+        ]);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $parentPage
+            . $freelistTrunkPage
+            . str_repeat("\0", $pageSize)
+            . $leftLeafPage
+            . $middleLeafPage
+            . $sourceLeafPage,
+        );
+
+        $plan = SQLiteBTreePageMovePlan::moveLastTableLeafIntoFreelistSlot($database, 8, 3);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            if ($pageNumber <= $plan->databasePageCount) {
+                $pages[$pageNumber] = $page;
+            }
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $postParentHeader = $postDatabase->pageHeader(3);
+        $postParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postParentHeader);
+        $movedLeafHeader = $postDatabase->pageHeader(5);
+        $movedLeafRows = $postDatabase->tableRows(5);
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteBTreePageMovePlan::class, get_class($plan));
+        $t->same(8, $plan->sourcePageNumber);
+        $t->same(5, $plan->targetPageNumber);
+        $t->same(3, $plan->parentPageNumber);
+        $t->same(7, $plan->databasePageCount);
+        $t->same([5], $plan->allocationPlan->allocatedPageNumbers);
+        $t->same([], $plan->allocationPlan->appendedPageNumbers);
+        $t->same(4, $plan->allocationPlan->firstFreelistTrunkPage);
+        $t->same(1, $plan->allocationPlan->freelistPageCount);
+        $t->same([1, 2, 3, 4, 5], $plan->updatedPageNumbers());
+        $t->same('auto-vacuum-table-leaf-page-move', $summary['action']);
+        $t->same(8, $summary['source_page']);
+        $t->same(5, $summary['target_page']);
+        $t->same(3, $summary['parent_page']);
+        $t->same(7, $summary['database_page_count']);
+        $t->same([5], $summary['allocated_page_numbers']);
+        $t->same(1, $summary['freelist_page_count']);
+        $t->same(4, $summary['first_freelist_trunk_page']);
+        $t->same(['kind' => 'right-most', 'page' => 3, 'before' => 8, 'after' => 5], $summary['parent_pointer_update']);
+        $t->same([1, 2, 3, 4, 5], $summary['updated_page_numbers']);
+        $t->same([4], $summary['updated_freelist_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same(7, $postDatabase->header->databaseSizePages);
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same('table-interior', $postParentHeader->pageType);
+        $t->same(2, $postParentHeader->cellCount);
+        $t->same(5, $postParentHeader->rightMostPointer);
+        $t->same([6, 7], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $postParentCells));
+        $t->same([100, 150], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $postParentCells));
+        $t->same('table-leaf', $movedLeafHeader->pageType);
+        $t->same(2, $movedLeafHeader->cellCount);
+        $t->same([201, 202], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $movedLeafRows));
+        $t->same('autoload_z', $movedLeafRows[0]->values()[1]);
+        $t->same('transient_z', $movedLeafRows[1]->values()[1]);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $leftChildParentPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(8, 100),
+            SQLiteTableInteriorCell::encode(6, 150),
+        ], 7, $pageSize);
+        $leftChildDatabase = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $leftChildParentPage
+            . $freelistTrunkPage
+            . str_repeat("\0", $pageSize)
+            . $leftLeafPage
+            . $middleLeafPage
+            . $sourceLeafPage,
+        );
+        $leftChildPlan = SQLiteBTreePageMovePlan::moveLastTableLeafIntoFreelistSlot($leftChildDatabase, 8, 3);
+        $leftChildPages = [];
+        for ($pageNumber = 1; $pageNumber <= $leftChildPlan->databasePageCount; $pageNumber++) {
+            $leftChildPages[$pageNumber] = $leftChildDatabase->page($pageNumber);
+        }
+        foreach ($leftChildPlan->pageImages as $pageNumber => $page) {
+            if ($pageNumber <= $leftChildPlan->databasePageCount) {
+                $leftChildPages[$pageNumber] = $page;
+            }
+        }
+        $leftChildPostDatabase = SQLiteDatabase::fromBytes(implode('', $leftChildPages));
+        $leftChildPostHeader = $leftChildPostDatabase->pageHeader(3);
+        $leftChildPostCells = SQLiteTableInteriorCell::parsePageCells($leftChildPostDatabase->page(3), $leftChildPostHeader);
+        $t->same(5, $leftChildPlan->targetPageNumber);
+        $t->same(7, $leftChildPlan->databasePageCount);
+        $t->same(['kind' => 'left-child', 'page' => 3, 'before' => 8, 'after' => 5], $leftChildPlan->parentPointerUpdate);
+        $t->same(['kind' => 'left-child', 'page' => 3, 'before' => 8, 'after' => 5], $leftChildPlan->toArray()['parent_pointer_update']);
+        $t->same([1, 2, 3, 4, 5], $leftChildPlan->updatedPageNumbers());
+        $t->same([2], $leftChildPlan->updatedPointerMapPageNumbers);
+        $t->same(7, $leftChildPostDatabase->header->databaseSizePages);
+        $t->same(2, $leftChildPostHeader->cellCount);
+        $t->same(7, $leftChildPostHeader->rightMostPointer);
+        $t->same([5, 6], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $leftChildPostCells));
+        $t->same([100, 150], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $leftChildPostCells));
+        $t->same([201, 202], array_map(static fn (SQLiteTableRow $row): int => $row->rowId, $leftChildPostDatabase->tableRows(5)));
+        $t->same('btree-page', $leftChildPostDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(3, $leftChildPostDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same([4], $leftChildPostDatabase->freelistPageNumbers());
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastTableLeafIntoFreelistSlot($database, 7, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastTableLeafIntoFreelistSlot($database, 8, 6));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMovePlan::moveLastTableLeafIntoFreelistSlot(
+            SQLiteDatabase::fromBytes(substr_replace($firstPage, pack('N', 0), 52, 4) . str_repeat("\0", $pageSize * 7)),
+            8,
+            3,
         ));
     },
     'redistributes sqlite table leaf siblings after delete underflow without freeing pages' => static function (TestRunner $t): void {
