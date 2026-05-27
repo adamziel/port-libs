@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 02:16:09 UTC",
-    "sourceCommit": "9742a80abc65079e2a5e5e259e21284af37ba608",
-    "sourceCommitShort": "9742a80abc65",
+    "generated": "2026-05-27 02:22:01 UTC",
+    "sourceCommit": "131b31693047579eb155516588982b76198a6ce6",
+    "sourceCommitShort": "131b31693047",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "898bf759ea2215dc4f0cf03bc79b49d5d7465185",
-    "dashboardCommitShort": "898bf759ea22",
+    "dashboardCommit": "97fc47a36c38982e0bd24dc89c95290001ee586e",
+    "dashboardCommitShort": "97fc47a36c38",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "416",
             "coverage": "416 / 1589",
-            "php": "752 pass / 0 fail",
+            "php": "753 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated scalar SQL execution slice repla...",
-            "currentWork": "Latest scalar SQL execution work wires SQLiteSelectPredicate operands to bounded scalar e...",
-            "nextTarget": "Next upstream-runner gap: run or parse a supervisor-approved focused subset through the f...",
+            "audit": "isolated JSON table/window slice replayed...",
+            "currentWork": "Latest JSON table/window work adds SQLiteJsonTablePlan::windowedRows() for ordered json_e...",
+            "nextTarget": "Next libsqlite gap: wire another non-overlapping native behavior slice from JSON planner/...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "bc2c66e"
+            "commit": "9742a80"
         },
         {
             "library": "LightningCSS",
