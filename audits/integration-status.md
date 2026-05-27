@@ -119779,3 +119779,37 @@ Decision: accepted. Commit exactly this source-moving slice, consume the ready m
 
 Cleanup debt:
 - Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.
+
+## Integration accepted - libsqlite WAL recovery apply - 2026-05-27T09:15:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T085008Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `b530a4cf25ecd778ed5934e7ee099d0c4de4d71a` (`Integrate libsqlite B-tree parent prune`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `b530a4cf25ecd778ed5934e7ee099d0c4de4d71a`.
+- No Pages-outage exception was used.
+
+Candidate evidence:
+- The ready marker included `lane=libsqlite`, `base_sha=9e7dbb0b0f9ffccade0eab839514d75a09ddebe8`, `patch=...port-dev-libsqlite-wal-20260527T085008Z.patch`, and `metadata=...port-dev-libsqlite-wal-20260527T085008Z.md`.
+- Patch sha256 matched the marker: `fbd5289f1448afef3a066e5a660bc3c2e18acd53dbc086794798e6ccc1ccafc5`.
+- Whole-patch replay on current `b530a4cf` was stale only in status and notes context. Implementation, test, example, and manifest hunks were preserved in detached candidate `.tmux-team/tmp/clean-integrator-candidates/wal-recovery-apply-20260527T085008Z`, with manifest/status/notes reconciled from current source.
+- Effective behavior delta adds `SQLiteWalRecoveryPlan`, `SQLiteVfsFileWriter::applyWalRecovery()`, copied smoke `wordpress-wal-recovery-apply.php`, focused WAL recovery assertions, mapped coverage row `focusedWalRecoveryApplyScripts`, `phpPass` `795`, and mapped coverage `446 / 1589`.
+- This does not repeat accepted WAL checkpoint, rollback-journal commit/apply, savepoint rollback/truncation, VFS sync, super-journal, or B-tree parent-prune clusters.
+
+Verification:
+- Syntax passed for `SQLiteWalRecoveryPlan.php`, `SQLiteVfsFileWriter.php`, `SQLiteHeaderTest.php`, and `wordpress-wal-recovery-apply.php`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 8273 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-recovery-apply.php` emitted valid JSON with status `applied`.
+- JSON decode passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`; the manifest was corrected to preserve top-level `mappedTests` as an object before root.
+- `git diff --check` passed.
+
+Root evidence:
+- Runtime gates before root were open: `/` reported more than the temporary `79000000` KiB floor, load was below `25`, and no exact no-argument root harness was active.
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed from the exact candidate snapshot: `215 test files, 33438 assertions, 0 failures`.
+
+Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts after the commit is safely on `refs/heads/main`, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
+Cleanup debt:
+- Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.

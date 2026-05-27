@@ -34,6 +34,38 @@ final class SQLiteVfsFileWriter
     /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>}
      */
+    public function applyWalRecovery(SQLiteWal $wal, string $databaseBytes, string $databasePath): array
+    {
+        $plan = SQLiteWalRecoveryPlan::recover($wal, $databaseBytes, $databasePath, $this->readOnly, $this->immutable);
+        if ($plan['status'] === 'skipped') {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge($plan['dependencies'], ['vfs-file-handle-write-application']))),
+                'recovery' => $plan,
+            ];
+        }
+
+        $applied = $this->applyOperations(
+            $plan['operations'],
+            SQLiteWalRecoveryPlan::payloads($wal, $databaseBytes, $databasePath),
+            $plan['dependencies']
+        );
+        $applied['recovery'] = $plan;
+
+        return $applied;
+    }
+
+    /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>}
+     */
     public function applyHotRollbackJournal(
         SQLiteRollbackJournal $journal,
         string $databaseBytes,

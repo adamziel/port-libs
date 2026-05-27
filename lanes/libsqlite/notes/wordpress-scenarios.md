@@ -4607,3 +4607,26 @@ freelist planning, secure-delete clearing, and pointer-map mutation machinery.
 Follow-up should continue multi-level delete/rebalance materialization without
 repeating page relocation, root collapse, index-interior merge, empty-leaf
 batch release, overflow freelist release, or this parent-prune path.
+
+## WAL Recovery Apply Scenario
+
+Copied WordPress `wp_options` diagnostics can now recover committed WAL frames
+through bounded native PHP VFS file handles after a crash-style reopen. The
+smoke `examples/wordpress-wal-recovery-apply.php` reports committed frame
+replay into the database image, superseded frame skips, preserved uncommitted
+WAL tail frames, database/WAL syncs, and directory-entry persistence without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 bounded WAL replay: added
+`SQLiteWalRecoveryPlan` and `SQLiteVfsFileWriter::applyWalRecovery()` for
+bounded WAL recovery application beyond accepted checkpoint, rollback-journal,
+and savepoint writer paths. Focused `SQLiteHeaderTest.php` passes at 8273
+assertions with 0 failures after replay on current `b530a4cf`; this slice
+adds 79 focused assertions over the accepted parent-prune baseline.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local WAL parser/frame checksum code, checkpoint page-image materializer,
+and native VFS file writer. Follow-up should broaden pager transaction and
+crash-recovery integration without repeating accepted checkpoint transaction,
+rollback-journal commit/apply, savepoint rollback, sync application, or this
+WAL recovery apply path.

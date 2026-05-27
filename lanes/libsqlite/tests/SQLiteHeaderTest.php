@@ -103,6 +103,7 @@ use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
+use PortLibs\LibSqlite\SQLiteWalRecoveryPlan;
 use PortLibs\LibSqlite\SQLiteVfsSidecarPlan;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
 use PortLibs\LibSqlite\SQLiteShmIndex;
@@ -15685,6 +15686,139 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => '/tmp/negative.sqlite', 'offset' => -1, 'bytes' => 1]], ['/tmp/negative.sqlite' => 'x']));
         $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync', 'path' => '/tmp/does-not-exist.sqlite']]));
         $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync_directory', 'path' => '/tmp/does-not-exist-directory']]));
+    },
+    'plans and applies sqlite wal recovery to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x24242424;
+        $salt2 = 0x35353535;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 77, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walHeader = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $walBytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $baseDatabase = $makeFirstPage($pageSize, 3)
+            . str_pad('old-siteurl-page', $pageSize, '.')
+            . str_pad('old-home-page', $pageSize, '.');
+        $pageTwoOld = str_pad('siteurl-before-commit', $pageSize, 'o');
+        $pageTwoNew = str_pad('siteurl-after-commit', $pageSize, 'n');
+        $pageThree = str_pad('home-after-commit', $pageSize, 'h');
+        $pageFourTail = str_pad('uncommitted-transient-tail', $pageSize, 't');
+        $walBytes = $appendFrame($walHeader, $checksumSeed, 2, 0, $pageTwoOld);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $pageTwoNew);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 4, $pageThree);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 4, 0, $pageFourTail);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+
+        $plan = SQLiteWalRecoveryPlan::recover($wal, $baseDatabase, $databasePath);
+        $t->same('ready', $plan['status']);
+        $t->same($databasePath, $plan['database_path']);
+        $t->same($databasePath . '-wal', $plan['wal_path']);
+        $t->same('committed_wal_frames_recovered_with_tail_preserved', $plan['reason']);
+        $t->same(2048, $plan['database_bytes']);
+        $t->same(strlen($walBytes), $plan['wal_bytes']);
+        $t->same(3, $plan['last_commit_frame']);
+        $t->same(1, $plan['committed_transaction_count']);
+        $t->same(2, $plan['applied_page_count']);
+        $t->same(1, $plan['uncommitted_frame_count']);
+        $t->same(['sqlite-wal-recovery', 'sqlite-wal-frame-commit-scan', 'vfs-file-write-coordination'], $plan['dependencies']);
+        $t->same(6, count($plan['operations']));
+        $t->same('write', $plan['operations'][0]['op']);
+        $t->same($databasePath, $plan['operations'][0]['path']);
+        $t->same(0, $plan['operations'][0]['offset']);
+        $t->same(2048, $plan['operations'][0]['bytes']);
+        $t->same('recover_committed_wal_frames_to_database', $plan['operations'][0]['reason']);
+        $t->same('truncate', $plan['operations'][1]['op']);
+        $t->same('trim_database_to_last_wal_commit_size', $plan['operations'][1]['reason']);
+        $t->same('sync', $plan['operations'][2]['op']);
+        $t->same(true, $plan['operations'][2]['durable']);
+        $t->same('write', $plan['operations'][3]['op']);
+        $t->same($databasePath . '-wal', $plan['operations'][3]['path']);
+        $t->same('preserve_wal_with_uncommitted_tail', $plan['operations'][3]['reason']);
+        $t->same('sync', $plan['operations'][4]['op']);
+        $t->same('sync_directory', $plan['operations'][5]['op']);
+        $t->same('/srv/www/wp-content/database', $plan['operations'][5]['path']);
+        $t->same(4, count($plan['frames']));
+        $t->same('superseded_by_later_committed_frame', $plan['frames'][0]['reason']);
+        $t->same('skip', $plan['frames'][0]['recovery_action']);
+        $t->same('checkpointed_to_database', $plan['frames'][1]['reason']);
+        $t->same('restore_database_page', $plan['frames'][1]['recovery_action']);
+        $t->same(512, $plan['frames'][1]['database_offset']);
+        $t->same('checkpointed_to_database', $plan['frames'][2]['reason']);
+        $t->same(1024, $plan['frames'][2]['database_offset']);
+        $t->same('after_last_commit', $plan['frames'][3]['reason']);
+        $t->same('skip', $plan['frames'][3]['recovery_action']);
+
+        $payloads = SQLiteWalRecoveryPlan::payloads($wal, $baseDatabase, $databasePath);
+        $t->same([$databasePath, $databasePath . '-wal'], array_keys($payloads));
+        $t->same($pageTwoNew, substr($payloads[$databasePath], $pageSize, $pageSize));
+        $t->same($pageThree, substr($payloads[$databasePath], $pageSize * 2, $pageSize));
+        $t->same(str_repeat("\0", 32), substr($payloads[$databasePath], $pageSize * 3, 32));
+        $t->same($walBytes, $payloads[$databasePath . '-wal']);
+
+        $root = sys_get_temp_dir() . '/port-libsqlite-wal-recovery-' . bin2hex(random_bytes(4));
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applyWalRecovery($wal, $baseDatabase, $databasePath);
+        $localDatabasePath = $root . '/srv/www/wp-content/database/.ht.sqlite';
+        $localWalPath = $localDatabasePath . '-wal';
+        $t->same('applied', $applied['status']);
+        $t->same(6, $applied['applied']);
+        $t->same(2048 + strlen($walBytes), $applied['bytes_written']);
+        $t->same(2048, $applied['bytes_truncated']);
+        $t->same(2, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(['sqlite-wal-recovery', 'sqlite-wal-frame-commit-scan', 'vfs-file-write-coordination', 'vfs-file-handle-write-application'], $applied['dependencies']);
+        $t->same('committed_wal_frames_recovered_with_tail_preserved', $applied['recovery']['reason']);
+        $t->same($pageTwoNew, substr(file_get_contents($localDatabasePath), $pageSize, $pageSize));
+        $t->same($pageThree, substr(file_get_contents($localDatabasePath), $pageSize * 2, $pageSize));
+        $t->same(2048, filesize($localDatabasePath));
+        $t->same($walBytes, file_get_contents($localWalPath));
+        $t->same(strlen($walBytes), filesize($localWalPath));
+        $t->same($localDatabasePath, $applied['operations'][0]['local_path']);
+        $t->same($localWalPath, $applied['operations'][3]['local_path']);
+
+        $committedSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $committedBytes = $appendFrame($walHeader, $committedSeed, 2, 0, $pageTwoOld);
+        $committedBytes = $appendFrame($committedBytes, $committedSeed, 2, 3, $pageTwoNew);
+        $committedWal = SQLiteWal::parse($committedBytes, null, true);
+        $committedPlan = SQLiteWalRecoveryPlan::recover($committedWal, $baseDatabase, $databasePath, directorySync: false);
+        $t->same('committed_wal_frames_recovered', $committedPlan['reason']);
+        $t->same(0, $committedPlan['uncommitted_frame_count']);
+        $t->same(1, $committedPlan['committed_transaction_count']);
+        $t->same(1, $committedPlan['applied_page_count']);
+        $t->same(5, count($committedPlan['operations']));
+        $t->same('preserve_wal_after_recovery', $committedPlan['operations'][3]['reason']);
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $emptyPlan = SQLiteWalRecoveryPlan::recover($emptyWal, $baseDatabase, $databasePath);
+        $t->same('skipped', $emptyPlan['status']);
+        $t->same('wal_has_no_frames', $emptyPlan['reason']);
+        $t->same(0, $emptyPlan['applied_page_count']);
+        $t->same([], $emptyPlan['operations']);
+        $emptyApplied = $writer->applyWalRecovery($emptyWal, $baseDatabase, $databasePath);
+        $t->same('skipped', $emptyApplied['status']);
+        $t->same(0, $emptyApplied['applied']);
+        $t->same('wal_has_no_frames', $emptyApplied['recovery']['reason']);
+
+        $tailOnlySeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $tailOnlyBytes = $appendFrame($walHeader, $tailOnlySeed, 2, 0, $pageTwoOld);
+        $tailOnlyWal = SQLiteWal::parse($tailOnlyBytes, null, true);
+        $tailOnlyPlan = SQLiteWalRecoveryPlan::recover($tailOnlyWal, $baseDatabase, $databasePath);
+        $t->same('skipped', $tailOnlyPlan['status']);
+        $t->same('wal_has_no_committed_transaction', $tailOnlyPlan['reason']);
+        $t->same(1, $tailOnlyPlan['uncommitted_frame_count']);
+        $t->same('after_last_commit', $tailOnlyPlan['frames'][0]['reason']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalRecoveryPlan::recover($wal, $baseDatabase, ''));
+        $t->throws(LogicException::class, static fn () => SQLiteWalRecoveryPlan::recover($wal, $baseDatabase, $databasePath, true));
+        $t->throws(LogicException::class, static fn () => SQLiteWalRecoveryPlan::recover($wal, $baseDatabase, $databasePath, false, true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalRecoveryPlan::recover($wal, substr($baseDatabase, 1), $databasePath));
+        $t->throws(LogicException::class, static fn () => (new SQLiteVfsFileWriter($root, true))->applyWalRecovery($wal, $baseDatabase, $databasePath));
     },
     'applies sqlite vfs hot rollback journal recovery to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
