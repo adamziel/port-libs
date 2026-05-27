@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 05:22:23 UTC",
-    "sourceCommit": "e053593a64d3d9d542a9db035552c66ca35e1a2d",
-    "sourceCommitShort": "e053593a64d3",
+    "generated": "2026-05-27 05:32:00 UTC",
+    "sourceCommit": "1f26605ddbc3d622ca8d98722c5e1fa0d1e824fc",
+    "sourceCommitShort": "1f26605ddbc3",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "ebc39ff817e0303c08662576171efeaa599f9ccf",
-    "dashboardCommitShort": "ebc39ff817e0",
+    "dashboardCommit": "1c62d3f66cd9bcb76588534468841cc69bd12a40",
+    "dashboardCommitShort": "1c62d3f66cd9",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "433",
-            "coverage": "433 / 1589",
-            "php": "777 pass / 0 fail",
+            "mapped": "434",
+            "coverage": "434 / 1589",
+            "php": "778 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed SELECT expression-index...",
-            "currentWork": "SQLiteSelectExpressionIndexPlan can now rank competing expression-index point, range, IN,...",
-            "nextTarget": "Next SQL planner gap: wire accepted expression-index range-cost decisions into broader SE...",
+            "audit": "bounded replayed VFS locked-writer slice...",
+            "currentWork": "SQLiteVfsLockedFileWriter now composes accepted process file locks with the native VFS fi...",
+            "nextTarget": "Next VFS/pager gap: wire locked file-write application into broader pager transaction or...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "bc16f99"
+            "commit": "e053593"
         },
         {
             "library": "LightningCSS",
