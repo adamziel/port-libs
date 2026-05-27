@@ -1241,11 +1241,32 @@ final class SQLiteCreateIndex
 
         $body = substr($text, $offset + 1, $close - $offset - 1);
         $literal = self::readLiteral($body, 0);
-        if ($literal === null || trim(substr($body, $literal[1])) !== '') {
+        if ($literal === null) {
+            return null;
+        }
+
+        $tailOffset = self::skipCollateClause($body, $literal[1]);
+        if (trim(substr($body, $tailOffset)) !== '') {
             return null;
         }
 
         return [$literal[0], $close + 1];
+    }
+
+    private static function skipCollateClause(string $text, int $offset): int
+    {
+        $offset = self::skipWhitespace($text, $offset);
+        $collate = self::readIdentifier($text, $offset);
+        if ($collate === null || strcasecmp($collate[0], 'collate') !== 0) {
+            return $offset;
+        }
+
+        $name = self::readIdentifier($text, $collate[1]);
+        if ($name === null) {
+            return $offset;
+        }
+
+        return self::skipWhitespace($text, $name[1]);
     }
 
     /**

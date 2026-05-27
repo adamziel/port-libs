@@ -72,15 +72,23 @@ final class SQLiteBTreePageMovePlan
         $pageImages[1] = $firstPage;
         $pageImages[$parentPageNumber] = $parentPage;
         $pageImages[$targetPageNumber] = $sourcePage;
-        $pointerMapPageImages = $database->planPointerMapUpdates(
-            [
-                $targetPageNumber => [
-                    'type' => SQLitePointerMapEntry::BTREE_PAGE,
-                    'parent_page_number' => $parentPageNumber,
-                ],
+        $pointerMapUpdates = [
+            $targetPageNumber => [
+                'type' => SQLitePointerMapEntry::BTREE_PAGE,
+                'parent_page_number' => $parentPageNumber,
             ],
-            $databasePageCount,
-        );
+        ];
+        $overflowReader = static fn (int $firstOverflowPage, int $byteCount): string => self::readOverflowPayload($database, $firstOverflowPage, $byteCount);
+        foreach (SQLiteTableLeafCell::parsePageCells($sourcePage, $sourceHeader, $database->usablePageSize(), $overflowReader) as $cell) {
+            if ($cell->firstOverflowPage !== null) {
+                $pointerMapUpdates[$cell->firstOverflowPage] = [
+                    'type' => SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE,
+                    'parent_page_number' => $targetPageNumber,
+                ];
+            }
+        }
+
+        $pointerMapPageImages = $database->planPointerMapUpdates($pointerMapUpdates, $databasePageCount);
         foreach ($pointerMapPageImages as $pageNumber => $page) {
             $pageImages[$pageNumber] = $page;
         }

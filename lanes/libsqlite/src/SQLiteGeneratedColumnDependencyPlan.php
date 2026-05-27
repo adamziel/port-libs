@@ -179,14 +179,19 @@ final class SQLiteGeneratedColumnDependencyPlan
         $tokens = self::identifierTokens($expression);
         $dependencies = [];
         foreach ($tokens as $index => $token) {
-            $lower = strtolower($token);
+            $value = is_array($token) ? $token['value'] : $token;
+            $quoted = is_array($token) && $token['quoted'];
+            $lower = strtolower($value);
             if (!isset($knownColumns[$lower])) {
                 continue;
             }
-            if (($tokens[$index - 1] ?? null) === '.') {
+            if (!$quoted && self::isExpressionKeyword($value)) {
                 continue;
             }
-            if (($tokens[$index + 1] ?? null) === '(') {
+            if (self::tokenValue($tokens[$index - 1] ?? null) === '.') {
+                continue;
+            }
+            if (self::tokenValue($tokens[$index + 1] ?? null) === '(') {
                 continue;
             }
             if (!in_array($knownColumns[$lower], $dependencies, true)) {
@@ -208,14 +213,20 @@ final class SQLiteGeneratedColumnDependencyPlan
             $char = $expression[$i];
             if ($char === "'" || $char === '"' || $char === '`') {
                 if ($char !== "'") {
-                    $tokens[] = self::unquoteIdentifier(substr($expression, $i, self::skipQuoted($expression, $i, $char) - $i + 1));
+                    $tokens[] = [
+                        'value' => self::unquoteIdentifier(substr($expression, $i, self::skipQuoted($expression, $i, $char) - $i + 1)),
+                        'quoted' => true,
+                    ];
                 }
                 $i = self::skipQuoted($expression, $i, $char);
                 continue;
             }
             if ($char === '[') {
                 $end = self::skipBracketQuoted($expression, $i);
-                $tokens[] = self::unquoteIdentifier(substr($expression, $i, $end - $i + 1));
+                $tokens[] = [
+                    'value' => self::unquoteIdentifier(substr($expression, $i, $end - $i + 1)),
+                    'quoted' => true,
+                ];
                 $i = $end;
                 continue;
             }
@@ -224,12 +235,48 @@ final class SQLiteGeneratedColumnDependencyPlan
                 continue;
             }
             if (preg_match('/[A-Za-z_]/', $char) === 1 && preg_match('/\G([A-Za-z_][A-Za-z0-9_]*)/A', $expression, $matches, 0, $i) === 1) {
-                $tokens[] = $matches[1];
+                $tokens[] = ['value' => $matches[1], 'quoted' => false];
                 $i += strlen($matches[1]) - 1;
             }
         }
 
         return $tokens;
+    }
+
+    /**
+     * @param array{value: string, quoted: bool}|string|null $token
+     */
+    private static function tokenValue(array|string|null $token): ?string
+    {
+        if ($token === null) {
+            return null;
+        }
+
+        return is_array($token) ? $token['value'] : $token;
+    }
+
+    private static function isExpressionKeyword(string $token): bool
+    {
+        static $keywords = [
+            'case' => true,
+            'when' => true,
+            'then' => true,
+            'else' => true,
+            'end' => true,
+            'null' => true,
+            'is' => true,
+            'not' => true,
+            'and' => true,
+            'or' => true,
+            'like' => true,
+            'glob' => true,
+            'between' => true,
+            'in' => true,
+            'as' => true,
+            'collate' => true,
+        ];
+
+        return isset($keywords[strtolower($token)]);
     }
 
     /**

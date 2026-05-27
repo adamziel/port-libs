@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## UPSERT RETURNING Multi-Conflict Scenario
+
+Copied WordPress import staging can now preview multiple SQLite UPSERT conflict
+arms with RETURNING. The smoke
+`examples/wordpress-upsert-returning-multi-conflict-current.php` reports ordered
+`ON CONFLICT` handling where `option_name` conflicts update first, `autoload`
+conflicts update a current row after earlier statement changes, `slot`
+conflicts can `DO NOTHING` without RETURNING output, and a catch-all conflict
+arm can handle another current UNIQUE conflict without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-upsert-returning-multi-conflict-current-next17` slice: added
+`SQLiteUpsertDoUpdateWherePlan::executeConflictArms()` plus 44 focused PASS
+lines in `SQLiteUpsertReturningMultiConflictCurrentNext17Test.php`. Focused
+adjacent UPSERT verification passed at 3 files / 147 assertions / 0 failures.
+Mapped upstream coverage is unchanged because this is focused PHP behavior
+coverage, not a newly admitted upstream inventory row.
+
 ## INSERT SELECT Conflict Scenario
 
 Copied WordPress archive/import staging can now model SQLite conflict handling
