@@ -4716,3 +4716,25 @@ and existing copied WordPress option fixtures. Follow-up should continue
 encoding closure with affinity/collation predicate behavior or malformed-text
 comparison edges without repeating accepted Unicode GLOB ranges or this LIKE
 planner surface.
+
+## SELECT SQL Predicate Semantics Scenario
+
+Copied WordPress `wp_options` diagnostics now preserve parser-level predicate
+semantics for bounded SELECT SQL text. The smoke
+`examples/wordpress-select-sql-predicate-semantics.php` reports rows filtered
+through `BETWEEN`, `NOT BETWEEN`, `GLOB`, `NOT GLOB`, `IS`, `IS NOT`, and
+`LIKE ... ESCAPE` in WHERE and HAVING clauses, preserving SQLite three-valued
+filtering behavior without requiring ext/sqlite.
+
+Status delta 2026-05-27 clean integration: `SQLiteSelectSql` now lowers these
+predicate spellings into the accepted `SQLiteSelectPredicate` execution
+payloads while preserving the inner `AND` inside `BETWEEN` bounds. Focused
+`SQLiteHeaderTest.php` passes at 8861 assertions with 0 failures on the
+rebased current source after this slice.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser/executor, predicate evaluator, LIKE/GLOB matcher,
+and copied WordPress option fixtures. Follow-up should continue non-overlapping
+planner pushdown or executor behavior beyond accepted subqueries, grouped
+SELECT, expression ORDER BY, range costs, and this predicate parser semantics
+surface.

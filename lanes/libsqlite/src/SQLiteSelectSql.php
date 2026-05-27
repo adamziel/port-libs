@@ -943,7 +943,21 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach (['NOT LIKE', 'LIKE', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
+        if (preg_match('/^(.+?)\s+(not\s+)?between\s+(.+)$/is', $sql, $match) === 1) {
+            $bounds = self::splitTopLevelByKeyword(trim($match[3]), 'AND');
+            if (count($bounds) !== 2 || $bounds[0] === '' || $bounds[1] === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL BETWEEN predicate needs lower and upper operands');
+            }
+
+            return [
+                'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT BETWEEN' : 'BETWEEN',
+                'left' => self::valueExpression(trim($match[1])),
+                'lower' => self::valueExpression($bounds[0]),
+                'upper' => self::valueExpression($bounds[1]),
+            ];
+        }
+
+        foreach (['NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
                 continue;
@@ -954,11 +968,26 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException('SQLite SELECT SQL predicate needs both operands');
             }
 
-            return [
+            $predicate = [
                 'operator' => $operator,
                 'left' => self::valueExpression($left),
                 'right' => self::valueExpression($right),
             ];
+            if ($operator === 'LIKE' || $operator === 'NOT LIKE') {
+                $escapeParts = self::splitTopLevelByKeyword($right, 'ESCAPE');
+                if (count($escapeParts) > 2) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL LIKE predicate supports one ESCAPE clause');
+                }
+                if (count($escapeParts) === 2) {
+                    if ($escapeParts[0] === '' || $escapeParts[1] === '') {
+                        throw new \InvalidArgumentException('SQLite SELECT SQL LIKE ESCAPE predicate needs pattern and escape operands');
+                    }
+                    $predicate['right'] = self::valueExpression($escapeParts[0]);
+                    $predicate['escape'] = self::valueExpression($escapeParts[1]);
+                }
+            }
+
+            return $predicate;
         }
 
         if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/i', $sql, $match) === 1) {
@@ -1515,6 +1544,7 @@ final class SQLiteSelectSql
         $length = strlen($sql);
         $depth = 0;
         $quote = false;
+        $skipNextBetweenAnd = false;
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
             if ($char === "'") {
@@ -1536,7 +1566,22 @@ final class SQLiteSelectSql
                 $depth--;
                 continue;
             }
+            if (
+                $depth === 0
+                && strcasecmp($keyword, 'AND') === 0
+                && strncasecmp(substr($sql, $i), 'BETWEEN', 7) === 0
+                && self::keywordBounded($sql, $i, 7)
+            ) {
+                $skipNextBetweenAnd = true;
+                $i += 6;
+                continue;
+            }
             if ($depth === 0 && strncasecmp(substr($sql, $i), $keyword, strlen($keyword)) === 0 && self::keywordBounded($sql, $i, strlen($keyword))) {
+                if ($skipNextBetweenAnd && strcasecmp($keyword, 'AND') === 0) {
+                    $skipNextBetweenAnd = false;
+                    $i += strlen($keyword) - 1;
+                    continue;
+                }
                 $parts[] = trim(substr($sql, $start, $i - $start));
                 $start = $i + strlen($keyword);
                 $i = $start - 1;

@@ -23474,6 +23474,93 @@ SQL;
         $t->same(null, $nullArithmeticRows[0]['text_value']);
         $t->same(['name', 'numeric_value', 'text_value'], array_keys($nullArithmeticRows[0]));
 
+        $betweenRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, bytes FROM wp_options WHERE bytes BETWEEN 9 AND 24 AND autoload IS 'yes' ORDER BY bytes DESC, name ASC",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($betweenRows));
+        $t->same(['home', 'siteurl', 'blogname'], array_column($betweenRows, 'name'));
+        $t->same([24, 24, 9], array_column($betweenRows, 'bytes'));
+        $t->same(['name', 'bytes'], array_keys($betweenRows[0]));
+        $t->same('home', $betweenRows[0]['name']);
+        $t->same(24, $betweenRows[0]['bytes']);
+        $t->same('blogname', $betweenRows[2]['name']);
+
+        $notBetweenRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE bytes NOT BETWEEN 9 AND 24 AND autoload IS NOT NULL ORDER BY name",
+            ['wp_options' => $options],
+        );
+        $t->same(1, count($notBetweenRows));
+        $t->same(['_site_transient_update_plugins'], array_column($notBetweenRows, 'name'));
+        $t->same(['name'], array_keys($notBetweenRows[0]));
+        $t->same('_site_transient_update_plugins', $notBetweenRows[0]['name']);
+
+        $globRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE option_name GLOB '_*transient*' ORDER BY name DESC",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($globRows));
+        $t->same(['_transient_feed', '_site_transient_update_plugins'], array_column($globRows, 'name'));
+        $t->same('_transient_feed', $globRows[0]['name']);
+        $t->same('_site_transient_update_plugins', $globRows[1]['name']);
+
+        $notGlobRows = SQLiteSelectSql::execute(
+            "SELECT option_id AS id, option_name AS name FROM wp_options WHERE option_name NOT GLOB '_*' AND autoload IS NOT NULL ORDER BY id",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($notGlobRows));
+        $t->same(['siteurl', 'home', 'blogname'], array_column($notGlobRows, 'name'));
+        $t->same([1, 2, 3], array_column($notGlobRows, 'id'));
+        $t->same(['id', 'name'], array_keys($notGlobRows[0]));
+
+        $likeEscapeRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE option_name LIKE '!_%' ESCAPE '!' ORDER BY name DESC",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($likeEscapeRows));
+        $t->same(['_transient_feed', '_site_transient_update_plugins'], array_column($likeEscapeRows, 'name'));
+        $t->same('_transient_feed', $likeEscapeRows[0]['name']);
+        $t->same('_site_transient_update_plugins', $likeEscapeRows[1]['name']);
+
+        $notLikeEscapeRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE option_name NOT LIKE '!_%' ESCAPE '!' AND autoload IS 'yes' ORDER BY name DESC",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($notLikeEscapeRows));
+        $t->same(['siteurl', 'home', 'blogname'], array_column($notLikeEscapeRows, 'name'));
+        $t->same('siteurl', $notLikeEscapeRows[0]['name']);
+        $t->same('blogname', $notLikeEscapeRows[2]['name']);
+
+        $isRows = SQLiteSelectSql::execute(
+            "SELECT option_id AS id, option_name AS name FROM wp_options WHERE autoload IS NULL OR autoload IS NOT 'yes' ORDER BY id",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($isRows));
+        $t->same(['_transient_feed', '_site_transient_update_plugins', 'orphaned'], array_column($isRows, 'name'));
+        $t->same([4, 5, 6], array_column($isRows, 'id'));
+        $t->same('orphaned', $isRows[2]['name']);
+
+        $predicatePlan = SQLiteSelectSql::plan(
+            "SELECT option_name FROM wp_options WHERE bytes BETWEEN 9 AND 24 AND option_name NOT GLOB '_*' AND autoload IS 'yes'",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'where'], array_keys($predicatePlan));
+        $t->same('AND', $predicatePlan['where']['operator']);
+        $t->same(3, count($predicatePlan['where']['terms']));
+        $t->same('BETWEEN', $predicatePlan['where']['terms'][0]['operator']);
+        $t->same('bytes', $predicatePlan['where']['terms'][0]['left']['name']);
+        $t->same(9, $predicatePlan['where']['terms'][0]['lower']['value']);
+        $t->same(24, $predicatePlan['where']['terms'][0]['upper']['value']);
+        $t->same('NOT GLOB', $predicatePlan['where']['terms'][1]['operator']);
+        $t->same('option_name', $predicatePlan['where']['terms'][1]['left']['name']);
+        $t->same('_*', $predicatePlan['where']['terms'][1]['right']['value']);
+        $t->same('IS', $predicatePlan['where']['terms'][2]['operator']);
+        $t->same('autoload', $predicatePlan['where']['terms'][2]['left']['name']);
+        $t->same('yes', $predicatePlan['where']['terms'][2]['right']['value']);
+        $predicatePlanRows = SQLiteSelectQuery::execute($predicatePlan);
+        $t->same(3, count($predicatePlanRows));
+        $t->same(['siteurl', 'home', 'blogname'], array_column($predicatePlanRows, 'option_name'));
+
         $groupArithmeticRows = SQLiteSelectSql::execute(
             "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload HAVING (sum(bytes) + count(*)) >= 59 ORDER BY (sum(bytes) + count(*)) DESC LIMIT 2",
             ['wp_options' => $options],
@@ -23483,6 +23570,16 @@ SQL;
         $t->same([2, 3], array_column($groupArithmeticRows, 'rows'));
         $t->same([122, 57], array_column($groupArithmeticRows, 'byte_sum'));
         $t->same(['autoload', 'rows', 'byte_sum'], array_keys($groupArithmeticRows[0]));
+
+        $groupPredicateRows = SQLiteSelectSql::execute(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options WHERE option_name NOT GLOB 'orphan*' GROUP BY autoload HAVING sum(bytes) BETWEEN 50 AND 130 AND autoload IS NOT NULL ORDER BY byte_sum DESC",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($groupPredicateRows));
+        $t->same(['no', 'yes'], array_column($groupPredicateRows, 'autoload'));
+        $t->same([2, 3], array_column($groupPredicateRows, 'rows'));
+        $t->same([122, 57], array_column($groupPredicateRows, 'byte_sum'));
+        $t->same(['autoload', 'rows', 'byte_sum'], array_keys($groupPredicateRows[0]));
 
         $divideByZeroRows = SQLiteSelectSql::execute(
             "SELECT option_name AS name, bytes / 0 AS div_zero, bytes % 0 AS mod_zero FROM wp_options WHERE option_id = 1",
@@ -23515,7 +23612,7 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT one', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT 1, two', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT 1, 2, 3', ['wp_options' => $options]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1 AND 2', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN meta', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options RIGHT JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
