@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
@@ -1823,6 +1824,168 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergePlan::indexLeaf(SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
         ]), $rightPage, 11, 12, 3));
+    },
+    'applies sqlite table leaf sibling merge with auto-vacuum pointer-map free-page updates' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 5);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 52, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            5 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $leftPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'autoload_a', 'a:1:{}', 'yes'])),
+            SQLiteTableLeafCell::encode(11, SQLiteRecord::encode([null, 'autoload_b', 'a:1:{}', 'yes'])),
+        ], $pageSize);
+        $rightPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(12, SQLiteRecord::encode([null, 'autoload_c', 'a:1:{}', 'yes'])),
+            SQLiteTableLeafCell::encode(13, SQLiteRecord::encode([null, 'autoload_d', 'a:1:{}', 'yes'])),
+        ], $pageSize);
+        $parentPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode(['index', 'autoload', 'wp_options', 3, 'CREATE INDEX autoload ON wp_options(autoload, option_name)'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $leftPage . $rightPage . $parentPage);
+        $mergePlan = SQLiteBTreeLeafMergePlan::tableLeaf($leftPage, $rightPage, 3, 4, 5, $pageSize);
+
+        $application = SQLiteBTreeLeafMergeApplicationPlan::apply($database, $mergePlan);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($application->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $mergedHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(3), $pageSize);
+        $mergedRows = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $mergedHeader);
+        $summary = $application->toArray();
+
+        $t->same(SQLiteBTreeLeafMergeApplicationPlan::class, get_class($application));
+        $t->same($mergePlan, $application->mergePlan);
+        $t->same([1, 2, 3, 4], $application->updatedPageNumbers());
+        $t->same([1, 2, 4], array_keys($application->freePlan->pageImages()));
+        $t->same([4], $application->freePlan->freedPageNumbers);
+        $t->same([4], $application->freePlan->newTrunkPageNumbers);
+        $t->same([], $application->freePlan->leafPageNumbers);
+        $t->same(4, $application->freePlan->firstFreelistTrunkPage);
+        $t->same(1, $application->freePlan->freelistPageCount);
+        $t->same([2], array_keys($application->freePlan->updatedPointerMapPages));
+        $t->same('table-leaf-sibling-merge-apply', $summary['action']);
+        $t->same(3, $summary['merged_page']);
+        $t->same(4, $summary['obsolete_page']);
+        $t->same(5, $summary['parent_page']);
+        $t->same([4], $summary['freed_pages']);
+        $t->same(1, $summary['freelist_page_count']);
+        $t->same(4, $summary['first_freelist_trunk_page']);
+        $t->same([1, 2, 3, 4], $summary['updated_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same([], $summary['secure_delete_cleared_pages']);
+        $t->same(4, $mergedHeader->cellCount);
+        $t->same([10, 11, 12, 13], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $mergedRows));
+        $t->same(['autoload_a', 'autoload_b', 'autoload_c', 'autoload_d'], array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $mergedRows));
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same(5, $postDatabase->pointerMapEntryForPage(3)->parentPageNumber);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergeApplicationPlan::apply(
+            SQLiteDatabase::fromBytes(substr_replace($firstPage, pack('n', 1024), 16, 2) . str_repeat("\0", 1024 * 4)),
+            $mergePlan,
+        ));
+    },
+    'applies sqlite index leaf sibling merge with secure-delete freelist and pointer-map updates' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 5);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 52, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 56, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            5 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $leftPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cache_a', 10])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_a', 11])),
+        ], $pageSize);
+        $rightPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_b', 12])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'autoload_c', 13])),
+        ], $pageSize);
+        $parentPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode(['index', 'autoload', 'wp_options', 3, 'CREATE INDEX autoload ON wp_options(autoload, option_name)'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $leftPage . $rightPage . $parentPage);
+        $mergePlan = SQLiteBTreeLeafMergePlan::indexLeaf($leftPage, $rightPage, 3, 4, 5, $pageSize);
+
+        $application = SQLiteBTreeLeafMergeApplicationPlan::apply($database, $mergePlan, true);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $database->pageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($application->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $mergedHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(3), $pageSize);
+        $mergedRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            SQLiteIndexCell::parsePageCells($postDatabase->page(3), $mergedHeader),
+        );
+        $summary = $application->toArray();
+
+        $t->same([1, 2, 3, 4], $application->updatedPageNumbers());
+        $t->same([1, 2, 4], array_keys($application->freePlan->pageImages()));
+        $t->same([4], $application->freePlan->freedPageNumbers);
+        $t->same([4], $application->freePlan->newTrunkPageNumbers);
+        $t->same([], $application->freePlan->clearedPageNumbers);
+        $t->same([2], array_keys($application->freePlan->updatedPointerMapPages));
+        $t->same('index-leaf-sibling-merge-apply', $summary['action']);
+        $t->same(3, $summary['merged_page']);
+        $t->same(4, $summary['obsolete_page']);
+        $t->same(5, $summary['parent_page']);
+        $t->same([4], $summary['freed_pages']);
+        $t->same([], $summary['secure_delete_cleared_pages']);
+        $t->same([1, 2, 3, 4], $summary['updated_page_numbers']);
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same(4, $mergedHeader->cellCount);
+        $t->same([
+            ['no', 'cache_a', 10],
+            ['yes', 'autoload_a', 11],
+            ['yes', 'autoload_b', 12],
+            ['yes', 'autoload_c', 13],
+        ], $mergedRecords);
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1, $postDatabase->header->freelistPageCount);
+        $t->same([4], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same(5, $postDatabase->pointerMapEntryForPage(3)->parentPageNumber);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeLeafMergeApplicationPlan::apply(
+            SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $leftPage),
+            $mergePlan,
+            true,
+        ));
     },
     'inserts sqlite table leaf cells into reusable freeblocks after delete' => static function (TestRunner $t): void {
         $page = SQLiteTableLeafPage::assemble([

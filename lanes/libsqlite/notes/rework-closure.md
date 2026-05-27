@@ -141,3 +141,36 @@ Dependency closure: no new support component is needed. This reuses existing
 lane-local B-tree page headers, table/index leaf page assemblers, cell parsers,
 record encoding, and free-space accounting; pointer-map/freelist application is
 left as the next B-tree storage slice.
+
+## 2026-05-27 B-tree Leaf Merge Pointer-Map Application
+
+This isolated B-tree closure slice builds on accepted leaf merge materialization
+without repeating the summary-only rebalance work. `SQLiteBTreeLeafMergeApplicationPlan`
+composes the merged left sibling page with existing freelist free-page planning
+so the obsolete right sibling is placed on the freelist and, for auto-vacuum
+databases, its pointer-map entry is rewritten to `free-page`.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4683 assertions,
+up from the accepted 4628 baseline (`+55`). The new assertions cover table and
+index leaf merge application, merged page images, freelist first-trunk/count
+updates, auto-vacuum pointer-map page rewrites, obsolete sibling free-page
+metadata, missing-page/page-size guards, and copied wp_options autoload-index
+smoke diagnostics.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeLeafMergeApplicationPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-btree-leaf-merge-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-btree-leaf-merge-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses existing
+lane-local B-tree leaf merge materialization, SQLiteDatabase freelist mutation,
+pointer-map update planning, page header parsing, and record/cell encoders.
+Next B-tree work should move to broader redistribution or parent divider/
+rightmost write application.

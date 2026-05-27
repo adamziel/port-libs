@@ -118105,3 +118105,23 @@ Runtime gate evidence before serialized root:
 
 Serialized root verification:
 - `php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29831 assertions, 0 failures`.
+## Integration accepted - libsqlite B-tree leaf merge application - 2026-05-27T00:42:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T003322Z.ready`.
+
+Decision: accepted bounded replay onto current source `4c14eb89dfb9ea9032321f07859a3d1d11e6279a` after the direct patch failed only on moved manifest/status hunks. The implementation, focused tests, WordPress smoke, and rework note hunks replayed cleanly; manifest/status were reconciled minimally from the current accepted files.
+
+Evidence:
+- Cache-busted live dashboard source was `4c14eb89dfb9ea9032321f07859a3d1d11e6279a`, matching local `refs/heads/main`, so the dashboard guard was open.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4752 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-btree-leaf-merge-apply.php` passed and emitted JSON showing merged index records, obsolete sibling freelist release, and pointer-map free-page rewrite.
+- Syntax checks passed for `SQLiteBTreeLeafMergeApplicationPlan.php`, `SQLiteHeaderTest.php`, and `wordpress-btree-leaf-merge-apply.php`.
+- JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `git diff --check` and `git diff --check -- lanes/libsqlite` passed before root verification.
+- Serialized no-argument root verification passed with `215 test files, 29886 assertions, 0 failures`.
+
+Scope:
+- Adds `SQLiteBTreeLeafMergeApplicationPlan` and focused assertions for applying accepted table/index leaf sibling merge materialization with obsolete sibling freelist release, secure-delete handling, and auto-vacuum pointer-map updates.
+- Adds `wordpress-btree-leaf-merge-apply.php` smoke and minimal libsqlite manifest/status reconciliation.
+- Does not accept duplicate leaf merge planning already present in `a391c8eb`; this slice applies the plan to page images and freelist/pointer-map updates.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T003322Z` still contains modified tracked files matching the handoff, so it was preserved and left registered rather than removed.
