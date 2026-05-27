@@ -36,6 +36,7 @@ final class SQLiteVdbeWindowAggregateCursor
         private readonly array $orderDescending = [],
         private readonly array $orderNulls = [],
         private readonly string $frameUnit = 'ROWS',
+        private readonly string $excludeMode = 'NO OTHERS',
     ) {
         if (!array_is_list($rows)) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate rows must be a list');
@@ -55,6 +56,9 @@ final class SQLiteVdbeWindowAggregateCursor
         }
         if ($unit === 'RANGE' && count($orderColumns) !== 1) {
             throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires one ORDER BY column');
+        }
+        if (!in_array(strtoupper(trim($excludeMode)), ['NO OTHERS', 'CURRENT ROW'], true)) {
+            throw new \InvalidArgumentException('SQLite VDBE window aggregate EXCLUDE mode is not supported');
         }
         self::assertColumnList($partitionColumns, true, 'partition');
         self::assertColumnList($orderColumns, false, 'order');
@@ -244,7 +248,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int,frameEnd:int,frameRows:int,filteredRows:int,eof:bool}
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,eof:bool}
      */
     public function currentSummary(): array
     {
@@ -255,8 +259,8 @@ final class SQLiteVdbeWindowAggregateCursor
             'position' => $this->position,
             'partitionKey' => $this->currentPartitionKey(),
             'orderKey' => $this->currentOrderKey(),
-            'frameStart' => $indexes[0],
-            'frameEnd' => $indexes[count($indexes) - 1],
+            'frameStart' => $indexes[0] ?? null,
+            'frameEnd' => $indexes[count($indexes) - 1] ?? null,
             'frameRows' => count($indexes),
             'filteredRows' => count($this->currentFrameRows(true)),
             'eof' => false,
@@ -361,13 +365,26 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return non-empty-list<int>
+     * @return list<int>
      */
     private function currentFrameIndexes(): array
     {
         [$start, $end] = $this->currentFrameRange();
 
-        return range($start, $end);
+        return $this->applyExcludeMode(range($start, $end));
+    }
+
+    /**
+     * @param list<int> $indexes
+     * @return list<int>
+     */
+    private function applyExcludeMode(array $indexes): array
+    {
+        if (strtoupper(trim($this->excludeMode)) !== 'CURRENT ROW') {
+            return $indexes;
+        }
+
+        return array_values(array_filter($indexes, fn (int $index): bool => $index !== $this->position));
     }
 
     /**
