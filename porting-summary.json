@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 07:33:48 UTC",
-    "sourceCommit": "920647e34c1b89994935892dbc81469924a09406",
-    "sourceCommitShort": "920647e34c1b",
+    "generated": "2026-05-27 07:53:19 UTC",
+    "sourceCommit": "2a969f8b7de9f67da7ef94023a6c02fab71bfbdd",
+    "sourceCommitShort": "2a969f8b7de9",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "e99cd10e45ef32e2e1edb19206cc8264becd5911",
-    "dashboardCommitShort": "e99cd10e45ef",
+    "dashboardCommit": "3e7b6ae7f13f0554862af06eead4785527ee0206",
+    "dashboardCommitShort": "3e7b6ae7f13f",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "442",
             "coverage": "442 / 1589",
-            "php": "789 pass / 0 fail",
+            "php": "790 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded B-tree root-collapse slice replay...",
-            "currentWork": "Clean-integrating bounded B-tree root-collapse materialization after delete underflow, in...",
-            "nextTarget": "Broaden B-tree delete/rebalance application without repeating accepted page relocation, i...",
+            "audit": "bounded VFS sync-plan apply slice replaye...",
+            "currentWork": "Clean-integrating bounded VFS sync-plan file-handle application for rollback-journal, dat...",
+            "nextTarget": "Wire applied VFS sync barriers into broader pager transaction paths without repeating acc...",
             "blocker": "Full SQLite release/all-suite parity remains gated by bounded runner coun...",
-            "commit": "efe07e3"
+            "commit": "920647e"
         },
         {
             "library": "LightningCSS",
