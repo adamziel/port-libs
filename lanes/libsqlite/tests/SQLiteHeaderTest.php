@@ -11429,6 +11429,131 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $counters->sqlFunctionArguments('changes', [1]));
         $t->throws(InvalidArgumentException::class, static fn () => $counters->sqlFunctionArguments('sqlite_offset', []));
     },
+    'preserves sqlite savepoint rollback counters like sqlite rollback to' => static function (TestRunner $t): void {
+        $counters = SQLiteConnectionCounters::initial();
+        $t->same([
+            'last_insert_rowid' => 0,
+            'changes' => 0,
+            'total_changes' => 0,
+        ], $counters->toArray());
+
+        $counters->recordInsert(101);
+        $outerSnapshot = $counters->snapshot();
+        $t->same([
+            'last_insert_rowid' => 101,
+            'changes' => 1,
+            'total_changes' => 1,
+        ], $outerSnapshot->toArray());
+
+        $counters->recordUpdate(4);
+        $innerSnapshot = $counters->snapshot();
+        $t->same(101, $innerSnapshot->lastInsertRowId());
+        $t->same(4, $innerSnapshot->changes());
+        $t->same(5, $innerSnapshot->totalChanges());
+
+        $counters->recordInsert(202);
+        $t->same(202, $counters->lastInsertRowId());
+        $t->same(1, $counters->changes());
+        $t->same(6, $counters->totalChanges());
+
+        $counters->recordDelete(3);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 3,
+            'total_changes' => 9,
+        ], $counters->toArray());
+
+        $innerPlan = $counters->preserveAfterSavepointRollback($innerSnapshot);
+        $t->same('savepoint-rollback-counters-preserved', $innerPlan['status']);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 3,
+            'total_changes' => 9,
+        ], $innerPlan['before']);
+        $t->same([
+            'last_insert_rowid' => 101,
+            'changes' => 4,
+            'total_changes' => 5,
+        ], $innerPlan['snapshot']);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 3,
+            'total_changes' => 9,
+        ], $innerPlan['after']);
+        $t->same(true, $innerPlan['preserved_current_changes']);
+        $t->same(true, $innerPlan['preserved_last_insert_rowid']);
+        $t->same(true, $innerPlan['preserved_total_changes']);
+        $t->same(false, $innerPlan['snapshot_changes_reused']);
+        $t->same(202, $counters->sqlFunctionArguments('last_insert_rowid', []));
+        $t->same(3, $counters->sqlFunctionArguments('changes', []));
+        $t->same(9, $counters->sqlFunctionArguments('total_changes', []));
+
+        $counters->recordUpdate(0);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 0,
+            'total_changes' => 9,
+        ], $counters->toArray());
+
+        $outerPlan = $counters->preserveAfterSavepointRollback($outerSnapshot);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 0,
+            'total_changes' => 9,
+        ], $outerPlan['before']);
+        $t->same([
+            'last_insert_rowid' => 101,
+            'changes' => 1,
+            'total_changes' => 1,
+        ], $outerPlan['snapshot']);
+        $t->same([
+            'last_insert_rowid' => 202,
+            'changes' => 0,
+            'total_changes' => 9,
+        ], $outerPlan['after']);
+        $t->same(true, $outerPlan['preserved_current_changes']);
+        $t->same(true, $outerPlan['preserved_last_insert_rowid']);
+        $t->same(true, $outerPlan['preserved_total_changes']);
+        $t->same(false, $outerPlan['snapshot_changes_reused']);
+
+        $freshSnapshot = $counters->snapshot();
+        $repeatPlan = $counters->preserveAfterSavepointRollback($freshSnapshot);
+        $t->same($freshSnapshot->toArray(), $repeatPlan['before']);
+        $t->same($freshSnapshot->toArray(), $repeatPlan['snapshot']);
+        $t->same($freshSnapshot->toArray(), $repeatPlan['after']);
+        $t->same(true, $repeatPlan['snapshot_changes_reused']);
+
+        $seeded = new SQLiteConnectionCounters(7, 2, 5);
+        $seededSnapshot = $seeded->snapshot();
+        $seeded->recordUpdate(6);
+        $seededPlan = $seeded->preserveAfterSavepointRollback($seededSnapshot);
+        $t->same([
+            'last_insert_rowid' => 7,
+            'changes' => 6,
+            'total_changes' => 11,
+        ], $seededPlan['before']);
+        $t->same([
+            'last_insert_rowid' => 7,
+            'changes' => 2,
+            'total_changes' => 5,
+        ], $seededPlan['snapshot']);
+        $t->same([
+            'last_insert_rowid' => 7,
+            'changes' => 6,
+            'total_changes' => 11,
+        ], $seededPlan['after']);
+        $t->same(true, $seededPlan['preserved_current_changes']);
+        $t->same(true, $seededPlan['preserved_last_insert_rowid']);
+        $t->same(true, $seededPlan['preserved_total_changes']);
+        $t->same(false, $seededPlan['snapshot_changes_reused']);
+        $t->same(7, $seeded->lastInsertRowId());
+        $t->same(6, $seeded->changes());
+        $t->same(11, $seeded->totalChanges());
+        $seeded->recordInsert(11, 0);
+        $t->same(7, $seeded->lastInsertRowId());
+        $t->same(0, $seeded->changes());
+        $t->same(11, $seeded->totalChanges());
+    },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';
         $payload = $recordPayload([null, 'large_option', $largeValue, 'yes']);

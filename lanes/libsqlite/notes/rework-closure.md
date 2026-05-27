@@ -1265,3 +1265,41 @@ lane-local rollback-journal parser/hot-journal classifier and native VFS
 file-handle operation applier. Follow-up should wire this primitive into
 broader pager transaction-state dirty-page journaling without repeating the
 accepted rollback commit/recovery, sync, savepoint, or lock clusters.
+
+## 2026-05-27 Savepoint Counter Preserve Current
+
+This isolated counter slice does not repeat accepted savepoint page-image
+rollback, WAL byte truncation, VFS savepoint rollback application, rollback
+journal commit/recovery, INSERT INTO SELECT, PRAGMA locking_mode, or SELECT SQL
+execution clusters. It adds a narrow `SQLiteConnectionCounters` behavior,
+checked against the local `sqlite3` CLI, for SAVEPOINT rollback diagnostics:
+`ROLLBACK TO` preserves the most recent DML `changes()` value instead of
+restoring it from a savepoint snapshot, while also preserving monotonic
+`total_changes()` and the latest successful `last_insert_rowid()` for copied
+`wp_options` write previews.
+
+Focused assertion delta: the selected new counter test passes with 45
+assertions, and the full focused `SQLiteHeaderTest.php` passes with 9660
+assertions in this integration worktree after the SQLite-oracle correction. The
+assertions cover nested savepoint snapshots, update/delete/insert counter
+transitions, no-op writes, constructor-seeded counters, SQL function dispatch,
+diagnostic before/snapshot/after payloads, and preservation flags.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteConnectionCounters.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+sqlite3 :memory: < lanes/libsqlite/fixtures/savepoint-counter-oracle.sql
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["preserves sqlite savepoint rollback counters like sqlite rollback to"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local connection-counter helper and copied WordPress option counter smoke.
+Follow-up should wire counter snapshots into broader pager/VDBE write
+execution without repeating this current-counter preservation behavior.

@@ -19,14 +19,19 @@ $savepointSnapshot = $counters->snapshot();
 $counters->recordUpdate($updatedRows);
 $afterAutoloadUpdate = $counters->toArray();
 
-$counters->restoreAfterRollback($savepointSnapshot);
+$counters->recordInsert($generatedOptionId + 1);
+$counters->recordDelete(3);
+$beforeSavepointRollback = $counters->toArray();
+$savepointRollbackPlan = $counters->preserveAfterSavepointRollback($savepointSnapshot);
 $afterSavepointRollback = $counters->toArray();
 
 echo json_encode([
-    'wordpressUse' => 'Preview SQLite last_insert_rowid(), changes(), and total_changes() counters for copied wp_options insert/update batches and savepoint rollback diagnostics without requiring ext-sqlite.',
+    'wordpressUse' => 'Preview SQLite last_insert_rowid(), changes(), and total_changes() counters for copied wp_options insert/update batches and savepoint rollback diagnostics, including ROLLBACK TO savepoint preserving the most recent DML changes() value, connection-total counters, and successful insert rowids, without requiring ext-sqlite.',
     'beforeImport' => $beforeImport,
     'afterGeneratedInsert' => $afterGeneratedInsert,
     'afterAutoloadUpdate' => $afterAutoloadUpdate,
+    'beforeSavepointRollback' => $beforeSavepointRollback,
+    'savepointRollbackPlan' => $savepointRollbackPlan,
     'afterSavepointRollback' => $afterSavepointRollback,
     'sqlFunctions' => [
         'last_insert_rowid' => $counters->sqlFunctionArguments('last_insert_rowid', []),

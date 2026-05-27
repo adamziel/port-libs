@@ -60,6 +60,26 @@ final class SQLiteConnectionCounters
         $this->totalChanges = $snapshot->totalChanges;
     }
 
+    /**
+     * @return array{status:string,before:array{last_insert_rowid:int,changes:int,total_changes:int},snapshot:array{last_insert_rowid:int,changes:int,total_changes:int},after:array{last_insert_rowid:int,changes:int,total_changes:int},preserved_current_changes:bool,preserved_last_insert_rowid:bool,preserved_total_changes:bool,snapshot_changes_reused:bool}
+     */
+    public function preserveAfterSavepointRollback(self $snapshot): array
+    {
+        $before = $this->toArray();
+        $after = $this->toArray();
+
+        return [
+            'status' => 'savepoint-rollback-counters-preserved',
+            'before' => $before,
+            'snapshot' => $snapshot->toArray(),
+            'after' => $after,
+            'preserved_current_changes' => $after['changes'] === $before['changes'],
+            'preserved_last_insert_rowid' => $after['last_insert_rowid'] === $before['last_insert_rowid'],
+            'preserved_total_changes' => $after['total_changes'] === $before['total_changes'],
+            'snapshot_changes_reused' => $after['changes'] === $snapshot->changes,
+        ];
+    }
+
     public function snapshot(): self
     {
         return new self($this->lastInsertRowId, $this->changes, $this->totalChanges);
