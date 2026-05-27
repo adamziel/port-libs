@@ -2,6 +2,31 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT SQL Scalar Subquery Scenario
+
+Copied WordPress option previews can now use correlated scalar SELECT
+subqueries as SQL expressions, not only WHERE `EXISTS`/`IN` filters. The smoke
+`examples/wordpress-select-sql-scalar-subquery.php` reports `wp_options` rows
+enriched by metadata from `option_meta` in projection lists, expression
+`ORDER BY`, and composed labels without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated SQL-exec slice: added scalar `subquery`
+expression dispatch through `SQLiteSelectSql`, `SQLiteSelectExpression`,
+`SQLiteSelectProjection`, and `SQLiteSelectPredicate`. Focused assertions cover
+correlated projection values, empty scalar subquery NULL results, WHERE operand
+comparison, hidden expression ORDER BY columns, function and binary expression
+composition, plan shape, multi-column subquery rejection, missing source
+guards, unsupported joined subqueries, and unsupported grouped scalar
+subqueries. Focused `SQLiteHeaderTest.php` passed at 9377 assertions and 0
+failures in this worktree, up from the pre-slice focused count of 9351
+assertions (`+26`).
+
+Dependency closure: no new support component is needed. This reuses lane-local
+SELECT SQL parsing, correlated subquery row execution, row-array expression
+evaluation, and pure PHP WordPress option fixtures. Non-overlap: this avoids
+the accepted parser-level correlated `EXISTS`/`IN` subquery filter cluster and
+adds scalar subquery expression positions instead.
+
 ## JSON Table Disjunctive Pushdown Scenario
 
 Copied WordPress plugin settings can now plan OR-shaped `json_tree()`

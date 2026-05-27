@@ -22141,6 +22141,89 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT meta_option_id FROM option_meta JOIN wp_options ON meta_option_id = option_id)', ['wp_options' => $options, 'option_meta' => $metadata]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT count(*) FROM option_meta GROUP BY meta_key)', ['wp_options' => $options, 'option_meta' => $metadata]));
     },
+    'executes bounded sqlite select sql scalar subquery expressions' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'autoload' => 'no', 'bytes' => 110],
+        ];
+        $metadata = [
+            ['meta_option_id' => 1, 'meta_key' => 'public', 'meta_value' => '1'],
+            ['meta_option_id' => 1, 'meta_key' => 'network', 'meta_value' => '1'],
+            ['meta_option_id' => 3, 'meta_key' => 'public', 'meta_value' => '1'],
+            ['meta_option_id' => 4, 'meta_key' => 'expired', 'meta_value' => '1'],
+            ['meta_option_id' => 5, 'meta_key' => 'plugin', 'meta_value' => 'cache'],
+        ];
+
+        $projected = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name, (SELECT meta_key FROM option_meta WHERE meta_option_id = option_id ORDER BY meta_key DESC) AS first_meta FROM wp_options ORDER BY option_id",
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(5, count($projected));
+        $t->same(['option_id', 'option_name', 'first_meta'], array_keys($projected[0]));
+        $t->same([1, 2, 3, 4, 5], array_column($projected, 'option_id'));
+        $t->same(['public', null, 'public', 'expired', 'plugin'], array_column($projected, 'first_meta'));
+        $t->same('siteurl', $projected[0]['option_name']);
+        $t->same('public', $projected[0]['first_meta']);
+        $t->same('home', $projected[1]['option_name']);
+        $t->same(null, $projected[1]['first_meta']);
+        $t->same('blogname', $projected[2]['option_name']);
+        $t->same('public', $projected[2]['first_meta']);
+        $t->same('_transient_feed', $projected[3]['option_name']);
+        $t->same('expired', $projected[3]['first_meta']);
+        $t->same('_site_transient_update_plugins', $projected[4]['option_name']);
+        $t->same('plugin', $projected[4]['first_meta']);
+
+        $filtered = SQLiteSelectSql::execute(
+            "SELECT option_name FROM wp_options WHERE (SELECT meta_key FROM option_meta WHERE meta_option_id = option_id ORDER BY meta_key DESC) = 'public' ORDER BY option_name",
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(2, count($filtered));
+        $t->same(['blogname', 'siteurl'], array_column($filtered, 'option_name'));
+        $t->same(['option_name'], array_keys($filtered[0]));
+
+        $ordered = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name FROM wp_options ORDER BY coalesce((SELECT meta_key FROM option_meta WHERE meta_option_id = option_id ORDER BY meta_key DESC), 'zz') ASC, option_id DESC LIMIT 4",
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(4, count($ordered));
+        $t->same([4, 5, 3, 1], array_column($ordered, 'option_id'));
+        $t->same(['_transient_feed', '_site_transient_update_plugins', 'blogname', 'siteurl'], array_column($ordered, 'option_name'));
+        $t->same(['option_id', 'option_name'], array_keys($ordered[0]));
+
+        $composed = SQLiteSelectSql::execute(
+            "SELECT option_name || ':' || coalesce((SELECT meta_value FROM option_meta WHERE meta_option_id = option_id AND meta_key = 'plugin'), 'missing') AS label FROM wp_options WHERE option_id IN (1, 5) ORDER BY label",
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(2, count($composed));
+        $t->same(['_site_transient_update_plugins:cache', 'siteurl:missing'], array_column($composed, 'label'));
+        $t->same(['label'], array_keys($composed[0]));
+
+        $plan = SQLiteSelectSql::plan(
+            "SELECT option_name, (SELECT meta_value FROM option_meta WHERE meta_option_id = option_id AND meta_key = 'plugin') AS plugin_value FROM wp_options WHERE option_id >= 4 ORDER BY coalesce((SELECT meta_key FROM option_meta WHERE meta_option_id = option_id), 'zz')",
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy'], array_keys($plan));
+        $t->same('subquery', $plan['select'][1]['type']);
+        $t->same('plugin_value', $plan['select'][1]['alias']);
+        $t->true(is_callable($plan['select'][1]['subquery']));
+        $t->same('__sqlite_order_expr_0', $plan['orderBy'][0]['column']);
+        $t->same('function', $plan['select'][2]['type']);
+        $t->true($plan['select'][2]['hiddenOrderColumn']);
+        $planRows = SQLiteSelectQuery::execute($plan);
+        $t->same(['_transient_feed', '_site_transient_update_plugins'], array_column($planRows, 'option_name'));
+        $t->same([null, 'cache'], array_column($planRows, 'plugin_value'));
+        $t->true(array_key_exists('__sqlite_order_expr_0', $planRows[0]));
+        $t->same('expired', $planRows[0]['__sqlite_order_expr_0']);
+        $t->same('plugin', $planRows[1]['__sqlite_order_expr_0']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_option_id, meta_key FROM option_meta WHERE meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_key FROM missing WHERE meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_key FROM option_meta JOIN wp_options ON meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT count(*) FROM option_meta GROUP BY meta_key) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
+    },
     'filters sqlite select rows with residual where predicate semantics' => static function (TestRunner $t): void {
         $options = [
             ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24, 'payload' => new SQLiteBlobValue('url')],

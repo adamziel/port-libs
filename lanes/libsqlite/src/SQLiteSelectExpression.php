@@ -19,8 +19,40 @@ final class SQLiteSelectExpression
             'literal' => $expression['value'] ?? null,
             'function' => self::functionValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, or binary'),
+            'subquery' => self::subqueryValue($row, $expression),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, binary, or subquery'),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function subqueryValue(array $row, array $expression): mixed
+    {
+        $subquery = $expression['subquery'] ?? null;
+        if (!is_callable($subquery)) {
+            throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression needs a callable');
+        }
+
+        $rows = $subquery($row);
+        if (!is_array($rows)) {
+            throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression must return rows');
+        }
+        if ($rows === []) {
+            return null;
+        }
+        $first = $rows[0];
+        if (!is_array($first)) {
+            throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression rows must be arrays');
+        }
+
+        $columns = array_keys($first);
+        if (count($columns) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression must return one column');
+        }
+
+        return $first[$columns[0]];
     }
 
     /**

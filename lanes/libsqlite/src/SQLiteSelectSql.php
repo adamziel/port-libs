@@ -66,7 +66,7 @@ final class SQLiteSelectSql
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
             : null;
-        $select = self::selectList($selectSql);
+        $select = self::selectList($selectSql, $tables);
         $plan = [
             'from' => $source['from'],
             'select' => $select,
@@ -97,6 +97,7 @@ final class SQLiteSelectSql
                 self::clauseText($tail, $clauseOffsets, 'ORDER BY'),
                 $plan['select'],
                 isset($plan['groupBy']) ? $plan['groupBy']['valueColumn'] : null,
+                $tables,
             );
         }
         if (isset($clauseOffsets['LIMIT'])) {
@@ -883,7 +884,7 @@ final class SQLiteSelectSql
     /**
      * @return list<array<string,mixed>>
      */
-    private static function selectList(string $sql): array
+    private static function selectList(string $sql, array $tables = []): array
     {
         $items = self::splitTopLevel($sql, ',');
         if ($items === []) {
@@ -900,7 +901,7 @@ final class SQLiteSelectSql
                 self::assertIdentifier($prefix, 'SQLite SELECT SQL wildcard prefix');
                 $term = ['type' => 'wildcard', 'prefix' => $prefix];
             } else {
-                $term = self::valueExpression($expression);
+                $term = self::valueExpression($expression, $tables);
                 if ($alias !== null) {
                     $term['alias'] = $alias;
                 }
@@ -965,9 +966,9 @@ final class SQLiteSelectSql
 
             return [
                 'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT BETWEEN' : 'BETWEEN',
-                'left' => self::valueExpression(trim($match[1])),
-                'lower' => self::valueExpression($bounds[0]),
-                'upper' => self::valueExpression($bounds[1]),
+                'left' => self::valueExpression(trim($match[1]), $tables),
+                'lower' => self::valueExpression($bounds[0], $tables),
+                'upper' => self::valueExpression($bounds[1], $tables),
             ];
         }
 
@@ -984,8 +985,8 @@ final class SQLiteSelectSql
 
             $predicate = [
                 'operator' => $operator,
-                'left' => self::valueExpression($left),
-                'right' => self::valueExpression($right),
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($right, $tables),
             ];
             if ($operator === 'LIKE' || $operator === 'NOT LIKE') {
                 $escapeParts = self::splitTopLevelByKeyword($right, 'ESCAPE');
@@ -996,8 +997,8 @@ final class SQLiteSelectSql
                     if ($escapeParts[0] === '' || $escapeParts[1] === '') {
                         throw new \InvalidArgumentException('SQLite SELECT SQL LIKE ESCAPE predicate needs pattern and escape operands');
                     }
-                    $predicate['right'] = self::valueExpression($escapeParts[0]);
-                    $predicate['escape'] = self::valueExpression($escapeParts[1]);
+                    $predicate['right'] = self::valueExpression($escapeParts[0], $tables);
+                    $predicate['escape'] = self::valueExpression($escapeParts[1], $tables);
                 }
             }
 
@@ -1007,7 +1008,7 @@ final class SQLiteSelectSql
         if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/i', $sql, $match) === 1) {
             $valuesSql = trim($match[3]);
             if (preg_match('/^select\s+/i', $valuesSql) === 1) {
-                $left = self::valueExpression(trim($match[1]));
+                $left = self::valueExpression(trim($match[1]), $tables);
 
                 return [
                     'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
@@ -1030,15 +1031,15 @@ final class SQLiteSelectSql
 
             return [
                 'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
-                'left' => self::valueExpression(trim($match[1])),
-                'values' => array_map(self::valueExpression(...), self::splitTopLevel($valuesSql, ',')),
+                'left' => self::valueExpression(trim($match[1]), $tables),
+                'values' => array_map(static fn (string $value): array => self::valueExpression($value, $tables), self::splitTopLevel($valuesSql, ',')),
             ];
         }
 
         if (preg_match('/^(.+?)\s+is\s+(not\s+)?null$/i', $sql, $match) === 1) {
             return [
                 'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'IS NOT NULL' : 'IS NULL',
-                'left' => self::valueExpression(trim($match[1])),
+                'left' => self::valueExpression(trim($match[1]), $tables),
             ];
         }
 
@@ -1080,12 +1081,21 @@ final class SQLiteSelectSql
     /**
      * @return array<string,mixed>
      */
-    private static function valueExpression(string $sql): array
+    private static function valueExpression(string $sql, array $tables = []): array
     {
         $sql = trim($sql);
+        if (str_starts_with($sql, '(') && str_ends_with($sql, ')')) {
+            $subquerySql = trim(substr($sql, 1, -1));
+            if (preg_match('/^select\s+/i', $subquerySql) === 1 && self::unwrapParenthesizedExpression($sql) === $subquerySql) {
+                return [
+                    'type' => 'subquery',
+                    'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),
+                ];
+            }
+        }
         $unwrapped = self::unwrapParenthesizedExpression($sql);
         if ($unwrapped !== $sql) {
-            return self::valueExpression($unwrapped);
+            return self::valueExpression($unwrapped, $tables);
         }
 
         foreach ([['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
@@ -1104,8 +1114,8 @@ final class SQLiteSelectSql
             return [
                 'type' => 'binary',
                 'operator' => $token,
-                'left' => self::valueExpression($left),
-                'right' => self::valueExpression($right),
+                'left' => self::valueExpression($left, $tables),
+                'right' => self::valueExpression($right, $tables),
             ];
         }
 
@@ -1113,7 +1123,7 @@ final class SQLiteSelectSql
             if (trim($match[2]) === '*') {
                 $arguments = [['type' => 'wildcard']];
             } else {
-                $arguments = trim($match[2]) === '' ? [] : array_map(self::valueExpression(...), self::splitTopLevel($match[2], ','));
+                $arguments = trim($match[2]) === '' ? [] : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($match[2], ','));
             }
 
             return ['type' => 'function', 'name' => $match[1], 'arguments' => $arguments];
@@ -1403,7 +1413,7 @@ final class SQLiteSelectSql
      * @param list<array<string,mixed>> $select
      * @return list<array{column:string,direction?:string}>
      */
-    private static function orderBy(string $sql, array &$select, ?string $aggregateValueColumn): array
+    private static function orderBy(string $sql, array &$select, ?string $aggregateValueColumn, array $tables = []): array
     {
         $terms = [];
         foreach (self::splitTopLevel($sql, ',') as $index => $term) {
@@ -1415,7 +1425,7 @@ final class SQLiteSelectSql
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
                 $order = ['column' => $expressionSql];
             } else {
-                $expression = self::valueExpression($expressionSql);
+                $expression = self::valueExpression($expressionSql, $tables);
                 if ($aggregateValueColumn !== null) {
                     $expression = self::rewriteAggregateExpression($expression, $aggregateValueColumn);
                 }

@@ -304,8 +304,8 @@ final class SQLiteSelectPredicate
             return match ($type) {
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
-                'function', 'binary' => SQLiteSelectExpression::evaluate($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, or binary'),
+                'function', 'binary', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, binary, or subquery'),
             };
         }
 
