@@ -54,6 +54,13 @@ final class SQLiteJsonTablePlan
             }
 
             if (!$usable || $operator !== '=') {
+                if ($usable && self::isVisiblePushdownConstraint($column, $operator, $constraint['value'] ?? null)) {
+                    $used[] = $constraint + [
+                        'argvIndex' => count($used) + 1,
+                        'omit' => false,
+                        'constraint' => 'VISIBLE',
+                    ];
+                }
                 $residual[] = $constraint;
                 continue;
             }
@@ -79,10 +86,31 @@ final class SQLiteJsonTablePlan
                 continue;
             }
 
+            if (self::isVisiblePushdownConstraint($column, $operator, $constraint['value'] ?? null)) {
+                $used[] = $constraint + [
+                    'argvIndex' => count($used) + 1,
+                    'omit' => false,
+                    'constraint' => 'VISIBLE',
+                ];
+            }
             $residual[] = $constraint;
         }
 
         $estimatedRows = $hasJson ? ($root === '$' ? 100 : 10) : 0;
+        $estimatedCost = $hasJson ? ($root === '$' ? 100 : 20) : 1000000;
+        foreach ($used as $constraint) {
+            if (($constraint['constraint'] ?? null) !== 'VISIBLE') {
+                continue;
+            }
+
+            [$estimatedRows, $estimatedCost] = self::applyVisiblePushdownEstimate(
+                $estimatedRows,
+                $estimatedCost,
+                strtolower((string) $constraint['column']),
+                strtoupper((string) $constraint['operator']),
+                $constraint['value'] ?? null,
+            );
+        }
         if ($limit !== null) {
             $estimatedRows = min($estimatedRows, $limit);
         }
@@ -100,7 +128,7 @@ final class SQLiteJsonTablePlan
             'offset' => $offset,
             'used' => $used,
             'residual' => $residual,
-            'estimatedCost' => $hasJson ? ($root === '$' ? 100 : 20) : 1000000,
+            'estimatedCost' => $estimatedCost,
             'estimatedRows' => $estimatedRows,
         ];
     }
@@ -442,6 +470,61 @@ final class SQLiteJsonTablePlan
         }
 
         return array_slice($rows, $offset, $limit);
+    }
+
+    private static function isVisiblePushdownConstraint(string $column, string $operator, mixed $value): bool
+    {
+        if (!in_array($column, ['key', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], true)) {
+            return false;
+        }
+
+        return match ($operator) {
+            '=', 'IS', 'IS NOT', 'IS NULL', 'IS NOT NULL', 'IS DISTINCT FROM', 'IS NOT DISTINCT FROM',
+            '<', '<=', '>', '>=', 'IN', 'BETWEEN' => true,
+            'LIKE', 'GLOB' => is_string($value)
+                || (is_array($value) && isset($value['pattern']) && is_string($value['pattern'])),
+            default => false,
+        };
+    }
+
+    /**
+     * @return array{0:int,1:int}
+     */
+    private static function applyVisiblePushdownEstimate(int $rows, int $cost, string $column, string $operator, mixed $value): array
+    {
+        if ($rows <= 0 || $cost >= 1000000) {
+            return [$rows, $cost];
+        }
+
+        $selectivity = match ($operator) {
+            'IS NULL', 'IS NOT NULL', 'IS DISTINCT FROM', 'IS NOT DISTINCT FROM' => 2,
+            '=', 'IS' => in_array($column, ['id', 'fullkey'], true) ? 8 : 4,
+            'IN' => is_array($value) ? max(2, min(6, count($value))) : 2,
+            'BETWEEN', '<', '<=', '>', '>=' => 2,
+            'LIKE', 'GLOB' => self::patternHasFixedPrefix($value) ? 3 : 1,
+            default => 1,
+        };
+
+        if ($selectivity <= 1) {
+            return [$rows, $cost];
+        }
+
+        return [
+            max(1, intdiv($rows + $selectivity - 1, $selectivity)),
+            max(1, intdiv($cost + $selectivity - 1, $selectivity)),
+        ];
+    }
+
+    private static function patternHasFixedPrefix(mixed $value): bool
+    {
+        $pattern = is_array($value) ? ($value['pattern'] ?? null) : $value;
+        if (!is_string($pattern) || $pattern === '') {
+            return false;
+        }
+
+        $firstWildcard = strcspn($pattern, '%_*?[');
+
+        return $firstWildcard > 0;
     }
 
     /**

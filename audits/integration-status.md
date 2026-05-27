@@ -119363,3 +119363,20 @@ Focused verification before root:
 - `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-savepoint-rollback-apply.php`: passed and emitted valid JSON.
 
 Root verification: pending serialized no-argument root harness under clean-integrator lock.
+## Integration accepted - libsqlite JSON table visible constraint pushdown - 2026-05-27T05:52:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T053433Z.ready`
+
+Decision: accepted by bounded replay from current clean `refs/heads/main` `a38364048a64638aa067b29fff10a5c89e109f46` (`Integrate libsqlite VFS savepoint rollback apply`). The marker was based on older `1f26605ddbc3d622ca8d98722c5e1fa0d1e824fc`; full `git apply --check` failed only in stale `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and lane notes. Implementation, test, and example hunks applied cleanly after excluding stale status/manifest/notes, then manifest/status were reconciled from current accepted source evidence.
+
+Dashboard guard: cache-busted live `porting-summary.json` reported exact source `a38364048a64638aa067b29fff10a5c89e109f46`, generated `2026-05-27 05:45:34 UTC`, dashboard commit `ed52d1bb3fd3ee6a4bd44b5ebd879928074146e0`; local `refs/heads/main` matched, so the source-moving guard was open.
+
+Runtime gates before focused verification: `df -Pk /` reported `90382044` KiB available, `/proc/loadavg` one-minute load was `1.40`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+
+Focused verification in detached candidate `.tmux-team/tmp/clean-integrator-a383-258345` with repo-local `TMPDIR`: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 7233 assertions, 0 failures`; `php lanes/libsqlite/examples/wordpress-json-table-visible-constraint-pushdown.php` passed and emitted valid JSON. `php -l` passed for the new smoke, manifest/status JSON decoded, and `git diff --check -- lanes/libsqlite` was clean.
+
+Delta: adds `SQLiteJsonTablePlan` visible-column constraint pushdown for `key`, `type`, `atom`, `fullkey`, `id`, `parent`, and `path` planning while preserving residual row filtering; adds focused assertions and the copied WordPress JSON table visible-constraint smoke; reconciles libsqlite status to `phpPass` `781`, mapped coverage `437 / 1589`, and current source evidence.
+
+Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32398 assertions, 0 failures`.
+
+Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T053433Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner.
