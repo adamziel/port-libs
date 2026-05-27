@@ -22707,6 +22707,101 @@ SQL;
         $t->same(null, $dynamicLeftRows[1]['priority']);
         $t->same(null, $dynamicLeftRows[2]['json_key']);
 
+        $dynamicJsonbOptions = [
+            [
+                'option_id' => 1,
+                'option_name' => 'valid_jsonb_settings',
+                'option_value' => new SQLiteBlobValue(SQLiteJsonB::encode([
+                    'rules' => [
+                        ['name' => 'seo', 'priority' => 2],
+                        ['name' => 'cache', 'priority' => 7],
+                    ],
+                ])),
+            ],
+            [
+                'option_id' => 2,
+                'option_name' => 'malformed_jsonb_settings',
+                'option_value' => new SQLiteBlobValue("\x1c\x00"),
+            ],
+            [
+                'option_id' => 3,
+                'option_name' => 'text_json_settings',
+                'option_value' => '{"rules":[{"name":"forms","priority":4}]}',
+            ],
+            [
+                'option_id' => 4,
+                'option_name' => 'null_json_settings',
+                'option_value' => null,
+            ],
+        ];
+        $dynamicJsonbInnerRows = SQLiteSelectSql::execute(
+            "SELECT o.option_name AS option_name, j.fullkey AS fullkey, j.atom AS priority FROM wp_options AS o JOIN json_tree(o.option_value, '$.rules') AS j ON j.key = 'priority' ORDER BY priority DESC, option_name ASC",
+            ['wp_options' => $dynamicJsonbOptions],
+        );
+        $t->same(3, count($dynamicJsonbInnerRows));
+        $t->same(['valid_jsonb_settings', 'text_json_settings', 'valid_jsonb_settings'], array_column($dynamicJsonbInnerRows, 'option_name'));
+        $t->same(['$.rules[1].priority', '$.rules[0].priority', '$.rules[0].priority'], array_column($dynamicJsonbInnerRows, 'fullkey'));
+        $t->same([7, 4, 2], array_column($dynamicJsonbInnerRows, 'priority'));
+        $t->same(['option_name', 'fullkey', 'priority'], array_keys($dynamicJsonbInnerRows[0]));
+        $t->same('valid_jsonb_settings', $dynamicJsonbInnerRows[0]['option_name']);
+        $t->same('$.rules[1].priority', $dynamicJsonbInnerRows[0]['fullkey']);
+        $t->same(7, $dynamicJsonbInnerRows[0]['priority']);
+        $t->same('text_json_settings', $dynamicJsonbInnerRows[1]['option_name']);
+        $t->same(4, $dynamicJsonbInnerRows[1]['priority']);
+        $t->same('valid_jsonb_settings', $dynamicJsonbInnerRows[2]['option_name']);
+        $t->same(2, $dynamicJsonbInnerRows[2]['priority']);
+
+        $dynamicJsonbLeftRows = SQLiteSelectSql::execute(
+            "SELECT o.option_id AS id, o.option_name AS option_name, j.key AS json_key, j.atom AS priority FROM wp_options AS o LEFT JOIN json_tree(o.option_value, '$.rules') AS j ON j.key = 'priority' ORDER BY id ASC, priority DESC",
+            ['wp_options' => $dynamicJsonbOptions],
+        );
+        $t->same(5, count($dynamicJsonbLeftRows));
+        $t->same([1, 1, 2, 3, 4], array_column($dynamicJsonbLeftRows, 'id'));
+        $t->same(['valid_jsonb_settings', 'valid_jsonb_settings', 'malformed_jsonb_settings', 'text_json_settings', 'null_json_settings'], array_column($dynamicJsonbLeftRows, 'option_name'));
+        $t->same(['priority', 'priority', null, 'priority', null], array_column($dynamicJsonbLeftRows, 'json_key'));
+        $t->same([7, 2, null, 4, null], array_column($dynamicJsonbLeftRows, 'priority'));
+        $t->same(['id', 'option_name', 'json_key', 'priority'], array_keys($dynamicJsonbLeftRows[0]));
+        $t->same(2, $dynamicJsonbLeftRows[2]['id']);
+        $t->same('malformed_jsonb_settings', $dynamicJsonbLeftRows[2]['option_name']);
+        $t->same(null, $dynamicJsonbLeftRows[2]['json_key']);
+        $t->same(null, $dynamicJsonbLeftRows[2]['priority']);
+        $t->same(3, $dynamicJsonbLeftRows[3]['id']);
+        $t->same(4, $dynamicJsonbLeftRows[3]['priority']);
+        $t->same(4, $dynamicJsonbLeftRows[4]['id']);
+        $t->same(null, $dynamicJsonbLeftRows[4]['priority']);
+
+        $dynamicMalformedPlan = SQLiteSelectSql::plan(
+            "SELECT o.option_name AS option_name, j.key AS json_key FROM wp_options AS o LEFT JOIN json_each(o.option_value, '$.rules') AS j ON j.type = 'object' ORDER BY option_name",
+            ['wp_options' => $dynamicJsonbOptions],
+        );
+        $t->same(['from', 'select', 'joins', 'orderBy'], array_keys($dynamicMalformedPlan));
+        $t->same(4, count($dynamicMalformedPlan['from']));
+        $t->same('LEFT', $dynamicMalformedPlan['joins'][0]['type']);
+        $t->same([], $dynamicMalformedPlan['joins'][0]['rows']);
+        $t->true(is_callable($dynamicMalformedPlan['joins'][0]['dynamicRows']));
+        $t->same([
+            'j.key',
+            'j.value',
+            'j.type',
+            'j.atom',
+            'j.id',
+            'j.parent',
+            'j.fullkey',
+            'j.path',
+        ], $dynamicMalformedPlan['joins'][0]['rightColumns']);
+        $validDynamicRows = ($dynamicMalformedPlan['joins'][0]['dynamicRows'])($dynamicMalformedPlan['from'][0]);
+        $malformedDynamicRows = ($dynamicMalformedPlan['joins'][0]['dynamicRows'])($dynamicMalformedPlan['from'][1]);
+        $nullDynamicRows = ($dynamicMalformedPlan['joins'][0]['dynamicRows'])($dynamicMalformedPlan['from'][3]);
+        $t->same(2, count($validDynamicRows));
+        $t->same([0, 1], array_column($validDynamicRows, 'j.key'));
+        $t->same(['object', 'object'], array_column($validDynamicRows, 'j.type'));
+        $t->same('j.key', array_key_first($validDynamicRows[0]));
+        $t->same(null, $validDynamicRows[0]['j.atom']);
+        $t->same('$.rules[0]', $validDynamicRows[0]['j.fullkey']);
+        $t->same('$.rules[1]', $validDynamicRows[1]['j.fullkey']);
+        $t->same([], $malformedDynamicRows);
+        $t->same([], $nullDynamicRows);
+
         $dynamicGroupedRows = SQLiteSelectSql::execute(
             "SELECT o.autoload AS autoload, count(*) AS rows, sum(j.atom) AS priority_sum FROM wp_options AS o JOIN json_tree(o.option_value, '$.rules') AS j ON j.key = 'priority' GROUP BY o.autoload HAVING sum(j.atom) >= 4 ORDER BY priority_sum DESC",
             ['wp_options' => $dynamicJsonOptions],

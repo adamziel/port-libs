@@ -4649,3 +4649,26 @@ and native VFS file writer. Follow-up should broaden pager transaction and
 crash-recovery integration without repeating accepted checkpoint transaction,
 rollback-journal commit/apply, savepoint rollback, sync application, or this
 WAL recovery apply path.
+
+## JSON Dynamic Malformed JSONB Join Scenario
+
+Copied WordPress `wp_options` diagnostics can now join row-sourced JSONB
+option blobs through parser-level `json_tree(o.option_value, '$.rules')` while
+malformed JSONB and SQL NULL option values follow the JSON table validated
+planner path. The smoke
+`examples/wordpress-select-sql-json-malformed-jsonb-join.php` reports INNER
+joins skipping invalid row-sourced JSON and LEFT joins preserving the host row
+with NULL-extended JSON table columns, without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated JSON table replay: dynamic SELECT SQL JSON
+table source callbacks now call `SQLiteJsonTablePlan::validatedPlan()` before
+row expansion. Focused `SQLiteHeaderTest.php` moves from 8404 to 8445
+assertions, adding coverage for valid JSONB, malformed JSONB, text JSON, SQL
+NULL, INNER joins, LEFT joins, and direct plan callback behavior.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local JSONB validator, JSON table planner, SELECT SQL parser/executor,
+and row-correlated dynamic join callback machinery. Follow-up should continue
+JSON planner pushdown or malformed JSONB behavior without repeating accepted
+hidden/visible constraints, cursor/source wiring, or this dynamic validation
+path.

@@ -1106,3 +1106,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new shared support component is needed. This reuses the
 lane-local SELECT SQL parser, JSON table planner/cursor rows, scalar
 expression evaluator, join executor, and copied WordPress option fixtures.
+
+## 2026-05-27 JSON Dynamic Malformed JSONB Joins
+
+This isolated JSON table slice does not repeat accepted JSON table cursor
+iteration, parser-level json_each/json_tree SELECT source wiring, hidden
+json/root constraints, visible-column pushdown, LIMIT/OFFSET, windows, or the
+standalone host-row materializer. It tightens the parser-level dynamic JOIN
+callback so row-sourced JSONB values are validated through
+`SQLiteJsonTablePlan::validatedPlan()` before expansion.
+
+Focused assertion delta: `SQLiteHeaderTest.php` moves from 8404 to 8445
+assertions on this isolated base, adding 41 assertions for dynamic
+`json_tree(o.option_value, '$.rules')` joins over valid JSONB, malformed JSONB,
+text JSON, and SQL NULL option values. The assertions cover INNER join skip
+semantics, LEFT join NULL extension, qualified JSON table columns, empty
+dynamic callback rows for malformed JSONB/NULL, and preserved valid JSONB row
+ordering.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-json-malformed-jsonb-join.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-json-malformed-jsonb-join.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local JSONB validator, JSON table planner, SELECT SQL executor, and
+dynamic join callback path.

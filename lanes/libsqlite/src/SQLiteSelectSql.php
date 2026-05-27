@@ -583,6 +583,11 @@ final class SQLiteSelectSql
                         ];
                     }
 
+                    $plan = SQLiteJsonTablePlan::validatedPlan($function, $constraints);
+                    if (!$plan['runnable']) {
+                        return [];
+                    }
+
                     return self::qualifiedRows(SQLiteJsonTablePlan::visibleRows($function, $constraints), $alias);
                 },
             ];
