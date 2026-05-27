@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-27 18:25:25 UTC",
-    "sourceCommit": "3fdd8ddf3d0ed9bd209488c979bad151639409b6",
-    "sourceCommitShort": "3fdd8ddf3d0e",
+    "generated": "2026-05-27 18:41:59 UTC",
+    "sourceCommit": "83e822bf023f952f8c51a6a28f1e7b30845e8846",
+    "sourceCommitShort": "83e822bf023f",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "06df7c4011119bd1a366d7aa3a6ee3c0545f83ad",
-    "dashboardCommitShort": "06df7c401111",
-    "averageProgressPercent": "86.2",
+    "dashboardCommit": "bf5c63e55d1665114effe66b687095c39ca0bcb4",
+    "dashboardCommitShort": "bf5c63e55d16",
+    "averageProgressPercent": "86.3",
     "lanes": [
         {
             "library": "difftastic",
@@ -77,20 +77,20 @@
         },
         {
             "library": "libsqlite",
-            "progressPercent": "98.0",
+            "progressPercent": "99.0",
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
             "mapped": "456",
             "coverage": "456 / 1589",
-            "php": "3796 pass / 0 fail",
+            "php": "4362 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch8/9 partial integration verified cle...",
-            "currentWork": "Integrated batch8/9 focused subset: generated-column dependency cycles (+32), FK ON UPDAT...",
-            "nextTarget": "Integrate the ready batch10 handoffs, resolve current-source conflicts for expression CAS...",
-            "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
-            "commit": "256c520"
+            "audit": "Batch10/11/12 clean subset accepted from...",
+            "currentWork": "Integrated batch10/11/12 focused subset: affinity comparison storage classes, ALTER TABLE...",
+            "nextTarget": "Resolve skipped current-source conflicts and consume fresh batch13/14 handoffs, prioritiz...",
+            "blocker": "No blocker on the accepted batch: focused, full libsqlite, and root PHP s...",
+            "commit": "28adb09"
         },
         {
             "library": "LightningCSS",
