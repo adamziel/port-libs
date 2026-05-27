@@ -94,6 +94,7 @@ use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
+use PortLibs\LibSqlite\SQLiteVfsFileHandle;
 use PortLibs\LibSqlite\SQLiteVfsFileLock;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockedFileWriter;
@@ -15583,6 +15584,131 @@ SQL;
         $t->throws(LogicException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'passive', null, null, true));
         $t->throws(LogicException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, $baseDatabase, $databasePath, 'passive', null, null, false, true));
         $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerCheckpointTransactionPlan::plan(new SQLiteLockCoordinator(), 'wp-import', $wal, substr($baseDatabase, 1), $databasePath));
+    },
+    'applies sqlite vfs file handle primitives for pager reads and writes' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-handle-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $walPath = $databasePath . '-wal';
+        $localDatabasePath = $root . $databasePath;
+        $pageSize = 512;
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageTwo = str_repeat('W', $pageSize);
+        $databaseBytes = $pageOne . $pageTwo;
+
+        if (!mkdir(dirname($localDatabasePath), 0777, true) && !is_dir(dirname($localDatabasePath))) {
+            throw new RuntimeException('Could not create VFS handle test directory');
+        }
+        file_put_contents($localDatabasePath, $databaseBytes);
+
+        $handle = new SQLiteVfsFileHandle($root, $databasePath);
+        $stat = $handle->stat();
+        $t->same('ready', $stat['status']);
+        $t->same($databasePath, $stat['path']);
+        $t->same($localDatabasePath, $stat['local_path']);
+        $t->same(true, $stat['exists']);
+        $t->same(1024, $stat['size']);
+        $t->same(false, $stat['read_only']);
+        $t->same(false, $stat['immutable']);
+        $t->same(['vfs-file-handle-primitive', 'vfs-xfilesize'], $stat['dependencies']);
+
+        $header = $handle->readAt(0, 16);
+        $t->same('ok', $header['status']);
+        $t->same($databasePath, $header['path']);
+        $t->same($localDatabasePath, $header['local_path']);
+        $t->same(0, $header['offset']);
+        $t->same(16, $header['requested']);
+        $t->same(16, $header['bytes_read']);
+        $t->same(0, $header['short_read']);
+        $t->same('SQLite format 3' . "\0", $header['data']);
+        $t->same($header['data'], $header['zero_filled_data']);
+        $t->same(['vfs-file-handle-primitive', 'vfs-xread'], $header['dependencies']);
+
+        $pageTwoPrefix = $handle->readAt($pageSize, 8);
+        $t->same('ok', $pageTwoPrefix['status']);
+        $t->same(str_repeat('W', 8), $pageTwoPrefix['data']);
+        $t->same(8, $pageTwoPrefix['bytes_read']);
+
+        $tail = $handle->readAt(1020, 16);
+        $t->same('short_read', $tail['status']);
+        $t->same(4, $tail['bytes_read']);
+        $t->same(12, $tail['short_read']);
+        $t->same(str_repeat('W', 4), $tail['data']);
+        $t->same(str_repeat('W', 4) . str_repeat("\0", 12), $tail['zero_filled_data']);
+
+        $zero = $handle->readAt(12, 0);
+        $t->same('ok', $zero['status']);
+        $t->same(0, $zero['requested']);
+        $t->same(0, $zero['bytes_read']);
+        $t->same('', $zero['data']);
+
+        $write = $handle->writeAt(100, 'siteurl');
+        $t->same('ok', $write['status']);
+        $t->same($databasePath, $write['path']);
+        $t->same($localDatabasePath, $write['local_path']);
+        $t->same(100, $write['offset']);
+        $t->same(7, $write['bytes_written']);
+        $t->same(1024, $write['size']);
+        $t->same(['vfs-file-handle-primitive', 'vfs-xwrite'], $write['dependencies']);
+        $t->same('siteurl', substr(file_get_contents($localDatabasePath), 100, 7));
+
+        $sparse = $handle->writeAt(1030, 'tail');
+        $t->same('ok', $sparse['status']);
+        $t->same(4, $sparse['bytes_written']);
+        $t->same(1034, $sparse['size']);
+        $t->same(str_repeat("\0", 6) . 'tail', substr(file_get_contents($localDatabasePath), 1024, 10));
+
+        $truncate = $handle->truncateTo(700);
+        $t->same('ok', $truncate['status']);
+        $t->same(700, $truncate['size']);
+        $t->same(['vfs-file-handle-primitive', 'vfs-xtruncate'], $truncate['dependencies']);
+        $t->same(700, filesize($localDatabasePath));
+        $truncatedRead = $handle->readAt(696, 8);
+        $t->same('short_read', $truncatedRead['status']);
+        $t->same(4, $truncatedRead['bytes_read']);
+        $t->same(4, $truncatedRead['short_read']);
+        $t->same(str_repeat("\0", 4), substr($truncatedRead['zero_filled_data'], 4));
+
+        $grow = $handle->truncateTo(900);
+        $t->same('ok', $grow['status']);
+        $t->same(900, $grow['size']);
+        $t->same(900, filesize($localDatabasePath));
+
+        $wal = new SQLiteVfsFileHandle($root, $walPath);
+        $missingWal = $wal->stat();
+        $t->same(false, $missingWal['exists']);
+        $t->same(0, $missingWal['size']);
+        $walWrite = $wal->writeAt(0, 'wal-frame-bytes');
+        $t->same('ok', $walWrite['status']);
+        $t->same(15, $walWrite['bytes_written']);
+        $t->same(15, $walWrite['size']);
+        $t->same('wal-frame-bytes', file_get_contents($root . $walPath));
+        $walDelete = $wal->delete();
+        $t->same('ok', $walDelete['status']);
+        $t->same(true, $walDelete['deleted']);
+        $t->same(['vfs-file-handle-primitive', 'vfs-xdelete'], $walDelete['dependencies']);
+        $t->same(false, is_file($root . $walPath));
+        $missingDelete = $wal->delete();
+        $t->same(false, $missingDelete['deleted']);
+
+        $readOnly = new SQLiteVfsFileHandle($root, $databasePath, true);
+        $immutable = new SQLiteVfsFileHandle($root, $databasePath, false, true);
+        $readOnlyStat = $readOnly->stat();
+        $t->same(true, $readOnlyStat['read_only']);
+        $t->same(false, $readOnlyStat['immutable']);
+        $t->same('SQLite format 3' . "\0", $readOnly->readAt(0, 16)['data']);
+        $t->throws(LogicException::class, static fn () => $readOnly->writeAt(0, 'x'));
+        $t->throws(LogicException::class, static fn () => $readOnly->truncateTo(1));
+        $t->throws(LogicException::class, static fn () => $readOnly->delete());
+        $t->throws(LogicException::class, static fn () => $immutable->writeAt(0, 'x'));
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVfsFileHandle('', $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVfsFileHandle($root, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileHandle($root, '../escape.sqlite'))->stat());
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileHandle($root, "/tmp/bad\0name.sqlite"))->stat());
+        $t->throws(InvalidArgumentException::class, static fn () => $handle->readAt(-1, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $handle->readAt(0, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $handle->writeAt(-1, 'x'));
+        $t->throws(InvalidArgumentException::class, static fn () => $handle->truncateTo(-1));
+        $t->throws(RuntimeException::class, static fn () => (new SQLiteVfsFileHandle($root, '/srv/www/wp-content/database/missing.sqlite'))->readAt(0, 1));
     },
     'applies sqlite vfs wal checkpoint file writes to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

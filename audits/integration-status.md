@@ -119780,6 +119780,40 @@ Decision: accepted. Commit exactly this source-moving slice, consume the ready m
 Cleanup debt:
 - Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.
 
+## Integration accepted - libsqlite VFS file-handle primitive - 2026-05-27T09:24:00Z
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at selection time was `e1c653343511d7ecea73b0aea013afd3a3ea0f69` (`Integrate libsqlite WAL recovery apply`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `e1c653343511d7ecea73b0aea013afd3a3ea0f69`, generated `2026-05-27 09:17:47 UTC`, dashboard commit `25fd13269b5c2d5b12a40802c761c0286478f5c8`, live libsqlite `795 pass / 0 fail`, and coverage `446 / 1589`.
+- The dashboard guard was open, and no Pages-outage exception was used.
+
+Candidate evidence:
+- Selected `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T091159Z.ready` from a bounded recent libsqlite sample because it had the strongest sampled non-overlapping behavior delta: a lane-local native `SQLiteVfsFileHandle` primitive below accepted VFS writer/sync/lock wrappers.
+- Marker metadata was complete: `lane=libsqlite`, `base_sha=b530a4cf25ecd778ed5934e7ee099d0c4de4d71a`, `patch=...port-dev-libsqlite-deps-20260527T091159Z.patch`, `metadata=...port-dev-libsqlite-deps-20260527T091159Z.md`.
+- Whole-patch replay on current `e1c65334` was stale only in `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`; implementation, test, example, and root-harness note hunks applied cleanly in detached candidate `.tmux-team/tmp/clean-integrator-candidates/vfs-file-handle-primitive-20260527T091159Z`.
+- Status and manifest were reconciled from current source evidence. Effective behavior delta adds `SQLiteVfsFileHandle`, `wordpress-vfs-file-handle-primitive.php`, focused VFS file-handle assertions, mapped coverage row `focusedVfsFileHandlePrimitive`, `phpPass` `796`, and mapped coverage `447 / 1589`.
+
+Verification completed before the serialized root run:
+- Syntax passed for `lanes/libsqlite/src/SQLiteVfsFileHandle.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php`.
+- Selected focused VFS file-handle primitive test passed with `80` assertions and `0` failures.
+- Full focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 8353 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php` emitted valid JSON.
+- JSON decode passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `/` reported more than the temporary `79000000` KiB floor, load was below `25`, and no exact no-argument root harness was active.
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed from the exact candidate snapshot: `215 test files, 33518 assertions, 0 failures`.
+
+Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts after the commit is safely on `refs/heads/main`, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
+Cleanup debt:
+- Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.
+
+Dashboard publication should run next after the source-moving commit.
+
 ## Integration accepted - libsqlite WAL recovery apply - 2026-05-27T09:15:00Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T085008Z.ready`.

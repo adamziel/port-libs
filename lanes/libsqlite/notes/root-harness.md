@@ -1892,6 +1892,36 @@ Dependency closure: no new shared support component is needed. This reuses
 lane-local savepoint page-image rollback, WAL byte truncation, and the accepted
 bounded VFS file-handle writer; follow-up should wire broader pager transaction
 state or durable fsync policy without repeating accepted preview helpers.
+
+## Dependency/Open VFS File-Handle Primitive Slice
+
+Focused lane verification for the dependency/open VFS file-handle primitive
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileHandle.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs file handle primitives for pager reads and writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+TMPDIR=$PWD/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused
+`SQLiteHeaderTest.php` VFS file-handle primitive test passed with 80 assertions
+and 0 failures. The full focused libsqlite test file passed with
+`1 test files, 8274 assertions, 0 failures`. The WordPress smoke reported
+copied `wp_options` database page reads and WAL sidecar writes through bounded
+native PHP xRead/xWrite/xTruncate/xFileSize-style primitives, including
+short-read zero-fill diagnostics and read-only write blocking.
+
+Dependency closure: no new shared support component is needed. This adds a
+lane-local native PHP VFS file-handle primitive that later pager/open code can
+reuse below the accepted writer, sync, and lock wrappers; follow-up should wire
+it into broader pager transaction application without repeating accepted VFS
+writer/sync/lock behavior.
 # B-tree overflow freelist release focused evidence - 2026-05-27
 
 Focused clean-integration verification for the B-tree overflow freelist release

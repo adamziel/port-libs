@@ -814,7 +814,7 @@
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite database header/parser and WordPress fixture/preflight helpers, now including VFS sync-plan file-handle application alongside accepted scalar, aggregate, JSON, WAL, rollback, savepoint, B-tree, encoding/collation, VFS, and upstream-suite evidence."
+        "currentSlice": "Native SQLite database header/parser and WordPress fixture/preflight helpers, now including bounded native VFS file-handle xRead/xWrite/xTruncate/xFileSize/delete primitives alongside accepted scalar, aggregate, JSON, WAL, rollback, savepoint, B-tree, encoding/collation, VFS, and upstream-suite evidence."
     },
     "wordpressScenario": "SQLite fallback/read/write inspection tooling for WordPress hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, decoded ORDER BY result windows with LIMIT/OFFSET, option_id rowid range reads with table-interior branch pruning around unrelated damaged branches, large option_value overflow reads, generated overflow-page chain writes for large option fixtures and large replacements, secure-delete clearing for obsolete overflow pages returned as freelist leaves, auto-vacuum pointer-map updates for inserted and replaced large-option overflow chains plus planned table/index b-tree roots and child pages after splits or root growth, UTF-16LE/UTF-16BE record serialization for database images whose header text encoding is not UTF-8, non-contiguous reusable overflow-page fixtures that respect reserved bytes, actual freelist trunk/leaf inspection plus allocation-plan, free-plan, auto-vacuum pointer-map mutation preflight, bounded insert-plan, bounded single-leaf, root-growth, no-split multi-page, same-depth leaf-split, parent-root-split, and non-root parent-split secondary-index insert planning, bounded table-root leaf-growth replacement preflight plus multi-page table replacement preflight for rows stored below interior table pages including larger replacements that split target leaves and update roomy lower parents, grow a full table-interior root into two lower interior pages, or split a full non-root table-interior parent and promote the divider into its root, bounded sqlite_autoindex-backed UNIQUE/PRIMARY KEY option_name and autoload/option_name insert/replacement planning including parent-root split UNIQUE option_name inserts, bounded single-leaf and parent-root split composite autoload/option_name insert planning, multi-page no-rebalance, same-depth leaf-split, parent-root split, two-child root-collapse, multi-sibling source-leaf redistribution, root-parent source-leaf merge/free-listing, non-root-parent source-leaf merge/free-listing when the lower parent remains sufficiently populated, two-child-root collapse after non-root composite-index parent underflow, and multi-child-root adjacent interior-parent merge after non-root composite-index parent underflow during autoload replacement, plus bounded replacement-plan header/trunk/table/index/overflow/pointer-map page-image mutations for repair preflight, explicit and automatic index-backed option lookups, callback-backed custom-collation point/range and equality-prefix recovery paths, expression-index recovery for lower/upper/trim/substr/length/CAST/json_extract/JSON ->>/JSON -> paths, JSON5 and JSONB option-value verification and focused JSONB mutation/preflight helpers, bounded index traversal that avoids unrelated or damaged branches, native varint and record serialization preflight for generated wp_options payloads, table-leaf cell/page assembly and table-leaf rowid deletion plus table-interior, option_name, and composite index-leaf/interior page assembly for minimal fixture generation or repair planning, sqlite_sequence AUTOINCREMENT counter inspection, native next-ID/explicit-import sequence state for WordPress ID continuity checks, and b-tree page freeblock/free-space inspection for page-local WordPress database recovery diagnostics. Latest scenario examples/wordpress-core-scalar-option-default.php reports random()/randomblob() token and nonce preview diagnostics for copied wp_options repair workflows. Latest scenario examples/wordpress-autovacuum-index-page-move.php reports copied wp_options autoload-index page-move repair diagnostics.",
     "nextTask": "Continue SQL executor/planner correctness beyond accepted subqueries, grouped SELECT, expression ORDER BY, and bounded non-recursive CTE materialization; recursive CTEs remain a future VDBE-style execution gap.",
@@ -859,7 +859,8 @@
         "focusedSelectWildcardProjection": "The 2026-05-26 isolated priority SQL wildcard projection slice maps one additional focused SELECT projection evidence row for star and table-star expansion over copied wp_options joined rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
         "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, GLOB, nested boolean, SQL NULL truth-table, and BLOB identity semantics over copied wp_options-style rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
         "focusedJsonTableWindowRanking": "2026-05-27 isolated JSON-table/window focused test passed with 60 assertions; smoke lanes/libsqlite/examples/wordpress-json-table-window-ranking.php passed.",
-        "focusedSelectGroupedAggregateQuery": "The 2026-05-27 isolated SQL execution/planner slice maps one additional focused SELECT execution row for GROUP BY/HAVING aggregate dispatch inside SQLiteSelectQuery over copied wp_options summaries. Native smoke covers aggregate ORDER BY/LIMIT/OFFSET, projected summary columns, scalar labels, CASE buckets, DISTINCT, final ORDER BY, NULL aggregate groups, validation guards, and no fresh upstream execution."
+        "focusedSelectGroupedAggregateQuery": "The 2026-05-27 isolated SQL execution/planner slice maps one additional focused SELECT execution row for GROUP BY/HAVING aggregate dispatch inside SQLiteSelectQuery over copied wp_options summaries. Native smoke covers aggregate ORDER BY/LIMIT/OFFSET, projected summary columns, scalar labels, CASE buckets, DISTINCT, final ORDER BY, NULL aggregate groups, validation guards, and no fresh upstream execution.",
+        "focusedVfsFileHandlePrimitiveScripts": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS evidence row for native SQLite file-handle primitives: xRead short-read zero-fill, xWrite sparse extension, xTruncate shrink/grow, xFileSize/stat, delete, read-only/immutable guards, and copied WordPress database/WAL sidecar diagnostics without claiming fresh upstream execution."
     },
     "currentWork": "Bounded SELECT SQL WITH CTE materialization for copied wp_options previews.",
     "upstreamRuns": {
@@ -940,7 +941,8 @@
         "focusedWalPagerCheckpointTransaction": "The 2026-05-27 clean-integrated WAL pager checkpoint transaction slice maps one additional focused checkpoint durability evidence row for composing SQLite lock acquisition, busy-reader/writer blockers, accepted WAL checkpoint write plans, restart/truncate sidecar decisions, and copied wp_options checkpoint transaction diagnostics without claiming fresh upstream execution. Native focused coverage reached 6596 assertions after replay on current 9b6b4b6a source.",
         "focusedBtreeIndexInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree index-interior merge apply slice maps one additional focused B-tree delete/rebalance evidence row for materializing index-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run. Native focused coverage reached 6863 assertions after replay on current 1fce4904 source.",
         "focusedVfsSyncPlanApplyScripts": "The 2026-05-27 isolated dependency/VFS sync-apply slice maps one additional focused VFS sync evidence row for applying SQLite xSync plans through native PHP file handles without claiming a fresh upstream run.",
-        "mapped": 444
+        "mapped": 447,
+        "focusedVfsFileHandlePrimitiveScripts": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS evidence row for native SQLite file-handle primitives: xRead short-read zero-fill, xWrite sparse extension, xTruncate shrink/grow, xFileSize/stat, delete, read-only/immutable guards, and copied WordPress database/WAL sidecar diagnostics without claiming fresh upstream execution."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -1033,7 +1035,8 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-wal-checkpoint-rollback-savepoint-and-vfs-evidence"
-        }
+        },
+        "focusedVfsFileHandlePrimitiveScripts": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS evidence row for native SQLite file-handle primitives: xRead short-read zero-fill, xWrite sparse extension, xTruncate shrink/grow, xFileSize/stat, delete, read-only/immutable guards, and copied WordPress database/WAL sidecar diagnostics without claiming fresh upstream execution."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -1120,6 +1123,14 @@
                 "phpPass": 1,
                 "phpFail": 0,
                 "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted JSON table hidden-column, JSONB/subtype, and residual predicate evidence while adding native host-row join materialization assertions."
+            },
+            "focusedVfsFileHandlePrimitive": {
+                "status": "mapped-focused-native",
+                "upstreamScope": "SQLite VFS xRead/xWrite/xTruncate/xFileSize/delete behavior for database and WAL sidecar handles represented as bounded PHP file operations rather than full VFS integration.",
+                "nativeEvidence": "SQLiteVfsFileHandle focused PHP coverage plus copied WordPress VFS file-handle primitive smoke.",
+                "phpPass": 1,
+                "phpFail": 0,
+                "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted VFS/open/writer/sync/lock evidence while adding native primitive assertions."
             }
         },
         "sqlExecutionPlanner": {
@@ -1188,7 +1199,8 @@
         "focusedWalPagerCheckpointTransaction": "SQLitePagerCheckpointTransactionPlan composes accepted WAL checkpoint modes and VFS write plans with lock-coordinator and busy-handler outcomes so copied WordPress repair tooling can distinguish passive/restart/truncate-ready checkpoints from reader- or writer-blocked busy outcomes.",
         "focusedBtreeIndexInteriorMergeApplicationPlan": "SQLiteBTreeInteriorMergePlan materializes index-interior sibling merge application after delete underflow, preserving merged index record order, releasing the obsolete sibling through freelist planning, and rewriting auto-vacuum pointer-map ownership for moved child pages.",
         "focusedVfsLockedFileWriter": "SQLiteVfsLockedFileWriter applies accepted VFS file-handle operations only while an exclusive SQLiteVfsFileLock is held, then releases the process lock after success or failure.",
-        "focusedJsonTableVisibleConstraintPushdown": "SQLiteJsonTablePlan advertises usable visible-column constraints for key/type/atom/fullkey/id/path while retaining residual filters, estimated rows/costs, parent/path metadata, and cursor row semantics for copied WordPress JSON diagnostics."
+        "focusedJsonTableVisibleConstraintPushdown": "SQLiteJsonTablePlan advertises usable visible-column constraints for key/type/atom/fullkey/id/path while retaining residual filters, estimated rows/costs, parent/path metadata, and cursor row semantics for copied WordPress JSON diagnostics.",
+        "focusedVfsFileHandlePrimitive": "SQLiteVfsFileHandle provides bounded native PHP file-handle primitives for copied WordPress SQLite database and WAL sidecar reads, writes, truncation, file-size/stat, deletion, read-only/immutable blocking, and path containment below accepted VFS writer/sync/lock wrappers."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1366,6 +1378,17 @@
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence",
             "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this adds bounded native CTE materialization over copied wp_options query paths."
+        },
+        "focusedVfsFileHandlePrimitive": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite VFS xRead/xWrite/xTruncate/xFileSize/delete file-handle primitives represented as bounded native PHP filesystem operations rather than a full process-level VFS.",
+            "nativeEvidence": "SQLiteVfsFileHandle focused PHP coverage plus copied WordPress VFS file-handle primitive smoke.",
+            "phpAssertions": 80,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-vfs-file-handle-primitive.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-bounded-replay-reuses-accepted-vfs-open-writer-sync-lock-evidence"
         }
     },
     "wordpress": {
@@ -1417,7 +1440,8 @@
     "inventory": {
         "focusedWalSavepointPageImageRollbackScripts": 1,
         "focusedVfsSavepointRollbackApplyScripts": 1,
-        "focusedSuperJournalCommitApplyScripts": 1
+        "focusedSuperJournalCommitApplyScripts": 1,
+        "focusedVfsFileHandlePrimitiveScripts": 1
     },
     "focusedVfsProcessFileLock": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS locking evidence row for process-backed sidecar file locks over accepted SQLite lock byte-range plans. Native smoke covers shared reader concurrency, reserved writer exclusion, pending-reader blocking, exclusive promotion after reader drain, nolock and failed-open blockers, and copied WordPress database lock diagnostics without requiring ext/sqlite.",
     "focusedVfsSyncPlan": {
