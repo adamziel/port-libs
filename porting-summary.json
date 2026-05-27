@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 00:17:13 UTC",
-    "sourceCommit": "0ce4d2ef75516600c4b47e70d52f5f1fa46c695b",
-    "sourceCommitShort": "0ce4d2ef7551",
+    "generated": "2026-05-27 00:25:07 UTC",
+    "sourceCommit": "394176c506d021d22c96cec03187121354766f33",
+    "sourceCommitShort": "394176c506d0",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "b39373abc4a32757ebbb8ec5708cdbeb0712acec",
-    "dashboardCommitShort": "b39373abc4a3",
+    "dashboardCommit": "7562b9229a6c87f1507c16d29875b6748578854b",
+    "dashboardCommitShort": "7562b9229a6c",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "403",
-            "coverage": "403 / 1589",
-            "php": "740 pass / 0 fail",
+            "mapped": "404",
+            "coverage": "404 / 1589",
+            "php": "741 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "clean-integrated WAL hot rollback-journal...",
-            "currentWork": "Latest WAL/rollback work adds focused assertions and dashboard evidence for hot rollback-...",
-            "nextTarget": "Next WAL gap: durable WAL write/checkpoint persistence or rollback/savepoint behavior tha...",
+            "audit": "clean-integrated JSON object aggregate/wi...",
+            "currentWork": "Latest JSON table/window work adds bounded json_group_object() DISTINCT, ORDER BY, DISTIN...",
+            "nextTarget": "Next JSON gap: planner or execution wiring for JSON table constraints/window aggregate di...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "pending"
+            "commit": "0ce4d2e"
         },
         {
             "library": "LightningCSS",
