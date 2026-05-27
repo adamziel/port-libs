@@ -1,5 +1,19 @@
 # Integration Status
 
+## Accepted marker - libsqlite Unicode GLOB range matching - 2026-05-27T06:08:00Z
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260527T055454Z.ready`
+- Lane: `libsqlite`
+- Source base for integration: current `refs/heads/main` `3241d3ae41befae99e855b53f0c2d16abf64ce65` (`Integrate libsqlite overflow freelist release`).
+- Marker base: `e58ac3f8ed06006b85d4993ecb18bae4dcb1df3e`; replay was bounded because direct apply failed only in `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and `notes/wordpress-scenarios.md`.
+- Accepted delta: Unicode-aware SQLite `GLOB` character-class range matching in `SQLiteDatabase::globMatches()`, focused Latin/Greek/Cyrillic/CJK/emoji/literal/reversed/negated range assertions, and copied `wp_options` Unicode GLOB smoke output.
+- Focused checks before root: `php -l` on changed PHP files passed; JSON decode for manifest/status passed; `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test` passed; `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 7336 assertions, 0 failures`; `git diff --check` passed.
+- Status reconciliation: `phpPass` `782 -> 783`, mapped coverage `437 -> 438`, and `latestCommit` now starts with current accepted source `3241d3ae41befae99e855b53f0c2d16abf64ce65`.
+- Runtime gates before root: `/` had `87353452` KiB available, `/proc/loadavg` one-minute load was `1.49`, and no exact no-argument root harness was active before taking the lock.
+- Serialized root: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 32501 assertions, 0 failures`.
+- Decision: accepted after focused checks, WordPress smoke, `git diff --check`, serialized root, and final atomic ref publication. Stop after this one source move so dashboard publication can catch up.
+- Cleanup: accepted marker `.ready`, `.patch`, and `.md` files removed after the commit was safely on `main`. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-encoding-20260527T055454Z` still has modified lane files matching the accepted patch, so it was preserved as cleanup debt instead of being removed.
+
 ## Integration accepted - libsqlite composite GROUP BY execution - 2026-05-27T02:47:51Z
 
 Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T023508Z.ready`

@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Unicode GLOB Range Scenario
+
+Copied WordPress option diagnostics can now match plugin option names through
+SQLite-style `GLOB` character classes whose ranges compare Unicode codepoints,
+not only single-byte ASCII endpoints. The smoke
+`examples/wordpress-option-name-like-glob.php` reports Latin, Greek, Cyrillic,
+CJK, emoji, negated Unicode classes, literal bracket and hyphen handling, and
+reversed-range compatibility without requiring ext/sqlite.
+
+Status delta 2026-05-27 clean integration replay: updated
+`SQLiteDatabase::globMatches()` so character classes retain Unicode ranges
+and test membership by decoded codepoint. Focused assertions cover Latin,
+Greek, Cyrillic, CJK, emoji, negated Unicode classes, literal bracket/hyphen
+classes, reversed ranges, and copied `wp_options` Unicode GLOB smoke output.
+Focused `SQLiteHeaderTest.php` passed at 7336 assertions and 0 failures from
+the current accepted source after replay. Lane `phpPass` moves from 782 to 783
+and mapped coverage moves from 437 to 438. Dependency closure: no new support
+component is needed; this reuses lane-local UTF-8 splitting, LIKE/GLOB
+matching, wp_options table/index readers, and pure PHP row arrays.
+
 ## B-tree Overflow Freelist Release Scenario
 
 Copied WordPress transient cleanup can now connect deleted table and

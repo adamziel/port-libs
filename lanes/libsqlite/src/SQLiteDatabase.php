@@ -10744,7 +10744,7 @@ final class SQLiteDatabase
                     $patternOffset++;
                     continue;
                 }
-                if (in_array($value[$valueOffset], $class['characters'], true) === $class['negated']) {
+                if (self::globCharacterClassContains($value[$valueOffset], $class) === $class['negated']) {
                     return false;
                 }
                 $valueOffset++;
@@ -10764,7 +10764,7 @@ final class SQLiteDatabase
 
     /**
      * @param list<string> $pattern
-     * @return null|array{characters:list<string>,negated:bool,nextOffset:int}
+     * @return null|array{characters:list<string>,ranges:list<array{0:string,1:string}>,negated:bool,nextOffset:int}
      */
     private static function readGlobCharacterClass(array $pattern, int $offset): ?array
     {
@@ -10781,12 +10781,14 @@ final class SQLiteDatabase
         }
 
         $characters = [];
+        $ranges = [];
         $first = true;
         while ($index < $count) {
             $character = $pattern[$index];
             if ($character === ']' && !$first) {
                 return [
                     'characters' => array_values(array_unique($characters)),
+                    'ranges' => $ranges,
                     'negated' => $negated,
                     'nextOffset' => $index + 1,
                 ];
@@ -10795,15 +10797,10 @@ final class SQLiteDatabase
                 $index + 2 < $count
                 && $pattern[$index + 1] === '-'
                 && $pattern[$index + 2] !== ']'
-                && strlen($character) === 1
-                && strlen($pattern[$index + 2]) === 1
             ) {
-                $start = ord($character);
-                $end = ord($pattern[$index + 2]);
-                for ($ord = $start; $ord <= $end; $ord++) {
-                    $characters[] = chr($ord);
-                }
-                if ($start > $end) {
+                if (self::sqliteCodepoint($character) <= self::sqliteCodepoint($pattern[$index + 2])) {
+                    $ranges[] = [$character, $pattern[$index + 2]];
+                } else {
                     $characters[] = $character;
                 }
                 $index += 3;
@@ -10817,6 +10814,45 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @param array{characters:list<string>,ranges:list<array{0:string,1:string}>,negated:bool,nextOffset:int} $class
+     */
+    private static function globCharacterClassContains(string $character, array $class): bool
+    {
+        if (in_array($character, $class['characters'], true)) {
+            return true;
+        }
+
+        $codepoint = self::sqliteCodepoint($character);
+        foreach ($class['ranges'] as [$start, $end]) {
+            if ($codepoint >= self::sqliteCodepoint($start) && $codepoint <= self::sqliteCodepoint($end)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function sqliteCodepoint(string $character): int
+    {
+        $bytes = array_values(unpack('C*', $character) ?: []);
+        $length = count($bytes);
+        if ($length === 1) {
+            return $bytes[0];
+        }
+        if ($length === 2) {
+            return (($bytes[0] & 0x1f) << 6) | ($bytes[1] & 0x3f);
+        }
+        if ($length === 3) {
+            return (($bytes[0] & 0x0f) << 12) | (($bytes[1] & 0x3f) << 6) | ($bytes[2] & 0x3f);
+        }
+        if ($length === 4) {
+            return (($bytes[0] & 0x07) << 18) | (($bytes[1] & 0x3f) << 12) | (($bytes[2] & 0x3f) << 6) | ($bytes[3] & 0x3f);
+        }
+
+        return $bytes[0] ?? 0;
     }
 
     /**

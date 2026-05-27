@@ -42,6 +42,8 @@ try {
     $indexedNoCaseUpperCaseLike = ['error' => $exception->getMessage()];
 }
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
+$unicodeGlobOptions = $database->wordpressOptionsByNameGlob('plugin_[À-ÿ]');
+$unicodeGlobNegatedOptions = $database->wordpressOptionsByNameGlob('plugin_[^À-ÿ]');
 $indexedGlobOptions = null;
 try {
     $indexedGlobOptions = array_map(
@@ -82,6 +84,16 @@ echo json_encode([
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,
+    ),
+    'unicodeGlobPattern' => 'plugin_[À-ÿ]',
+    'unicodeGlobOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $unicodeGlobOptions,
+    ),
+    'unicodeGlobNegatedPattern' => 'plugin_[^À-ÿ]',
+    'unicodeGlobNegatedOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $unicodeGlobNegatedOptions,
     ),
     'globPrefixRange' => SQLiteDatabase::globPrefixRangeBounds($globPattern),
     'indexedGlobOptions' => $indexedGlobOptions,
@@ -185,6 +197,8 @@ function exampleWordPressOptionPatternFixture(): string
     $optionCells[] = $schemaCell([null, 'plugin_z', 'reversed range start', 'no'], 106);
     $optionCells[] = $schemaCell([null, 'plugin_a', 'reversed range end excluded', 'no'], 107);
     $optionCells[] = $schemaCell([null, 'plugin_-', 'reversed range hyphen excluded', 'no'], 108);
+    $optionCells[] = $schemaCell([null, 'plugin_å', 'unicode latin range payload', 'no'], 109);
+    $optionCells[] = $schemaCell([null, 'plugin_β', 'unicode greek range payload', 'no'], 110);
 
     $page2 = $tableLeafPage($optionCells);
     $page3 = $tableLeafPage([
@@ -194,6 +208,8 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['plugin_-', 108]),
         $indexCell(['plugin_a', 107]),
         $indexCell(['plugin_z', 106]),
+        $indexCell(['plugin_å', 109]),
+        $indexCell(['plugin_β', 110]),
         $indexCell(['siteurl', 3]),
     ]);
     $page3[0] = "\x0a";
@@ -204,6 +220,8 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['plugin_-', 108]),
         $indexCell(['plugin_a', 107]),
         $indexCell(['plugin_z', 106]),
+        $indexCell(['plugin_å', 109]),
+        $indexCell(['plugin_β', 110]),
         $indexCell(['siteurl', 3]),
     ]);
     $page4[0] = "\x0a";

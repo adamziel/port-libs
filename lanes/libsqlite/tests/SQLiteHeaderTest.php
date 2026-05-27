@@ -4511,12 +4511,18 @@ return [
             $schemaCell([null, 'emoji_é', 'utf8 payload', 'no'], 3),
             $schemaCell([null, 'literal_percent_%', 'literal percent', 'no'], 4),
             $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 5),
+            $schemaCell([null, 'plugin_å', 'latin range payload', 'no'], 6),
+            $schemaCell([null, 'plugin_β', 'greek range payload', 'no'], 7),
+            $schemaCell([null, 'plugin_Ж', 'cyrillic range payload', 'no'], 8),
         ]);
         $page3 = $indexLeafPage([
             $indexCell(['_Transient_API', 2]),
             $indexCell(['_transient_feed', 1]),
             $indexCell(['emoji_é', 3]),
             $indexCell(['literal_percent_%', 4]),
+            $indexCell(['plugin_å', 6]),
+            $indexCell(['plugin_β', 7]),
+            $indexCell(['plugin_Ж', 8]),
             $indexCell(['siteurl', 5]),
         ]);
         $page4 = $indexLeafPage([
@@ -4524,6 +4530,9 @@ return [
             $indexCell(['_transient_feed', 1]),
             $indexCell(['emoji_é', 3]),
             $indexCell(['literal_percent_%', 4]),
+            $indexCell(['plugin_å', 6]),
+            $indexCell(['plugin_β', 7]),
+            $indexCell(['plugin_Ж', 8]),
             $indexCell(['siteurl', 5]),
         ]);
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
@@ -4544,6 +4553,10 @@ return [
         $indexedGlobLiteral = $database->wordpressOptionsByIndexedNameGlobPrefixRange('literal_percent_*');
         $indexedGlobLimited = $database->wordpressOptionsByIndexedNameGlobPrefixRange('_Transient_*', 1);
         $globNegated = $database->wordpressOptionsByNameGlob('*_[^0-9]');
+        $globLatinRange = $database->wordpressOptionsByNameGlob('plugin_[À-ÿ]');
+        $globGreekRange = $database->wordpressOptionsByNameGlob('plugin_[α-ω]');
+        $globCyrillicRange = $database->wordpressOptionsByNameGlob('plugin_[А-Я]');
+        $globUnicodeNegated = $database->wordpressOptionsByNameGlob('plugin_[^À-ÿ]');
         $regexp = static function (string $pattern, string $value): bool {
             $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
             if ($result === false) {
@@ -4585,6 +4598,67 @@ return [
         $t->same(false, SQLiteDatabase::globMatches('plugin_b', 'plugin_[]a]'));
         $t->true(SQLiteDatabase::globMatches('plugin_-', 'plugin_[-]'));
         $t->same(false, SQLiteDatabase::globMatches('plugin_z', 'plugin_[-]'));
+        $unicodeGlobCases = [
+            ['plugin_À', 'plugin_[À-ÿ]', true],
+            ['plugin_å', 'plugin_[À-ÿ]', true],
+            ['plugin_ÿ', 'plugin_[À-ÿ]', true],
+            ['plugin_A', 'plugin_[À-ÿ]', false],
+            ['plugin_Ā', 'plugin_[À-ÿ]', false],
+            ['plugin_α', 'plugin_[α-ω]', true],
+            ['plugin_β', 'plugin_[α-ω]', true],
+            ['plugin_ω', 'plugin_[α-ω]', true],
+            ['plugin_Ω', 'plugin_[α-ω]', false],
+            ['plugin_Ж', 'plugin_[А-Я]', true],
+            ['plugin_Я', 'plugin_[А-Я]', true],
+            ['plugin_я', 'plugin_[А-Я]', false],
+            ['plugin_中', 'plugin_[一-龥]', true],
+            ['plugin_龥', 'plugin_[一-龥]', true],
+            ['plugin_あ', 'plugin_[一-龥]', false],
+            ['plugin_🙂', 'plugin_[😀-🙏]', true],
+            ['plugin_🙏', 'plugin_[😀-🙏]', true],
+            ['plugin_🚀', 'plugin_[😀-🙏]', false],
+            ['plugin_ß', 'plugin_[^À-ÿ]', false],
+            ['plugin_β', 'plugin_[^À-ÿ]', true],
+            ['plugin_é', 'plugin_[z-é]', true],
+            ['plugin_z', 'plugin_[z-é]', true],
+            ['plugin_-', 'plugin_[z-é]', false],
+            ['plugin_ç', 'plugin_[abç]', true],
+            ['plugin_b', 'plugin_[abç]', true],
+            ['plugin_d', 'plugin_[abç]', false],
+            ['plugin_é', 'plugin_[]é]', true],
+            ['plugin_]', 'plugin_[]é]', true],
+            ['plugin_è', 'plugin_[]é]', false],
+            ['plugin_é', 'plugin_[-é]', true],
+            ['plugin_-', 'plugin_[-é]', true],
+            ['plugin_è', 'plugin_[-é]', false],
+            ['plugin_é', 'plugin_[é-]', true],
+            ['plugin_-', 'plugin_[é-]', true],
+            ['plugin_é', 'plugin_[^α-ω]', true],
+            ['plugin_β', 'plugin_[^α-ω]', false],
+            ['plugin_Ж', 'plugin_[^А-Я]', false],
+            ['plugin_ж', 'plugin_[^А-Я]', true],
+            ['plugin_Å', 'plugin_[A-Å]', true],
+            ['plugin_Z', 'plugin_[A-Å]', true],
+            ['plugin_á', 'plugin_[à-ã]', true],
+            ['plugin_ä', 'plugin_[à-ã]', false],
+            ['plugin_ñ', 'plugin_[ñ-õ]', true],
+            ['plugin_ö', 'plugin_[ñ-õ]', false],
+            ['plugin_δ', 'plugin_[γ-ζ]', true],
+            ['plugin_η', 'plugin_[γ-ζ]', false],
+            ['plugin_Й', 'plugin_[Д-К]', true],
+            ['plugin_Л', 'plugin_[Д-К]', false],
+            ['plugin_語', 'plugin_[言-龥]', true],
+            ['plugin_語', 'plugin_[一-語]', true],
+            ['plugin_龦', 'plugin_[言-龥]', false],
+            ['plugin_龦', 'plugin_[言-語]', false],
+            ['plugin_🧩', 'plugin_[🧠-🧿]', true],
+            ['plugin_🩰', 'plugin_[🧠-🧿]', false],
+            ['plugin_é', 'plugin_[^è-ê]', false],
+            ['plugin_e', 'plugin_[^è-ê]', true],
+        ];
+        foreach ($unicodeGlobCases as $index => [$value, $pattern, $expected]) {
+            $t->same($expected, SQLiteDatabase::globMatches($value, $pattern), 'unicode glob case ' . $index);
+        }
         $t->true(SQLiteDatabase::regexpMatches('_transient_feed', '^_transient_[[:alpha:]]+$', $regexp));
         $t->same(false, SQLiteDatabase::regexpMatches('siteurl', '^_transient_', $regexp));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::regexpMatches('siteurl', 'site', static fn (): int => 1));
@@ -4603,7 +4677,11 @@ return [
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobUtf8));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLiteral));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLimited));
-        $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
+        $t->same(['emoji_é', 'literal_percent_%', 'plugin_å', 'plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
+        $t->same(['plugin_å'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globLatinRange));
+        $t->same(['plugin_β'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globGreekRange));
+        $t->same(['plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globCyrillicRange));
+        $t->same(['plugin_β', 'plugin_Ж'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globUnicodeNegated));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $regexpOptions));
         $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
         $t->same([], $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 0));
