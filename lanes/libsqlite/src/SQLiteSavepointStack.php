@@ -187,6 +187,55 @@ final class SQLiteSavepointStack
         return $plan;
     }
 
+    /**
+     * @return array{savepoint:string,rollback_to_frame:int,original_frame_count:int,retained_frame_count:int,discarded_frame_count:int,truncate_to_bytes:int,original_wal_bytes:int,truncated_wal_bytes:int,needs_truncate:bool,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,transaction_active_after:bool}
+     */
+    public function walRollbackToByteTruncationPlan(string $name, SQLiteWal $wal, string $walBytes): array
+    {
+        if ($walBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint rollback requires WAL bytes');
+        }
+        if ($wal->toBytes() !== $walBytes) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint rollback bytes do not match the parsed WAL');
+        }
+
+        $rollbackPlan = $this->walRollbackToPlan($name);
+        $rollbackToFrame = $rollbackPlan['rollback_to_frame'];
+        $pageSize = $wal->header->pageSize;
+        if ($pageSize < 512) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint rollback requires a concrete WAL page size');
+        }
+
+        $originalFrameCount = $wal->frameCount();
+        if ($rollbackToFrame > $originalFrameCount) {
+            throw new \InvalidArgumentException('SQLite savepoint rollback frame is beyond the WAL frame count');
+        }
+
+        $truncateToBytes = 32 + ($rollbackToFrame * (24 + $pageSize));
+        $originalBytes = strlen($walBytes);
+
+        return [
+            'savepoint' => $name,
+            'rollback_to_frame' => $rollbackToFrame,
+            'original_frame_count' => $originalFrameCount,
+            'retained_frame_count' => $rollbackToFrame,
+            'discarded_frame_count' => $originalFrameCount - $rollbackToFrame,
+            'truncate_to_bytes' => $truncateToBytes,
+            'original_wal_bytes' => $originalBytes,
+            'truncated_wal_bytes' => min($truncateToBytes, $originalBytes),
+            'needs_truncate' => $truncateToBytes < $originalBytes,
+            'discarded_wal_frames' => $rollbackPlan['discarded_wal_frames'],
+            'transaction_active_after' => true,
+        ];
+    }
+
+    public function walRollbackToWalBytes(string $name, SQLiteWal $wal, string $walBytes): string
+    {
+        $plan = $this->walRollbackToByteTruncationPlan($name, $wal, $walBytes);
+
+        return substr($walBytes, 0, $plan['truncate_to_bytes']);
+    }
+
     public function release(string $name): void
     {
         $index = $this->findFrame($name);

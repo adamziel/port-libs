@@ -118805,3 +118805,31 @@ Serialized root:
 
 Cleanup:
 - The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T031601Z` still contains modified and added accepted lane files plus stale lane notes, so it was preserved as cleanup debt instead of removed.
+## Integration accepted - libsqlite WAL savepoint byte truncation - 2026-05-27T03:38:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T032212Z.ready`.
+
+Decision evidence:
+- Priority lane remained `libsqlite`; Dolt and non-libsqlite markers were not considered.
+- Dashboard guard was open before candidate processing: local `refs/heads/main` and cache-busted live Pages both reported exact source `076e640cf02795b5fbb5312b862058629d655241`.
+- The selected marker was a high-yield non-overlapping WAL/savepoint behavior slice. Direct apply failed only on stale `lane-status.json`; implementation, test, and smoke hunks applied cleanly after excluding stale status/manifest/notes files.
+- The slice adds `SQLiteSavepointStack::walRollbackToByteTruncationPlan()` and `walRollbackToWalBytes()` plus copied WordPress savepoint smoke coverage for concrete WAL sidecar byte truncation after `ROLLBACK TO`.
+
+Verification before root:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`: pass.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: pass.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`: pass.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 5993 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`: pass, emitted concrete truncated WAL bytes and retained/discarded frame diagnostics.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: `215 test files, 31158 assertions, 0 failures`.
+
+Commit publication:
+- Published as `pending` at audit-note write time; final commit hash recorded by the clean integrator completion report.
+- Dashboard publication should run next after this source-moving libsqlite commit.
+
+Cleanup:
+- Removed accepted ready marker, patch, and metadata files after the commit was safely published.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T032212Z` because it still contains modified lane files.
+- Preserved clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-wal-20260527T032212Z-076e640c` because the required repo-local `.tmp-root` contains root-run artifacts; no forced worktree removal or recursive deletion was used.

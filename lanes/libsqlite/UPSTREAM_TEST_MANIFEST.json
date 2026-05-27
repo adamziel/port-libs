@@ -1092,7 +1092,8 @@
         "focusedSelectGroupedAggregateQuery": "The SELECT grouped aggregate preview smoke reports copied wp_options rows executed through bounded GROUP BY/HAVING aggregate dispatch, projected summary columns, DISTINCT, final ORDER BY, and result limits without requiring ext/sqlite.",
         "focusedSelectSqlTextExecution": "The SELECT SQL preview smoke reports copied wp_options rows executed from bounded SQL text through native query-plan dispatch, including projection aliases, scalar functions, WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite.",
         "focusedJsonTableHostJoinRows": "The JSON table host-join smoke reports copied wp_options rows expanded through json_each/json_tree joins with hidden json/root constraints, residual predicates, JSONB/subtype inputs, rowid aliases, INNER/LEFT join handling, and NULL/malformed payload diagnostics without requiring ext/sqlite.",
-        "focusedSelectSqlJoinTextExecution": "The SELECT SQL JOIN preview smoke reports copied wp_options rows joined to bounded option metadata from SQLite SELECT text through native query-plan dispatch, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table-qualified predicates, aliases, ORDER BY, and LIMIT without requiring ext/sqlite."
+        "focusedSelectSqlJoinTextExecution": "The SELECT SQL JOIN preview smoke reports copied wp_options rows joined to bounded option metadata from SQLite SELECT text through native query-plan dispatch, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table-qualified predicates, aliases, ORDER BY, and LIMIT without requiring ext/sqlite.",
+        "focusedWalSavepointByteTruncation": "The savepoint import diagnostics smoke now reports copied wp_options nested import savepoints with concrete WAL sidecar byte truncation for ROLLBACK TO, including retained/discarded frame counts, truncated WAL byte size, nested savepoint frame removal, and commit-frame discard diagnostics without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",
@@ -1106,7 +1107,8 @@
         "focusedJsonTableWindowRanking": "SQLiteJsonTablePlan::windowedRows() composes accepted JSON table hidden constraints, residual filtering, ordering, LIMIT/OFFSET, JSONB/subtype inputs, and bounded SQLite window metadata for copied WordPress option JSON diagnostics.",
         "focusedSelectGroupedAggregateQuery": "SQLiteSelectQuery now composes accepted grouped aggregate summaries into the SELECT pipeline after FROM/JOIN/WHERE and before projection/result clauses, including HAVING predicates, aggregate ORDER BY/LIMIT/OFFSET, scalar projection, DISTINCT, and final ORDER BY over copied WordPress option diagnostics.",
         "focusedVfsLockByteRangePlan": "SQLiteLockByteRangePlan composes accepted open-admission decisions with SQLite pending/reserved/shared lock byte offsets, shared-slot bounds, nolock suppression, and failed-open propagation for copied WordPress database lock diagnostics.",
-        "focusedSelectSqlJoinTextExecution": "SQLiteSelectSql composes bounded SQL text JOIN clauses into accepted SQLiteSelectQuery row production, preserving aliases, table-qualified predicates, table-star projection, LEFT null-extension, CROSS joins, chained joins, ORDER BY, and LIMIT over copied WordPress option diagnostics."
+        "focusedSelectSqlJoinTextExecution": "SQLiteSelectSql composes bounded SQL text JOIN clauses into accepted SQLiteSelectQuery row production, preserving aliases, table-qualified predicates, table-star projection, LEFT null-extension, CROSS joins, chained joins, ORDER BY, and LIMIT over copied WordPress option diagnostics.",
+        "focusedWalSavepointByteTruncation": "SQLiteSavepointStack materializes accepted WAL savepoint frame rollback plans into concrete WAL byte truncation boundaries for copied WordPress option import diagnostics, reusing accepted WAL parsing/checksum and savepoint bookkeeping evidence without claiming a fresh upstream run."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1152,6 +1154,17 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence"
+        },
+        "focusedWalSavepointByteTruncation": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite SAVEPOINT ROLLBACK TO effects on WAL frame persistence represented as bounded PHP byte truncation over parsed WAL files rather than full pager/VFS execution.",
+            "nativeEvidence": "SQLiteSavepointStack focused PHP coverage plus copied WordPress savepoint import diagnostics smoke.",
+            "phpAssertions": 75,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-wal-savepoint-evidence"
         }
     },
     "wordpress": {

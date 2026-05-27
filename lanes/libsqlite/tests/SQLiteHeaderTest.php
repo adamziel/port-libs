@@ -15508,6 +15508,213 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToPlan('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToWithPlan('missing'));
     },
+    'materializes sqlite savepoint wal rollback byte truncation' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $salt1 = 0x77777777;
+        $salt2 = 0x88888888;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 44, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walBytes = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $frameOne = str_pad('wp-options-root-commit', $pageSize, "\0");
+        $frameTwo = str_pad('autoload-index-commit', $pageSize, "\0");
+        $frameThree = str_pad('plugin-settings-draft', $pageSize, "\0");
+        $frameFour = str_pad('single-option-draft', $pageSize, "\0");
+        $frameFive = str_pad('row-commit-after-savepoint', $pageSize, "\0");
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $frameOne);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $frameTwo);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 0, $frameThree);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 4, 0, $frameFour);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 4, 4, $frameFive);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+        $frameSize = 24 + $pageSize;
+
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('wp-import');
+        $stack->recordWalFrameWrite(1, 1);
+        $stack->recordWalFrameWrite(2, 2, true);
+        $stack->savepoint('plugin-settings');
+        $stack->recordWalFrameWrite(3, 3);
+        $stack->savepoint('single-option');
+        $stack->recordWalFrameWrite(4, 4);
+        $stack->recordWalFrameWrite(5, 4, true);
+
+        $pluginPlan = $stack->walRollbackToByteTruncationPlan('plugin-settings', $wal, $walBytes);
+        $t->same('plugin-settings', $pluginPlan['savepoint']);
+        $t->same(2, $pluginPlan['rollback_to_frame']);
+        $t->same(5, $pluginPlan['original_frame_count']);
+        $t->same(2, $pluginPlan['retained_frame_count']);
+        $t->same(3, $pluginPlan['discarded_frame_count']);
+        $t->same(32 + (2 * $frameSize), $pluginPlan['truncate_to_bytes']);
+        $t->same(strlen($walBytes), $pluginPlan['original_wal_bytes']);
+        $t->same(32 + (2 * $frameSize), $pluginPlan['truncated_wal_bytes']);
+        $t->same(strlen($walBytes) - (32 + (2 * $frameSize)), $pluginPlan['original_wal_bytes'] - $pluginPlan['truncated_wal_bytes']);
+        $t->same(true, $pluginPlan['needs_truncate']);
+        $t->same(true, $pluginPlan['transaction_active_after']);
+        $t->same([
+            [
+                'frame_index' => 3,
+                'page_number' => 3,
+                'commit_frame' => false,
+                'frame_name' => 'plugin-settings',
+            ],
+            [
+                'frame_index' => 4,
+                'page_number' => 4,
+                'commit_frame' => false,
+                'frame_name' => 'single-option',
+            ],
+            [
+                'frame_index' => 5,
+                'page_number' => 4,
+                'commit_frame' => true,
+                'frame_name' => 'single-option',
+            ],
+        ], $pluginPlan['discarded_wal_frames']);
+
+        $pluginWalBytes = $stack->walRollbackToWalBytes('plugin-settings', $wal, $walBytes);
+        $pluginWal = SQLiteWal::parse($pluginWalBytes, null, true);
+        $t->same(32 + (2 * $frameSize), strlen($pluginWalBytes));
+        $t->same(2, $pluginWal->frameCount());
+        $t->same($frameOne, $pluginWal->frames[0]->pageImage);
+        $t->same($frameTwo, $pluginWal->frames[1]->pageImage);
+        $t->same(false, str_contains($pluginWalBytes, 'plugin-settings-draft'));
+        $t->same(false, str_contains($pluginWalBytes, 'single-option-draft'));
+        $t->same(false, str_contains($pluginWalBytes, 'row-commit-after-savepoint'));
+
+        $singlePlan = $stack->walRollbackToByteTruncationPlan('single-option', $wal, $walBytes);
+        $t->same('single-option', $singlePlan['savepoint']);
+        $t->same(3, $singlePlan['rollback_to_frame']);
+        $t->same(5, $singlePlan['original_frame_count']);
+        $t->same(3, $singlePlan['retained_frame_count']);
+        $t->same(2, $singlePlan['discarded_frame_count']);
+        $t->same(32 + (3 * $frameSize), $singlePlan['truncate_to_bytes']);
+        $t->same(32 + (3 * $frameSize), $singlePlan['truncated_wal_bytes']);
+        $t->same(true, $singlePlan['needs_truncate']);
+        $t->same([
+            [
+                'frame_index' => 4,
+                'page_number' => 4,
+                'commit_frame' => false,
+                'frame_name' => 'single-option',
+            ],
+            [
+                'frame_index' => 5,
+                'page_number' => 4,
+                'commit_frame' => true,
+                'frame_name' => 'single-option',
+            ],
+        ], $singlePlan['discarded_wal_frames']);
+
+        $singleWalBytes = $stack->walRollbackToWalBytes('single-option', $wal, $walBytes);
+        $singleWal = SQLiteWal::parse($singleWalBytes, null, true);
+        $t->same(3, $singleWal->frameCount());
+        $t->same($frameThree, $singleWal->frames[2]->pageImage);
+        $t->same(true, str_contains($singleWalBytes, 'plugin-settings-draft'));
+        $t->same(false, str_contains($singleWalBytes, 'single-option-draft'));
+        $t->same(false, str_contains($singleWalBytes, 'row-commit-after-savepoint'));
+
+        $outerPlan = $stack->walRollbackToByteTruncationPlan('wp-import', $wal, $walBytes);
+        $t->same(0, $outerPlan['rollback_to_frame']);
+        $t->same(32, $outerPlan['truncate_to_bytes']);
+        $t->same(0, $outerPlan['retained_frame_count']);
+        $t->same(5, $outerPlan['discarded_frame_count']);
+        $outerWalBytes = $stack->walRollbackToWalBytes('wp-import', $wal, $walBytes);
+        $outerWal = SQLiteWal::parse($outerWalBytes, null, true);
+        $t->same(32, strlen($outerWalBytes));
+        $t->same(0, $outerWal->frameCount());
+        $t->same(44, $outerWal->header->checkpointSequence);
+        $t->same($salt1, $outerWal->header->salt1);
+        $t->same($salt2, $outerWal->header->salt2);
+        $t->same(true, $outerWal->checksumsValidated);
+        $t->same(false, str_contains($outerWalBytes, 'wp-options-root-commit'));
+
+        $releaseStack = new SQLiteSavepointStack();
+        $releaseStack->beginTransaction('wp-import');
+        $releaseStack->recordWalFrameWrite(1, 1);
+        $releaseStack->recordWalFrameWrite(2, 2, true);
+        $releaseStack->savepoint('plugin-settings');
+        $releaseStack->recordWalFrameWrite(3, 3);
+        $releaseStack->savepoint('single-option');
+        $releaseStack->recordWalFrameWrite(4, 4);
+        $releaseStack->recordWalFrameWrite(5, 4, true);
+        $t->same([
+            'savepoint' => 'plugin-settings',
+            'found_index' => 1,
+            'released_frame_names' => ['plugin-settings', 'single-option'],
+            'merged_page_numbers' => [3, 4],
+            'target_is_transaction' => false,
+            'result_depth' => 1,
+            'transaction_active_after' => true,
+        ], $releaseStack->releaseWithPlan('plugin-settings'));
+        $t->same([
+            [
+                'name' => 'wp-import',
+                'transaction' => true,
+                'wal_start_frame' => 0,
+                'wal_frame_indexes' => [1, 2, 3, 4, 5],
+            ],
+        ], $releaseStack->walFrameState());
+        $releasePlan = $releaseStack->walRollbackToByteTruncationPlan('wp-import', $wal, $walBytes);
+        $t->same('wp-import', $releasePlan['savepoint']);
+        $t->same(0, $releasePlan['rollback_to_frame']);
+        $t->same(5, $releasePlan['original_frame_count']);
+        $t->same(0, $releasePlan['retained_frame_count']);
+        $t->same(5, $releasePlan['discarded_frame_count']);
+        $t->same(32, $releasePlan['truncate_to_bytes']);
+        $t->same(true, $releasePlan['needs_truncate']);
+        $t->same(5, count($releasePlan['discarded_wal_frames']));
+        $t->same('wp-import', $releasePlan['discarded_wal_frames'][4]['frame_name']);
+        $t->same(4, $releasePlan['discarded_wal_frames'][4]['page_number']);
+        $t->same(true, $releasePlan['discarded_wal_frames'][4]['commit_frame']);
+        $releaseWalBytes = $releaseStack->walRollbackToWalBytes('wp-import', $wal, $walBytes);
+        $t->same(32, strlen($releaseWalBytes));
+        $t->same($outerWalBytes, $releaseWalBytes);
+
+        $lateStack = new SQLiteSavepointStack();
+        $lateStack->beginTransaction('wp-import');
+        $lateStack->recordWalFrameWrite(1, 1);
+        $lateStack->recordWalFrameWrite(2, 2, true);
+        $lateStack->recordWalFrameWrite(3, 3);
+        $lateStack->recordWalFrameWrite(4, 4);
+        $lateStack->recordWalFrameWrite(5, 4, true);
+        $lateStack->savepoint('after-all-frames');
+        $latePlan = $lateStack->walRollbackToByteTruncationPlan('after-all-frames', $wal, $walBytes);
+        $t->same(5, $latePlan['rollback_to_frame']);
+        $t->same(5, $latePlan['retained_frame_count']);
+        $t->same(0, $latePlan['discarded_frame_count']);
+        $t->same(strlen($walBytes), $latePlan['truncate_to_bytes']);
+        $t->same(false, $latePlan['needs_truncate']);
+        $t->same([], $latePlan['discarded_wal_frames']);
+        $t->same($walBytes, $lateStack->walRollbackToWalBytes('after-all-frames', $wal, $walBytes));
+
+        $stack->walRollbackToWithPlan('plugin-settings');
+        $truncatedAgainPlan = $stack->walRollbackToByteTruncationPlan('plugin-settings', $pluginWal, $pluginWalBytes);
+        $t->same(2, $truncatedAgainPlan['rollback_to_frame']);
+        $t->same(2, $truncatedAgainPlan['original_frame_count']);
+        $t->same(0, $truncatedAgainPlan['discarded_frame_count']);
+        $t->same(false, $truncatedAgainPlan['needs_truncate']);
+        $t->same($pluginWalBytes, $stack->walRollbackToWalBytes('plugin-settings', $pluginWal, $pluginWalBytes));
+
+        $ahead = new SQLiteSavepointStack();
+        $ahead->beginTransaction('wp-import');
+        $ahead->recordWalFrameWrite(1, 1);
+        $ahead->recordWalFrameWrite(2, 2);
+        $ahead->recordWalFrameWrite(3, 3);
+        $ahead->savepoint('future-row');
+        $ahead->recordWalFrameWrite(4, 4);
+        $ahead->walRollbackToWithPlan('future-row');
+        $t->throws(InvalidArgumentException::class, static fn () => $ahead->walRollbackToByteTruncationPlan('future-row', $pluginWal, $pluginWalBytes));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToByteTruncationPlan('plugin-settings', $wal, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToByteTruncationPlan('plugin-settings', $wal, substr($walBytes, 0, -1)));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToByteTruncationPlan('missing', $wal, $walBytes));
+    },
     'applies sqlite savepoint rollback page images to bounded database images' => static function (TestRunner $t): void {
         $pageSize = 512;
         $pageOneClean = str_pad('wp-options-clean-root', $pageSize, "\0");

@@ -4028,3 +4028,22 @@ residual predicate dispatch, and copied WordPress JSON option smokes.
 Follow-up should wire this bounded materialization into parser-level
 `FROM json_each(...)` / `FROM json_tree(...)` SELECT execution or a native
 virtual-table cursor.
+## WAL Savepoint Byte Truncation Scenario
+
+Copied WordPress import diagnostics can now materialize `ROLLBACK TO`
+savepoints as concrete WAL sidecar byte truncation. The smoke
+`examples/wordpress-savepoint-option-import-diagnostics.php` reports retained
+and discarded frame counts, truncated WAL byte length, nested draft-frame
+removal, and commit-frame discard decisions for copied `wp_options` imports
+without requiring ext/sqlite.
+
+Status delta 2026-05-27 clean integration: extended `SQLiteSavepointStack`
+with `walRollbackToByteTruncationPlan()` and `walRollbackToWalBytes()`.
+Focused `SQLiteHeaderTest.php` passed at 5993 assertions on current source
+`076e640c`, up from the accepted 5918 assertion SELECT SQL JOIN text baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local WAL parsing/checksum validation, WAL serialization, and savepoint
+frame bookkeeping. Follow-up should apply these accepted truncated bytes
+through bounded native VFS/file-handle writes without repeating accepted WAL
+file-write planning.
