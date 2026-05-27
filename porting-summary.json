@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 15:22:58 UTC",
-    "sourceCommit": "f61617b26c4ba5e0e2d05a6fc0b23b39849829d7",
-    "sourceCommitShort": "f61617b26c4b",
+    "generated": "2026-05-27 15:34:39 UTC",
+    "sourceCommit": "21cf5c25cafc6db7dd2282a9e0135304340fe25b",
+    "sourceCommitShort": "21cf5c25cafc",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "e9b4fd670e6c16868158a680b3820e9efe25e671",
-    "dashboardCommitShort": "e9b4fd670e6c",
+    "dashboardCommit": "cbe2fec0023c8cff4244673654b0c201b9bcb962",
+    "dashboardCommitShort": "cbe2fec0023c",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "802 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "UPDATE/DELETE ORDER BY LIMIT slice verifi...",
-            "currentWork": "Added bounded SQLite UPDATE/DELETE ORDER BY LIMIT row-selection and mutation planning for...",
-            "nextTarget": "Continue SQL executor/planner behavior beyond bounded UPDATE/DELETE LIMIT row selection,...",
+            "audit": "INSERT OR REPLACE current-conflict slice...",
+            "currentWork": "Added bounded SQLite INSERT OR REPLACE current-conflict planning for copied wp_options ro...",
+            "nextTarget": "Continue non-overlapping SQL executor/planner or storage behavior, preferably parser-leve...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
             "commit": "isolate"
         },
