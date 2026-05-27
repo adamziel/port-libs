@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-27 supervisor continuation (shell/live samples 23:49 UTC):
+  Batch52 is integrated and verified from clean worktree
+  `.tmux-team/worktrees/integrate-libsqlite-yield-batch52-20260527T234123Z`.
+  Implementation source advanced to
+  `98941a98e52d777e3c83fdd7faef1d8ae3ae5c32` (`Integrate libsqlite batch
+  52`). The accepted subset applied 11 current-next52 handoffs, excluded stale
+  lane-status/manifest prose, and resolved recursive JSON SELECT, VDBE window,
+  and freelist summary conflicts while preserving batch50 and batch51
+  behavior. Verification passed: focused batch52 plus batch51/batch50
+  regressions `14 test files / 1679 assertions / 0 failures`; targeted
+  freelist regression checks `2 test files / 9812 assertions / 0 failures`;
+  full libsqlite lane `405 test files / 46095 assertions / 0 failures / 21435
+  PASS lines`; root `618 test files / 70563 assertions / 0 failures / 24463
+  PASS lines`. This is `+842` libsqlite PASS lines over the batch51 live count
+  of `20593`, and mapped upstream coverage moves to `463 / 1589` through the
+  release-runner denominator burnup unit. The `main` tmux session was restored
+  to 11 active libsqlite isolated workers, then sampled at 10 active workers
+  during serialized integration with no long sleepers. Next decision: publish
+  dashboard/status for batch52, consume batch52 handoffs, then integrate ready
+  batch53/batch54/batch55/batch56 outputs by PASS-line movement.
+
 - 2026-05-27 supervisor continuation (shell/live samples 23:35 UTC):
   Batch51 is integrated and verified from clean worktree
   `.tmux-team/worktrees/integrate-libsqlite-yield-batch51-20260527T232403Z`.
