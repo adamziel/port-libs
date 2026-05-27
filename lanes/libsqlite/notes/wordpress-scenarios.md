@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Overflow Freelist Release Scenario
+
+Copied WordPress transient cleanup can now connect deleted table and
+`option_name` index overflow chains into the SQLite freelist. The smoke
+`examples/wordpress-overflow-freelist-release.php` reports obsolete overflow
+pages released as freelist trunk/leaf pages, secure-delete clearing for released
+leaf pages, auto-vacuum pointer-map entries rewritten to `free-page`, and the
+next allocation order without requiring ext/sqlite.
+
+Status delta 2026-05-27 clean integration: added
+`SQLiteOverflowFreelistReleasePlan` over accepted table/index delete results
+with focused assertions for source labels, released page ordering, freelist
+page images, pointer-map rewrites, post-release database inspection, and
+malformed release guards. Focused `SQLiteHeaderTest.php` passed at 7276
+assertions, +53 over the current accepted 7223 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local table/index overflow delete results, freelist free planning,
+secure-delete clearing, and auto-vacuum pointer-map mutation. Follow-up should
+apply this release path to broader SQL DELETE/rebalance flows without repeating
+accepted bulk overflow freeblocks, page moves, index-interior merge, or this
+overflow release path.
+
 ## VFS Locked Writer Scenario
 
 Copied WordPress database imports can now apply file-handle writes only after

@@ -119380,3 +119380,19 @@ Delta: adds `SQLiteJsonTablePlan` visible-column constraint pushdown for `key`, 
 Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32398 assertions, 0 failures`.
 
 Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T053433Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner.
+
+## Integration accepted - libsqlite B-tree overflow freelist release - 2026-05-27T05:58:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T054557Z.ready`.
+
+Base/guard evidence: local `refs/heads/main` and cache-busted live Pages both reported `e58ac3f8ed06006b85d4993ecb18bae4dcb1df3e` before processing. Runtime gates were open: `df -Pk /` reported `89101476` KiB available, `/proc/loadavg` one-minute load was `1.13`, and no exact no-argument root harness was running.
+
+Decision: accepted by bounded replay in a detached clean worktree from current `main`. The original patch was based on `a38364048a64638aa067b29fff10a5c89e109f46` and its manifest/status/notes/test context was stale, but the implementation, WordPress smoke, and focused test cluster applied cleanly. Metadata/status were reconciled from current `e58ac3f8` evidence.
+
+Delta: adds `SQLiteOverflowFreelistReleasePlan`, `wordpress-overflow-freelist-release.php`, focused assertions for releasing deleted table/index overflow chains into freelist pages with auto-vacuum pointer-map `free-page` rewrites, and lane status/manifest coverage movement to `phpPass` `782` and mapped coverage `437 / 1589`.
+
+Focused verification before root: syntax checks passed; `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 7276 assertions, 0 failures`; `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-overflow-freelist-release.php` emitted valid JSON with released pages `[7,8,21,22]`, all pointer-map types `free-page`, and next allocation order `[8,22,21,7]`; manifest/status JSON decoded; `git diff --check` passed.
+
+Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32441 assertions, 0 failures`.
+
+Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T054557Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/worktrees/clean-integrator-libsqlite-btree-overflow-20260527T055605Z` was also preserved because root verification left repo-local `.tmp-root` scratch files.

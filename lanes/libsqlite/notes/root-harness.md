@@ -1892,3 +1892,24 @@ Dependency closure: no new shared support component is needed. This reuses
 lane-local savepoint page-image rollback, WAL byte truncation, and the accepted
 bounded VFS file-handle writer; follow-up should wire broader pager transaction
 state or durable fsync policy without repeating accepted preview helpers.
+# B-tree overflow freelist release focused evidence - 2026-05-27
+
+Focused clean-integration verification for the B-tree overflow freelist release
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteOverflowFreelistReleasePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-overflow-freelist-release.php
+TMPDIR=$PWD/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+TMPDIR=$PWD/.tmp-root php lanes/libsqlite/examples/wordpress-overflow-freelist-release.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
+7276 assertions and 0 failures. The WordPress smoke reported copied
+`wp_options` table and option_name index overflow chains released into freelist
+pages `[7, 8, 21, 22]`, pointer-map entries rewritten to `free-page`, and next
+freelist allocation order `[8, 22, 21, 7]`. Root verification is required by
+clean integration before acceptance.

@@ -59,6 +59,7 @@ use PortLibs\LibSqlite\SQLiteLockCoordinator;
 use PortLibs\LibSqlite\SQLiteLockByteRangePlan;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
+use PortLibs\LibSqlite\SQLiteOverflowFreelistReleasePlan;
 use PortLibs\LibSqlite\SQLitePageCache;
 use PortLibs\LibSqlite\SQLitePagerCheckpointTransactionPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -1829,6 +1830,154 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease($page, [], $overflowPageNumbers));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease($page, ['bad'], $overflowPageNumbers));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease($page, [['missing', 99]], $overflowPageNumbers, overflowReader: $overflowReader));
+    },
+    'releases bulk table and index obsolete overflow pages into freelist with pointer-map updates' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 40);
+        $firstPage = substr_replace($firstPage, pack('N', 4), 52, 4);
+
+        $tablePayload = SQLiteRecord::encode([null, '_transient_release_cache', str_repeat('table-release:', 75), 'no']);
+        $tableEncoded = SQLiteTableLeafCell::encodeWithOverflowPages(2, $tablePayload, 7);
+        $tableOverflowPages = array_combine(range(7, 6 + count($tableEncoded['overflowPages'])), $tableEncoded['overflowPages']);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            $tableEncoded['cell'],
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ]);
+        $tableOverflowNumbers = static function (int $firstOverflowPage, int $byteCount) use ($tableOverflowPages): array {
+            $pageNumbers = [];
+            $pageNumber = $firstOverflowPage;
+            $remaining = $byteCount;
+            while ($pageNumber !== 0 && $remaining > 0) {
+                $page = $tableOverflowPages[$pageNumber] ?? null;
+                if ($page === null) {
+                    throw new InvalidArgumentException('Fixture overflow page is missing');
+                }
+                $pageNumbers[] = $pageNumber;
+                $pageNumber = unpack('N', substr($page, 0, 4))[1];
+                $remaining -= min($remaining, 508);
+            }
+
+            return $pageNumbers;
+        };
+        $tableDelete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($tablePage, 2, $tableOverflowNumbers, secureDelete: true);
+        $tableDelete['source'] = 'wp_options-table';
+
+        $indexKey = str_repeat('_transient_release_cache_', 30);
+        $indexEncoded = SQLiteIndexCell::encodeWithOverflowPages(SQLiteRecord::encode([$indexKey, 2]), 21);
+        $indexOverflowPages = array_combine(range(21, 20 + count($indexEncoded['overflowPages'])), $indexEncoded['overflowPages']);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 3])),
+            $indexEncoded['cell'],
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+        ]);
+        $indexOverflowReader = static function (int $firstOverflowPage, int $byteCount) use ($indexOverflowPages): string {
+            $payload = '';
+            $pageNumber = $firstOverflowPage;
+            while ($pageNumber !== 0 && strlen($payload) < $byteCount) {
+                $page = $indexOverflowPages[$pageNumber] ?? null;
+                if ($page === null) {
+                    throw new InvalidArgumentException('Fixture overflow page is missing');
+                }
+                $pageNumber = unpack('N', substr($page, 0, 4))[1];
+                $payload .= substr($page, 4);
+            }
+
+            return substr($payload, 0, $byteCount);
+        };
+        $indexOverflowNumbers = static function (int $firstOverflowPage, int $byteCount) use ($indexOverflowPages): array {
+            $pageNumbers = [];
+            $pageNumber = $firstOverflowPage;
+            $remaining = $byteCount;
+            while ($pageNumber !== 0 && $remaining > 0) {
+                $page = $indexOverflowPages[$pageNumber] ?? null;
+                if ($page === null) {
+                    throw new InvalidArgumentException('Fixture overflow page is missing');
+                }
+                $pageNumbers[] = $pageNumber;
+                $pageNumber = unpack('N', substr($page, 0, 4))[1];
+                $remaining -= min($remaining, 508);
+            }
+
+            return $pageNumbers;
+        };
+        $indexDelete = SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease(
+            $indexPage,
+            [$indexKey, 2],
+            $indexOverflowNumbers,
+            secureDelete: true,
+            overflowReader: $indexOverflowReader,
+        );
+        $indexDelete['source'] = 'wp_options-option-name-index';
+
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= 40; $pageNumber++) {
+            $pages[$pageNumber] = $emptyPage;
+        }
+        $pages[1] = $firstPage;
+        $pages[3] = $tablePage;
+        $pages[4] = $indexPage;
+        foreach ($tableOverflowPages + $indexOverflowPages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $database = SQLiteDatabase::fromBytes(implode('', $pages));
+
+        $release = SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, [$tableDelete, $indexDelete], true);
+        foreach ($release->freePlan->pageImages() as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $summary = $release->toArray();
+
+        $expectedTablePages = range(7, 6 + count($tableEncoded['overflowPages']));
+        $expectedIndexPages = range(21, 20 + count($indexEncoded['overflowPages']));
+        $expectedReleasedPages = array_merge($expectedTablePages, $expectedIndexPages);
+
+        $t->same($expectedTablePages, $tableDelete['obsolete_overflow_page_numbers']);
+        $t->same($expectedIndexPages, $indexDelete['obsolete_overflow_page_numbers']);
+        $t->same($expectedReleasedPages, $release->releasedOverflowPages);
+        $t->same($expectedReleasedPages, $release->freePlan->freedPageNumbers);
+        $t->same('wp_options-table', $release->sources[0]['source']);
+        $t->same('wp_options-option-name-index', $release->sources[1]['source']);
+        $t->same($expectedTablePages, $release->sources[0]['pages']);
+        $t->same($expectedIndexPages, $release->sources[1]['pages']);
+        $t->same(count($expectedTablePages), $release->sources[0]['count']);
+        $t->same(count($expectedIndexPages), $release->sources[1]['count']);
+        $t->same($expectedReleasedPages, $summary['released_overflow_pages']);
+        $t->same(count($expectedReleasedPages), $summary['released_overflow_page_count']);
+        $t->same($expectedReleasedPages, $summary['free_plan']['freed_page_numbers']);
+        $t->same([$expectedReleasedPages[0]], $release->freePlan->newTrunkPageNumbers);
+        $t->same(array_slice($expectedReleasedPages, 1), $release->freePlan->leafPageNumbers);
+        $t->same($expectedReleasedPages[0], $release->freePlan->firstFreelistTrunkPage);
+        $t->same(count($expectedReleasedPages), $release->freePlan->freelistPageCount);
+        $updatedFreelistPageNumbers = array_keys($release->freePlan->updatedFreelistPages);
+        sort($updatedFreelistPageNumbers);
+        $t->same([$expectedReleasedPages[0]], $updatedFreelistPageNumbers);
+        $t->same([2], array_keys($release->freePlan->updatedPointerMapPages));
+        $t->same(array_slice($expectedReleasedPages, 1), array_keys($release->freePlan->clearedPageImages));
+        $t->same(array_slice($expectedReleasedPages, 1), $release->freePlan->clearedPageNumbers);
+        foreach (array_slice($expectedReleasedPages, 1) as $pageNumber) {
+            $t->same($emptyPage, $release->freePlan->clearedPageImages[$pageNumber]);
+        }
+        foreach ($expectedReleasedPages as $pageNumber) {
+            $t->same('free-page', $postDatabase->pointerMapEntryForPage($pageNumber)->typeName());
+            $t->same(0, $postDatabase->pointerMapEntryForPage($pageNumber)->parentPageNumber);
+        }
+        $t->same($expectedReleasedPages, $postDatabase->freelistPageNumbers());
+        $t->same([8, 22, 21, 7], $postDatabase->freelistAllocationOrder());
+        $t->same($expectedReleasedPages[0], $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(count($expectedReleasedPages), $postDatabase->header->freelistPageCount);
+        $t->same($tableDelete['page'], SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($tablePage, 2, $tableOverflowNumbers, secureDelete: true)['page']);
+        $t->same($indexDelete['page'], SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease($indexPage, [$indexKey, 2], $indexOverflowNumbers, secureDelete: true, overflowReader: $indexOverflowReader)['page']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, [['obsolete_overflow_page_numbers' => []]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, [
+            ['obsolete_overflow_page_numbers' => [$expectedReleasedPages[0]]],
+            ['obsolete_overflow_page_numbers' => [$expectedReleasedPages[0]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, [['obsolete_overflow_page_numbers' => ['bad']]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowFreelistReleasePlan::fromDeleteResults($database, [['source' => '', 'obsolete_overflow_page_numbers' => [$expectedReleasedPages[0]]]]));
     },
     'defragments sqlite table leaf pages after deletes while preserving row order' => static function (TestRunner $t): void {
         $page = SQLiteTableLeafPage::assemble([
