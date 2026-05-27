@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 04:39:56 UTC",
-    "sourceCommit": "f34a1a06d5fb5001acd56b08e461e5ce602a114e",
-    "sourceCommitShort": "f34a1a06d5fb",
+    "generated": "2026-05-27 04:46:21 UTC",
+    "sourceCommit": "2afe089e2be73df40d840bb04ddf3c63e4155e76",
+    "sourceCommitShort": "2afe089e2be7",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "dd0a81ffbffb725225bc26625222d545ddaced3a",
-    "dashboardCommitShort": "dd0a81ffbffb",
+    "dashboardCommit": "7d334c7538ba6f15485aec7cc6b611945a9737fb",
+    "dashboardCommitShort": "7d334c7538ba",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "428",
-            "coverage": "428 / 1589",
-            "php": "772 pass / 0 fail",
+            "mapped": "429",
+            "coverage": "429 / 1589",
+            "php": "773 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed WAL pager checkpoint tra...",
-            "currentWork": "Latest WAL slice composes checkpoint transaction admission before applying checkpoint byt...",
-            "nextTarget": "Next WAL gap: connect checkpoint/savepoint transaction state to bounded VFS writer applic...",
+            "audit": "bounded replayed VFS lock-state applicati...",
+            "currentWork": "Latest dependency/open slice applies bounded SQLite VFS lock state for shared/reserved/pe...",
+            "nextTarget": "Next dependency/open gap: connect VFS lock-state decisions to durable fsync and process-b...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "9b6b4b6"
+            "commit": "f34a1a0"
         },
         {
             "library": "LightningCSS",
