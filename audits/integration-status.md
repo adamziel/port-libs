@@ -118919,3 +118919,33 @@ Expected committed libsqlite movement:
 Cleanup debt:
 - Accepted marker ready/patch/metadata files were removed after `refs/heads/main` was advanced.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T034454Z` still contains modified libsqlite files from the submitted patch and is preserved for later non-force cleanup.
+
+## Integration pending - libsqlite VFS hot rollback-journal apply - 2026-05-27T04:03:41Z
+
+Marker under verification: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T035152Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` and cache-busted live Pages both reported source `9fa6b520717d2f9c744a8e73a65744c135bd8d0a` before marker application, so the source-moving guard was open.
+
+Candidate evidence:
+- Selected a dependency/open behavior marker because it applies accepted rollback-journal recovery through native VFS file handles and avoids duplicate grouped SELECT, WAL byte truncation, UTF-16 guard, VFS file-writer, SELECT JOIN/text, JSON host-join, and table-interior merge slices.
+- Direct patch application against current `main` failed only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters; implementation, tests, examples, and notes applied cleanly after excluding those stale counters.
+- Reconciled status from current source: `phpPass` `766 -> 767`, mapped focused coverage `422 -> 423`, and `latestCommit` begins with exact accepted pre-slice source `9fa6b520717d2f9c744a8e73a65744c135bd8d0a`.
+
+Focused verification already passed in the detached candidate worktree with repo-local `TMPDIR`:
+- `php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- Selected focused test `applies sqlite vfs hot rollback journal recovery to local handles` passed with `65` assertions and `0` failures.
+- `php lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php` passed and reported `status=applied`, `bytesWritten=1024`, `filesDeleted=1`, durable/database sync and directory sync, clean page restored, dirty page removed.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Full focused lane file `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 6257 assertions, 0 failures`.
+
+Root verification is pending under the clean-integrator lock from this exact candidate snapshot.
+
+Root verification completed: `php tools/run-tests.php` passed with `215 test files, 31422 assertions, 0 failures` using repo-local `TMPDIR` under the clean-integrator lock. Final acceptance and marker cleanup are pending atomic ref publication.
+
+Final decision: accepted as `1773db063a86234941e00e22cbdf723c035cc89d` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T035152Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Dashboard publication should run next for this accepted source.

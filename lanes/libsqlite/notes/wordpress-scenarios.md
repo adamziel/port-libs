@@ -4117,3 +4117,23 @@ lane-local WAL parsing/checksum validation, WAL serialization, and savepoint
 frame bookkeeping. Follow-up should apply these accepted truncated bytes
 through bounded native VFS/file-handle writes without repeating accepted WAL
 file-write planning.
+
+## VFS Hot Rollback-Journal Apply Scenario
+
+Copied WordPress repair tooling can now apply hot rollback-journal recovery to
+real bounded PHP file handles without ext/sqlite. The smoke
+`examples/wordpress-vfs-rollback-journal-apply.php` reports restored
+`wp_options` database bytes, pre-transaction database truncation, durable
+database sync, rollback-journal sidecar deletion, directory persistence sync,
+and clean/dirty option-page diagnostics.
+
+Status delta 2026-05-27 isolated dependency-suite slice: extended
+`SQLiteVfsFileWriter` with `applyHotRollbackJournal()` and `delete`
+operations. Focused `SQLiteHeaderTest.php` selected coverage passed with 65
+assertions, moving lane `phpPass` from 765 to 766 and mapped coverage from 427
+to 428 on current source `e331c8db`.
+
+Dependency closure: no new shared support component is needed. This reuses the
+accepted rollback-journal recovery planner and VFS file-handle writer; the
+next dependency/open target should be broader pager transaction or durable
+lock/fsync coordination rather than another preview-only sidecar diagnostic.

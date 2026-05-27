@@ -1812,3 +1812,31 @@ Dependency closure: no new shared support component is needed for this bounded
 slice. It reuses lane-local WAL parsing, checkpoint mode results, durable
 sidecar byte materialization, and copied WordPress WAL diagnostics; a future
 native VFS writer can consume the operation list to execute file writes.
+
+## Dependency/Open Hot Rollback-Journal VFS Apply Slice
+
+Focused lane verification for the dependency/open hot rollback-journal VFS
+apply slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs hot rollback journal recovery to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` VFS
+rollback-journal apply test passed with 65 assertions and 0 failures. The
+WordPress smoke reported copied `wp_options` hot rollback-journal recovery
+applied through native file handles with 1024 recovered database bytes, one
+journal sidecar deletion, one durable database sync, one directory sync, clean
+option page restoration, and dirty page removal. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because
+this was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local rollback-journal parser/recovery planner and accepted VFS
+file-handle writer; follow-up should wire broader pager transaction state or
+durable lock/fsync coordination to this apply path.

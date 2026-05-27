@@ -544,3 +544,40 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new shared support component is needed. This reuses
 lane-local table interior page/cell assembly, database page images, freelist
 mutation, pointer-map planning, and secure-delete behavior.
+
+## 2026-05-27 Dependency/Open Hot Rollback-Journal VFS Apply
+
+This isolated dependency-suite slice does not repeat accepted WAL checkpoint
+file-writer application, VFS sidecar/capability/lock byte-range diagnostics,
+file-header/page-cache loading, or hot rollback-journal preview planning. It
+extends the bounded native VFS application layer so `SQLiteVfsFileWriter` can
+apply accepted hot rollback-journal recovery results to local PHP file handles:
+write recovered database bytes, truncate the database to the pre-transaction
+page count, sync the database, delete the `-journal` sidecar, and sync the
+containing directory.
+
+Focused assertion delta: the selected `SQLiteHeaderTest.php` test adds 65
+passing assertions for recovered database writes, final truncation, journal
+deletion, operation ordering, sync/directory-sync accounting, preserved
+reserved-lock and super-journal blockers, idempotent delete handling,
+read-only/immutable writer guards, malformed database-image guards, and the
+copied WordPress rollback VFS smoke. The lane status moves `phpPass` from 765
+to 766 and mapped coverage from 427 to 428.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs hot rollback journal recovery to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-vfs-rollback-journal-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local rollback-journal parsing/recovery planning and the accepted bounded
+VFS file-handle writer, while adding native rollback-journal sidecar deletion
+application. Follow-up should connect pager transaction state to this writer
+or broaden durable fsync/locking integration without repeating this rollback
+apply path.

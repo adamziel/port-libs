@@ -17,7 +17,7 @@ final class SQLiteVfsFileWriter
     }
 
     /**
-     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
      */
     public function applyWalCheckpoint(SQLiteWal $wal, string $databaseBytes, string $databasePath, string $mode = 'passive', ?int $readerEndFrame = null): array
     {
@@ -32,10 +32,90 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>}
+     */
+    public function applyHotRollbackJournal(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        string $databasePath,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite rollback journal VFS recovery requires a database path');
+        }
+
+        $result = $journal->hotJournalRecoveryResult($databaseBytes, $journalBytes, $databaseReservedLock, $requiresSuperJournal, $superJournalExists);
+        if (!$result['recovered']) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => ['sqlite-rollback-journal-recovery', 'vfs-file-handle-write-application'],
+                'recovery' => $result,
+            ];
+        }
+
+        $journalPath = $databasePath . '-journal';
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($result['database_bytes']),
+                'durable' => false,
+                'reason' => 'restore_database_pages_from_hot_journal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($result['database_bytes']),
+                'durable' => false,
+                'reason' => 'truncate_database_to_pretransaction_size',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_rollback_recovered_database',
+            ],
+            [
+                'op' => 'delete',
+                'path' => $journalPath,
+                'durable' => false,
+                'reason' => 'delete_hot_rollback_journal',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_rollback_journal_deletion',
+            ],
+        ];
+
+        $applied = $this->applyOperations(
+            $operations,
+            [$databasePath => $result['database_bytes']],
+            ['sqlite-rollback-journal-recovery', 'hot-journal-delete', 'vfs-file-write-coordination']
+        );
+        $applied['recovery'] = $result;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array<string, mixed>> $operations
      * @param array<string, string> $payloads
      * @param list<string> $dependencies
-     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>}
      */
     public function applyOperations(array $operations, array $payloads = [], array $dependencies = []): array
     {
@@ -46,6 +126,7 @@ final class SQLiteVfsFileWriter
         $applied = [];
         $bytesWritten = 0;
         $bytesTruncated = 0;
+        $filesDeleted = 0;
         $durableSyncs = 0;
         $directorySyncs = 0;
 
@@ -75,6 +156,12 @@ final class SQLiteVfsFileWriter
                 $this->truncate($localPath, $size);
                 $bytesTruncated += $size;
                 $applied[] = $this->applied($index, $operation, $localPath, $size);
+            } elseif ($op === 'delete') {
+                if (is_file($localPath) && !unlink($localPath)) {
+                    throw new \RuntimeException("SQLite VFS could not delete file: {$path}");
+                }
+                $filesDeleted++;
+                $applied[] = $this->applied($index, $operation, $localPath, 0);
             } elseif ($op === 'sync') {
                 if (!is_file($localPath)) {
                     throw new \RuntimeException("SQLite VFS sync target does not exist: {$path}");
@@ -104,6 +191,7 @@ final class SQLiteVfsFileWriter
             'applied' => count($applied),
             'bytes_written' => $bytesWritten,
             'bytes_truncated' => $bytesTruncated,
+            'files_deleted' => $filesDeleted,
             'durable_syncs' => $durableSyncs,
             'directory_syncs' => $directorySyncs,
             'operations' => $applied,

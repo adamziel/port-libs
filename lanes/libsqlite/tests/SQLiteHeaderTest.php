@@ -14275,6 +14275,115 @@ SQL;
         $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync', 'path' => '/tmp/does-not-exist.sqlite']]));
         $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync_directory', 'path' => '/tmp/does-not-exist-directory']]));
     },
+    'applies sqlite vfs hot rollback journal recovery to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x21222324;
+        $pageOneClean = $makeFirstPage($pageSize, 2);
+        $pageTwoClean = str_repeat('C', $pageSize);
+        $pageThreeIgnored = str_repeat('I', $pageSize);
+        $dirtyDatabase = $makeFirstPage($pageSize, 3)
+            . str_repeat('D', $pageSize)
+            . str_repeat('X', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 3, $nonce, 2, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 1) . $pageOneClean . pack('N', SQLiteRollbackJournal::pageChecksum($pageOneClean, $nonce))
+            . pack('N', 2) . $pageTwoClean . pack('N', SQLiteRollbackJournal::pageChecksum($pageTwoClean, $nonce))
+            . pack('N', 3) . $pageThreeIgnored . pack('N', SQLiteRollbackJournal::pageChecksum($pageThreeIgnored, $nonce));
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-rollback-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabasePath = $root . '/srv/www/wp-content/database/.ht.sqlite';
+        $localJournalPath = $localDatabasePath . '-journal';
+        if (!mkdir(dirname($localDatabasePath), 0777, true) && !is_dir(dirname($localDatabasePath))) {
+            throw new RuntimeException('Unable to create rollback test directory');
+        }
+        file_put_contents($localDatabasePath, $dirtyDatabase);
+        file_put_contents($localJournalPath, $journalBytes);
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath);
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same(5, $applied['applied']);
+        $t->same(1024, $applied['bytes_written']);
+        $t->same(1024, $applied['bytes_truncated']);
+        $t->same(1, $applied['files_deleted']);
+        $t->same(1, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(['sqlite-rollback-journal-recovery', 'hot-journal-delete', 'vfs-file-write-coordination', 'vfs-file-handle-write-application'], $applied['dependencies']);
+        $t->same(true, $applied['recovery']['recovered']);
+        $t->same('hot_journal_recovered', $applied['recovery']['reason']);
+        $t->same('delete_journal_after_recovery', $applied['recovery']['journal_action']);
+        $t->same(1024, $applied['recovery']['final_database_bytes']);
+        $t->same('hot_journal_recovery_required', $applied['recovery']['hot_journal']['reason']);
+        $t->same(2, $applied['recovery']['recovery_plan']['initial_database_page_count']);
+        $t->same(1024, $applied['recovery']['recovery_plan']['final_database_bytes']);
+        $t->same([1, 2, 3], array_column($applied['recovery']['recovery_plan']['pages'], 'page_number'));
+        $t->same([true, true, false], array_column($applied['recovery']['recovery_plan']['pages'], 'applied'));
+        $t->same(['restored_from_journal', 'restored_from_journal', 'beyond_initial_database_size'], array_column($applied['recovery']['recovery_plan']['pages'], 'reason'));
+
+        $t->same('write', $applied['operations'][0]['op']);
+        $t->same($databasePath, $applied['operations'][0]['path']);
+        $t->same($localDatabasePath, $applied['operations'][0]['local_path']);
+        $t->same(1024, $applied['operations'][0]['bytes']);
+        $t->same(false, $applied['operations'][0]['durable']);
+        $t->same('restore_database_pages_from_hot_journal', $applied['operations'][0]['reason']);
+        $t->same('truncate', $applied['operations'][1]['op']);
+        $t->same($databasePath, $applied['operations'][1]['path']);
+        $t->same(1024, $applied['operations'][1]['bytes']);
+        $t->same('truncate_database_to_pretransaction_size', $applied['operations'][1]['reason']);
+        $t->same('sync', $applied['operations'][2]['op']);
+        $t->same(true, $applied['operations'][2]['durable']);
+        $t->same('sync_rollback_recovered_database', $applied['operations'][2]['reason']);
+        $t->same('delete', $applied['operations'][3]['op']);
+        $t->same($databasePath . '-journal', $applied['operations'][3]['path']);
+        $t->same($localJournalPath, $applied['operations'][3]['local_path']);
+        $t->same('delete_hot_rollback_journal', $applied['operations'][3]['reason']);
+        $t->same('sync_directory', $applied['operations'][4]['op']);
+        $t->same(dirname($localDatabasePath), $applied['operations'][4]['local_path']);
+        $t->same('persist_rollback_journal_deletion', $applied['operations'][4]['reason']);
+        $t->same(1024, filesize($localDatabasePath));
+        $t->same(false, is_file($localJournalPath));
+        $t->same($pageOneClean, substr((string) file_get_contents($localDatabasePath), 0, $pageSize));
+        $t->same($pageTwoClean, substr((string) file_get_contents($localDatabasePath), $pageSize, $pageSize));
+        $t->same(false, str_contains((string) file_get_contents($localDatabasePath), 'X'));
+        $t->same(false, str_contains((string) file_get_contents($localDatabasePath), 'I'));
+
+        file_put_contents($localJournalPath, $journalBytes);
+        $locked = $writer->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath, true);
+        $t->same('skipped', $locked['status']);
+        $t->same(0, $locked['applied']);
+        $t->same(0, $locked['bytes_written']);
+        $t->same(0, $locked['files_deleted']);
+        $t->same(false, $locked['recovery']['recovered']);
+        $t->same('database_has_reserved_lock', $locked['recovery']['reason']);
+        $t->same(true, is_file($localJournalPath));
+
+        $superJournalBlocked = $writer->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath, false, true, false);
+        $t->same('skipped', $superJournalBlocked['status']);
+        $t->same('missing_super_journal', $superJournalBlocked['recovery']['reason']);
+        $t->same(true, $superJournalBlocked['recovery']['hot_journal']['requires_super_journal']);
+        $t->same(false, $superJournalBlocked['recovery']['hot_journal']['super_journal_exists']);
+
+        $manualDelete = $writer->applyOperations([
+            ['op' => 'delete', 'path' => '/tmp/already-missing-journal', 'reason' => 'idempotent_delete'],
+        ]);
+        $t->same('applied', $manualDelete['status']);
+        $t->same(1, $manualDelete['applied']);
+        $t->same(1, $manualDelete['files_deleted']);
+        $t->same('delete', $manualDelete['operations'][0]['op']);
+        $t->same('idempotent_delete', $manualDelete['operations'][0]['reason']);
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $immutable = new SQLiteVfsFileWriter($root, false, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath));
+        $t->throws(LogicException::class, static fn () => $immutable->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyHotRollbackJournal($journal, substr($dirtyDatabase, 1), $journalBytes, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, ''));
+    },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x33333333;
