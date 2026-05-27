@@ -8513,6 +8513,110 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract($json, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract('{"plugin":,}', '$.plugin'));
     },
+    'executes sqlite json negative array paths through select sql expressions' => static function (TestRunner $t): void {
+        $jsonbSettings = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'rules' => [
+                ['name' => 'seo', 'priority' => 2, 'enabled' => true],
+                ['name' => 'cache', 'priority' => 7, 'enabled' => true],
+            ],
+        ]));
+        $options = [
+            [
+                'option_id' => 1,
+                'option_name' => 'site_plugin_settings',
+                'option_value' => '{"rules":[{"name":"seo","priority":2,"enabled":true},{"name":"cache","priority":7,"enabled":true}]}',
+                'autoload' => 'yes',
+            ],
+            [
+                'option_id' => 2,
+                'option_name' => 'forms_plugin_settings',
+                'option_value' => '{"rules":[{"name":"forms","priority":4,"enabled":false},{"name":"media","priority":1,"enabled":true}]}',
+                'autoload' => 'yes',
+            ],
+            [
+                'option_id' => 3,
+                'option_name' => 'legacy_plugin_settings',
+                'option_value' => '{"rules":[{"name":"legacy","priority":3,"enabled":false}]}',
+                'autoload' => 'no',
+            ],
+            [
+                'option_id' => 4,
+                'option_name' => 'jsonb_plugin_settings',
+                'option_value' => $jsonbSettings,
+                'autoload' => 'yes',
+            ],
+            [
+                'option_id' => 5,
+                'option_name' => 'empty_plugin_settings',
+                'option_value' => '{"rules":[]}',
+                'autoload' => 'no',
+            ],
+        ];
+
+        $lastEnabledRows = SQLiteSelectSql::execute(
+            "SELECT option_name, json_extract(option_value, '$.rules[#-1].name') AS last_rule, json_extract(option_value, '$.rules[#-1].priority') AS last_priority, json_extract(option_value, '$.rules[#-2].name') AS previous_rule FROM wp_options WHERE json_extract(option_value, '$.rules[#-1].enabled') = 1 ORDER BY json_extract(option_value, '$.rules[#-1].priority') DESC, option_name ASC",
+            ['wp_options' => $options],
+        );
+        $t->same(['jsonb_plugin_settings', 'site_plugin_settings', 'forms_plugin_settings'], array_column($lastEnabledRows, 'option_name'));
+        $t->same(['cache', 'cache', 'media'], array_column($lastEnabledRows, 'last_rule'));
+        $t->same([7, 7, 1], array_column($lastEnabledRows, 'last_priority'));
+        $t->same(['seo', 'seo', 'forms'], array_column($lastEnabledRows, 'previous_rule'));
+        $t->same(['option_name', 'last_rule', 'last_priority', 'previous_rule'], array_keys($lastEnabledRows[0]));
+
+        $negativeOffsetRows = SQLiteSelectSql::execute(
+            "SELECT option_id, json_extract(option_value, '$.rules[#-0].name') AS append_slot, json_extract(option_value, '$.rules[#-3].name') AS too_far, json_extract(option_value, '$.rules[#-1].missing') AS missing_member FROM wp_options ORDER BY option_id",
+            ['wp_options' => $options],
+        );
+        $t->same([1, 2, 3, 4, 5], array_column($negativeOffsetRows, 'option_id'));
+        $t->same([null, null, null, null, null], array_column($negativeOffsetRows, 'append_slot'));
+        $t->same([null, null, null, null, null], array_column($negativeOffsetRows, 'too_far'));
+        $t->same([null, null, null, null, null], array_column($negativeOffsetRows, 'missing_member'));
+
+        $summaryRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name, json_extract(option_value, '$.rules[#-1].name', '$.rules[#-1].enabled', '$.rules[#-2].priority') AS summary FROM wp_options WHERE option_id IN (1, 2) ORDER BY option_id",
+            ['wp_options' => $options],
+        );
+        $t->same([1, 2], array_column($summaryRows, 'option_id'));
+        $t->same(['site_plugin_settings', 'forms_plugin_settings'], array_column($summaryRows, 'option_name'));
+        $t->same(['["cache",true,2]', '["media",true,4]'], array_column($summaryRows, 'summary'));
+
+        $joinedRows = SQLiteSelectSql::execute(
+            "SELECT o.option_name AS option_name, m.expected_last AS expected_last, m.rank AS rank, json_extract(o.option_value, '$.rules[#-1].name') AS last_rule FROM wp_options AS o JOIN expected AS m ON json_extract(o.option_value, '$.rules[#-1].name') = m.expected_last ORDER BY rank ASC, option_name ASC",
+            [
+                'wp_options' => $options,
+                'expected' => [
+                    ['expected_last' => 'cache', 'rank' => 1],
+                    ['expected_last' => 'media', 'rank' => 2],
+                ],
+            ],
+        );
+        $t->same(['jsonb_plugin_settings', 'site_plugin_settings', 'forms_plugin_settings'], array_column($joinedRows, 'option_name'));
+        $t->same(['cache', 'cache', 'media'], array_column($joinedRows, 'expected_last'));
+        $t->same([1, 1, 2], array_column($joinedRows, 'rank'));
+        $t->same(['cache', 'cache', 'media'], array_column($joinedRows, 'last_rule'));
+
+        $jsonbRows = SQLiteSelectSql::execute(
+            "SELECT option_name, jsonb_extract(option_value, '$.rules[#-1]') AS last_rule_blob, jsonb_extract(option_value, '$.rules[#-1].enabled') AS last_enabled FROM wp_options WHERE option_name = 'jsonb_plugin_settings'",
+            ['wp_options' => $options],
+        );
+        $t->same(['jsonb_plugin_settings'], array_column($jsonbRows, 'option_name'));
+        $t->true($jsonbRows[0]['last_rule_blob'] instanceof SQLiteBlobValue);
+        $t->same(['name' => 'cache', 'priority' => 7, 'enabled' => true], SQLiteJsonB::decode($jsonbRows[0]['last_rule_blob']->bytes));
+        $t->same(1, $jsonbRows[0]['last_enabled']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+            "SELECT json_extract(option_value, '$.rules[#-]') AS bad_path FROM wp_options",
+            ['wp_options' => $options],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+            "SELECT json_extract(option_value, option_name) AS bad_path FROM wp_options",
+            ['wp_options' => $options],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+            "SELECT json_extract(option_id, '$.rules[#-1]') AS bad_json FROM wp_options",
+            ['wp_options' => $options],
+        ));
+    },
     'dispatches sqlite json_extract and jsonb_extract sql function names' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';
         $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([

@@ -4763,3 +4763,27 @@ option import diagnostics. Follow-up should continue pager/VFS transaction
 application or WAL durability beyond accepted rollback-journal commit,
 savepoint VFS apply, WAL byte truncation, and this full-transaction preview
 surface.
+
+## SELECT SQL JSON Negative Path Scenario
+
+Copied WordPress `wp_options` diagnostics now execute SQLite SELECT text with
+`json_extract()` and `jsonb_extract()` reverse array paths such as
+`$.rules[#-1]`. The smoke
+`examples/wordpress-select-sql-json-negative-path.php` reports the last and
+previous plugin rules from text JSON and JSONB option values, filtering and
+ordering through parser-level SELECT SQL without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated JSON-path execution slice:
+`SQLiteSelectExpression` dispatches `json_extract` and `jsonb_extract` through
+the lane-local JSON implementation after evaluating SELECT expression
+arguments. Focused `SQLiteHeaderTest.php` adds coverage for projection, WHERE,
+JOIN predicates, hidden ORDER BY expressions, multi-path summaries, JSONB
+object results, missing reverse indexes, malformed paths, dynamic path guards,
+and non-text JSON argument guards.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser/executor, JSON path parser, JSON text/JSON5/JSONB
+extractors, and copied WordPress option fixtures. Follow-up should continue
+non-overlapping JSON planner/JSONB pushdown or broader SQL executor behavior
+beyond accepted JSON table sources, hidden/visible constraints, and this scalar
+JSON-path expression dispatch.

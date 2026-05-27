@@ -45,6 +45,28 @@ final class SQLiteSelectExpression
             $evaluated[] = $argument;
         }
 
+        $normalized = strtolower($function);
+        if ($normalized === 'json_extract' || $normalized === 'jsonb_extract') {
+            if ($evaluated === []) {
+                throw new \InvalidArgumentException('SQLite SELECT expression json_extract() requires a JSON argument');
+            }
+
+            $value = array_shift($evaluated);
+            if ($value !== null && !is_string($value) && !$value instanceof SQLiteBlobValue) {
+                throw new \InvalidArgumentException('SQLite SELECT expression json_extract() JSON argument must be text, JSONB, or NULL');
+            }
+
+            $paths = [];
+            foreach ($evaluated as $path) {
+                if (!is_string($path)) {
+                    throw new \InvalidArgumentException('SQLite SELECT expression json_extract() paths must be text');
+                }
+                $paths[] = $path;
+            }
+
+            return SQLiteJsonExtract::extractSqlFunction($normalized, $value, ...$paths);
+        }
+
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
     }
 
