@@ -33,7 +33,10 @@ final class SQLiteJsonTree
             throw new \InvalidArgumentException('SQLite json_tree() JSON argument must be text, BLOB, JSON subtype, or NULL');
         }
 
-        $path = $arguments[1] ?? '$';
+        $path = array_key_exists(1, $arguments) ? $arguments[1] : '$';
+        if ($path === null) {
+            return [];
+        }
         if (!is_string($path)) {
             throw new \InvalidArgumentException('SQLite json_tree() path argument must be text');
         }

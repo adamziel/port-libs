@@ -118268,3 +118268,37 @@ Cleanup:
 - Removed accepted marker artifacts after `refs/heads/main` advanced: ready marker, patch, metadata, worker log, and isolated prompt for `port-dev-libsqlite-wal-20260527T010902Z`.
 - Preserved clean candidate worktree `.tmux-team/tmp/clean-integrator-libsqlite-wal-20260527T010902Z` because normal `git worktree remove` refused untracked root-run temp output under `.tmp-root`; no force cleanup was used.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T010902Z` because it still contains modified lane files; no force cleanup was used.
+## Integration accepted - libsqlite JSON table NULL path - 2026-05-27T01:27:00Z
+
+Marker under verification: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T011943Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `90bf1b47d7bf3a369fdd89d834ec233be971fc14` (`Fix libsqlite WAL status evidence`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `90bf1b47d7bf3a369fdd89d834ec233be971fc14`, generated `2026-05-27 01:23:05 UTC`, dashboard `749b49b52acb27e2a1687f8f62b3123ef39d387c`.
+- Guard was open for exactly one source-moving libsqlite marker.
+
+Candidate decision:
+- Accepted bounded replay of `port-dev-libsqlite-json-table-20260527T011943Z.ready`.
+- Original marker base was older than current source, and direct `git apply --check` failed only on stale `lanes/libsqlite/lane-status.json`.
+- Implementation, test, example, manifest, and note hunks applied cleanly with the stale status hunk excluded.
+- Reconciled `lane-status.json` from current accepted source evidence: `phpPass` `747 -> 748`, `phpFail` remains `0`, and `latestCommit` now begins with exact current source `90bf1b47d7bf3a369fdd89d834ec233be971fc14`.
+
+Behavior delta:
+- Adds SQL NULL path handling for `json_each()` and `json_tree()` argument-vector dispatch: explicit `NULL` path now returns an empty rowset instead of behaving like omitted path `$`.
+- Adds focused assertions for strict JSON text, JSON5 text, JSONB blobs, JSON constructor subtype values, uppercase function dispatch, and preserved non-NULL path behavior.
+- Adds `lanes/libsqlite/examples/wordpress-json-table-null-path.php` for copied `wp_options` plugin settings diagnostics.
+- Updates libsqlite mapped coverage `409 -> 410`.
+
+Focused verification:
+- Runtime gates before focused checks: `/` available `122960908` KiB, loadavg `1.89`, no exact no-argument root harness row.
+- `php -l` passed for `SQLiteJsonEach.php`, `SQLiteJsonTree.php`, `SQLiteHeaderTest.php`, and `wordpress-json-table-null-path.php`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 5018 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-null-path.php` passed and emitted JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gates before root: `/` available `122737552` KiB, loadavg `1.79`, and no exact no-argument root harness row.
+- `flock .tmux-team/tmp/clean-integrator-run.lock env TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed: `215 test files, 30152 assertions, 0 failures`.

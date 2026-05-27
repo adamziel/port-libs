@@ -5376,6 +5376,9 @@ return [
         $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($argumentRows, 'root'));
         $t->same(['plugin', 'priority'], array_column(SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$settings]), 'key'));
         $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [null, '$.plugin']));
+        $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$settings, null]));
+        $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$json5, null]));
+        $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$jsonb, null]));
 
         $rulesRows = SQLiteJsonEach::jsonEach($jsonb, '$.plugin.rules');
         $t->same([0, 1], array_column($rulesRows, 'key'));
@@ -5456,6 +5459,9 @@ return [
         $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($argumentRows, 'root'));
         $t->same([null, 'plugin', 'enabled'], array_slice(array_column(SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings]), 'key'), 0, 3));
         $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [null, '$.plugin']));
+        $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings, null]));
+        $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$json5, null]));
+        $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$jsonb, null]));
 
         $rulesRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin.rules');
         $t->same(['rules', 0, 'name', 1, 'name'], array_column($rulesRows, 'key'));
@@ -6280,6 +6286,8 @@ return [
         $t->same([null, null], array_column($subtypeEachRows, 'atom'));
         $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($subtypeEachRows, 'path'));
         $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($subtypeEachRows, 'root'));
+        $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$constructedSubtype, null]));
+        $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$constructedSubtype, null]));
 
         $aggregateSubtype = new SQLiteJsonSubtypeValue(SQLiteJsonAggregate::jsonGroupObject([
             ['seo', new SQLiteJsonSubtypeValue('{"hits":2,"autoload":true}')],

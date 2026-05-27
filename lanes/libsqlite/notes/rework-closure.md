@@ -1,5 +1,38 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 JSON Table NULL Path Arguments
+
+This isolated JSON table/window slice does not reuse stale May 25 rework
+markers and does not repeat accepted JSON projection, duplicate hidden
+constraints, malformed JSONB planning, residual LIKE/ESCAPE, reverse-root
+metadata, JSON subtype handoff, or JSON object aggregate/window behavior. It
+adds one bounded table-valued behavior cluster: `json_each(X, NULL)` and
+`json_tree(X, NULL)` now return empty rowsets through SQL argument-vector
+dispatch instead of treating the explicit SQL NULL path as an omitted path.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 5018 assertions,
+up from the accepted lane-status recorded 4952 baseline (`+66`). The new
+assertions cover strict JSON text, JSON5 text, JSONB blobs, JSON constructor
+subtype values, case-insensitive function dispatch, and preservation of normal
+non-NULL path expansion alongside the NULL-path empty-rowset behavior.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-null-path.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-table-null-path.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON5 decoding, JSONB encoding/decoding, JSON subtype wrappers, JSON
+constructors, and existing JSON table-valued row dispatch.
+
 ## 2026-05-27 JSON Table Subtype Handoff
 
 This isolated JSON table/window slice does not reuse stale May 25 rework
