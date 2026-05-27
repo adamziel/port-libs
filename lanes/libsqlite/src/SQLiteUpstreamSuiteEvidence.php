@@ -4447,6 +4447,188 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamCanonicalMapCurrentNext36(
+        array $artifactRecords,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('Current and next accepted repository HEAD values are required for the canonical upstream map');
+        }
+
+        $entries = [];
+        $canonical = [];
+        $currentCount = 0;
+        $nextCount = 0;
+        $staleCount = 0;
+        $blockedCount = 0;
+        $releaseLikeCount = 0;
+        $focusedCount = 0;
+        $testsTotal = 0;
+        $errorsTotal = 0;
+        $duplicateLabels = [];
+        $canonicalKeys = [];
+
+        foreach ($artifactRecords as $label => $artifact) {
+            $entryLabel = is_string($label) ? $label : 'artifact-' . (string) count($entries);
+            if (!is_array($artifact)) {
+                $blockedCount++;
+                $entries[] = [
+                    'label' => $entryLabel,
+                    'status' => 'blocked-invalid-artifact',
+                    'head_class' => 'invalid',
+                    'canonical_key' => 'invalid:' . $entryLabel,
+                    'kind' => 'invalid',
+                    'tests' => 0,
+                    'errors' => 0,
+                    'blocker_ids' => ['artifact-record-invalid'],
+                ];
+                continue;
+            }
+
+            $acceptance = $this->boundedRunnerAcceptanceGate($artifact, $currentAcceptedHead);
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $head = is_string($artifact['repository_head'] ?? null) ? $artifact['repository_head'] : '';
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : 'unknown';
+            $patterns = $this->normalizeRunnerPatterns($requested['patterns'] ?? []);
+            $tests = is_int($results['tests'] ?? null) ? $results['tests'] : 0;
+            $errors = is_int($results['errors'] ?? null) ? $results['errors'] : 0;
+
+            $headClass = 'stale';
+            if ($head === $currentAcceptedHead) {
+                $headClass = 'current';
+            } elseif ($head === $nextAcceptedHead) {
+                $headClass = 'next';
+            }
+
+            $kind = $patterns === [] && in_array($testset, ['all', 'release'], true)
+                ? 'release-like'
+                : ($patterns !== [] ? 'focused' : 'unselected');
+
+            if ($kind === 'release-like') {
+                $releaseLikeCount++;
+            } elseif ($kind === 'focused') {
+                $focusedCount++;
+            }
+
+            $blockerIds = [];
+            foreach (is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [] as $blocker) {
+                if (is_array($blocker) && is_string($blocker['id'] ?? null)) {
+                    $blockerIds[] = $blocker['id'];
+                }
+            }
+
+            if ($headClass === 'next') {
+                $nextAcceptance = $this->boundedRunnerAcceptanceGate($artifact, $nextAcceptedHead);
+                $blockerIds = [];
+                foreach (is_array($nextAcceptance['blockers'] ?? null) ? $nextAcceptance['blockers'] : [] as $blocker) {
+                    if (is_array($blocker) && is_string($blocker['id'] ?? null)) {
+                        $blockerIds[] = $blocker['id'];
+                    }
+                }
+            } elseif ($headClass === 'stale') {
+                $blockerIds[] = 'artifact-head-not-current-or-next';
+            }
+
+            $blockerIds = array_values(array_unique($blockerIds));
+            $countable = $blockerIds === [] && in_array($headClass, ['current', 'next'], true);
+            if ($countable) {
+                if ($headClass === 'current') {
+                    $currentCount++;
+                } else {
+                    $nextCount++;
+                }
+                $testsTotal += $tests;
+                $errorsTotal += $errors;
+            } else {
+                $blockedCount++;
+                if ($headClass === 'stale') {
+                    $staleCount++;
+                }
+            }
+
+            $canonicalKey = implode('|', [
+                $headClass,
+                $head,
+                $testset,
+                $patterns === [] ? 'none' : implode(',', $patterns),
+            ]);
+
+            $entry = [
+                'label' => $entryLabel,
+                'status' => $countable ? 'countable' : 'blocked',
+                'head_class' => $headClass,
+                'repository_head' => $head,
+                'canonical_key' => $canonicalKey,
+                'kind' => $kind,
+                'testset' => $testset,
+                'patterns' => $patterns,
+                'tests' => $tests,
+                'errors' => $errors,
+                'blocker_ids' => $blockerIds,
+            ];
+
+            $entries[] = $entry;
+            if (!isset($canonical[$canonicalKey]) || $tests > (int) ($canonical[$canonicalKey]['tests'] ?? 0)) {
+                $canonical[$canonicalKey] = $entry;
+            } else {
+                $duplicateLabels[] = $entryLabel;
+            }
+            if (isset($canonicalKeys[$canonicalKey])) {
+                $duplicateLabels[] = $entryLabel;
+            }
+            $canonicalKeys[$canonicalKey] = true;
+        }
+
+        ksort($canonical);
+        $duplicateLabels = array_values(array_unique($duplicateLabels));
+        sort($duplicateLabels);
+
+        $status = 'blocked';
+        if ($nextCount > 0) {
+            $status = 'next-canonical-artifact-present';
+        } elseif ($currentCount > 0 && $blockedCount === 0) {
+            $status = 'current-canonical-baseline-only';
+        } elseif ($currentCount > 0) {
+            $status = 'current-canonical-baseline-with-blockers';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'artifact_count' => count($entries),
+            'canonical_entry_count' => count($canonical),
+            'current_countable_count' => $currentCount,
+            'next_countable_count' => $nextCount,
+            'stale_count' => $staleCount,
+            'blocked_count' => $blockedCount,
+            'release_like_count' => $releaseLikeCount,
+            'focused_count' => $focusedCount,
+            'duplicate_count' => count($duplicateLabels),
+            'duplicate_labels' => $duplicateLabels,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'entries' => $entries,
+            'canonical_entries' => array_values($canonical),
+            'counts_current_baseline' => $currentCount > 0,
+            'counts_next_artifacts' => $nextCount > 0,
+            'ready_to_launch_next_guarded_runner' => $currentCount > 0 && $nextCount === 0 && $blockedCount === 0,
+            'next_gate' => match ($status) {
+                'next-canonical-artifact-present' => 'count the next accepted canonical artifact set and suppress duplicate broad runner launch',
+                'current-canonical-baseline-only' => 'preserve the current accepted canonical baseline, then launch at most one guarded next-source runner if supervisor-approved',
+                'current-canonical-baseline-with-blockers' => 'preserve current accepted artifacts but repair stale, failed, or manifest-mismatched records before the next launch',
+                default => 'collect at least one current accepted zero-error artifact before mapping current-to-next release-runner evidence',
+            },
+            'dependency_closure' => 'no new support component needed; canonical current-next36 mapping composes in-memory bounded runner artifact records and existing provenance gates only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
@@ -4612,6 +4794,41 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return array_values(array_unique($matches[1]));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeRunnerPatterns(mixed $patterns): array
+    {
+        if (is_string($patterns)) {
+            $patterns = $patterns === 'none' || $patterns === ''
+                ? []
+                : preg_split('/[\s,]+/', $patterns);
+        }
+
+        if (!is_array($patterns)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($patterns as $pattern) {
+            if (!is_string($pattern)) {
+                continue;
+            }
+
+            $pattern = trim($pattern);
+            if ($pattern === '' || $pattern === 'none') {
+                continue;
+            }
+
+            $normalized[$pattern] = true;
+        }
+
+        $scripts = array_keys($normalized);
+        sort($scripts, SORT_STRING);
+
+        return $scripts;
     }
 
     /**

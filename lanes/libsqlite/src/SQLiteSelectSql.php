@@ -687,31 +687,65 @@ final class SQLiteSelectSql
     {
         $name = $entry['name'];
         $compound = self::splitCompoundSql($entry['sql']);
-        if ($compound === null || count($compound['arms']) !== 2 || count($compound['operators']) !== 1) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs one anchor and one recursive arm");
+        if ($compound === null || count($compound['arms']) < 2 || count($compound['operators']) < 1) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor and recursive arms");
         }
-        $operator = strtoupper($compound['operators'][0]);
+
+        $recursiveIndex = null;
+        foreach ($compound['arms'] as $index => $armSql) {
+            if (self::cteSqlReferencesName($armSql, $name)) {
+                $recursiveIndex = $index;
+                break;
+            }
+        }
+        if ($recursiveIndex === null || $recursiveIndex === 0) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs at least one non-recursive anchor arm");
+        }
+
+        $operator = strtoupper($compound['operators'][$recursiveIndex - 1]);
         if ($operator !== 'UNION ALL' && $operator !== 'UNION') {
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} supports UNION ALL or UNION");
         }
 
-        [$anchorSql, $recursiveSql] = $compound['arms'];
-        if (!self::cteSqlReferencesName($recursiveSql, $name)) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} recursive arm must reference itself");
+        $anchorArms = array_slice($compound['arms'], 0, $recursiveIndex);
+        $anchorOperators = array_slice($compound['operators'], 0, max(0, $recursiveIndex - 1));
+        $recursiveArms = array_slice($compound['arms'], $recursiveIndex);
+        foreach ($anchorArms as $anchorSql) {
+            if (self::cteSqlReferencesName($anchorSql, $name)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} anchor arm cannot reference itself");
+            }
         }
-        if (self::cteSqlReferencesName($anchorSql, $name)) {
-            throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} anchor arm cannot reference itself");
+        foreach ($recursiveArms as $index => $recursiveArm) {
+            if (!self::cteSqlReferencesName($recursiveArm, $name)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} recursive arms must be contiguous");
+            }
+            $operatorIndex = $recursiveIndex + $index - 1;
+            if (isset($compound['operators'][$operatorIndex])) {
+                $armOperator = strtoupper($compound['operators'][$operatorIndex]);
+                if ($armOperator !== $operator) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} recursive arms must use the same UNION operator");
+                }
+            }
         }
 
-        $anchorRows = self::executeCteArm($anchorSql, $tables);
+        $lastRecursiveIndex = count($recursiveArms) - 1;
+        [$recursiveArms[$lastRecursiveIndex], $orderSql, $limitSql] = self::stripCompoundTailClauses($recursiveArms[$lastRecursiveIndex]);
+
+        $anchorRows = self::executeCteCompoundArms($anchorArms, $anchorOperators, $tables);
         $columns = $entry['columns'] !== []
             ? $entry['columns']
             : ($anchorRows === [] ? [] : array_keys($anchorRows[0]));
         if ($columns === []) {
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor columns");
         }
-        $queueOrder = self::recursiveQueueOrder($recursiveSql, $columns);
-        [$recursiveSql, $queueLimit, $queueOffset] = self::recursiveQueueLimitOffset($recursiveSql, $tables);
+        $queueOrder = $orderSql !== null ? self::recursiveQueueOrder('SELECT 1 ORDER BY ' . $orderSql, $columns) : [];
+        [$queueLimit, $queueOffset] = $limitSql !== null ? self::limitOffset($limitSql, $tables) : [null, 0];
+        if ($queueLimit < 0) {
+            $queueLimit = null;
+        }
+        if ($queueOffset < 0) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE OFFSET must be non-negative');
+        }
         $queue = self::normalizeRecursiveRows($anchorRows, $columns, $name);
         if ($operator === 'UNION') {
             $queue = self::deduplicateRecursiveRows($queue);
@@ -763,7 +797,12 @@ final class SQLiteSelectSql
             }
             $stepTables = $tables;
             $stepTables[$name] = [$current];
-            $stepRows = self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name);
+            $stepRows = [];
+            foreach ($recursiveArms as $recursiveSql) {
+                foreach (self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name) as $row) {
+                    $stepRows[] = $row;
+                }
+            }
             $acceptedNext = [];
             $skippedDuplicates = [];
             foreach ($stepRows as $row) {
@@ -816,6 +855,31 @@ final class SQLiteSelectSql
             'skipped' => $skipped,
             'dependencies' => ['sqlite-recursive-cte-current-row', 'sqlite-recursive-union-cycle-dedup'],
         ];
+    }
+
+    /**
+     * @param list<string> $arms
+     * @param list<string> $operators
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<array<string,mixed>>
+     */
+    private static function executeCteCompoundArms(array $arms, array $operators, array $tables): array
+    {
+        $rows = null;
+        foreach ($arms as $index => $armSql) {
+            $armRows = self::executeCteArm($armSql, $tables);
+            if ($rows === null) {
+                $rows = $armRows;
+                continue;
+            }
+            $operator = strtoupper($operators[$index - 1] ?? '');
+            if ($operator !== 'UNION ALL' && $operator !== 'UNION' && $operator !== 'INTERSECT' && $operator !== 'EXCEPT') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE anchor compound operator is malformed');
+            }
+            $rows = SQLiteSelectCompound::combine($rows, $armRows, $operator);
+        }
+
+        return $rows ?? [];
     }
 
     /**

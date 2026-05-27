@@ -13,7 +13,8 @@ final class SQLiteFts5SchemaImportPlan
     public static function fromSql(string $sql, array $availableTables = []): array
     {
         $normalized = trim(rtrim($sql, " \t\r\n;"));
-        if (!preg_match('/^CREATE\s+VIRTUAL\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<name>(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)\s+USING\s+(?<module>[A-Za-z_][A-Za-z0-9_]*)\s*\((?<args>.*)\)$/is', $normalized, $matches)) {
+        $identifier = '(?:"(?:""|[^"])+"|`(?:``|[^`])+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
+        if (!preg_match('/^CREATE\s+VIRTUAL\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?<name>' . $identifier . '(?:\s*\.\s*' . $identifier . ')?)\s+USING\s+(?<module>[A-Za-z_][A-Za-z0-9_]*)\s*\((?<args>.*)\)$/is', $normalized, $matches)) {
             throw new \InvalidArgumentException('FTS5 schema import expects CREATE VIRTUAL TABLE ... USING fts5(...) SQL');
         }
 
@@ -28,7 +29,7 @@ final class SQLiteFts5SchemaImportPlan
         foreach (self::splitArguments($matches['args']) as $argument) {
             if (preg_match('/^(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?<value>.+)$/s', $argument, $optionMatch)) {
                 $option = strtolower($optionMatch['name']);
-                if (!in_array($option, ['tokenize', 'prefix', 'content', 'content_rowid', 'detail', 'columnsize'], true)) {
+                if (!in_array($option, ['tokenize', 'prefix', 'content', 'content_rowid', 'detail', 'columnsize', 'contentless_delete', 'tokendata'], true)) {
                     throw new \InvalidArgumentException("Unsupported FTS5 option: {$option}");
                 }
                 $options[$option] = self::unquote(trim($optionMatch['value']));
@@ -51,12 +52,21 @@ final class SQLiteFts5SchemaImportPlan
         $externalContent = $content !== null && $content !== '';
         $contentless = $content === '';
         $contentTablePresent = $externalContent ? in_array(strtolower($content), array_map('strtolower', $availableTables), true) : null;
+        $contentlessDelete = self::booleanOption((string) ($options['contentless_delete'] ?? '0'), 'contentless_delete');
+        if ($contentlessDelete && !$contentless) {
+            throw new \InvalidArgumentException('FTS5 contentless_delete=1 requires content=\'\'');
+        }
         $tokenizer = self::tokenizerPlan((string) ($options['tokenize'] ?? 'unicode61'));
         $prefixes = self::prefixPlan((string) ($options['prefix'] ?? ''));
         $detail = strtolower((string) ($options['detail'] ?? 'full'));
         if (!in_array($detail, ['full', 'column', 'none'], true)) {
             throw new \InvalidArgumentException('FTS5 detail must be full, column, or none');
         }
+        $columnsize = self::integerOption((string) ($options['columnsize'] ?? '1'), 'columnsize');
+        if ($columnsize < 0 || $columnsize > 1) {
+            throw new \InvalidArgumentException('FTS5 columnsize must be 0 or 1');
+        }
+        $tokendata = self::booleanOption((string) ($options['tokendata'] ?? '0'), 'tokendata');
 
         $indexedColumns = array_values(array_map(
             static fn (array $column): string => $column['name'],
@@ -84,10 +94,15 @@ final class SQLiteFts5SchemaImportPlan
                 'contentTablePresent' => $contentTablePresent,
                 'contentRowid' => (string) ($options['content_rowid'] ?? 'rowid'),
                 'detail' => $detail,
-                'columnsize' => (int) ($options['columnsize'] ?? 1),
+                'columnsize' => $columnsize,
+                'contentlessDelete' => $contentlessDelete,
+                'tokendata' => $tokendata,
             ],
             'shadowTables' => self::shadowTables($schema, $table, $contentless),
             'importActions' => self::importActions($externalContent, $contentTablePresent, $contentless),
+            'schemaRecords' => self::schemaRecords($schema, $table, $columns, $contentless, $normalized),
+            'externalContentSql' => self::externalContentSql($schema, $table, $content, (string) ($options['content_rowid'] ?? 'rowid'), $columns, $externalContent, $contentTablePresent),
+            'jsonSchema' => self::jsonSchema($schema, $table, $columns, $tokenizer, $prefixes, $content, $externalContent, $contentTablePresent, $contentless, $contentlessDelete, $tokendata, $detail, $columnsize),
         ];
     }
 
@@ -165,7 +180,7 @@ final class SQLiteFts5SchemaImportPlan
      */
     private static function parseColumn(string $argument): array
     {
-        if (!preg_match('/^(?<name>"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?<tail>.*)$/s', trim($argument), $matches)) {
+        if (!preg_match('/^(?<name>"(?:""|[^"])+"|`(?:``|[^`])+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?<tail>.*)$/s', trim($argument), $matches)) {
             throw new \InvalidArgumentException('Invalid FTS5 column definition');
         }
 
@@ -255,6 +270,127 @@ final class SQLiteFts5SchemaImportPlan
     }
 
     /**
+     * @param list<array{name:string,unindexed:bool,raw:string}> $columns
+     * @return list<array{type:string,name:string,tbl_name:string,rootpage:int,sql:string,shadow:bool}>
+     */
+    private static function schemaRecords(string $schema, string $table, array $columns, bool $contentless, string $virtualSql): array
+    {
+        $records = [[
+            'type' => 'table',
+            'name' => $schema . '.' . $table,
+            'tbl_name' => $table,
+            'rootpage' => 0,
+            'sql' => $virtualSql,
+            'shadow' => false,
+        ]];
+
+        foreach (self::shadowTableSql($schema, $table, $columns, $contentless) as $name => $sql) {
+            $records[] = [
+                'type' => 'table',
+                'name' => $name,
+                'tbl_name' => substr($name, strlen($schema) + 1),
+                'rootpage' => 0,
+                'sql' => $sql,
+                'shadow' => true,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{name:string,unindexed:bool,raw:string}> $columns
+     * @return array<string,string>
+     */
+    private static function shadowTableSql(string $schema, string $table, array $columns, bool $contentless): array
+    {
+        $qualified = static fn (string $suffix): string => self::quoteQualifiedName($schema, $table . $suffix);
+        $sql = [
+            $schema . '.' . $table . '_data' => 'CREATE TABLE ' . $qualified('_data') . '(id INTEGER PRIMARY KEY, block BLOB)',
+            $schema . '.' . $table . '_idx' => 'CREATE TABLE ' . $qualified('_idx') . '(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID',
+        ];
+
+        if (!$contentless) {
+            $contentColumns = ['id INTEGER PRIMARY KEY'];
+            foreach ($columns as $column) {
+                $contentColumns[] = self::quoteIdentifier($column['name']);
+            }
+            $sql[$schema . '.' . $table . '_content'] = 'CREATE TABLE ' . $qualified('_content') . '(' . implode(', ', $contentColumns) . ')';
+        }
+
+        $sql[$schema . '.' . $table . '_docsize'] = 'CREATE TABLE ' . $qualified('_docsize') . '(id INTEGER PRIMARY KEY, sz BLOB)';
+        $sql[$schema . '.' . $table . '_config'] = 'CREATE TABLE ' . $qualified('_config') . '(k PRIMARY KEY, v) WITHOUT ROWID';
+
+        return $sql;
+    }
+
+    /**
+     * @param list<array{name:string,unindexed:bool,raw:string}> $columns
+     * @return array{rebuild:?string,deleteAll:?string,insertSelect:?string,blockedReason:?string}
+     */
+    private static function externalContentSql(string $schema, string $table, ?string $content, string $contentRowid, array $columns, bool $externalContent, ?bool $contentTablePresent): array
+    {
+        if (!$externalContent) {
+            return [
+                'rebuild' => null,
+                'deleteAll' => null,
+                'insertSelect' => null,
+                'blockedReason' => null,
+            ];
+        }
+
+        if ($contentTablePresent !== true) {
+            return [
+                'rebuild' => null,
+                'deleteAll' => null,
+                'insertSelect' => null,
+                'blockedReason' => 'missing external content table',
+            ];
+        }
+
+        $target = self::quoteQualifiedName($schema, $table);
+        $columnNames = array_map(static fn (array $column): string => $column['name'], $columns);
+        $insertColumns = array_merge(['rowid'], $columnNames);
+        $selectColumns = array_merge([$contentRowid], $columnNames);
+
+        return [
+            'rebuild' => "INSERT INTO {$target}({$target}) VALUES('rebuild')",
+            'deleteAll' => "INSERT INTO {$target}({$target}) VALUES('delete-all')",
+            'insertSelect' => 'INSERT INTO ' . $target . '(' . implode(', ', array_map([self::class, 'quoteIdentifier'], $insertColumns)) . ') SELECT ' . implode(', ', array_map([self::class, 'quoteIdentifier'], $selectColumns)) . ' FROM ' . self::quoteIdentifier((string) $content),
+            'blockedReason' => null,
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,unindexed:bool,raw:string}> $columns
+     * @param array{name:string,args:list<string>,removeDiacritics:int|null,tokenchars:string|null,separators:string|null} $tokenizer
+     * @param list<int> $prefixes
+     * @return array<string,mixed>
+     */
+    private static function jsonSchema(string $schema, string $table, array $columns, array $tokenizer, array $prefixes, ?string $content, bool $externalContent, ?bool $contentTablePresent, bool $contentless, bool $contentlessDelete, bool $tokendata, string $detail, int $columnsize): array
+    {
+        return [
+            'kind' => 'sqlite-fts5-import-schema',
+            'schema' => $schema,
+            'table' => $table,
+            'columns' => array_map(static fn (array $column): array => [
+                'name' => $column['name'],
+                'indexed' => !$column['unindexed'],
+            ], $columns),
+            'tokenizer' => $tokenizer,
+            'prefix' => $prefixes,
+            'content' => $content,
+            'externalContent' => $externalContent,
+            'contentTablePresent' => $contentTablePresent,
+            'contentless' => $contentless,
+            'contentlessDelete' => $contentlessDelete,
+            'tokendata' => $tokendata,
+            'detail' => $detail,
+            'columnsize' => $columnsize,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function importActions(bool $externalContent, ?bool $contentTablePresent, bool $contentless): array
@@ -269,6 +405,29 @@ final class SQLiteFts5SchemaImportPlan
         }
 
         return $actions;
+    }
+
+    private static function integerOption(string $value, string $option): int
+    {
+        $value = trim($value);
+        if (!preg_match('/^-?\d+$/', $value)) {
+            throw new \InvalidArgumentException("FTS5 {$option} must be an integer");
+        }
+
+        return (int) $value;
+    }
+
+    private static function booleanOption(string $value, string $option): bool
+    {
+        $value = strtolower(trim($value));
+        if ($value === '1' || $value === 'true' || $value === 'on') {
+            return true;
+        }
+        if ($value === '0' || $value === 'false' || $value === 'off') {
+            return false;
+        }
+
+        throw new \InvalidArgumentException("FTS5 {$option} must be a boolean");
     }
 
     /**
@@ -316,5 +475,15 @@ final class SQLiteFts5SchemaImportPlan
         }
 
         return $identifier;
+    }
+
+    private static function quoteQualifiedName(string $schema, string $table): string
+    {
+        return self::quoteIdentifier($schema) . '.' . self::quoteIdentifier($table);
+    }
+
+    private static function quoteIdentifier(string $identifier): string
+    {
+        return '"' . str_replace('"', '""', $identifier) . '"';
     }
 }
