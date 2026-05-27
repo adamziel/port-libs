@@ -113,6 +113,11 @@ $durableFileWritePlans = [
     'restartCommitted' => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabaseBytes, '/srv/www/wp-content/database/.ht.sqlite', 'restart'),
     'truncateCommitted' => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabaseBytes, '/srv/www/wp-content/database/.ht.sqlite', 'truncate'),
 ];
+$readerVisibility = [
+    'activeReaderDuringPassiveCheckpoint' => $wal->checkpointReaderVisibility($baseDatabaseBytes, [2], 'passive', 2),
+    'activeReaderDuringFullCheckpoint' => $wal->checkpointReaderVisibility($baseDatabaseBytes, [2], 'full', 2),
+    'newReaderAfterTruncateCheckpoint' => $committedWal->checkpointReaderVisibility($baseDatabaseBytes, [2], 'truncate'),
+];
 $checkpointResultSummary = [];
 foreach ($checkpointResults as $name => $result) {
     $checkpointResultSummary[$name] = [
@@ -142,6 +147,25 @@ foreach ($durableCheckpointResults as $name => $result) {
         'dependencies' => $result['dependencies'],
     ];
 }
+$readerVisibilitySummary = [];
+foreach ($readerVisibility as $name => $result) {
+    $readerVisibilitySummary[$name] = [
+        'mode' => $result['mode'],
+        'wal_action' => $result['wal_action'],
+        'checkpoint_reason' => $result['checkpoint_reason'],
+        'checkpoint_busy' => $result['checkpoint_busy'],
+        'stable' => $result['stable'],
+        'before_source' => $result['before'][0]['source'],
+        'before_frame_index' => $result['before'][0]['frame_index'],
+        'before_contains_committed_siteurl' => str_contains($result['before'][0]['image'], 'from-wal'),
+        'before_contains_draft_siteurl' => str_contains($result['before'][0]['image'], 'draft-wal'),
+        'after_source' => $result['after'][0]['source'],
+        'after_frame_index' => $result['after'][0]['frame_index'],
+        'after_contains_committed_siteurl' => str_contains($result['after'][0]['image'], 'from-wal'),
+        'after_contains_draft_siteurl' => str_contains($result['after'][0]['image'], 'draft-wal'),
+        'dependencies' => $result['dependencies'],
+    ];
+}
 
 echo json_encode([
     'wal' => $wal->toArray(),
@@ -168,6 +192,7 @@ echo json_encode([
         'containsCorruptDraftSiteUrl' => str_contains((string) $corruptRecovery['checkpoint_database_bytes'], 'draft-wal'),
         'dependencies' => $corruptRecovery['dependencies'],
     ],
+    'checkpointReaderVisibility' => $readerVisibilitySummary,
     'readerPageMap' => $readerPageMap,
     'walIndexReadMarks' => $readMarkPlan,
     'readerOptionPage' => [
@@ -226,5 +251,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, corrupt WAL checksum recovery boundaries, and ordered VFS file-write/sync/truncate plans while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, corrupt WAL checksum recovery boundaries, ordered VFS file-write/sync/truncate plans, and current reader visibility before/after checkpoint application while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

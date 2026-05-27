@@ -15530,6 +15530,89 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->durableCheckpointResult($baseDatabase, 'passive', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->durableCheckpointResult(substr($baseDatabase, 1), 'passive'));
     },
+    'keeps current wal readers visible across checkpoint results' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x51515151;
+        $salt2 = 0x62626262;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 24, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walHeader = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $walBytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $basePageTwo = str_pad('base wp_options row page before checkpoint', $pageSize, "\0");
+        $basePageThree = str_pad('base autoload index page before checkpoint', $pageSize, "\0");
+        $baseDatabase = $makeFirstPage($pageSize, 3) . $basePageTwo . $basePageThree;
+        $readerPageTwo = str_pad('reader current siteurl row from first wal commit', $pageSize, "\0");
+        $latestPageTwo = str_pad('latest siteurl row after reader started', $pageSize, "\0");
+        $latestPageThree = str_pad('latest autoload index after reader started', $pageSize, "\0");
+
+        $walBytes = $appendFrame($walHeader, $checksumSeed, 2, 3, $readerPageTwo);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $latestPageTwo);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 3, $latestPageThree);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $pinned = $wal->checkpointReaderVisibility($baseDatabase, [2, 3], 'passive', 1);
+        $t->same('passive', $pinned['mode']);
+        $t->same(1, $pinned['reader_end_frame']);
+        $t->same('preserve_wal', $pinned['wal_action']);
+        $t->same('reader_limited_passive_checkpoint', $pinned['checkpoint_reason']);
+        $t->same(false, $pinned['checkpoint_busy']);
+        $t->same(true, $pinned['stable']);
+        $t->same(['sqlite-wal-checkpoint', 'wal-reader-current-visibility', 'durable-sidecar-write'], $pinned['dependencies']);
+        $t->same(2, count($pinned['before']));
+        $t->same(2, count($pinned['after']));
+        $t->same('wal', $pinned['before'][0]['source']);
+        $t->same(1, $pinned['before'][0]['frame_index']);
+        $t->same($readerPageTwo, $pinned['before'][0]['image']);
+        $t->same(1, $pinned['before'][0]['snapshot_end_frame']);
+        $t->same(1, $pinned['before'][0]['snapshot_commit_frame']);
+        $t->same('database', $pinned['before'][1]['source']);
+        $t->same(null, $pinned['before'][1]['frame_index']);
+        $t->same($basePageThree, $pinned['before'][1]['image']);
+        $t->same($pinned['before'][0]['image'], $pinned['after'][0]['image']);
+        $t->same($pinned['before'][1]['image'], $pinned['after'][1]['image']);
+        $t->same('wal', $pinned['after'][0]['source']);
+        $t->same('database', $pinned['after'][1]['source']);
+        $t->same(3, $pinned['after'][1]['database_page_count']);
+
+        $fullBlocked = $wal->checkpointReaderVisibility($baseDatabase, [2, 3], 'full', 1);
+        $t->same(true, $fullBlocked['checkpoint_busy']);
+        $t->same('reader_blocks_checkpoint_completion', $fullBlocked['checkpoint_reason']);
+        $t->same(true, $fullBlocked['stable']);
+        $t->same($readerPageTwo, $fullBlocked['after'][0]['image']);
+        $t->same($basePageThree, $fullBlocked['after'][1]['image']);
+
+        $latest = $wal->checkpointReaderVisibility($baseDatabase, [2, 3], 'truncate');
+        $t->same('truncate', $latest['mode']);
+        $t->same(null, $latest['reader_end_frame']);
+        $t->same('truncate_wal', $latest['wal_action']);
+        $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $latest['checkpoint_reason']);
+        $t->same(false, $latest['checkpoint_busy']);
+        $t->same(true, $latest['stable']);
+        $t->same('wal', $latest['before'][0]['source']);
+        $t->same(2, $latest['before'][0]['frame_index']);
+        $t->same('wal', $latest['before'][1]['source']);
+        $t->same(3, $latest['before'][1]['frame_index']);
+        $t->same($latestPageTwo, $latest['before'][0]['image']);
+        $t->same($latestPageThree, $latest['before'][1]['image']);
+        $t->same('database', $latest['after'][0]['source']);
+        $t->same(null, $latest['after'][0]['frame_index']);
+        $t->same($latestPageTwo, $latest['after'][0]['image']);
+        $t->same($latestPageThree, $latest['after'][1]['image']);
+        $t->same(0, $latest['after'][0]['snapshot_end_frame']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility($baseDatabase, []));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility($baseDatabase, [2, '3']));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility($baseDatabase, [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility(substr($baseDatabase, 1), [2]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility($baseDatabase, [2], 'bogus'));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointReaderVisibility($baseDatabase, [2], 'passive', -1));
+    },
     'plans sqlite wal durable checkpoint vfs file writes' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x51515151;

@@ -621,6 +621,54 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{mode:string,reader_end_frame:int|null,wal_action:string,checkpoint_reason:string,checkpoint_busy:bool,before:list<array{page_number:int,source:string,frame_index:int|null,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}>,after:list<array{page_number:int,source:string,frame_index:int|null,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}>,stable:bool,dependencies:list<string>}
+     */
+    public function checkpointReaderVisibility(string $databaseBytes, array $pageNumbers, string $mode = 'passive', ?int $readerEndFrame = null): array
+    {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader visibility requires at least one page number');
+        }
+
+        $before = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint reader visibility pages must be integers');
+            }
+            $before[] = $this->readerSnapshotPageImage($databaseBytes, $pageNumber, $readerEndFrame);
+        }
+
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
+        $afterWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($checkpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        $afterSnapshotEndFrame = $afterWal === null
+            ? 0
+            : min($readerEndFrame ?? $afterWal->frameCount(), $afterWal->frameCount());
+
+        $after = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if ($afterWal === null) {
+                $after[] = self::databasePageVisibility($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber);
+                continue;
+            }
+            $after[] = $afterWal->readerSnapshotPageImage($checkpoint['database_bytes'], $pageNumber, $afterSnapshotEndFrame);
+        }
+
+        return [
+            'mode' => $checkpoint['mode'],
+            'reader_end_frame' => $readerEndFrame,
+            'wal_action' => $checkpoint['wal_action'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'before' => $before,
+            'after' => $after,
+            'stable' => self::visibilityImages($before) === self::visibilityImages($after),
+            'dependencies' => ['sqlite-wal-checkpoint', 'wal-reader-current-visibility', 'durable-sidecar-write'],
+        ];
+    }
+
+    /**
      * @param list<int|null> $readMarks
      * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
      */
@@ -836,6 +884,51 @@ final class SQLiteWal
         }
 
         return null;
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}
+     */
+    private static function databasePageVisibility(string $databaseBytes, int $walPageSize, int $pageNumber): array
+    {
+        if ($pageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite WAL reader page numbers are one-based');
+        }
+
+        $pageSize = $walPageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL reader requires a database image aligned to the page size');
+        }
+
+        $databasePageCount = intdiv(strlen($databaseBytes), $pageSize);
+        if ($pageNumber > $databasePageCount) {
+            throw new \OutOfBoundsException("SQLite WAL reader base page {$pageNumber} is missing from the database image");
+        }
+
+        $offset = ($pageNumber - 1) * $pageSize;
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => 'database',
+            'frame_index' => null,
+            'database_offset' => $offset,
+            'image' => substr($databaseBytes, $offset, $pageSize),
+            'snapshot_end_frame' => 0,
+            'snapshot_commit_frame' => null,
+            'database_page_count' => $databasePageCount,
+        ];
+    }
+
+    /**
+     * @param list<array{image:string}> $rows
+     * @return list<string>
+     */
+    private static function visibilityImages(array $rows): array
+    {
+        return array_map(static fn (array $row): string => $row['image'], $rows);
     }
 
     /**

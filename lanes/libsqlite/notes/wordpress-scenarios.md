@@ -4787,3 +4787,26 @@ extractors, and copied WordPress option fixtures. Follow-up should continue
 non-overlapping JSON planner/JSONB pushdown or broader SQL executor behavior
 beyond accepted JSON table sources, hidden/visible constraints, and this scalar
 JSON-path expression dispatch.
+
+## WAL Checkpoint Reader Visibility Scenario
+
+Copied WordPress `wp_options` WAL diagnostics now report current-reader
+visibility across checkpoint application. The smoke
+`examples/wordpress-wal-option-frame-diagnostics.php` shows that a pinned
+reader keeps seeing the same page image before and after passive/full checkpoint
+planning, while a truncate checkpoint with no active reader exposes the latest
+checkpointed database page to a new reader without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated WAL reader-visibility slice:
+`SQLiteWal::checkpointReaderVisibility()` composes existing reader snapshot,
+durable checkpoint, WAL preserve/restart/truncate, and database-page fallback
+behavior into one bounded visibility result. Focused `SQLiteHeaderTest.php`
+adds coverage for pinned reader stability, full-checkpoint busy preservation,
+truncate-checkpoint latest visibility, dependency tags, and malformed inputs.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local WAL parser, checkpoint result materialization, reader snapshot
+lookup, and copied WordPress option WAL diagnostics. Follow-up should continue
+WAL/pager transaction application and durable recovery/checkpoint paths without
+repeating accepted VFS writer, savepoint rollback, rollback-journal commit, or
+this current-reader visibility composition.
