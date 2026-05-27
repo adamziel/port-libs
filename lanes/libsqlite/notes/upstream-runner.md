@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: SELECT Query Plan Wiring
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice adds bounded native SELECT
+query-plan wiring over already decoded/copied rows. The new `SQLiteSelectQuery`
+helper composes the accepted row-production primitives for FROM rows,
+INNER/LEFT/CROSS/USING joins, residual WHERE predicates, SELECT projection
+lists, DISTINCT, ORDER BY, LIMIT, and OFFSET. It is intentionally a bounded
+execution primitive; it does not claim SQL text parsing, VDBE bytecode, storage
+cursor planning, or a fresh upstream `testfixture` run.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressSelectQueryPlanScripts: 1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+started from this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectQuery.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-query-plan-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-query-plan-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 4201 to 4343 assertions, +142.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local SELECT predicate, projection, result, join, scalar, and pure PHP
+row-array helpers.
+
 ## Focused Native Mapping: Compound SELECT Row Composition
 
 Date: 2026-05-26

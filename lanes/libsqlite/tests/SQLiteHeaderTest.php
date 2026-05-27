@@ -62,6 +62,7 @@ use PortLibs\LibSqlite\SQLiteSelectCompound;
 use PortLibs\LibSqlite\SQLiteSelectExpressionIndexPlan;
 use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectProjection;
+use PortLibs\LibSqlite\SQLiteSelectQuery;
 use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
@@ -15503,5 +15504,197 @@ SQL;
             'left' => ['function' => 'lower', 'column' => 'option_name'],
             'right' => [],
         ]));
+    },
+    'executes bounded sqlite select query plans through where projection joins and result clauses' => static function (TestRunner $t): void {
+        $options = [
+            ['wp_options.option_id' => 1, 'wp_options.option_name' => 'siteurl', 'wp_options.option_value' => 'https://example.test', 'wp_options.autoload' => 'yes'],
+            ['wp_options.option_id' => 2, 'wp_options.option_name' => 'home', 'wp_options.option_value' => 'https://example.test', 'wp_options.autoload' => 'yes'],
+            ['wp_options.option_id' => 3, 'wp_options.option_name' => 'blogname', 'wp_options.option_value' => 'Example Site', 'wp_options.autoload' => 'yes'],
+            ['wp_options.option_id' => 4, 'wp_options.option_name' => '_transient_feed', 'wp_options.option_value' => 'cached', 'wp_options.autoload' => 'no'],
+            ['wp_options.option_id' => 5, 'wp_options.option_name' => 'orphaned', 'wp_options.option_value' => null, 'wp_options.autoload' => null],
+        ];
+        $metadata = [
+            ['meta.option_id' => 1, 'meta.visibility' => 'public', 'meta.priority' => 20],
+            ['meta.option_id' => 2, 'meta.visibility' => 'public', 'meta.priority' => 10],
+            ['meta.option_id' => 3, 'meta.visibility' => 'private', 'meta.priority' => 30],
+            ['meta.option_id' => 4, 'meta.visibility' => 'cache', 'meta.priority' => 40],
+        ];
+
+        $plan = [
+            'from' => $options,
+            'joins' => [[
+                'type' => 'LEFT',
+                'rows' => $metadata,
+                'predicate' => static fn (array $option, array $meta): bool => $option['wp_options.option_id'] === $meta['meta.option_id'],
+                'rightColumns' => ['meta.option_id', 'meta.visibility', 'meta.priority'],
+            ]],
+            'where' => [
+                'operator' => 'AND',
+                'terms' => [
+                    ['operator' => 'NOT LIKE', 'left' => ['column' => 'wp_options.option_name'], 'right' => '!_%', 'escape' => '!'],
+                    ['operator' => 'IN', 'left' => ['column' => 'wp_options.autoload'], 'values' => ['yes']],
+                ],
+            ],
+            'select' => [
+                ['type' => 'wildcard', 'prefix' => 'wp_options'],
+                ['type' => 'function', 'name' => 'lower', 'alias' => 'normalized_name', 'arguments' => [
+                    ['type' => 'column', 'name' => 'wp_options.option_name'],
+                ]],
+                ['type' => 'case', 'alias' => 'visibility_bucket', 'base' => ['type' => 'column', 'name' => 'meta.visibility'], 'branches' => [
+                    ['when' => 'public', 'then' => 'visible'],
+                    ['when' => 'private', 'then' => 'hidden'],
+                ], 'else' => 'other'],
+                ['type' => 'column', 'name' => 'meta.priority', 'alias' => 'priority'],
+            ],
+            'distinct' => ['option_value', 'visibility_bucket'],
+            'orderBy' => [
+                ['column' => 'visibility_bucket', 'direction' => 'DESC'],
+                ['column' => 'priority'],
+                ['column' => 'option_name'],
+            ],
+            'limit' => 3,
+            'offset' => 0,
+        ];
+
+        $rows = SQLiteSelectQuery::execute($plan);
+        $t->same(2, count($rows));
+        $t->same(['siteurl', 'blogname'], array_column($rows, 'option_name'));
+        $t->same(['https://example.test', 'Example Site'], array_column($rows, 'option_value'));
+        $t->same(['yes', 'yes'], array_column($rows, 'autoload'));
+        $t->same(['siteurl', 'blogname'], array_column($rows, 'normalized_name'));
+        $t->same(['visible', 'hidden'], array_column($rows, 'visibility_bucket'));
+        $t->same([20, 30], array_column($rows, 'priority'));
+        $t->same([1, 3], array_column($rows, 'option_id'));
+        $t->same(['yes', 'yes'], array_column($rows, 'autoload'));
+        $t->same(['option_id', 'option_name', 'option_value', 'autoload', 'normalized_name', 'visibility_bucket', 'priority'], array_keys($rows[0]));
+        $t->same(false, array_key_exists('wp_options.option_name', $rows[0]));
+        $t->same(false, array_key_exists('meta.visibility', $rows[0]));
+
+        $cross = SQLiteSelectQuery::execute([
+            'from' => [['side' => 'options'], ['side' => 'site']],
+            'joins' => [['type' => 'CROSS', 'rows' => [['kind' => 'name'], ['kind' => 'value']]]],
+            'select' => [
+                ['type' => 'column', 'name' => 'side'],
+                ['type' => 'column', 'name' => 'kind'],
+            ],
+            'orderBy' => [['column' => 'side'], ['column' => 'kind', 'direction' => 'DESC']],
+            'limit' => 3,
+            'offset' => 1,
+        ]);
+        $t->same(3, count($cross));
+        $t->same(['options', 'site', 'site'], array_column($cross, 'side'));
+        $t->same(['name', 'value', 'name'], array_column($cross, 'kind'));
+        $t->same(['side', 'kind'], array_keys($cross[0]));
+        $t->same('name', $cross[2]['kind']);
+
+        $using = SQLiteSelectQuery::execute([
+            'from' => [
+                ['option_id' => 1, 'option_name' => 'siteurl'],
+                ['option_id' => 2, 'option_name' => 'home'],
+                ['option_id' => 3, 'option_name' => 'blogname'],
+            ],
+            'joins' => [[
+                'type' => 'USING',
+                'rows' => [
+                    ['option_id' => 1, 'source' => 'network'],
+                    ['option_id' => 2, 'source' => 'site'],
+                ],
+                'columns' => ['option_id'],
+                'left' => true,
+            ]],
+            'select' => [
+                ['type' => 'column', 'name' => 'option_name'],
+                ['type' => 'column', 'name' => 'source'],
+                ['type' => 'column', 'name' => 'right.option_id', 'alias' => 'meta_option_id'],
+            ],
+            'orderBy' => [['column' => 'option_name']],
+        ]);
+        $t->same(3, count($using));
+        $t->same(['blogname', 'home', 'siteurl'], array_column($using, 'option_name'));
+        $t->same([null, 'site', 'network'], array_column($using, 'source'));
+        $t->same([null, 2, 1], array_column($using, 'meta_option_id'));
+        $t->same(null, $using[0]['source']);
+        $t->same(null, $using[0]['meta_option_id']);
+        $t->same('site', $using[1]['source']);
+        $t->same('network', $using[2]['source']);
+
+        $inner = SQLiteSelectQuery::execute([
+            'from' => $options,
+            'joins' => [[
+                'type' => 'INNER',
+                'rows' => $metadata,
+                'predicate' => static fn (array $option, array $meta): ?bool => $option['wp_options.option_id'] === $meta['meta.option_id']
+                    ? $meta['meta.visibility'] !== 'cache'
+                    : null,
+            ]],
+            'where' => ['operator' => '<>', 'left' => ['column' => 'meta.visibility'], 'right' => 'private'],
+            'select' => [
+                ['type' => 'column', 'name' => 'wp_options.option_name', 'alias' => 'name'],
+                ['type' => 'column', 'name' => 'meta.visibility', 'alias' => 'visibility'],
+            ],
+            'orderBy' => [['column' => 'name']],
+        ]);
+        $t->same(2, count($inner));
+        $t->same(['home', 'siteurl'], array_column($inner, 'name'));
+        $t->same(['public', 'public'], array_column($inner, 'visibility'));
+        $t->same(['name', 'visibility'], array_keys($inner[0]));
+
+        $distinctLimited = SQLiteSelectQuery::execute([
+            'from' => [
+                ['option_name' => 'home', 'autoload' => 'yes'],
+                ['option_name' => 'siteurl', 'autoload' => 'yes'],
+                ['option_name' => 'home', 'autoload' => 'yes'],
+                ['option_name' => 'cache', 'autoload' => 'no'],
+            ],
+            'distinct' => ['option_name', 'autoload'],
+            'orderBy' => [['column' => 'autoload', 'direction' => 'DESC'], ['column' => 'option_name']],
+            'limit' => -1,
+            'offset' => 1,
+        ]);
+        $t->same(2, count($distinctLimited));
+        $t->same(['siteurl', 'cache'], array_column($distinctLimited, 'option_name'));
+        $t->same(['yes', 'no'], array_column($distinctLimited, 'autoload'));
+        $t->same(['option_name', 'autoload'], array_keys($distinctLimited[0]));
+
+        $rawRows = SQLiteSelectQuery::execute(['from' => $options]);
+        $t->same(5, count($rawRows));
+        $t->same('siteurl', $rawRows[0]['wp_options.option_name']);
+        $t->same(null, $rawRows[4]['wp_options.autoload']);
+
+        $leftWithDerivedColumns = SQLiteSelectQuery::execute([
+            'from' => [['id' => 10, 'name' => 'lonely']],
+            'joins' => [[
+                'type' => 'LEFT',
+                'rows' => [['id' => 1, 'tag' => 'used']],
+                'predicate' => static fn (array $left, array $right): bool => $left['id'] === $right['id'],
+            ]],
+            'select' => [
+                ['type' => 'column', 'name' => 'name'],
+                ['type' => 'column', 'name' => 'right.id', 'alias' => 'joined_id'],
+                ['type' => 'column', 'name' => 'tag'],
+            ],
+        ]);
+        $t->same(1, count($leftWithDerivedColumns));
+        $t->same('lonely', $leftWithDerivedColumns[0]['name']);
+        $t->same(null, $leftWithDerivedColumns[0]['joined_id']);
+        $t->same(null, $leftWithDerivedColumns[0]['tag']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute([]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => 'wp_options']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'where' => 'bad']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'select' => ['bad']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'distinct' => 'option_name']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'orderBy' => 'option_name']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'limit' => '1']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'offset' => '1']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => 'bad']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'RIGHT', 'rows' => []]]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'INNER', 'rows' => []]]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'LEFT', 'rows' => [['bad' => 1]], 'predicate' => static fn (): bool => false, 'rightColumns' => 'bad']]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => '', 'rows' => []]]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'CROSS', 'rows' => 'bad']]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'LEFT', 'rows' => [['bad' => 1]], 'predicate' => static fn (): bool => false, 'rightColumns' => [1]]]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [['bad']], 'select' => [['type' => 'wildcard']]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => [[]], 'joins' => [['type' => 'USING', 'rows' => [], 'columns' => 'option_id']]]));
     },
 ];

@@ -2,6 +2,27 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT Query Plan Preview Scenario
+
+Copied WordPress option import previews can now compose the accepted SELECT
+execution helpers through one bounded native query plan without requiring the
+SQLite extension. The smoke
+`examples/wordpress-select-query-plan-preview.php` reports copied
+`wp_options` rows joined with metadata, filtered by residual `WHERE`
+predicates, projected through table-star, scalar, and CASE expressions, then
+deduplicated and ordered with `DISTINCT`, `ORDER BY`, and `LIMIT`.
+
+Status delta 2026-05-26 isolated priority SQL execution/planner slice: added
+`SQLiteSelectQuery` with focused assertions for FROM rows, INNER/LEFT/CROSS
+and USING joins, WHERE predicate dispatch, projection dispatch, DISTINCT,
+ORDER BY, LIMIT/OFFSET, derived LEFT join null-extension columns, validation
+guards, and WordPress copied-row smoke output. The focused lane test count
+moves from the accepted current-source baseline of 4201 assertions to 4343
+assertions, +142. Lane `phpPass` moves from 737 to 738 and mapped coverage
+moves from 401 to 402. Dependency closure: no new support component is needed;
+this reuses lane-local SELECT predicate, projection, result, join, scalar, and
+pure PHP row-array helpers.
+
 ## SELECT WHERE Predicate Preview Scenario
 
 Copied WordPress option import previews can now model residual `WHERE`

@@ -117902,3 +117902,40 @@ Cleanup:
 - Accepted ready marker, patch, and metadata files are removable after the amended commit is safely on `main`.
 
 Dashboard publication should run next after the accepted commit because this pass moves source beyond live Pages.
+## Integration accepted - libsqlite SELECT query-plan wiring - 2026-05-27T00:05:00Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T235136Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current candidate base and `refs/heads/main` at selection time: `638ced0c497ed3ee4504eed991812e8f7b8fd0d4` (`Integrate libsqlite WAL open view`).
+- Cache-busted live Pages JSON reported exact matching `sourceCommit` `638ced0c497ed3ee4504eed991812e8f7b8fd0d4`, generated `2026-05-26 23:58:09 UTC`, dashboard commit `c0d17f60df4caedbf0c6e7dd3f4f74891a4191fb`.
+- The dashboard guard was open; no Pages-outage exception was used.
+
+Candidate evidence:
+- The marker was older-base (`70768c599a8e6786eb7eb8fa82fe9b43cc2ad505`) but bounded-replayed cleanly with `git apply --3way`; only `lane-status.json` had stale counter/status conflicts and was resolved to the marker's query-plan status while preserving current accepted code.
+- Implemented `SQLiteSelectQuery` for bounded SELECT plan composition across `FROM`, `INNER`/`LEFT`/`CROSS`/`USING` joins, residual `WHERE`, projection, `DISTINCT`, `ORDER BY`, `LIMIT`, and `OFFSET`.
+- Added `lanes/libsqlite/examples/wordpress-select-query-plan-preview.php`.
+
+Runtime gate evidence before focused checks:
+- `df -Pk /` reported `135996024` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.91`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+- Focused checks used candidate-local `TMPDIR=.tmp-root`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectQuery.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-query-plan-preview.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4408 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-select-query-plan-preview.php` passed and emitted valid JSON for copied `wp_options` rows.
+- `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` decoded as JSON.
+- `git diff --check` passed.
+
+Acceptance status:
+- Serialized no-argument root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29542 assertions, 0 failures`.
+- Accepted commit: `Integrate libsqlite SELECT query plans` (final hash reported in completion output).
+- Accepted marker artifacts were removed after `refs/heads/main` advanced.
+- Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T235136Z` still contains the exported lane modifications, so it was preserved rather than removed.
+- The accepted source-moving guard is now closed until the dashboard publishes the accepted SELECT query-plan source.

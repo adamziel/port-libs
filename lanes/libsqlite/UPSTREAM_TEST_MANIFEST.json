@@ -10,7 +10,7 @@
         "license": "Public domain SQLite blessing",
         "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses.",
         "mapped": 1,
-        "source": " The 2026-05-26 clean-integrated SQL expression-index planner slice maps one additional focused SELECT WHERE expression-index planning row for lower/upper/length/integer-cast predicates over copied wp_options previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
+        "source": " The 2026-05-26 clean-integrated SQL expression-index planner slice maps one additional focused SELECT WHERE expression-index planning row for lower/upper/length/integer-cast predicates over copied wp_options previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution. The 2026-05-26 isolated SQL query-plan wiring slice maps one additional focused SELECT execution row for bounded FROM/JOIN/WHERE/projection/DISTINCT/ORDER/LIMIT composition over copied wp_options previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
@@ -432,6 +432,7 @@
             "focusedSelectCompoundScripts": 1,
             "focusedWordPressSelectCaseProjectionScripts": 1,
             "focusedWordPressSelectWildcardProjectionScripts": 1,
+            "focusedWordPressSelectQueryPlanScripts": 1,
             "focusedPageCacheLoaderScripts": 1
         },
         "runnerStatus": {
