@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 21:04:20 UTC",
-    "sourceCommit": "c6ffc47e5c6f426b39572103682d04f7cac57067",
-    "sourceCommitShort": "c6ffc47e5c6f",
+    "generated": "2026-05-27 21:09:35 UTC",
+    "sourceCommit": "197c6704da63994d739cab3173def106d59e109d",
+    "sourceCommitShort": "197c6704da63",
     "sourceBranch": "main",
-    "dashboardCommit": "62d3fc4192c198f3f9bfe0bce467284df6bffe4b",
-    "dashboardCommitShort": "62d3fc4192c1",
+    "dashboardCommit": "c805f2101ffe1fa3426c6579f67d9c74c1d0406b",
+    "dashboardCommitShort": "c805f2101ffe",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "461",
             "coverage": "461 / 1589",
-            "php": "12271 pass / 0 fail",
+            "php": "12903 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch29 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch29 closure over SELECT query flattening, JSON validity SQL scalar/flag coer...",
-            "nextTarget": "Publish batch29 dashboard status, consume accepted batch29 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch29 subset: focused, full libsqlite, and...",
-            "commit": "5c8930c"
+            "audit": "Batch30 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch30 closure over JSON table hidden-column xBestIndex constraints, WAL savepo...",
+            "nextTarget": "Publish batch30 dashboard status, consume accepted batch30 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch30 subset: focused, full libsqlite, and...",
+            "commit": "0ec1f8f"
         },
         {
             "library": "LightningCSS",
