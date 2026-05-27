@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 05:12:37 UTC",
-    "sourceCommit": "bc16f99fb7fc623168b5be6c51abb94e95b40752",
-    "sourceCommitShort": "bc16f99fb7fc",
+    "generated": "2026-05-27 05:22:23 UTC",
+    "sourceCommit": "e053593a64d3d9d542a9db035552c66ca35e1a2d",
+    "sourceCommitShort": "e053593a64d3",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "21f9df9ca702f38bd26fda502c87b02f36217602",
-    "dashboardCommitShort": "21f9df9ca702",
+    "dashboardCommit": "ebc39ff817e0303c08662576171efeaa599f9ccf",
+    "dashboardCommitShort": "ebc39ff817e0",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "432",
-            "coverage": "432 / 1589",
-            "php": "776 pass / 0 fail",
+            "mapped": "433",
+            "coverage": "433 / 1589",
+            "php": "777 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed VFS process file-lock sl...",
-            "currentWork": "SQLiteVfsFileLock can now apply process-backed shared/reserved/pending/exclusive lock han...",
-            "nextTarget": "Next dependency/open gap: durable fsync policy or true byte-range/process lock integratio...",
+            "audit": "bounded replayed SELECT expression-index...",
+            "currentWork": "SQLiteSelectExpressionIndexPlan can now rank competing expression-index point, range, IN,...",
+            "nextTarget": "Next SQL planner gap: wire accepted expression-index range-cost decisions into broader SE...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "237ab8b"
+            "commit": "bc16f99"
         },
         {
             "library": "LightningCSS",
