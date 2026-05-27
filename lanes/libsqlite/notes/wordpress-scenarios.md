@@ -4438,3 +4438,12 @@ Follow-up should broaden pager/VFS atomic transaction and durable fsync
 behavior without repeating accepted rollback-journal commit, hot rollback
 recovery, savepoint rollback, WAL byte truncation, locked writer, process
 locks, or this super-journal commit path.
+
+## VFS Sync Plan Scenario
+
+Copied WordPress database import tooling can now preview SQLite xSync decisions
+for rollback-journal commit paths before applying file-handle writes. The smoke
+`examples/wordpress-vfs-sync-plan.php` reports database, rollback-journal, WAL,
+directory, read-only, memory, powersafe-overwrite, and persist-journal sync
+steps with FULL/NORMAL/DATAONLY flag names and durable dependency tags without
+requiring ext/sqlite.

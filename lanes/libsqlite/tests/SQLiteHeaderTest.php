@@ -94,6 +94,7 @@ use PortLibs\LibSqlite\SQLiteVfsFileLock;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockedFileWriter;
 use PortLibs\LibSqlite\SQLiteVfsLockState;
+use PortLibs\LibSqlite\SQLiteVfsSyncPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
@@ -18862,6 +18863,94 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'extra'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, -1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, null, -1));
+    },
+    'plans sqlite vfs xsync flags and durable sync sequences' => static function (TestRunner $t): void {
+        $database = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/.ht.sqlite', 'database', 'full');
+        $t->same('planned', $database['status']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $database['path']);
+        $t->same('database', $database['target']);
+        $t->same('full', $database['mode']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL, $database['flags']);
+        $t->same(['full'], $database['flag_names']);
+        $t->same(true, $database['durable']);
+        $t->same(false, $database['data_only']);
+        $t->same(false, $database['directory']);
+        $t->same(true, $database['allowed']);
+        $t->same(null, $database['reason']);
+        $t->same(['vfs-xsync-flags', 'vfs-file-handle-sync'], $database['dependencies']);
+
+        $wal = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/.ht.sqlite-wal', 'wal', 'normal', true);
+        $t->same('planned', $wal['status']);
+        $t->same('wal', $wal['target']);
+        $t->same('normal', $wal['mode']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $wal['flags']);
+        $t->same(['normal', 'dataonly'], $wal['flag_names']);
+        $t->same(true, $wal['data_only']);
+
+        $directory = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database', 'directory', 'normal', false, true);
+        $t->same('planned', $directory['status']);
+        $t->same('directory', $directory['target']);
+        $t->same(true, $directory['directory']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL, $directory['flags']);
+
+        $off = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/.ht.sqlite', 'database', 'off');
+        $t->same('skipped', $off['status']);
+        $t->same(0, $off['flags']);
+        $t->same([], $off['flag_names']);
+        $t->same(false, $off['durable']);
+        $t->same(false, $off['allowed']);
+        $t->same('sync_off', $off['reason']);
+
+        $readOnly = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/archive.sqlite', 'database', 'full', false, false, true);
+        $t->same('skipped', $readOnly['status']);
+        $t->same(false, $readOnly['allowed']);
+        $t->same('readonly_handle', $readOnly['reason']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL, $readOnly['flags']);
+
+        $memory = SQLiteVfsSyncPlan::forPath('/srv/www/wp-content/database/:memory:', 'temp', 'normal', false, false, false, false, true);
+        $t->same('skipped', $memory['status']);
+        $t->same('memory_database', $memory['reason']);
+        $t->same(false, $memory['durable']);
+
+        $commit = SQLiteVfsSyncPlan::rollbackCommitSequence('/srv/www/wp-content/database/.ht.sqlite', 'full');
+        $t->same(3, count($commit));
+        $t->same('rollback_journal', $commit[0]['target']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-journal', $commit[0]['path']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL, $commit[0]['flags']);
+        $t->same('database', $commit[1]['target']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_FULL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $commit[1]['flags']);
+        $t->same(['full', 'dataonly'], $commit[1]['flag_names']);
+        $t->same('directory', $commit[2]['target']);
+        $t->same('/srv/www/wp-content/database', $commit[2]['path']);
+
+        $persist = SQLiteVfsSyncPlan::rollbackCommitSequence('/srv/www/wp-content/database/.ht.sqlite', 'normal', true, true);
+        $t->same(3, count($persist));
+        $t->same('rollback_journal', $persist[0]['target']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL, $persist[0]['flags']);
+        $t->same('database', $persist[1]['target']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $persist[1]['flags']);
+        $t->same('rollback_journal_header', $persist[2]['target']);
+        $t->same(SQLiteVfsSyncPlan::SQLITE_SYNC_NORMAL | SQLiteVfsSyncPlan::SQLITE_SYNC_DATAONLY, $persist[2]['flags']);
+
+        $psow = SQLiteVfsSyncPlan::rollbackCommitSequence('/srv/www/wp-content/database/.ht.sqlite', 'normal', false, true);
+        $t->same(2, count($psow));
+        $t->same(['rollback_journal', 'database'], array_column($psow, 'target'));
+
+        foreach ($commit as $step) {
+            $t->same('planned', $step['status']);
+            $t->same(true, $step['durable']);
+            $t->same(true, $step['allowed']);
+            $t->same(['vfs-xsync-flags', 'vfs-file-handle-sync'], $step['dependencies']);
+        }
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('', 'database'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('relative.sqlite', 'database'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('/srv/../escape.sqlite', 'database'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath("/srv/bad\0name.sqlite", 'database'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('/srv/www/db.sqlite', 'unknown'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('/srv/www/db.sqlite', 'database', 'extra'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::forPath('/srv/www/db.sqlite', 'directory', 'normal', false, true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSyncPlan::rollbackCommitSequence('', 'full'));
     },
     'plans sqlite vfs lock byte ranges for open handles' => static function (TestRunner $t): void {
         $constants = SQLiteLockByteRangePlan::constants();

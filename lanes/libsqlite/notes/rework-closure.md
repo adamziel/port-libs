@@ -897,3 +897,35 @@ Follow-up should broaden pager/VFS atomic transaction and durable fsync
 behavior without repeating accepted rollback-journal commit, hot rollback
 recovery, savepoint rollback, WAL byte truncation, locked writer, process
 locks, or this super-journal commit path.
+
+## 2026-05-27 VFS Sync Plan
+
+This isolated dependency/VFS slice does not repeat accepted rollback-journal
+commit, super-journal commit, hot rollback recovery, savepoint rollback, WAL
+byte truncation, locked writer, process locks, or file-writer application. It
+adds bounded xSync flag and durable sequence planning for database,
+rollback-journal, WAL, directory, read-only, memory, powersafe-overwrite, and
+persist-journal paths.
+
+Focused assertion delta: `SQLiteHeaderTest.php` adds 73 assertions over the
+worker baseline. The assertions cover FULL/NORMAL/DATAONLY flags, skipped
+sync-off/read-only/memory paths, rollback-journal commit sync ordering,
+persist-journal header sync, powersafe-overwrite sequencing, dependency tags,
+and malformed path/target/mode guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsSyncPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-sync-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-sync-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local VFS file-handle and rollback-journal durability evidence. Follow-up
+should wire the plan into broader pager/VFS transaction application without
+repeating this planning-only path.

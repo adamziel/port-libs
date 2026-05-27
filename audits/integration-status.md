@@ -119476,3 +119476,35 @@ Decision: accepted. Commit this candidate as `Integrate libsqlite super-journal 
 Cleanup:
 - Removed accepted ready/patch/metadata files for `port-dev-libsqlite-wal-20260527T062957Z` after commit publication.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T062957Z` because it still contains modified/added lane files from the worker handoff. This is cleanup debt for a later non-forced worktree cleanup pass.
+## Integration accepted - libsqlite VFS sync plan - 2026-05-27T06:50:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T063946Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate verification was `bbed5adc383726c1121eadb9d064ec528f5f1066` (`Integrate libsqlite super-journal commits`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `bbed5adc383726c1121eadb9d064ec528f5f1066`, `generated` `2026-05-27 06:45:45 UTC`, and `dashboardCommit` `f3957206acdea688e50075ea855e2784e5941e7b`.
+- Runtime gates before focused verification were open: `df -Pk /` reported `88810284` KiB available, one-minute load was `1.85`, and no exact no-argument root harness was active.
+
+Candidate evidence:
+- Selected the dependency/VFS marker because it was the strongest sampled non-overlapping behavior delta after the accepted super-journal commit: SQLite VFS xSync flag and durable sequence planning, focused `SQLiteHeaderTest.php` growth from the current `7568` baseline to `7641` assertions (`+73`), and a copied WordPress VFS sync-plan smoke.
+- The marker was older-base on `953f9e3cd32415ebdd368085b69d266f327fe2f5`; direct apply to current `bbed5adc` failed only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Bounded replay of implementation, test, and example hunks applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-vfs-sync-20260527T063946Z-20260527T064746Z`; manifest/status/notes were reconciled from current `bbed5adc`.
+- It does not repeat accepted super-journal commit, rollback-journal commit, hot rollback recovery/application, savepoint rollback, WAL byte truncation, locked writer, process-lock, grouped SELECT, comma LIMIT, Unicode GLOB, B-tree overflow release, JSON visible constraints, or accepted JSON table work.
+
+Focused verification:
+- `php -l` passed for `SQLiteVfsSyncPlan.php`, `SQLiteHeaderTest.php`, and `wordpress-vfs-sync-plan.php`.
+- JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 7641 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-sync-plan.php` passed and reported valid JSON.
+- `git diff --check` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` and passed: `215 test files, 32806 assertions, 0 failures`.
+
+Decision: accepted. Commit this candidate as `Integrate libsqlite VFS sync plan`, remove only the accepted marker artifacts after the commit is safely on `main`, preserve dirty worker worktrees, and require dashboard publication for the new source before another source-moving marker.
+
+Cleanup:
+- Removed accepted ready/patch/metadata files for `port-dev-libsqlite-deps-20260527T063946Z` after commit publication.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T063946Z` because it still contains modified/added lane files from the worker handoff. This is cleanup debt for a later non-forced worktree cleanup pass.

@@ -1315,7 +1315,8 @@
             "focusedSelectCompositeGroupedAggregateQuery": "The SELECT grouped aggregate preview smoke now reports copied wp_options rows grouped by autoload plus option kind, preserving projected grouping columns, aggregate summaries, ORDER BY/LIMIT, and validation diagnostics without requiring ext/sqlite.",
             "focusedBtreeIndexInteriorMergeApplicationPlan": "The index-interior merge apply smoke reports copied wp_options autoload-index parent merging after delete underflow, obsolete sibling freelist release, merged child record order, and auto-vacuum pointer-map ownership rewrites without requiring ext/sqlite.",
             "focusedVfsSavepointRollbackApply": "The VFS savepoint rollback smoke reports copied wp_options failed plugin-setting imports applied through native file handles, restoring savepoint database page images, truncating discarded WAL frames, syncing database/WAL handles, and persisting sidecar directory state without requiring ext/sqlite.",
-            "focusedSuperJournalCommitApply": "The super-journal commit smoke reports copied WordPress multisite-style attached database imports committed through a SQLite master journal that lists each rollback journal, syncs attached journals and database pages, deletes the super-journal as the atomic commit point, and cleans sidecars without requiring ext/sqlite."
+            "focusedSuperJournalCommitApply": "The super-journal commit smoke reports copied WordPress multisite-style attached database imports committed through a SQLite master journal that lists each rollback journal, syncs attached journals and database pages, deletes the super-journal as the atomic commit point, and cleans sidecars without requiring ext/sqlite.",
+            "focusedVfsSyncPlan": "The VFS sync-plan smoke reports copied WordPress database rollback-journal, WAL, directory, read-only, memory, powersafe-overwrite, and persist-journal sync decisions with SQLite xSync flags and durable sequence dependencies without requiring ext/sqlite."
         },
         "focusedBtreeInteriorRedistributionPlan": "The table-interior redistribution smoke reports copied wp_options table b-tree delete rebalancing where an underfilled interior parent borrows a child pointer from its right sibling, replaces the parent divider key, and rewrites auto-vacuum pointer-map ownership without requiring ext/sqlite."
     },
@@ -1342,5 +1343,16 @@
         "focusedVfsSavepointRollbackApplyScripts": 1,
         "focusedSuperJournalCommitApplyScripts": 1
     },
-    "focusedVfsProcessFileLock": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS locking evidence row for process-backed sidecar file locks over accepted SQLite lock byte-range plans. Native smoke covers shared reader concurrency, reserved writer exclusion, pending-reader blocking, exclusive promotion after reader drain, nolock and failed-open blockers, and copied WordPress database lock diagnostics without requiring ext/sqlite."
+    "focusedVfsProcessFileLock": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS locking evidence row for process-backed sidecar file locks over accepted SQLite lock byte-range plans. Native smoke covers shared reader concurrency, reserved writer exclusion, pending-reader blocking, exclusive promotion after reader drain, nolock and failed-open blockers, and copied WordPress database lock diagnostics without requiring ext/sqlite.",
+    "focusedVfsSyncPlan": {
+        "status": "mapped-native-focused",
+        "upstreamScope": "SQLite VFS xSync flag and durable sync sequencing for rollback-journal commit, WAL, directory, read-only, memory, powersafe-overwrite, and persist-journal paths represented as bounded PHP planning evidence.",
+        "nativeEvidence": "SQLiteVfsSyncPlan focused PHP coverage plus copied WordPress VFS sync-plan smoke.",
+        "phpAssertions": 73,
+        "wordpressSmoke": "lanes/libsqlite/examples/wordpress-vfs-sync-plan.php",
+        "tests": [
+            "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+        ],
+        "upstreamRun": "not-run-isolated-slice-reuses-accepted-vfs-file-handle-and-rollback-journal-evidence"
+    }
 }
