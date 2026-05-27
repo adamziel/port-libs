@@ -130,7 +130,7 @@ final class SQLiteSelectPredicate
             return $nullsEqual ? $accept($left === $right ? 0 : 1) : null;
         }
 
-        $comparison = self::compareValues($left, $right);
+        $comparison = self::compareValues($left, $right, $nullsEqual);
         if ($comparison === null && $nullsEqual) {
             return $accept(1);
         }
@@ -304,8 +304,8 @@ final class SQLiteSelectPredicate
             return match ($type) {
                 'column' => self::columnExpression($row, $expression),
                 'literal' => $expression['value'] ?? null,
-                'function', 'unary', 'binary', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
-                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, unary, binary, or subquery'),
+                'function', 'unary', 'binary', 'row', 'subquery' => SQLiteSelectExpression::evaluate($row, $expression),
+                default => throw new \InvalidArgumentException('SQLite SELECT predicate expression type must be column, literal, function, unary, binary, row, or subquery'),
             };
         }
 
@@ -333,8 +333,12 @@ final class SQLiteSelectPredicate
         return $row[$column];
     }
 
-    private static function compareValues(mixed $left, mixed $right): ?int
+    private static function compareValues(mixed $left, mixed $right, bool $nullsEqual = false): ?int
     {
+        if (is_array($left) || is_array($right)) {
+            return self::compareRowValues($left, $right, $nullsEqual);
+        }
+
         self::assertValue($left);
         self::assertValue($right);
         if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
@@ -348,6 +352,43 @@ final class SQLiteSelectPredicate
         }
 
         return null;
+    }
+
+    /**
+     * @return ?int 0 for equality, -1/1 for a known ordering, null for SQL NULL/unknown
+     */
+    private static function compareRowValues(mixed $left, mixed $right, bool $nullsEqual): ?int
+    {
+        if (!is_array($left) || !is_array($right) || !array_is_list($left) || !array_is_list($right)) {
+            throw new \InvalidArgumentException('SQLite SELECT row-value comparisons need row operands on both sides');
+        }
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite SELECT row-value comparisons need the same number of columns');
+        }
+        if (count($left) < 2) {
+            throw new \InvalidArgumentException('SQLite SELECT row-value comparisons need at least two columns');
+        }
+
+        $sawNull = false;
+        foreach ($left as $index => $leftValue) {
+            $rightValue = $right[$index];
+            if ($leftValue === null || $rightValue === null) {
+                if (!$nullsEqual || $leftValue !== $rightValue) {
+                    $sawNull = true;
+                }
+                continue;
+            }
+
+            $comparison = self::compareValues($leftValue, $rightValue, $nullsEqual);
+            if ($comparison === null) {
+                return null;
+            }
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+        }
+
+        return $sawNull ? null : 0;
     }
 
     private static function isTrue(mixed $value): bool

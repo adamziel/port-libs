@@ -20,9 +20,33 @@ final class SQLiteSelectExpression
             'function' => self::functionValue($row, $expression),
             'unary' => self::unaryValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
+            'row' => self::rowValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, unary, binary, or subquery'),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, unary, binary, row, or subquery'),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     * @return list<mixed>
+     */
+    private static function rowValue(array $row, array $expression): array
+    {
+        $values = $expression['values'] ?? null;
+        if (!is_array($values) || !array_is_list($values) || count($values) < 2) {
+            throw new \InvalidArgumentException('SQLite SELECT row-value expression needs at least two values');
+        }
+
+        $evaluated = [];
+        foreach ($values as $valueExpression) {
+            if (!is_array($valueExpression)) {
+                throw new \InvalidArgumentException('SQLite SELECT row-value expression values must be expressions');
+            }
+            $evaluated[] = self::evaluate($row, $valueExpression);
+        }
+
+        return $evaluated;
     }
 
     /**

@@ -5079,3 +5079,25 @@ lane-local JSON inspection, JSON5 parser, JSONB codec, `SQLiteBlobValue`, and
 SELECT SQL parser/executor. Follow-up should target non-overlapping JSON
 planner/JSONB behavior rather than accepted JSON table source/cursor/hidden or
 visible-constraint clusters, or this inspection-function expression dispatch.
+### 2026-05-27 ANALYZE sqlite_stat1 planner corpus
+
+The `wordpress-analyze-stat-planner.php` smoke reports copied WordPress
+`wp_options` and `wp_postmeta` query probes choosing bounded native PHP index
+plans from `ANALYZE` / `sqlite_stat1` cardinality before row decoding. This
+keeps option-name, transient cleanup, and postmeta lookups deterministic on
+hosts where `ext/sqlite` is unavailable.
+
+Status delta 2026-05-27 isolated analyze/stat planner slice: added
+`SQLiteAnalyzeStatPlanner`, `SQLiteAnalyzeStatPlannerCorpusTest.php`, and a
+WordPress smoke. Focused verification:
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteAnalyzeStatPlannerCorpusTest.php`
+reported `1 test files, 105 assertions, 0 failures` with 50 PASS lines, so
+`lane-status.json` `phpPass` moved from 1336 to 1386. Mapped upstream
+denominator coverage is unchanged because this is a focused PHP corpus row, not
+a newly hydrated upstream inventory unit. Non-overlap: this covers
+ANALYZE/stat1 cardinality parsing and prefix index selection; it does not repeat
+accepted expression-index range-cost ranking, SELECT expression `ORDER BY`,
+JSON table constraints, VFS sync/write/lock application, WAL rollback/checkpoint
+application, B-tree page relocation/root collapse/overflow freelist release, or
+Unicode GLOB work. Dependency closure: no new support component is needed; the
+slice reuses lane-local SELECT planner arrays and native PHP stat parsing only.

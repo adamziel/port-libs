@@ -1228,6 +1228,14 @@ final class SQLiteSelectSql
         }
         $unwrapped = self::unwrapParenthesizedExpression($sql);
         if ($unwrapped !== $sql) {
+            $rowTerms = self::splitTopLevel($unwrapped, ',');
+            if (count($rowTerms) > 1) {
+                return [
+                    'type' => 'row',
+                    'values' => array_map(static fn (string $term): array => self::valueExpression($term, $tables), $rowTerms),
+                ];
+            }
+
             return self::valueExpression($unwrapped, $tables);
         }
 
