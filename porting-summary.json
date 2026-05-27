@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 06:45:45 UTC",
-    "sourceCommit": "bbed5adc383726c1121eadb9d064ec528f5f1066",
-    "sourceCommitShort": "bbed5adc3837",
+    "generated": "2026-05-27 06:54:04 UTC",
+    "sourceCommit": "82df9b38e9cec0cc04f161dd3e04f6a9357b65d6",
+    "sourceCommitShort": "82df9b38e9ce",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "f3957206acdea688e50075ea855e2784e5941e7b",
-    "dashboardCommitShort": "f3957206acde",
+    "dashboardCommit": "c4befb3727f32c5edd6837b8b47e594ae7e9b9d8",
+    "dashboardCommitShort": "c4befb3727f3",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "440",
             "coverage": "440 / 1589",
-            "php": "786 pass / 0 fail",
+            "php": "787 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded WAL/rollback super-journal commit...",
-            "currentWork": "Clean-integrating SQLite super-journal commit application after focused selected verifica...",
-            "nextTarget": "Broaden pager/VFS atomic transaction and durable fsync behavior without repeating accepte...",
+            "audit": "bounded VFS sync-plan slice replayed on c...",
+            "currentWork": "Clean-integrating lane-local SQLite VFS xSync flag and durable sync sequence planning for...",
+            "nextTarget": "Broaden pager/VFS transaction application and durable fsync/file-handle behavior without...",
             "blocker": "Full SQLite release/all-suite parity remains gated by bounded runner coun...",
-            "commit": "95f6fff"
+            "commit": "bbed5ad"
         },
         {
             "library": "LightningCSS",
