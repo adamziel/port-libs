@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 19:32:10 UTC",
-    "sourceCommit": "e9e74bb10ab5ca1c1d088e7411f2394da3026602",
-    "sourceCommitShort": "e9e74bb10ab5",
+    "generated": "2026-05-27 19:39:04 UTC",
+    "sourceCommit": "c58b6f5c4bf8ea6c9311b67899473c82c6895d2b",
+    "sourceCommitShort": "c58b6f5c4bf8",
     "sourceBranch": "main",
-    "dashboardCommit": "a86e5388bed36c6ccd00bb44f33cdef279b77e15",
-    "dashboardCommitShort": "a86e5388bed3",
+    "dashboardCommit": "e0f2758751c85cb6f60e2c55ad555cf6b3eb5445",
+    "dashboardCommitShort": "e0f2758751c8",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "457",
             "coverage": "457 / 1589",
-            "php": "7262 pass / 0 fail",
+            "php": "7625 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch19 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch19 closure over ALTER TABLE generated CHECK current-row validation, index l...",
-            "nextTarget": "Publish batch19 dashboard status from the clean source, keep batch20 workers active, then...",
-            "blocker": "No blocker for the accepted batch19 subset: focused, full libsqlite, and...",
-            "commit": "81c302b"
+            "audit": "Batch20 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch20 closure over B-tree overflow secure-delete, covering-index planning, DML...",
+            "nextTarget": "Publish batch20 dashboard status, consume the accepted handoffs, keep 10-11 libsqlite wor...",
+            "blocker": "No blocker for the accepted batch20 subset: focused, full libsqlite, and...",
+            "commit": "0fc4572"
         },
         {
             "library": "LightningCSS",
