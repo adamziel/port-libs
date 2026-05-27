@@ -194,6 +194,92 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $partitionBy
+     * @return list<array<string,mixed>>
+     */
+    public static function windowedRows(
+        string $function,
+        array $constraints,
+        array $orderBy,
+        array $partitionBy = [],
+        int $ntileBuckets = 1,
+        string $valueColumn = 'atom',
+    ): array {
+        if ($orderBy === []) {
+            throw new \InvalidArgumentException('SQLite JSON table window rows require ORDER BY terms');
+        }
+        if ($ntileBuckets <= 0) {
+            throw new \InvalidArgumentException('SQLite JSON table window ntile buckets must be positive');
+        }
+
+        $valueColumn = strtolower($valueColumn);
+        $normalizedPartitionBy = array_map(
+            static fn (string $column): string => strtolower($column),
+            $partitionBy,
+        );
+
+        $rows = self::orderedRows($function, $constraints, $orderBy);
+        if ($rows === []) {
+            return [];
+        }
+
+        $partitions = [];
+        foreach ($rows as $index => $row) {
+            if (!self::rowHasColumn($row, $valueColumn)) {
+                throw new \InvalidArgumentException("SQLite JSON table window value column {$valueColumn} is not available");
+            }
+            $partitionKey = self::partitionKey($row, $normalizedPartitionBy);
+            $partitions[$partitionKey][] = $index;
+        }
+
+        foreach ($partitions as $indexes) {
+            $count = count($indexes);
+            $rank = 1;
+            $denseRank = 1;
+            $seen = 0;
+            $tileAssignments = self::ntileAssignments($count, $ntileBuckets);
+            for ($position = 0; $position < $count; $position++) {
+                $index = $indexes[$position];
+                if ($position > 0) {
+                    $previousIndex = $indexes[$position - 1];
+                    if (self::compareRowsForOrderBy($rows[$previousIndex], $rows[$index], $orderBy) !== 0) {
+                        $rank = $position + 1;
+                        $denseRank++;
+                    }
+                }
+
+                $peerEnd = $position;
+                while (
+                    $peerEnd + 1 < $count
+                    && self::compareRowsForOrderBy($rows[$index], $rows[$indexes[$peerEnd + 1]], $orderBy) === 0
+                ) {
+                    $peerEnd++;
+                }
+                $seen = max($seen, $peerEnd + 1);
+
+                $firstIndex = $indexes[0];
+                $lastIndex = $indexes[$count - 1];
+                $previousIndex = $indexes[$position - 1] ?? null;
+                $nextIndex = $indexes[$position + 1] ?? null;
+                $rows[$index]['window_row_number'] = $position + 1;
+                $rows[$index]['window_rank'] = $rank;
+                $rows[$index]['window_dense_rank'] = $denseRank;
+                $rows[$index]['window_percent_rank'] = $count === 1 ? 0.0 : (float) (($rank - 1) / ($count - 1));
+                $rows[$index]['window_cume_dist'] = (float) ($seen / $count);
+                $rows[$index]['window_ntile'] = $tileAssignments[$position];
+                $rows[$index]['window_lag'] = $previousIndex === null ? null : self::rowColumnValue($rows[$previousIndex], $valueColumn);
+                $rows[$index]['window_lead'] = $nextIndex === null ? null : self::rowColumnValue($rows[$nextIndex], $valueColumn);
+                $rows[$index]['window_first_value'] = self::rowColumnValue($rows[$firstIndex], $valueColumn);
+                $rows[$index]['window_last_value'] = self::rowColumnValue($rows[$lastIndex], $valueColumn);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array<string,mixed>>
      */
     public static function visibleRows(string $function, array $constraints): array
@@ -609,6 +695,42 @@ final class SQLiteJsonTablePlan
         }
 
         return 0;
+    }
+
+    /**
+     * @param list<string> $partitionBy
+     */
+    private static function partitionKey(array $row, array $partitionBy): string
+    {
+        if ($partitionBy === []) {
+            return '__all__';
+        }
+
+        $values = [];
+        foreach ($partitionBy as $column) {
+            if (!self::rowHasColumn($row, $column)) {
+                throw new \InvalidArgumentException("SQLite JSON table window partition column {$column} is not available");
+            }
+            $values[] = self::rowColumnValue($row, $column);
+        }
+
+        return json_encode($values, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function ntileAssignments(int $count, int $buckets): array
+    {
+        $baseSize = intdiv($count, $buckets);
+        $largerBuckets = $count % $buckets;
+        $assignments = [];
+        for ($bucket = 1; $bucket <= min($buckets, $count); $bucket++) {
+            $size = $baseSize + ($bucket <= $largerBuckets ? 1 : 0);
+            array_push($assignments, ...array_fill(0, $size, $bucket));
+        }
+
+        return $assignments;
     }
 
     private static function sqliteSortClass(mixed $value): int

@@ -3759,6 +3759,26 @@ Dependency closure: no new shared support component is needed. This is a
 lane-local VFS/open admission helper; a future real VFS/process-lock component
 remains gated on durable cross-process byte-range locking evidence.
 
+## JSON Table Window-Ranking Scenario
+
+Copied WordPress plugin settings can now be expanded through `json_tree()` and
+annotated with SQLite-style window metadata before import or repair tools need
+ext/sqlite. The smoke
+`examples/wordpress-json-table-window-ranking.php` reports priority rows with
+row numbers, peer ranks, dense ranks, ntile buckets, lag/lead values, and
+first/last values over copied `wp_options` JSON.
+
+Status delta 2026-05-27 isolated JSON table/window slice: added
+`SQLiteJsonTablePlan::windowedRows()` with 60 focused assertions covering
+ordered rowsets, peer groups, partitions, JSONB/subtype inputs, LIMIT/OFFSET
+composition, SQL NULL empty rowsets, and strict malformed option guards.
+Focused selected `SQLiteHeaderTest.php` passed with 60 assertions and 0
+failures; the lane status moves `phpPass` from 751 to 752.
+
+Dependency closure: no new support component is needed. This reuses accepted
+lane-local JSON table planning, residual filtering, ordering, JSONB/subtype
+wrappers, and bounded window semantics.
+
 ## SQLite VFS Sidecar Preflight Scenario
 
 Copied WordPress database tooling can now resolve bounded SQLite VFS sidecar

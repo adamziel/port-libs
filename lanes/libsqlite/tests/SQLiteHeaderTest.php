@@ -6458,6 +6458,132 @@ return [
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
         ]));
     },
+    'annotates sqlite json table rows with ordered window semantics' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":7,"autoload":true},{"name":"media","priority":1,"autoload":false}]}}';
+        $constraints = [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+        ];
+
+        $priorityRows = SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'atom', 'direction' => 'DESC'],
+            ['column' => 'fullkey', 'direction' => 'ASC'],
+        ], [], 3);
+        $t->same(['priority', 'priority', 'priority', 'priority'], array_column($priorityRows, 'key'));
+        $t->same([7, 7, 2, 1], array_column($priorityRows, 'atom'));
+        $t->same(['integer', 'integer', 'integer', 'integer'], array_column($priorityRows, 'type'));
+        $t->same([7, 11, 3, 15], array_column($priorityRows, 'id'));
+        $t->same([5, 9, 1, 13], array_column($priorityRows, 'parent'));
+        $t->same(['$.plugin.rules[1].priority', '$.plugin.rules[2].priority', '$.plugin.rules[0].priority', '$.plugin.rules[3].priority'], array_column($priorityRows, 'fullkey'));
+        $t->same(['$.plugin.rules[1]', '$.plugin.rules[2]', '$.plugin.rules[0]', '$.plugin.rules[3]'], array_column($priorityRows, 'path'));
+        $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($priorityRows, 'root'));
+        $t->same([1, 2, 3, 4], array_column($priorityRows, 'window_row_number'));
+        $t->same([1, 2, 3, 4], array_column($priorityRows, 'window_rank'));
+        $t->same([1, 2, 3, 4], array_column($priorityRows, 'window_dense_rank'));
+        $t->same([0.0, 1 / 3, 2 / 3, 1.0], array_column($priorityRows, 'window_percent_rank'));
+        $t->same([0.25, 0.5, 0.75, 1.0], array_column($priorityRows, 'window_cume_dist'));
+        $t->same([1, 1, 2, 3], array_column($priorityRows, 'window_ntile'));
+        $t->same([null, 7, 7, 2], array_column($priorityRows, 'window_lag'));
+        $t->same([7, 2, 1, null], array_column($priorityRows, 'window_lead'));
+        $t->same([7, 7, 7, 7], array_column($priorityRows, 'window_first_value'));
+        $t->same([1, 1, 1, 1], array_column($priorityRows, 'window_last_value'));
+
+        $peerRows = SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'atom', 'direction' => 'DESC'],
+        ], [], 2);
+        $t->same([7, 7, 2, 1], array_column($peerRows, 'atom'));
+        $t->same([1, 1, 3, 4], array_column($peerRows, 'window_rank'));
+        $t->same([1, 1, 2, 3], array_column($peerRows, 'window_dense_rank'));
+        $t->same([0.0, 0.0, 2 / 3, 1.0], array_column($peerRows, 'window_percent_rank'));
+        $t->same([0.5, 0.5, 0.75, 1.0], array_column($peerRows, 'window_cume_dist'));
+        $t->same([1, 1, 2, 2], array_column($peerRows, 'window_ntile'));
+        $t->same([null, 7, 7, 2], array_column($peerRows, 'window_lag'));
+        $t->same([7, 2, 1, null], array_column($peerRows, 'window_lead'));
+
+        $partitionedRows = SQLiteJsonTablePlan::windowedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['text', 'integer', 'true', 'false']],
+        ], [
+            ['column' => 'type', 'direction' => 'ASC'],
+            ['column' => 'atom', 'direction' => 'ASC'],
+        ], ['type'], 2);
+        $t->same(['false', 'false', 'integer', 'integer', 'integer', 'integer', 'text', 'text', 'text', 'text', 'true', 'true'], array_column($partitionedRows, 'type'));
+        $t->same([0, 0, 1, 2, 7, 7, 'cache', 'forms', 'media', 'seo', 1, 1], array_column($partitionedRows, 'atom'));
+        $t->same([1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2], array_column($partitionedRows, 'window_row_number'));
+        $t->same([1, 1, 1, 2, 3, 3, 1, 2, 3, 4, 1, 1], array_column($partitionedRows, 'window_rank'));
+        $t->same([1.0, 1.0, 0.25, 0.5, 1.0, 1.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], array_column($partitionedRows, 'window_cume_dist'));
+        $t->same([1, 2, 1, 1, 2, 2, 1, 1, 2, 2, 1, 2], array_column($partitionedRows, 'window_ntile'));
+        $t->same([null, 0, null, 1, 2, 7, null, 'cache', 'forms', 'media', null, 1], array_column($partitionedRows, 'window_lag'));
+        $t->same([0, null, 2, 7, 7, null, 'forms', 'media', 'seo', null, 1, null], array_column($partitionedRows, 'window_lead'));
+        $t->same([0, 0, 1, 1, 1, 1, 'cache', 'cache', 'cache', 'cache', 1, 1], array_column($partitionedRows, 'window_first_value'));
+        $t->same([0, 0, 7, 7, 7, 7, 'seo', 'seo', 'seo', 'seo', 1, 1], array_column($partitionedRows, 'window_last_value'));
+
+        $jsonbRows = SQLiteJsonTablePlan::windowedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['rules' => [['priority' => 1], ['priority' => 5], ['priority' => 5]]]]))],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+        ], [
+            ['column' => 'atom', 'direction' => 'DESC'],
+        ], [], 4);
+        $t->same([5, 5, 1], array_column($jsonbRows, 'atom'));
+        $t->same([1, 1, 3], array_column($jsonbRows, 'window_rank'));
+        $t->same([1, 1, 2], array_column($jsonbRows, 'window_dense_rank'));
+        $t->same([1, 2, 3], array_column($jsonbRows, 'window_ntile'));
+        $t->same([0.0, 0.0, 1.0], array_column($jsonbRows, 'window_percent_rank'));
+        $t->same([2 / 3, 2 / 3, 1.0], array_column($jsonbRows, 'window_cume_dist'));
+
+        $subtypeRows = SQLiteJsonTablePlan::windowedRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonArray('seo', 'cache', 'forms'))],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+        ], [
+            ['column' => 'atom', 'direction' => 'ASC'],
+        ], [], 2, 'value');
+        $t->same(['cache', 'forms', 'seo'], array_column($subtypeRows, 'value'));
+        $t->same(['cache', 'forms', 'seo'], array_column($subtypeRows, 'atom'));
+        $t->same([1, 2, 3], array_column($subtypeRows, 'window_row_number'));
+        $t->same([1, 2, 3], array_column($subtypeRows, 'window_rank'));
+        $t->same([1, 1, 2], array_column($subtypeRows, 'window_ntile'));
+        $t->same([null, 'cache', 'forms'], array_column($subtypeRows, 'window_lag'));
+        $t->same(['forms', 'seo', null], array_column($subtypeRows, 'window_lead'));
+        $t->same(['cache', 'cache', 'cache'], array_column($subtypeRows, 'window_first_value'));
+        $t->same(['seo', 'seo', 'seo'], array_column($subtypeRows, 'window_last_value'));
+
+        $limitedWindowRows = SQLiteJsonTablePlan::windowedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'integer'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 2],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ], [
+            ['column' => 'atom', 'direction' => 'DESC'],
+        ], [], 2);
+        $t->same([7, 7], array_column($limitedWindowRows, 'atom'));
+        $t->same([1, 2], array_column($limitedWindowRows, 'window_row_number'));
+        $t->same([1, 1], array_column($limitedWindowRows, 'window_rank'));
+
+        $t->same([], SQLiteJsonTablePlan::windowedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => null],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], [
+            ['column' => 'atom'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'atom'],
+        ], [], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'missing'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'atom'],
+        ], ['missing']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::windowedRows('json_tree', $constraints, [
+            ['column' => 'atom'],
+        ], [], 1, 'missing'));
+    },
     'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';
         $json5 = "{plugin:{enabled:false,title:'Cache',priority:+7,ratio:.5,rules:[{name:'seo'},],},}";

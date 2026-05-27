@@ -118499,3 +118499,41 @@ Root verification: serialized no-argument root run under clean-integrator lock p
 Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root passed. Commit exactly this source move and remove the accepted marker artifacts only after `refs/heads/main` is updated. Dashboard publication should run next after the accepted commit.
 
 Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-scalar-20260527T020506Z` still has modified libsqlite files matching the accepted patch, so it was preserved and left registered. Accepted ready/patch/metadata marker files may be removed after publication of this commit to `refs/heads/main`.
+
+## Integration accepted - libsqlite JSON table window ranking - 2026-05-27T02:20:30Z
+
+Marker accepted: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T020947Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `9742a80abc65079e2a5e5e259e21284af37ba608` (`Integrate libsqlite scalar WHERE operands`).
+- Cache-busted live Pages reported exact source `9742a80abc65079e2a5e5e259e21284af37ba608`, generated `2026-05-27 02:16:09 UTC`, dashboard commit `898bf759ea2215dc4f0cf03bc79b49d5d7465185`, so the source-moving guard was open for one marker.
+
+Candidate selection:
+- No ready `port-dev-libsqlite-*` marker was based on current `9742a80a`.
+- Recent older-base high-yield behavior markers were sampled. The JSON table/window marker was based on `bc2c66e1424a1111602a59c6b2584f39c294356d` and direct apply failed only on stale `lanes/libsqlite/lane-status.json`.
+- The JSON implementation, test, example, manifest, and notes hunks replayed cleanly in a detached current-head worktree with only lane-status reconciled from current accepted evidence.
+- Scalar and encoding markers were not selected because their implementation/test hunks overlapped the already accepted scalar WHERE operand work at `9742a80a`.
+
+Runtime gate evidence before focused checks:
+- `df -Pk /` reported `114534376` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` was below `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Focused verification in detached candidate `.tmux-team/tmp/clean-integrator-candidate-20260527T0218Z` with repo-local `TMPDIR`:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-table-window-ranking.php`: passed.
+- Manifest/status JSON decode: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 5293 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-table-window-ranking.php`: passed and emitted valid JSON.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification: pending serialized no-argument root run from this exact candidate snapshot.
+
+Expected dashboard movement after commit: libsqlite `phpPass` becomes `753`, mapped coverage becomes `416 / 1589`, and focused assertions grow by `+60` over the marker baseline while current root grows from the prior accepted `30314` plus later scalar/JSON accepted deltas to the measured post-root total below.
+- Serialized no-argument root verification with repo-local `TMPDIR`: `215 test files, 30458 assertions, 0 failures`.
+- `git diff --check`: passed before root; audit-only root-result append checked separately after root.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T020947Z` still contains the accepted lane modifications, so it was preserved and left registered instead of being removed.
+- Accepted ready marker, patch, and metadata files were removed after `refs/heads/main` advanced safely.

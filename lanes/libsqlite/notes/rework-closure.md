@@ -344,3 +344,37 @@ lane-local native PHP support component for SQLite SHM/wal-index sidecars and
 reuses accepted WAL, open, sidecar, page-cache, and lock-coordination evidence.
 Next dependency/open work should connect this to WAL-open/checkpoint
 persistence or a bounded native file-control/locking adapter.
+
+## 2026-05-27 JSON Table Window Ranking
+
+This isolated JSON table/window slice does not repeat accepted JSON projection,
+duplicate hidden constraints, malformed JSONB planning, SQL NULL path handling,
+JSON subtype handoff, LIMIT/OFFSET planning, or JSON object aggregate/window
+behavior. It adds one bounded table/window behavior cluster:
+`SQLiteJsonTablePlan::windowedRows()` composes accepted `json_each()` /
+`json_tree()` hidden constraints, residual filtering, ORDER BY, LIMIT/OFFSET,
+JSONB/subtype inputs, and optional partitioning with SQLite-style window
+metadata over the resulting rowset.
+
+Focused assertion delta: the selected `SQLiteHeaderTest.php` test adds 60
+passing assertions for row_number, rank, dense_rank, percent_rank, cume_dist,
+ntile, lag, lead, first_value, last_value, peer groups, partitions, JSONB,
+JSON subtype inputs, limit/offset composition, empty SQL NULL inputs, and
+strict malformed window option guards. The lane status moves `phpPass` from
+751 to 752; mapped coverage gains `focusedJsonTableWindowRanking`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-window-ranking.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["annotates sqlite json table rows with ordered window semantics"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-json-table-window-ranking.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses existing
+lane-local JSON table planning, residual predicate evaluation, row ordering,
+JSONB/BLOB wrappers, JSON subtype values, and bounded window semantics.

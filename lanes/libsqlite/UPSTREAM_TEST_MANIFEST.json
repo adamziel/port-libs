@@ -837,9 +837,10 @@
         "focusedGroupedAggregateResult": "The 2026-05-26 bounded SQL execution/planner GROUP BY/HAVING slice adds native grouped aggregate summaries for copied wp_options result diagnostics, with focused NULL/scalar/BLOB group keys, count/sum/total/avg/min/max/group_concat finalization per group, HAVING count/sum filters, stable ORDER BY result ordering, strict missing-column/type errors, and WordPress grouped option smoke coverage.",
         "focusedSelectCaseProjection": "The 2026-05-26 clean-integrated SQL CASE projection slice maps one additional focused SELECT projection evidence row for simple CASE, searched CASE, SQL truthiness, NULL simple-CASE non-matches, lazy first-match branch evaluation, scalar/BLOB branch values, strict malformed CASE guards, and copied wp_options CASE projection previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
         "focusedSelectWildcardProjection": "The 2026-05-26 isolated priority SQL wildcard projection slice maps one additional focused SELECT projection evidence row for star and table-star expansion over copied wp_options joined rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
-        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, GLOB, nested boolean, SQL NULL truth-table, and BLOB identity semantics over copied wp_options-style rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
+        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, GLOB, nested boolean, SQL NULL truth-table, and BLOB identity semantics over copied wp_options-style rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
+        "focusedJsonTableWindowRanking": "2026-05-27 isolated JSON-table/window focused test passed with 60 assertions; smoke lanes/libsqlite/examples/wordpress-json-table-window-ranking.php passed."
     },
-    "currentWork": "Latest B-tree work adds focused native PHP assertions for table/index leaf sibling redistribution after delete underflow, covering replacement parent dividers and no-freelist page image updates.",
+    "currentWork": "Latest JSON-table/window slice adds ordered window annotations over json_each/json_tree rowsets with copied wp_options smoke evidence.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and WordPress option-key assembly diagnostics without requiring ext/sqlite.",
@@ -900,7 +901,8 @@
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence"
         },
         "focusedWalOpenView": "The 2026-05-26 clean-integrated WAL/open slice maps one additional focused WAL/pager evidence row for bounded sidecar WAL database opening. Native smoke covers committed page overlays, effective database image materialization, checkpoint result passthrough, database-only fallback, sidecar file discovery, uncommitted tail preservation, malformed WAL rejection, and copied wp_options reads without requiring ext/sqlite.",
-        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run."
+        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run.",
+        "focusedJsonTableWindowRanking": "Run on 2026-05-27 reused accepted static JSON table/window evidence because this isolated worktree did not contain the hydrated upstream cache. Native focused coverage adds 60 assertions for window annotations over json_tree/json_each rowsets and a copied WordPress smoke without requiring ext/sqlite."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -950,7 +952,8 @@
             "phpAssertions": 71,
             "upstreamClaim": "no fresh upstream execution; reuses accepted WAL/pager evidence"
         },
-        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run."
+        "focusedBtreeLeafRedistributionPlan": "The 2026-05-27 bounded B-tree delete/rebalance slice maps one additional focused B-tree evidence row for table/index leaf sibling redistribution after delete underflow. Native smoke covers moved cells, updated left/right page images, replacement parent dividers, no freelist release, and copied wp_options index redistribution diagnostics without requiring ext/sqlite or a fresh upstream run.",
+        "focusedJsonTableWindowRanking": "The 2026-05-27 isolated json-table/window slice maps one additional focused JSON table/window evidence row for ordered json_each/json_tree window annotations over copied wp_options settings. Native smoke covers row_number, rank, dense_rank, percent_rank, cume_dist, ntile, lag, lead, first_value, last_value, optional partitioning, JSONB/subtype inputs, LIMIT/OFFSET composition, strict guards, and no fresh upstream execution."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -1013,6 +1016,14 @@
                 "phpPass": 1,
                 "phpFail": 0,
                 "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance evidence while adding native leaf redistribution assertions."
+            },
+            "focusedJsonTableWindowRanking": {
+                "upstreamScope": "SQLite JSON table-valued scans composed with ordered SQL window result metadata over json_each/json_tree rows.",
+                "nativeEvidence": "SQLiteJsonTablePlan::windowedRows() focused PHP coverage plus copied WordPress JSON table window-ranking smoke.",
+                "status": "mapped-focused-native",
+                "phpPass": 1,
+                "phpFail": 0,
+                "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this is bounded native row-array dispatch evidence."
             }
         },
         "sqlExecutionPlanner": {
@@ -1043,7 +1054,8 @@
         "focusedVfsSidecarPlan": "The 2026-05-27 isolated dependency/open slice adds bounded SQLite VFS sidecar path and policy planning for copied WordPress database preflight diagnostics, reusing accepted file URI and open-plan evidence without claiming a fresh upstream run.",
         "focusedJsonObjectAggregateWindow": "The 2026-05-27 clean-integrated JSON object aggregate/window slice adds bounded json_group_object() DISTINCT/ORDER BY/DISTINCT ORDER BY and ROWS window frame helpers for copied WordPress option aggregate previews, reusing accepted JSON aggregate/window evidence without claiming a fresh upstream run.",
         "btreeLeafMergeApplicationPlan": "SQLiteBTreeLeafMergeApplicationPlan composes accepted leaf merge plans with SQLiteDatabase::planPageFree() page images so table/index merged pages, freelist trunk updates, and pointer-map changes can be applied as a bounded page-image set.",
-        "btreeLeafRedistributionPlan": "SQLiteBTreeLeafRedistributionPlan composes table/index leaf siblings into redistributed left/right page images, reports replacement parent separators, and leaves both sibling pages allocated for bounded delete/rebalance previews."
+        "btreeLeafRedistributionPlan": "SQLiteBTreeLeafRedistributionPlan composes table/index leaf siblings into redistributed left/right page images, reports replacement parent separators, and leaves both sibling pages allocated for bounded delete/rebalance previews.",
+        "focusedJsonTableWindowRanking": "SQLiteJsonTablePlan::windowedRows() composes accepted JSON table hidden constraints, residual filtering, ordering, LIMIT/OFFSET, JSONB/subtype inputs, and bounded SQLite window metadata for copied WordPress option JSON diagnostics."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1070,6 +1082,14 @@
             "phpPass": 1,
             "phpFail": 0,
             "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance evidence while adding native redistribution assertions and a WordPress smoke."
+        },
+        "focusedJsonTableWindowRanking": {
+            "upstreamScope": "SQLite JSON table-valued rowsets composed with ordered window semantics for row_number/rank/dense_rank/percent_rank/cume_dist/ntile and lag/lead/first/last value previews, represented as bounded PHP row-array dispatch rather than full VDBE execution.",
+            "nativeEvidence": "SQLiteJsonTablePlan::windowedRows() focused PHP coverage plus copied wordpress-json-table-window-ranking smoke.",
+            "status": "mapped-focused-native",
+            "phpPass": 1,
+            "phpFail": 0,
+            "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted JSON table/window evidence while adding 60 native assertions and a WordPress smoke."
         }
     },
     "wordpress": {
