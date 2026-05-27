@@ -118302,3 +118302,28 @@ Focused verification:
 Root verification:
 - Runtime gates before root: `/` available `122737552` KiB, loadavg `1.79`, and no exact no-argument root harness row.
 - `flock .tmux-team/tmp/clean-integrator-run.lock env TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed: `215 test files, 30152 assertions, 0 failures`.
+
+## Integration accepted - libsqlite VFS capability planning - 2026-05-27T01:36:00Z
+
+Marker under review: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T012530Z.ready`.
+
+Decision: accepted after bounded replay from current source `3baa43edf840a633f31db4f77eb0f48137c6c87b`. The marker was based on `90bf1b47d7bf3a369fdd89d834ec233be971fc14`; direct apply failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`, while implementation, test, example, and notes hunks applied cleanly. The manifest/status counters were reconciled from current source rather than taking stale marker text.
+
+Scope:
+- Added `SQLiteVfsCapabilityPlan` for bounded VFS file-control/device-capability planning.
+- Added the copied WordPress VFS capability preflight smoke.
+- Added focused assertions for sector-size validation, device flags, PSOW override, persist-WAL, chunk-size, mmap-size admission, sync policy, immutable/memory behavior, and invalid-input guards.
+- Updated libsqlite manifest/status/notes for `phpPass=749`, mapped coverage `411 / 1589`, and exact-hash `latestCommit` hygiene from current source evidence.
+
+Verification before serialized root:
+- Runtime gate: `/` had `121799456` KiB available; one-minute load was `1.00`; no exact `php tools/run-tests.php` root harness process was present.
+- `php -l lanes/libsqlite/src/SQLiteVfsCapabilityPlan.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 5081 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php`: passed and emitted valid copied WordPress VFS capability diagnostics.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root verification: passed with `215 test files, 30215 assertions, 0 failures`. Only this audit note changed after the root run; lane code, tests, examples, manifests, and lane notes were unchanged since root verification.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T012530Z` still contains modified/add lane files after accepted publication, so it was preserved and left registered; accepted marker `.ready`, `.patch`, and `.md` files were removed after `49c12e3b` reached `refs/heads/main`.

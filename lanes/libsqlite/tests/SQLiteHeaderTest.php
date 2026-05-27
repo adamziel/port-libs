@@ -78,6 +78,7 @@ use PortLibs\LibSqlite\SQLiteTableRow;
 use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
+use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalHeader;
@@ -15981,6 +15982,118 @@ SQL;
         $t->same(['file-uri-parser', 'vfs-sidecar-paths'], $memory['dependencies']);
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSidecarPlan::forFilename('file:?mode=rw', true, true));
+    },
+    'plans sqlite vfs file controls device characteristics and sync dependencies' => static function (TestRunner $t): void {
+        $rw = SQLiteVfsCapabilityPlan::forFilename(
+            'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared&vfs=unix&psow=0',
+            true,
+            true,
+            4096,
+            ['safe_append', 'sequential', 'powersafe_overwrite'],
+            'full',
+            true,
+            65536,
+            1048576
+        );
+        $t->same('ready', $rw['status']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $rw['path']);
+        $t->same('unix', $rw['vfs']);
+        $t->same(false, $rw['read_only']);
+        $t->same(false, $rw['immutable']);
+        $t->same(false, $rw['nolock']);
+        $t->same(4096, $rw['sector_size']);
+        $t->same(['safe_append', 'sequential'], $rw['device_flags']);
+        $t->same(SQLiteVfsCapabilityPlan::deviceFlagMap()['safe_append'] | SQLiteVfsCapabilityPlan::deviceFlagMap()['sequential'], $rw['device_characteristics']);
+        $t->same('full', $rw['sync_mode']);
+        $t->same(true, $rw['requires_full_sync']);
+        $t->same(true, $rw['requires_directory_sync']);
+        $t->same(false, $rw['uses_powersafe_overwrite']);
+        $t->same(4096, $rw['journal_header_padding']);
+        $t->same(true, $rw['persist_wal']);
+        $t->same(65536, $rw['chunk_size']);
+        $t->same(1048576, $rw['mmap_size']);
+        $t->same(true, $rw['mmap_allowed']);
+        $t->same(4096, $rw['file_controls']['sector_size']);
+        $t->same($rw['device_characteristics'], $rw['file_controls']['device_characteristics']);
+        $t->same(true, $rw['file_controls']['persist_wal']);
+        $t->same(65536, $rw['file_controls']['chunk_size']);
+        $t->same(1048576, $rw['file_controls']['mmap_size']);
+        $t->same(false, $rw['file_controls']['powersafe_overwrite']);
+        $t->same('shared', $rw['open']['cache']);
+        $t->same(false, $rw['open']['psow']);
+        $t->same([
+            'file-uri-parser',
+            'vfs-admission',
+            'shared-cache-coordination',
+            'vfs-file-control',
+            'vfs-device-characteristics',
+            'vfs-sector-size',
+            'vfs-chunk-size-control',
+            'vfs-mmap-size-control',
+        ], $rw['dependencies']);
+
+        $archive = SQLiteVfsCapabilityPlan::forFilename(
+            'file:/srv/www/wp-content/database/archive.sqlite?mode=ro&immutable=1&vfs=unix-none',
+            true,
+            false,
+            512,
+            ['safe-append', 'powersafe-overwrite'],
+            'normal',
+            true,
+            null,
+            2097152
+        );
+        $t->same('ready', $archive['status']);
+        $t->same(true, $archive['read_only']);
+        $t->same(true, $archive['immutable']);
+        $t->same(['safe_append', 'powersafe_overwrite'], $archive['device_flags']);
+        $t->same(false, $archive['requires_full_sync']);
+        $t->same(false, $archive['requires_directory_sync']);
+        $t->same(true, $archive['uses_powersafe_overwrite']);
+        $t->same(512, $archive['journal_header_padding']);
+        $t->same(true, $archive['persist_wal']);
+        $t->same(false, $archive['mmap_allowed']);
+        $t->same(0, $archive['file_controls']['mmap_size']);
+        $t->same([
+            'file-uri-parser',
+            'vfs-admission',
+            'immutable-readonly-open',
+            'vfs-file-control',
+            'vfs-device-characteristics',
+            'vfs-sector-size',
+            'vfs-mmap-size-control',
+        ], $archive['dependencies']);
+
+        $memory = SQLiteVfsCapabilityPlan::forFilename('file::memory:?mode=memory', false, false, 1024, ['atomic1k'], 'off', true, 4096, 4096);
+        $t->same('memory', $memory['status']);
+        $t->same(':memory:', $memory['path']);
+        $t->same(false, $memory['read_only']);
+        $t->same(1024, $memory['sector_size']);
+        $t->same(['atomic1k'], $memory['device_flags']);
+        $t->same(false, $memory['requires_full_sync']);
+        $t->same(false, $memory['requires_directory_sync']);
+        $t->same(0, $memory['journal_header_padding']);
+        $t->same(false, $memory['persist_wal']);
+        $t->same(false, $memory['mmap_allowed']);
+        $t->same(0, $memory['file_controls']['mmap_size']);
+        $t->same(['file-uri-parser', 'vfs-file-control', 'vfs-device-characteristics', 'vfs-sector-size', 'vfs-chunk-size-control', 'vfs-mmap-size-control'], $memory['dependencies']);
+
+        $psow = SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&psow=1', true, true, 512, [], 'normal');
+        $t->same(['powersafe_overwrite'], $psow['device_flags']);
+        $t->same(true, $psow['uses_powersafe_overwrite']);
+        $t->same(false, $psow['requires_directory_sync']);
+
+        $missing = SQLiteVfsCapabilityPlan::forFilename('file:/srv/www/wp-content/database/missing.sqlite?mode=ro', false, false);
+        $t->same('missing', $missing['status']);
+        $t->same(false, $missing['open']['can_open']);
+        $t->same('database file does not exist', $missing['open']['reason']);
+        $t->same(512, $missing['sector_size']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 1000));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, ['unknown']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'extra'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCapabilityPlan::forFilename('file:/tmp/site.db', true, true, 512, [], 'normal', false, null, -1));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

@@ -10498,3 +10498,40 @@ Dependency closure: no new support component is needed for this bounded slice.
 It reuses lane-local file URI parsing, open planning, and busy-handler
 diagnostics. A real shared VFS/process-lock implementation remains a future
 activation gate requiring cross-process lock evidence.
+
+## Focused Native Mapping: SQLite VFS Capability Planning
+
+Date: 2026-05-27
+
+This isolated dependency/open micro-slice maps one additional focused behavior
+row for bounded SQLite VFS file-control and device-capability planning. The new
+`SQLiteVfsCapabilityPlan` helper reports sector-size, device-characteristic,
+powersafe-overwrite, persist-WAL, chunk-size, mmap-size, and sync-policy
+decisions over accepted file URI/open admission results for copied WordPress
+database preflights.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 409 to 410 by adding
+`focusedVfsCapabilityPlanScripts=1`. No fresh upstream `testfixture`,
+`make test`, `mptest`, `all`, or `release` run was launched from this isolated
+worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsCapabilityPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-capability-preflight.php
+```
+
+Result: focused PHP passed 1 selected test file, 5073 assertions, and 0
+failures, up from the accepted lane-status baseline of 5010 assertions. The
+WordPress VFS capability smoke passed and reports copied database preflight
+diagnostics without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed for this bounded slice.
+It reuses lane-local file URI parsing and open planning. A real shared VFS
+file-control implementation remains a future activation gate requiring native
+file write, sync, mmap, and file-control execution evidence.

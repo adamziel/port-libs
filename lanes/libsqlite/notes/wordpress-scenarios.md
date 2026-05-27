@@ -3757,3 +3757,26 @@ Dependency closure: no new shared support component is needed. This reuses
 lane-local file URI parsing and open admission. A future full native VFS
 component remains gated on actual filesystem byte-range locking, SHM-index
 mapping, and durable sidecar creation/deletion evidence.
+
+## SQLite VFS Capability Preflight Scenario
+
+Copied WordPress database tooling can now resolve bounded SQLite VFS
+file-control and device-capability decisions without requiring ext/sqlite or
+activating a shared VFS component. The smoke
+`examples/wordpress-vfs-capability-preflight.php` reports sector size, device
+characteristic flags, powersafe-overwrite policy, persist-WAL, chunk-size,
+mmap-size, full-sync and directory-sync requirements for writable, immutable
+read-only, and in-memory copied database opens.
+
+Status delta 2026-05-27 isolated dependency/open slice: added
+`SQLiteVfsCapabilityPlan` with 63 focused assertions covering sector-size
+validation, device-characteristic bitmask normalization, URI `psow` override,
+persist-WAL, chunk-size, mmap-size admission, sync policy, immutable/memory
+suppression, dependency tags, missing-open preservation, and malformed input
+guards. Focused `SQLiteHeaderTest.php` passed at 5073 assertions, up from the
+accepted 5010-assertion lane-status baseline.
+
+Dependency closure: no new shared support component is needed for this bounded
+slice. It reuses lane-local file URI parsing and open admission. A future full
+native VFS/file-control implementation remains gated on actual filesystem
+write, sync, mmap, and file-control execution evidence.
