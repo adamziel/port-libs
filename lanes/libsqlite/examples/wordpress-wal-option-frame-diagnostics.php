@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteWal;
+use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 
@@ -105,6 +106,11 @@ $durableCheckpointResults = [
     'restartCommitted' => $committedWal->durableCheckpointResult($baseDatabaseBytes, 'restart'),
     'truncateCommitted' => $committedWal->durableCheckpointResult($baseDatabaseBytes, 'truncate'),
 ];
+$durableFileWritePlans = [
+    'preserveWithReader' => SQLiteWalFileWritePlan::checkpoint($wal, $baseDatabaseBytes, '/srv/www/wp-content/database/.ht.sqlite', 'passive', 1),
+    'restartCommitted' => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabaseBytes, '/srv/www/wp-content/database/.ht.sqlite', 'restart'),
+    'truncateCommitted' => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabaseBytes, '/srv/www/wp-content/database/.ht.sqlite', 'truncate'),
+];
 $checkpointResultSummary = [];
 foreach ($checkpointResults as $name => $result) {
     $checkpointResultSummary[$name] = [
@@ -144,6 +150,7 @@ echo json_encode([
     'checkpointModes' => $checkpointModes,
     'checkpointResults' => $checkpointResultSummary,
     'durableCheckpointWrites' => $durableCheckpointSummary,
+    'durableFileWritePlans' => $durableFileWritePlans,
     'readerPageMap' => $readerPageMap,
     'walIndexReadMarks' => $readMarkPlan,
     'readerOptionPage' => [
@@ -202,5 +209,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and durable preserve/restart/truncate sidecar writes while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, durable preserve/restart/truncate sidecar bytes, and ordered VFS file-write/sync/truncate plans while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

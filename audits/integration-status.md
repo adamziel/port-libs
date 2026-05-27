@@ -118327,3 +118327,37 @@ Verification before serialized root:
 Serialized root verification: passed with `215 test files, 30215 assertions, 0 failures`. Only this audit note changed after the root run; lane code, tests, examples, manifests, and lane notes were unchanged since root verification.
 
 Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T012530Z` still contains modified/add lane files after accepted publication, so it was preserved and left registered; accepted marker `.ready`, `.patch`, and `.md` files were removed after `49c12e3b` reached `refs/heads/main`.
+## Integration accepted - libsqlite WAL file-write planning - 2026-05-27T01:43:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T013523Z.ready`.
+
+Decision: accepted one bounded libsqlite WAL/open dependency slice by replaying the implementation/test/example/manifest/notes hunks from base `42dec58eaa2a6f2976798ce62c12b3982bc4fd8c` onto current source `d8e1396248e89e5f2bf0093de8e6fea0196fd4a5`. Direct apply failed only on `lanes/libsqlite/lane-status.json`; the status JSON was reconciled minimally from the current accepted source and the marker's evidence. No Dolt or non-libsqlite markers were considered.
+
+Candidate summary:
+- Added `SQLiteWalFileWritePlan` for ordered checkpoint database writes, WAL preserve/restart/truncate operations, sync ordering, directory sync, reader-blocked reset preservation, empty-WAL truncation, writable-handle guards, and malformed input propagation.
+- Extended `SQLiteHeaderTest.php` with WAL file-write planning assertions.
+- Extended `wordpress-wal-option-frame-diagnostics.php` to report the new file-write plans.
+- Updated libsqlite manifest/status and lane notes for `phpPass` `750`, mapped coverage `412 / 1589`, and exact-hash `latestCommit` hygiene.
+
+Focused verification before root:
+- Runtime gate: `/` had `120376676` KiB available, load average was `2.34`, and no exact `php tools/run-tests.php` root process was running.
+- Live dashboard guard was open: live Pages and local `refs/heads/main` both reported `d8e1396248e89e5f2bf0093de8e6fea0196fd4a5`.
+- `php -l` passed for `SQLiteWalFileWritePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-wal-option-frame-diagnostics.php`.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 5149 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` emitted valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Rejected/deferred evidence:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T013111Z.ready` was deferred for lane rework. Its VFS file-control patch failed against current `d8e13962` not only in status/manifest/notes, but also in `lanes/libsqlite/tests/SQLiteHeaderTest.php`, so it was not a bounded stale-status replay.
+
+Ready queue at pre-root decision time: `7007` total ready markers, including `3316` `port-dev-libsqlite-*` ready markers.
+
+Serialized root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 30283 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts for `port-dev-libsqlite-wal-20260527T013523Z` were removed after commit publication.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T013523Z` still contains the accepted lane changes as modified/added files, so it was preserved and left registered as cleanup debt.
+
+Pending final gate: atomic commit/ref publication.

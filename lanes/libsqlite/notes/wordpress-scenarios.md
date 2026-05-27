@@ -3780,3 +3780,25 @@ Dependency closure: no new shared support component is needed for this bounded
 slice. It reuses lane-local file URI parsing and open admission. A future full
 native VFS/file-control implementation remains gated on actual filesystem
 write, sync, mmap, and file-control execution evidence.
+
+## WAL Checkpoint File-Write Coordination Scenario
+
+Copied WordPress database tooling can now turn bounded WAL checkpoint output
+into ordered VFS-style file operations without writing live files or requiring
+ext/sqlite. The updated `examples/wordpress-wal-option-frame-diagnostics.php`
+smoke reports database page writes, database sync, WAL sidecar preservation,
+restarted WAL header writes, WAL truncation, WAL sync, and directory sync for
+copied `wp_options` WAL fixtures.
+
+Status delta 2026-05-27 isolated WAL rollback/savepoint slice: added
+`SQLiteWalFileWritePlan` with 68 focused assertions covering ordered database
+and WAL operations, reader-blocked reset preservation, restart-header writes,
+truncate cleanup, empty-WAL truncation, directory-sync suppression, writable
+handle guards, and malformed checkpoint input propagation. Selected focused
+`SQLiteHeaderTest.php` passed with 68 assertions and 0 failures.
+
+Dependency closure: no new shared support component is needed for this bounded
+slice. It reuses lane-local WAL parsing, durable checkpoint byte planning, and
+the WordPress WAL diagnostic smoke. A future native VFS writer remains gated on
+actually applying these ordered writes, syncs, and truncations to filesystem
+handles.

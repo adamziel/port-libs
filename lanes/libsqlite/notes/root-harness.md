@@ -1785,3 +1785,30 @@ Dependency closure: no new support component is needed. This reuses the
 lane-local WAL parser, checkpoint mode result planner, checksum implementation,
 and copied WordPress WAL diagnostic smoke; a future VFS/file writer can consume
 the returned database and WAL sidecar bytes.
+
+## WAL Checkpoint VFS File-Write Coordination Slice
+
+Focused lane verification for the WAL checkpoint file-write coordination slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWalFileWritePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite wal durable checkpoint vfs file writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php` WAL
+file-write coordination test passed with 68 assertions and 0 failures. The
+WordPress WAL smoke reported copied `wp_options` checkpoint output with ordered
+database writes, database sync, WAL preserve/restart/truncate operations, WAL
+sync, and directory sync. Manifest/status JSON decoded successfully; lane diff
+check passed. The root harness was not run because this was an isolated
+micro-slice.
+
+Dependency closure: no new shared support component is needed for this bounded
+slice. It reuses lane-local WAL parsing, checkpoint mode results, durable
+sidecar byte materialization, and copied WordPress WAL diagnostics; a future
+native VFS writer can consume the operation list to execute file writes.

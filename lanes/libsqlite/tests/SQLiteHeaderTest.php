@@ -81,6 +81,7 @@ use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
+use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 use PortLibs\LibSqlite\SQLiteVfsSidecarPlan;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
@@ -13296,6 +13297,119 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->durableCheckpointResult($baseDatabase, 'bogus'));
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->durableCheckpointResult($baseDatabase, 'passive', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->durableCheckpointResult(substr($baseDatabase, 1), 'passive'));
+    },
+    'plans sqlite wal durable checkpoint vfs file writes' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x51515151;
+        $salt2 = 0x62626262;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 31, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walHeader = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $walBytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $baseDatabase = $makeFirstPage($pageSize, 4)
+            . str_repeat('B', $pageSize)
+            . str_repeat('C', $pageSize)
+            . str_repeat('D', $pageSize);
+        $pageTwoOld = str_repeat('o', $pageSize);
+        $pageTwoNew = str_repeat('n', $pageSize);
+        $pageThree = str_repeat('3', $pageSize);
+        $pageFourTail = str_repeat('t', $pageSize);
+        $walBytes = $appendFrame($walHeader, $checksumSeed, 2, 0, $pageTwoOld);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $pageTwoNew);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 4, $pageThree);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 4, 0, $pageFourTail);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $preserve = SQLiteWalFileWritePlan::checkpoint($wal, $baseDatabase, '/srv/www/wp-content/database/.ht.sqlite', 'passive', 2);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $preserve['database_path']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-wal', $preserve['wal_path']);
+        $t->same('passive', $preserve['mode']);
+        $t->same(false, $preserve['read_only']);
+        $t->same(false, $preserve['immutable']);
+        $t->same(false, $preserve['busy']);
+        $t->same('reader_limited_passive_checkpoint', $preserve['reason']);
+        $t->same('preserve_wal', $preserve['wal_action']);
+        $t->same(2048, $preserve['database_bytes']);
+        $t->same(strlen($walBytes), $preserve['wal_bytes']);
+        $t->same(['sqlite-wal-checkpoint', 'durable-sidecar-write', 'vfs-file-write-coordination'], $preserve['dependencies']);
+        $t->same(5, count($preserve['operations']));
+        $t->same('write', $preserve['operations'][0]['op']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $preserve['operations'][0]['path']);
+        $t->same(0, $preserve['operations'][0]['offset']);
+        $t->same(2048, $preserve['operations'][0]['bytes']);
+        $t->same(false, $preserve['operations'][0]['durable']);
+        $t->same('checkpoint_database_pages', $preserve['operations'][0]['reason']);
+        $t->same('sync', $preserve['operations'][1]['op']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $preserve['operations'][1]['path']);
+        $t->same(true, $preserve['operations'][1]['durable']);
+        $t->same('sync_checkpointed_database', $preserve['operations'][1]['reason']);
+        $t->same('write', $preserve['operations'][2]['op']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-wal', $preserve['operations'][2]['path']);
+        $t->same(strlen($walBytes), $preserve['operations'][2]['bytes']);
+        $t->same('preserve_wal_sidecar', $preserve['operations'][2]['reason']);
+        $t->same('sync', $preserve['operations'][3]['op']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-wal', $preserve['operations'][3]['path']);
+        $t->same('sync_wal_sidecar', $preserve['operations'][3]['reason']);
+        $t->same('sync_directory', $preserve['operations'][4]['op']);
+        $t->same('/srv/www/wp-content/database', $preserve['operations'][4]['path']);
+        $t->same('persist_database_and_wal_directory_entries', $preserve['operations'][4]['reason']);
+
+        $committedSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $committedBytes = $appendFrame($walHeader, $committedSeed, 2, 0, $pageTwoOld);
+        $committedBytes = $appendFrame($committedBytes, $committedSeed, 2, 4, $pageTwoNew);
+        $committedBytes = $appendFrame($committedBytes, $committedSeed, 3, 4, $pageThree);
+        $committedWal = SQLiteWal::parse($committedBytes, null, true);
+        $restart = SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/srv/www/wp-content/database/.ht.sqlite', 'restart', null, false, false, false);
+        $t->same('restart', $restart['mode']);
+        $t->same(false, $restart['busy']);
+        $t->same('restart_checkpoint_can_reset_wal', $restart['reason']);
+        $t->same('restart_wal', $restart['wal_action']);
+        $t->same(32, $restart['wal_bytes']);
+        $t->same(4, count($restart['operations']));
+        $t->same('write_restarted_wal_header', $restart['operations'][2]['reason']);
+        $t->same(32, $restart['operations'][2]['bytes']);
+        $t->same('sync_wal_sidecar', $restart['operations'][3]['reason']);
+
+        $blockedRestart = SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/srv/www/wp-content/database/.ht.sqlite', 'restart', 3);
+        $t->same(true, $blockedRestart['busy']);
+        $t->same('reader_blocks_wal_reset', $blockedRestart['reason']);
+        $t->same('preserve_wal', $blockedRestart['wal_action']);
+        $t->same(strlen($committedBytes), $blockedRestart['wal_bytes']);
+        $t->same('preserve_wal_sidecar', $blockedRestart['operations'][2]['reason']);
+
+        $truncate = SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/srv/www/wp-content/database/.ht.sqlite', 'truncate');
+        $t->same('truncate', $truncate['mode']);
+        $t->same(false, $truncate['busy']);
+        $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $truncate['reason']);
+        $t->same('truncate_wal', $truncate['wal_action']);
+        $t->same(0, $truncate['wal_bytes']);
+        $t->same(4, count($truncate['operations']));
+        $t->same('truncate', $truncate['operations'][2]['op']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-wal', $truncate['operations'][2]['path']);
+        $t->same(0, $truncate['operations'][2]['bytes']);
+        $t->same('truncate_reset_wal', $truncate['operations'][2]['reason']);
+        $t->same('sync_directory', $truncate['operations'][3]['op']);
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $empty = SQLiteWalFileWritePlan::checkpoint($emptyWal, $baseDatabase, '/tmp/wp.sqlite', 'truncate');
+        $t->same('wal_has_no_frames', $empty['reason']);
+        $t->same('truncate_wal', $empty['wal_action']);
+        $t->same(0, $empty['wal_bytes']);
+        $t->same('/tmp/wp.sqlite-wal', $empty['wal_path']);
+        $t->same('/tmp', $empty['operations'][3]['path']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, ''));
+        $t->throws(LogicException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'passive', null, true));
+        $t->throws(LogicException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'passive', null, false, true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, substr($baseDatabase, 1), '/tmp/wp.sqlite'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'bogus'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'passive', -1));
     },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

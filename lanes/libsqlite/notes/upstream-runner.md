@@ -10535,3 +10535,38 @@ Dependency closure: no new support component is needed for this bounded slice.
 It reuses lane-local file URI parsing and open planning. A real shared VFS
 file-control implementation remains a future activation gate requiring native
 file write, sync, mmap, and file-control execution evidence.
+
+## Focused Native Mapping: WAL Checkpoint File-Write Coordination
+
+Date: 2026-05-27
+
+This isolated WAL rollback/savepoint micro-slice maps one additional focused
+behavior row for bounded WAL checkpoint persistence. The new
+`SQLiteWalFileWritePlan` helper composes accepted durable checkpoint database
+and WAL bytes into ordered VFS-style database writes, database sync, WAL
+preserve/restart/truncate operations, WAL sync, directory sync, and writable
+handle guards for copied WordPress database paths.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 411 to 412 by adding `focusedWalFileWritePlanScripts=1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+launched from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWalFileWritePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite wal durable checkpoint vfs file writes"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+```
+
+Result: selected focused PHP passed with 68 assertions and 0 failures. The
+WordPress WAL smoke passed and reports copied database checkpoint file-write
+diagnostics without requiring ext/sqlite.
+
+Dependency closure: no new shared support component is needed for this bounded
+slice. It reuses lane-local WAL parsing, checkpoint mode result planning, and
+durable sidecar byte materialization. A real VFS writer remains a future
+activation gate requiring native file write, sync, and truncate execution.
