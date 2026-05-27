@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-27 supervisor continuation (shell/live samples 23:35 UTC):
+  Batch51 is integrated and verified from clean worktree
+  `.tmux-team/worktrees/integrate-libsqlite-yield-batch51-20260527T232403Z`.
+  Implementation source advanced to
+  `b4134659b9d27577c2a8da08b4eddf5a6458af31` (`Integrate libsqlite batch
+  51`). The accepted subset applied 11 current-next51 handoffs, excluded stale
+  lane-status/manifest prose, and resolved conflicts by preserving batch50
+  behavior while adding batch51 APIs for WAL savepoint release checkpoints,
+  PRAGMA integrity autoindex diagnostics, VDBE window summaries, suite gap
+  burnup, planner expression-covering, and JSONB index delete handling.
+  Verification passed: focused batch51 plus batch50 regressions `14 test files
+  / 1789 assertions / 0 failures`; full libsqlite lane `394 test files /
+  44480 assertions / 0 failures / 20593 PASS lines`; root `607 test files /
+  68948 assertions / 0 failures / 23621 PASS lines`. This is `+585`
+  libsqlite PASS lines over the batch50 live count of `20008`, with mapped
+  upstream coverage unchanged at `462 / 1589`. The `main` tmux session was
+  restored to 11 active libsqlite isolated workers in batch56 windows with no
+  long sleepers. Next decision: publish dashboard/status for batch51, consume
+  batch51 handoffs, then integrate ready batch52/batch53/batch54/batch55
+  outputs by PASS-line movement.
+
 - 2026-05-27 libsqlite acceleration update (18:39 UTC): accepted implementation commit `28adb09bbc5dbc0d554a6b0396154943c9342520` (`Integrate libsqlite high-yield batch 10 12`) from a clean worktree. The batch applied 24 ready handoffs and skipped 7 current-source conflicts for targeted follow-up. Evidence: `git diff --check -- lanes/libsqlite` passed; `php -l` passed for changed PHP files; focused selected libsqlite tests passed (`5` files, `10038` assertions, `0` failures, `693` PASS lines); full libsqlite lane passed (`91` files, `15382` assertions, `0` failures, `4362` PASS lines); root suite passed (`304` files, `39850` assertions, `0` failures, `7390` PASS lines). Public libsqlite status should move from `3796` to `4362` PASS lines, a verified `+566` jump. Worker supervision was also refilled to `11` active libsqlite Codex workers with `0` long sleepers after the pool had collapsed to `3-4`; batch13/14 reserve slices were added so the pool does not drain while integration catches up.
 
 - 2026-05-25 latest independent audit refresh (shell sample 04:54 UTC): no lane implementation output was accepted by this audit. `HEAD` is `4cbc7059033c`; the shared checkout remains a mixed dirty handoff pile with `28887` untracked-inclusive status rows, `364` tracked dirty rows, and `311 files changed, 194989 insertions(+), 66764 deletions(-)`. All 12 lane manifests and all 12 lane-status files remain dirty/live handoff metadata. The required exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'` was empty, but this audit did not start `php tools/run-tests.php` because there is no frozen owner-free acceptance snapshot and a root result would not be attributable to one reviewable batch. `porting.html` still publishes source snapshot `6cb369fd15d0` with average progress `93.3%` while current lane status text includes pending newer handoffs, so it remains a mixed accepted/pending snapshot rather than a reliable status surface. Support-library coverage remains backlog-only with 37 rows and 0 active support ports; Pandoc's DOC, DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument, citations, math, tables, templates, package containers, XML/HTML, Unicode/charset, JSON/YAML metadata, syntax highlighting, and archive/compression needs remain routed only through gated rows/reuse paths, not accepted support ports. Next intervention remains a hard writer/status/dashboard/test-loop freeze for two stable polls, isolate exactly one owner-free reduced batch, run focused verification plus `git diff --check`, run one serialized no-argument root harness from that same frozen snapshot if the process gate is empty, normalize manifest/status count units, regenerate coordination artifacts from the accepted commit, then commit or reject.
