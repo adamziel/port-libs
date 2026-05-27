@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 04:26:39 UTC",
-    "sourceCommit": "a1baf4acea44b582b90012ef8e3cf78eeb7c165c",
-    "sourceCommitShort": "a1baf4acea44",
+    "generated": "2026-05-27 04:32:59 UTC",
+    "sourceCommit": "9b6b4b6a035fb436e1ddcd3e415bc590bd288329",
+    "sourceCommitShort": "9b6b4b6a035f",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "36b0707499d7f585af99010ea5de27982dc921ba",
-    "dashboardCommitShort": "36b0707499d7",
+    "dashboardCommit": "22be8ace92d82f11905ee73dcc1b7ddf62cbbe89",
+    "dashboardCommitShort": "22be8ace92d8",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "426",
-            "coverage": "426 / 1589",
-            "php": "770 pass / 0 fail",
+            "mapped": "427",
+            "coverage": "427 / 1589",
+            "php": "771 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed B-tree auto-vacuum index...",
-            "currentWork": "Latest B-tree slice moves the last index leaf page into an auto-vacuum freelist slot, rew...",
-            "nextTarget": "Next B-tree gap: broaden auto-vacuum page moves to interior child pages or integrate dele...",
+            "audit": "bounded replayed JSON table SELECT SQL so...",
+            "currentWork": "Latest JSON table slice wires json_tree/json_each table-valued sources into bounded SQLit...",
+            "nextTarget": "Next JSON/SQL gap: advance native JSON table VDBE cursor/planner execution beyond bounded...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "ad61f39"
+            "commit": "a1baf4a"
         },
         {
             "library": "LightningCSS",
