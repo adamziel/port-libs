@@ -1,5 +1,39 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 B-tree Overflow Cell Reuse Delete Apply
+
+This isolated B-tree slice adds `SQLiteBTreeOverflowCellReuseDeleteApplyPlan`
+to compose three existing primitives into one page-image application path:
+delete an overflow-backed table or index leaf cell, write a smaller replacement
+cell into the resulting reusable freeblock, then release the obsolete overflow
+pages through the native freelist/pointer-map planner. The slice avoids
+accepted bulk overflow freeblock materialization, overflow freelist release,
+empty-leaf/root-collapse/page-move/index-interior-merge, and the earlier
+freeblock/freelist rebalance summary path by proving the replacement cell is
+actually written into the freed cell space before overflow pages are made
+available for reuse.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeOverflowCellReuseDeleteApplyPlan.php
+php -l lanes/libsqlite/examples/wordpress-overflow-cell-reuse-delete-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-overflow-cell-reuse-delete-apply.php
+git diff --check -- lanes/libsqlite
+```
+
+The focused `SQLiteHeaderTest.php` run reached `8900` assertions with `0`
+failures. The WordPress smoke reports a copied `wp_options` transient
+replacement where the old overflow-backed cell slot is reused for a smaller
+local transient cell, obsolete overflow pages enter the freelist, secure-delete
+clears released overflow leaves, and auto-vacuum pointer-map entries become
+free-page.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+table/index leaf delete helpers, freeblock insertion, overflow page traversal,
+freelist planning, and pointer-map mutation.
+
 ## 2026-05-27 B-tree Freeblock/Freelist Rebalance
 
 This isolated B-tree slice adds `SQLiteBTreeFreeblockFreelistRebalancePlan`

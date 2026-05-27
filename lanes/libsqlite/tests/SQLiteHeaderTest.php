@@ -14,6 +14,7 @@ use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreePlan;
 use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafBatchFreePlan;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblockFreelistRebalancePlan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowCellReuseDeleteApplyPlan;
 use PortLibs\LibSqlite\SQLiteBTreeParentPrunePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageMovePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
@@ -24465,6 +24466,186 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeFreeblockFreelistRebalancePlan::indexLeafFromDeleteResult($database, 3, $indexDelete));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeFreeblockFreelistRebalancePlan::indexLeafFromDeleteResult($database, 3, ['page' => $indexDelete['page'], 'record_values' => 'bad', 'obsolete_overflow_page_numbers' => [4]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeFreeblockFreelistRebalancePlan::indexLeafFromDeleteResult($database, 3, ['page' => $indexDelete['page'], 'record_values' => [['home', 2]], 'obsolete_overflow_page_numbers' => []]));
+    },
+    'applies sqlite table overflow delete by reusing freed cell space and releasing overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 12);
+        $firstPage = substr_replace($firstPage, pack('N', 0), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 0), 36, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        $setPointerMap = static function (int $pageNumber, int $type, int $parentPageNumber) use (&$pointerMapPage): void {
+            $pointerMapPage = substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - 3), 5);
+        };
+        $setPointerMap(3, SQLitePointerMapEntry::ROOT_PAGE, 0);
+        $setPointerMap(4, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
+        $setPointerMap(5, SQLitePointerMapEntry::OVERFLOW_PAGE, 4);
+
+        $keptPayload = SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes']);
+        $oldPayload = SQLiteRecord::encode([null, '_transient_old_large', str_repeat('delete-then-reuse:', 76), 'no']);
+        $newPayload = SQLiteRecord::encode([null, '_transient_new_small', 'fresh', 'no']);
+        $oldLocalLength = SQLiteTableLeafCell::localPayloadLength(strlen($oldPayload), $pageSize);
+        $overflowPages = SQLiteOverflowPage::encodeChainAtPages(substr($oldPayload, $oldLocalLength), [4, 5], $pageSize);
+        $leafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, $keptPayload),
+            SQLiteTableLeafCell::encode(7, $oldPayload, $pageSize, 4),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $leafPage
+            . $overflowPages[4]
+            . $overflowPages[5]
+            . str_repeat($emptyPage, 7),
+        );
+        $overflowNumbers = static function (int $firstOverflowPage, int $byteCount) use ($overflowPages): array {
+            $numbers = [];
+            $pageNumber = $firstOverflowPage;
+            $remaining = $byteCount;
+            while ($pageNumber !== 0 && $remaining > 0) {
+                $numbers[] = $pageNumber;
+                $pageNumber = unpack('N', substr($overflowPages[$pageNumber], 0, 4))[1];
+                $remaining -= 508;
+            }
+
+            return $numbers;
+        };
+
+        $plan = SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $leafPage, 7, 8, $newPayload, $overflowNumbers, true);
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= 12; $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        ksort($pages);
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $postHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(3), $pageSize);
+        $postCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $postHeader, $pageSize);
+        $summary = $plan->toArray();
+
+        $t->same('btree-overflow-cell-reuse-delete-apply', $summary['action']);
+        $t->same('table-leaf', $plan->leafPageType);
+        $t->same([4, 5], $plan->obsoleteOverflowPageNumbers);
+        $t->same([4, 5], $plan->freePlan->freedPageNumbers);
+        $t->same([1, 2, 3, 4, 5], array_keys($plan->pageImages));
+        $t->same(2, $postHeader->cellCount);
+        $t->same([1, 8], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $postCells));
+        $t->same($plan->reusedCellOffset, $postCells[1]->offset);
+        $t->same(strlen(SQLiteTableLeafCell::encode(8, $newPayload)), $plan->replacementCellBytes);
+        $t->true($plan->remainingFreeblockBytes > 0);
+        $t->same($plan->remainingFreeblockBytes, $summary['remaining_freeblock_bytes']);
+        $t->same(4, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(2, $postDatabase->header->freelistPageCount);
+        $t->same([4, 5], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(5));
+        $t->same([2], $summary['updated_pointer_map_page_numbers']);
+        $t->same([5], $summary['secure_delete_cleared_pages']);
+    },
+    'applies sqlite index overflow delete by reusing freed cell space and releasing overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 10);
+        $firstPage = substr_replace($firstPage, pack('N', 8), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 36, 4);
+
+        $oldKey = str_repeat('_transient_index_reuse_', 43);
+        $oldPayload = SQLiteRecord::encode([$oldKey, 9]);
+        $oldEncoded = SQLiteIndexCell::encodeWithOverflowPages($oldPayload, 4);
+        $leafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 'yes', 1])),
+            $oldEncoded['cell'],
+        ], $pageSize);
+        $overflowPages = array_combine(range(4, 3 + count($oldEncoded['overflowPages'])), $oldEncoded['overflowPages']);
+        $overflowNumbers = static fn (int $firstOverflowPage, int $byteCount): array => range($firstOverflowPage, $firstOverflowPage + SQLiteOverflowPage::requiredPageCount($byteCount) - 1);
+        $overflowReader = static function (int $firstOverflowPage, int $byteCount) use ($overflowPages): string {
+            $payload = '';
+            $pageNumber = $firstOverflowPage;
+            while ($pageNumber !== 0 && strlen($payload) < $byteCount) {
+                $page = $overflowPages[$pageNumber] ?? null;
+                if ($page === null) {
+                    throw new InvalidArgumentException('Fixture index overflow page is missing');
+                }
+                $pageNumber = unpack('N', substr($page, 0, 4))[1];
+                $payload .= substr($page, 4);
+            }
+
+            return substr($payload, 0, $byteCount);
+        };
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $emptyPage
+            . $leafPage
+            . implode('', $overflowPages)
+            . str_repeat($emptyPage, 3)
+            . SQLiteFreelistTrunkPage::assemble(null, [], $pageSize)
+            . $emptyPage
+            . $emptyPage,
+        );
+
+        $plan = SQLiteBTreeOverflowCellReuseDeleteApplyPlan::indexCell(
+            $database,
+            3,
+            $leafPage,
+            [$oldKey, 9],
+            ['option_name', 11],
+            $overflowNumbers,
+            true,
+            $overflowReader,
+        );
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= 10; $pageNumber++) {
+            $pages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        ksort($pages);
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $postHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(3), $pageSize);
+        $postCells = SQLiteIndexCell::parsePageCells($postDatabase->page(3), $postHeader, $pageSize);
+        $summary = $plan->toArray();
+
+        $t->same('index-leaf', $plan->leafPageType);
+        $t->same([4, 5], $plan->obsoleteOverflowPageNumbers);
+        $t->same([4, 5], $plan->freePlan->freedPageNumbers);
+        $t->same([1, 3, 4, 5, 8], array_keys($plan->pageImages));
+        $t->same(2, $postHeader->cellCount);
+        $t->same([['autoload', 'yes', 1], ['option_name', 11]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $postCells));
+        $t->same($plan->reusedCellOffset, $postCells[1]->offset);
+        $t->same(strlen(SQLiteIndexCell::encode(SQLiteRecord::encode(['option_name', 11]))), $plan->replacementCellBytes);
+        $t->true($plan->remainingFreeblockBytes > 0);
+        $t->same(8, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(3, $postDatabase->header->freelistPageCount);
+        $t->same([8, 4, 5], $postDatabase->freelistPageNumbers());
+        $t->same([4, 5], $summary['freed_pages']);
+        $t->same([4, 5], $summary['secure_delete_cleared_pages']);
+    },
+    'rejects corrupt sqlite overflow cell reuse delete apply inputs' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 4);
+        $smallPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+        $largePayload = SQLiteRecord::encode([null, '_transient_reject_reuse', str_repeat('too-large:', 80), 'no']);
+        $largePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, $largePayload, $pageSize, 4),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($firstPage . str_repeat("\0", $pageSize) . $largePage . str_repeat("\0", $pageSize));
+        $payload = SQLiteRecord::encode([null, 'replacement', 'ok', 'no']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 9, $largePage, 2, 3, $payload, static fn (): array => [4]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $smallPage, 1, 2, $payload, static fn (): array => []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $largePage, 99, 3, $payload, static fn (): array => [4]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $largePage, 2, 1, $payload, static fn (): array => [4]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $largePage, 2, 3, str_repeat('x', 460), static fn (): array => [4]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeOverflowCellReuseDeleteApplyPlan::tableCell($database, 3, $largePage, 2, 3, $payload, static fn (): array => [4, 4]));
     },
     'rejects sqlite empty leaf free plans for non-empty or mismatched delete results' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
