@@ -544,6 +544,72 @@ final class SQLiteSavepointStack
     }
 
     /**
+     * @return array{page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int,source_frame:string}>,missing_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
+     */
+    public function rollbackImagePlan(int $pageSize): array
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $restoreImages = $this->rollbackPageImages();
+        $restorePages = [];
+        foreach ($restoreImages as $pageNumber => $restore) {
+            if (strlen($restore['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite transaction rollback image for page {$pageNumber} does not match the page size");
+            }
+            $restorePages[] = [
+                'page_number' => $pageNumber,
+                'database_offset' => ($pageNumber - 1) * $pageSize,
+                'bytes' => $pageSize,
+                'source_frame' => $restore['frame'],
+            ];
+        }
+
+        $missing = array_values(array_diff($this->pendingPageNumbers(), array_keys($restoreImages)));
+        sort($missing, SORT_NUMERIC);
+
+        return [
+            'page_size' => $pageSize,
+            'restored_page_numbers' => array_keys($restoreImages),
+            'restore_pages' => $restorePages,
+            'missing_page_numbers' => $missing,
+            'released_savepoint_count' => max(0, count($this->frames) - 1),
+            'transaction_active_after' => false,
+        ];
+    }
+
+    public function rollbackDatabaseImage(string $databaseBytes, int $pageSize): string
+    {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite transaction rollback requires a database image aligned to the page size');
+        }
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $rolledBack = $databaseBytes;
+        foreach ($this->rollbackPageImages() as $pageNumber => $restore) {
+            if (strlen($restore['image']) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite transaction rollback image for page {$pageNumber} does not match the page size");
+            }
+            $offset = ($pageNumber - 1) * $pageSize;
+            if ($offset + $pageSize > strlen($rolledBack)) {
+                continue;
+            }
+            $rolledBack = substr_replace($rolledBack, $restore['image'], $offset, $pageSize);
+        }
+
+        return $rolledBack;
+    }
+
+    /**
      * @return array<int,array{image:string,frame:string}>
      */
     public function rollbackToPageImages(string $name): array
@@ -556,6 +622,31 @@ final class SQLiteSavepointStack
                     $images[$pageNumber] = [
                         'image' => $pageImage,
                         'frame' => $this->frames[$frameIndex]['name'],
+                    ];
+                }
+            }
+        }
+        ksort($images, SORT_NUMERIC);
+
+        return $images;
+    }
+
+    /**
+     * @return array<int,array{image:string,frame:string}>
+     */
+    public function rollbackPageImages(): array
+    {
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $images = [];
+        foreach ($this->frames as $frame) {
+            foreach ($frame['page_images'] as $pageNumber => $pageImage) {
+                if (!isset($images[$pageNumber])) {
+                    $images[$pageNumber] = [
+                        'image' => $pageImage,
+                        'frame' => $frame['name'],
                     ];
                 }
             }

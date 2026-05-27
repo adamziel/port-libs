@@ -18064,6 +18064,110 @@ SQL;
         $t->same([], $stack->pendingPageNumbers());
         $t->same([], $stack->pendingWalFrameIndexes());
     },
+    'restores sqlite full transaction images across nested savepoint recovery' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $clean = [
+            1 => str_pad('clean-wp-options-root', $pageSize, "\0"),
+            2 => str_pad('clean-option-name-index', $pageSize, "\0"),
+            3 => str_pad('clean-plugin-settings', $pageSize, "\0"),
+            4 => str_pad('clean-single-option-row', $pageSize, "\0"),
+            5 => str_pad('clean-autoload-index-row', $pageSize, "\0"),
+        ];
+        $dirtyDatabase = str_pad('dirty-wp-options-root', $pageSize, "\0")
+            . str_pad('dirty-option-name-index', $pageSize, "\0")
+            . str_pad('dirty-plugin-settings', $pageSize, "\0")
+            . str_pad('dirty-single-option-row', $pageSize, "\0")
+            . str_pad('dirty-autoload-index-row', $pageSize, "\0");
+
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('wp-import');
+        $stack->recordPageImageWrite(1, $clean[1]);
+        $stack->recordPageImageWrite(2, $clean[2]);
+        $stack->savepoint('plugin-settings');
+        $stack->recordPageImageWrite(2, str_pad('index-before-plugin-settings', $pageSize, "\0"));
+        $stack->recordPageImageWrite(3, $clean[3]);
+        $stack->savepoint('single-option-row');
+        $stack->recordPageImageWrite(3, str_pad('settings-before-single-row', $pageSize, "\0"));
+        $stack->recordPageImageWrite(4, $clean[4]);
+        $stack->recordPageWrite(6);
+
+        $t->same([
+            1 => ['image' => $clean[1], 'frame' => 'wp-import'],
+            2 => ['image' => $clean[2], 'frame' => 'wp-import'],
+            3 => ['image' => $clean[3], 'frame' => 'plugin-settings'],
+            4 => ['image' => $clean[4], 'frame' => 'single-option-row'],
+        ], $stack->rollbackPageImages());
+        $t->same([
+            'page_size' => $pageSize,
+            'restored_page_numbers' => [1, 2, 3, 4],
+            'restore_pages' => [
+                ['page_number' => 1, 'database_offset' => 0, 'bytes' => 512, 'source_frame' => 'wp-import'],
+                ['page_number' => 2, 'database_offset' => 512, 'bytes' => 512, 'source_frame' => 'wp-import'],
+                ['page_number' => 3, 'database_offset' => 1024, 'bytes' => 512, 'source_frame' => 'plugin-settings'],
+                ['page_number' => 4, 'database_offset' => 1536, 'bytes' => 512, 'source_frame' => 'single-option-row'],
+            ],
+            'missing_page_numbers' => [6],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->rollbackImagePlan($pageSize));
+
+        $rolledBack = $stack->rollbackDatabaseImage($dirtyDatabase, $pageSize);
+        $t->same($clean[1], substr($rolledBack, 0, $pageSize));
+        $t->same($clean[2], substr($rolledBack, $pageSize, $pageSize));
+        $t->same($clean[3], substr($rolledBack, $pageSize * 2, $pageSize));
+        $t->same($clean[4], substr($rolledBack, $pageSize * 3, $pageSize));
+        $t->same(str_pad('dirty-autoload-index-row', $pageSize, "\0"), substr($rolledBack, $pageSize * 4, $pageSize));
+        $t->same(strlen($dirtyDatabase), strlen($rolledBack));
+        $t->same(true, $stack->transactionActive());
+
+        $stack->rollbackToWithPlan('plugin-settings');
+        $stack->recordPageImageWrite(3, $clean[3]);
+        $stack->savepoint('second-option-row');
+        $stack->recordPageImageWrite(5, $clean[5]);
+        $t->same([
+            1 => ['image' => $clean[1], 'frame' => 'wp-import'],
+            2 => ['image' => $clean[2], 'frame' => 'wp-import'],
+            3 => ['image' => $clean[3], 'frame' => 'plugin-settings'],
+            5 => ['image' => $clean[5], 'frame' => 'second-option-row'],
+        ], $stack->rollbackPageImages());
+        $secondRollback = $stack->rollbackDatabaseImage($dirtyDatabase, $pageSize);
+        $t->same($clean[1], substr($secondRollback, 0, $pageSize));
+        $t->same($clean[2], substr($secondRollback, $pageSize, $pageSize));
+        $t->same($clean[3], substr($secondRollback, $pageSize * 2, $pageSize));
+        $t->same(str_pad('dirty-single-option-row', $pageSize, "\0"), substr($secondRollback, $pageSize * 3, $pageSize));
+        $t->same($clean[5], substr($secondRollback, $pageSize * 4, $pageSize));
+
+        $releasePlan = $stack->releaseWithPlan('plugin-settings');
+        $t->same(['plugin-settings', 'second-option-row'], $releasePlan['released_frame_names']);
+        $t->same([
+            1 => ['image' => $clean[1], 'frame' => 'wp-import'],
+            2 => ['image' => $clean[2], 'frame' => 'wp-import'],
+            3 => ['image' => $clean[3], 'frame' => 'wp-import'],
+            5 => ['image' => $clean[5], 'frame' => 'wp-import'],
+        ], $stack->rollbackPageImages());
+        $t->same(1, $stack->depth());
+        $t->same(0, $stack->rollbackImagePlan($pageSize)['released_savepoint_count']);
+
+        $beyondEnd = new SQLiteSavepointStack();
+        $beyondEnd->beginTransaction('wp-import');
+        $beyondEnd->recordPageImageWrite(7, str_pad('future-page-before-import', $pageSize, "\0"));
+        $t->same($dirtyDatabase, $beyondEnd->rollbackDatabaseImage($dirtyDatabase, $pageSize));
+        $t->same([7], $beyondEnd->rollbackImagePlan($pageSize)['restored_page_numbers']);
+
+        $badSize = new SQLiteSavepointStack();
+        $badSize->beginTransaction('wp-import');
+        $badSize->recordPageImageWrite(1, 'short-image');
+        $t->throws(InvalidArgumentException::class, static fn () => $badSize->rollbackImagePlan($pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => $badSize->rollbackDatabaseImage($dirtyDatabase, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackImagePlan(0));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackDatabaseImage($dirtyDatabase, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackDatabaseImage(substr($dirtyDatabase, 1), $pageSize));
+
+        $inactive = new SQLiteSavepointStack();
+        $t->throws(LogicException::class, static fn () => $inactive->rollbackPageImages());
+        $t->throws(LogicException::class, static fn () => $inactive->rollbackImagePlan($pageSize));
+        $t->throws(LogicException::class, static fn () => $inactive->rollbackDatabaseImage($dirtyDatabase, $pageSize));
+    },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 28)));

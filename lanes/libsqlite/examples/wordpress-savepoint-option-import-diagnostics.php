@@ -123,6 +123,8 @@ $imageSavepoints->savepoint('single_option_image');
 $imageSavepoints->recordPageImageWrite(4, $singleOptionBeforeRow);
 $imageRollbackPlan = $imageSavepoints->rollbackToImagePlan('plugin_settings_image', $pageSize);
 $imageRollbackPreview = $imageSavepoints->rollbackToDatabaseImage('plugin_settings_image', $dirtyDatabase, $pageSize);
+$fullImageRollbackPlan = $imageSavepoints->rollbackImagePlan($pageSize);
+$fullImageRollbackPreview = $imageSavepoints->rollbackDatabaseImage($dirtyDatabase, $pageSize);
 
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
@@ -184,7 +186,15 @@ echo json_encode([
         'page4Prefix' => rtrim(substr($imageRollbackPreview, $pageSize * 3, 64), "\0"),
         'bytes' => strlen($imageRollbackPreview),
     ],
+    'fullTransactionImageRollbackPlan' => $fullImageRollbackPlan,
+    'fullTransactionImageRollbackPreview' => [
+        'page1Prefix' => rtrim(substr($fullImageRollbackPreview, 0, 64), "\0"),
+        'page2Prefix' => rtrim(substr($fullImageRollbackPreview, $pageSize, 64), "\0"),
+        'page3Prefix' => rtrim(substr($fullImageRollbackPreview, $pageSize * 2, 64), "\0"),
+        'page4Prefix' => rtrim(substr($fullImageRollbackPreview, $pageSize * 3, 64), "\0"),
+        'bytes' => strlen($fullImageRollbackPreview),
+    ],
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
-    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, WAL frame truncation boundaries, concrete WAL sidecar byte truncation, and bounded pre-write page-image restoration for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
+    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, WAL frame truncation boundaries, concrete WAL sidecar byte truncation, bounded savepoint page-image restoration, and full transaction image recovery for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

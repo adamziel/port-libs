@@ -4738,3 +4738,28 @@ and copied WordPress option fixtures. Follow-up should continue non-overlapping
 planner pushdown or executor behavior beyond accepted subqueries, grouped
 SELECT, expression ORDER BY, range costs, and this predicate parser semantics
 surface.
+
+## Savepoint Full Transaction Image Recovery Scenario
+
+Copied WordPress `wp_options` import diagnostics now preview full transaction
+rollback image recovery across nested savepoints. The smoke
+`examples/wordpress-savepoint-option-import-diagnostics.php` reports the
+earliest captured page image for each dirty page across the whole savepoint
+stack, identifies dirty pages without captured images, and materializes a
+bounded restored database image for a failed outer import without requiring
+ext/sqlite.
+
+Status delta 2026-05-27 isolated rollback/savepoint slice:
+`SQLiteSavepointStack` adds full transaction image recovery via
+`rollbackPageImages()`, `rollbackImagePlan()`, and `rollbackDatabaseImage()`.
+Focused `SQLiteHeaderTest.php` adds nested recovery coverage for direct
+rollback, rollback-to followed by continued writes, RELEASE image propagation,
+beyond-end image skips, malformed page images, inactive transactions, and
+database page-size guards.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local savepoint stack, bounded page-image snapshots, and copied WordPress
+option import diagnostics. Follow-up should continue pager/VFS transaction
+application or WAL durability beyond accepted rollback-journal commit,
+savepoint VFS apply, WAL byte truncation, and this full-transaction preview
+surface.
