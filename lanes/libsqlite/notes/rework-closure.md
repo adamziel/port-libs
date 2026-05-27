@@ -1,5 +1,43 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT SQL WITH CTE Materialization
+
+This isolated SQL execution/planner slice adds bounded non-recursive
+`WITH` common-table-expression materialization for `SQLiteSelectSql` without
+repeating accepted scalar operators, subqueries, grouped SELECT text,
+expression `ORDER BY`, JSON table SELECT sources, VFS sync/apply, WAL
+checkpoint/savepoint, B-tree page move/root collapse, or Unicode GLOB work.
+Each CTE body is executed through the existing SELECT text planner, optional
+CTE column lists rename the materialized output columns, later CTEs can read
+earlier CTEs, and the final SELECT consumes the materialized row arrays through
+the accepted query-plan pipeline.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 8016 assertions,
+up from the accepted focused baseline of 7901 assertions (`+115`). The new
+assertions cover single CTEs, CTE column-list renaming, chained CTEs, grouped
+CTE inputs, CTE joins, JSON table CTE inputs, CTE use from an `IN` subquery,
+plan-shape evidence, hidden-order stripping through CTE bodies, and malformed
+CTE guards. WordPress smoke:
+`examples/wordpress-select-sql-cte.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-cte.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-cte.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SELECT SQL parser, query-plan executor, projection/predicate/result
+helpers, JSON table row materialization, grouped aggregate summaries, scalar
+dispatch, and pure PHP row arrays. Recursive CTEs are explicitly guarded as a
+future VDBE-style execution gap.
+
 ## 2026-05-27 SELECT SQL Comma LIMIT Dispatch
 
 Current-base SQL-exec slice on accepted `7e509304` adds parser-level SQLite

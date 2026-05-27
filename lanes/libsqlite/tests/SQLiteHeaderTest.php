@@ -22632,6 +22632,125 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
     },
+    'executes bounded sqlite select sql text with common table expressions' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'option_value' => 'plugins', 'autoload' => 'no', 'bytes' => 110],
+            ['option_id' => 6, 'option_name' => 'orphaned', 'option_value' => null, 'autoload' => null, 'bytes' => 3],
+        ];
+        $meta = [
+            ['option_id' => 1, 'source' => 'core', 'priority' => 10],
+            ['option_id' => 2, 'source' => 'core', 'priority' => 20],
+            ['option_id' => 3, 'source' => 'theme', 'priority' => 30],
+            ['option_id' => 5, 'source' => 'plugin', 'priority' => 40],
+        ];
+
+        $largeRows = SQLiteSelectSql::execute(
+            "WITH large_options AS (SELECT option_id, option_name, bytes FROM wp_options WHERE bytes >= 12) SELECT option_name, bytes FROM large_options ORDER BY bytes DESC, option_name ASC LIMIT 3",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($largeRows));
+        $t->same(['_site_transient_update_plugins', 'home', 'siteurl'], array_column($largeRows, 'option_name'));
+        $t->same([110, 24, 24], array_column($largeRows, 'bytes'));
+        $t->same(['option_name', 'bytes'], array_keys($largeRows[0]));
+        $t->same('_site_transient_update_plugins', $largeRows[0]['option_name']);
+        $t->same(110, $largeRows[0]['bytes']);
+        $t->same('home', $largeRows[1]['option_name']);
+        $t->same(24, $largeRows[1]['bytes']);
+        $t->same('siteurl', $largeRows[2]['option_name']);
+
+        $renamedRows = SQLiteSelectSql::execute(
+            "WITH renamed(id, name, weight) AS (SELECT option_id, option_name, bytes + option_id FROM wp_options WHERE autoload = 'yes') SELECT id, name, weight FROM renamed WHERE weight >= 12 ORDER BY weight DESC, name ASC",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($renamedRows));
+        $t->same([2, 1, 3], array_column($renamedRows, 'id'));
+        $t->same(['home', 'siteurl', 'blogname'], array_column($renamedRows, 'name'));
+        $t->same([26, 25, 12], array_column($renamedRows, 'weight'));
+        $t->same(['id', 'name', 'weight'], array_keys($renamedRows[0]));
+        $t->same(2, $renamedRows[0]['id']);
+        $t->same('home', $renamedRows[0]['name']);
+        $t->same(26, $renamedRows[0]['weight']);
+
+        $chainedRows = SQLiteSelectSql::execute(
+            "WITH base AS (SELECT option_id, option_name, autoload, bytes FROM wp_options WHERE autoload IS NOT NULL), rollup AS (SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM base GROUP BY autoload HAVING sum(bytes) >= 20) SELECT autoload, rows, byte_sum FROM rollup ORDER BY byte_sum DESC",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($chainedRows));
+        $t->same(['no', 'yes'], array_column($chainedRows, 'autoload'));
+        $t->same([2, 3], array_column($chainedRows, 'rows'));
+        $t->same([122, 57], array_column($chainedRows, 'byte_sum'));
+        $t->same(['autoload', 'rows', 'byte_sum'], array_keys($chainedRows[0]));
+        $t->same('no', $chainedRows[0]['autoload']);
+        $t->same(122, $chainedRows[0]['byte_sum']);
+        $t->same('yes', $chainedRows[1]['autoload']);
+
+        $joinRows = SQLiteSelectSql::execute(
+            "WITH hot AS (SELECT option_id, option_name, bytes FROM wp_options WHERE bytes >= 9), ranked AS (SELECT option_id, source, priority FROM option_meta WHERE priority >= 20) SELECT hot.option_name AS name, ranked.source AS source, ranked.priority AS priority FROM hot JOIN ranked ON hot.option_id = ranked.option_id ORDER BY priority DESC LIMIT 3",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(3, count($joinRows));
+        $t->same(['_site_transient_update_plugins', 'blogname', 'home'], array_column($joinRows, 'name'));
+        $t->same(['plugin', 'theme', 'core'], array_column($joinRows, 'source'));
+        $t->same([40, 30, 20], array_column($joinRows, 'priority'));
+        $t->same(['name', 'source', 'priority'], array_keys($joinRows[0]));
+        $t->same('_site_transient_update_plugins', $joinRows[0]['name']);
+        $t->same('plugin', $joinRows[0]['source']);
+        $t->same(40, $joinRows[0]['priority']);
+
+        $settingsJson = '{"rules":[{"name":"seo","priority":2},{"name":"cache","priority":7},{"name":"forms","priority":4}]}';
+        $jsonRows = SQLiteSelectSql::execute(
+            "WITH priorities AS (SELECT key, atom AS priority FROM json_tree('{$settingsJson}', '$.rules') WHERE type = 'integer') SELECT key, priority FROM priorities WHERE priority >= 4 ORDER BY priority DESC",
+            [],
+        );
+        $t->same(2, count($jsonRows));
+        $t->same(['priority', 'priority'], array_column($jsonRows, 'key'));
+        $t->same([7, 4], array_column($jsonRows, 'priority'));
+        $t->same(['key', 'priority'], array_keys($jsonRows[0]));
+
+        $subqueryRows = SQLiteSelectSql::execute(
+            "WITH public_meta AS (SELECT option_id FROM option_meta WHERE source IN ('core', 'theme')) SELECT option_id, option_name FROM wp_options WHERE option_id IN (SELECT option_id FROM public_meta) ORDER BY option_id",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(3, count($subqueryRows));
+        $t->same([1, 2, 3], array_column($subqueryRows, 'option_id'));
+        $t->same(['siteurl', 'home', 'blogname'], array_column($subqueryRows, 'option_name'));
+        $t->same(['option_id', 'option_name'], array_keys($subqueryRows[0]));
+        $t->same('siteurl', $subqueryRows[0]['option_name']);
+        $t->same('blogname', $subqueryRows[2]['option_name']);
+
+        $plan = SQLiteSelectSql::plan(
+            "WITH hot(id, name, weight) AS (SELECT option_id, option_name, bytes + option_id FROM wp_options WHERE bytes >= 9) SELECT name, weight FROM hot WHERE weight > 20 ORDER BY weight DESC LIMIT 2",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy', 'limit', 'offset', 'with'], array_keys($plan));
+        $t->same(['hot'], $plan['with']);
+        $t->same(5, count($plan['from']));
+        $t->same(['id', 'name', 'weight'], array_keys($plan['from'][0]));
+        $t->same(1, $plan['from'][0]['id']);
+        $t->same('siteurl', $plan['from'][0]['name']);
+        $t->same(25, $plan['from'][0]['weight']);
+        $t->same('>', $plan['where']['operator']);
+        $t->same('weight', $plan['where']['left']['name']);
+        $t->same(20, $plan['where']['right']['value']);
+        $t->same([['column' => 'weight', 'direction' => 'DESC']], $plan['orderBy']);
+        $t->same(2, $plan['limit']);
+        $t->same(0, $plan['offset']);
+        $planRows = SQLiteSelectQuery::execute($plan);
+        $t->same(2, count($planRows));
+        $t->same(['_site_transient_update_plugins', 'home'], array_column($planRows, 'name'));
+        $t->same([115, 26], array_column($planRows, 'weight'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH recursive seq AS (SELECT option_id FROM wp_options) SELECT option_id FROM seq", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH wp_options AS (SELECT option_id FROM wp_options) SELECT option_id FROM wp_options", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad AS (DELETE FROM wp_options) SELECT * FROM bad", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad(id, name) AS (SELECT option_id FROM wp_options) SELECT id FROM bad", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad AS SELECT option_id FROM wp_options SELECT option_id FROM bad", ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("WITH bad AS (SELECT option_id FROM wp_options)", ['wp_options' => $options]));
+    },
     'plans sqlite empty table leaf delete release with overflow and auto-vacuum pointer maps' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $emptyPage = str_repeat("\0", $pageSize);

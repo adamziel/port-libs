@@ -25,6 +25,11 @@ final class SQLiteSelectSql
     public static function plan(string $sql, array $tables): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
+        if (preg_match('/^with\s+/i', $sql) === 1) {
+            [$tables, $sql, $cteNames] = self::materializeWithTables($sql, $tables);
+        } else {
+            $cteNames = [];
+        }
         if (!preg_match('/^select\s+/i', $sql)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT');
         }
@@ -90,8 +95,122 @@ final class SQLiteSelectSql
             $plan['limit'] = $limit;
             $plan['offset'] = $offset;
         }
+        if ($cteNames !== []) {
+            $plan['with'] = $cteNames;
+        }
 
         return $plan;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{0:array<string,list<array<string,mixed>>>,1:string,2:list<string>}
+     */
+    private static function materializeWithTables(string $sql, array $tables): array
+    {
+        [$entries, $mainSql, $recursive] = self::withEntries($sql);
+        if ($recursive) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTEs are not supported');
+        }
+
+        $cteNames = [];
+        foreach ($entries as $entry) {
+            $name = $entry['name'];
+            if (array_key_exists($name, $tables)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} shadows an input table");
+            }
+            $rows = self::execute($entry['sql'], $tables);
+            if ($entry['columns'] !== []) {
+                $rows = self::renameCteColumns($rows, $entry['columns'], $name);
+            }
+            $tables[$name] = $rows;
+            $cteNames[] = $name;
+        }
+
+        return [$tables, $mainSql, $cteNames];
+    }
+
+    /**
+     * @return array{0:list<array{name:string,columns:list<string>,sql:string}>,1:string,2:bool}
+     */
+    private static function withEntries(string $sql): array
+    {
+        if (preg_match('/^with\s+(recursive\s+)?/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL WITH clause is malformed');
+        }
+
+        $recursive = isset($match[1]) && trim($match[1]) !== '';
+        $offset = strlen($match[0]);
+        $entries = [];
+        $length = strlen($sql);
+        while (true) {
+            $offset = self::skipWhitespace($sql, $offset);
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)/', substr($sql, $offset), $nameMatch) !== 1) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CTE name is malformed');
+            }
+            $name = $nameMatch[1];
+            $offset += strlen($name);
+            $offset = self::skipWhitespace($sql, $offset);
+
+            $columns = [];
+            if (($sql[$offset] ?? null) === '(') {
+                [$columnSql, $offset] = self::consumeParenthesized($sql, $offset);
+                foreach (self::splitTopLevel($columnSql, ',') as $column) {
+                    self::assertBareIdentifier($column, 'SQLite SELECT SQL CTE column');
+                    $columns[] = $column;
+                }
+                if ($columns === []) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} column list cannot be empty");
+                }
+                $offset = self::skipWhitespace($sql, $offset);
+            }
+
+            if (!self::keywordAt($sql, $offset, 'AS')) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} needs AS");
+            }
+            $offset += 2;
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? null) !== '(') {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} needs a parenthesized SELECT");
+            }
+            [$cteSql, $offset] = self::consumeParenthesized($sql, $offset);
+            $cteSql = trim($cteSql);
+            if (!preg_match('/^select\s+/i', $cteSql)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} body must be SELECT");
+            }
+            $entries[] = ['name' => $name, 'columns' => $columns, 'sql' => $cteSql];
+
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? null) === ',') {
+                $offset++;
+                continue;
+            }
+
+            $mainSql = trim(substr($sql, $offset));
+            if (!preg_match('/^select\s+/i', $mainSql)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WITH clause needs a trailing SELECT');
+            }
+
+            return [$entries, $mainSql, $recursive];
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function renameCteColumns(array $rows, array $columns, string $name): array
+    {
+        $renamed = [];
+        foreach ($rows as $row) {
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} column list does not match SELECT width");
+            }
+            $renamed[] = array_combine($columns, array_values($row));
+        }
+
+        return $renamed;
     }
 
     /**
@@ -1186,6 +1305,65 @@ final class SQLiteSelectSql
         }
 
         return $parts;
+    }
+
+    private static function skipWhitespace(string $sql, int $offset): int
+    {
+        $length = strlen($sql);
+        while ($offset < $length && ctype_space($sql[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @return array{0:string,1:int}
+     */
+    private static function consumeParenthesized(string $sql, int $offset): array
+    {
+        if (($sql[$offset] ?? null) !== '(') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL expected parenthesized expression');
+        }
+
+        $depth = 0;
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return [substr($sql, $offset + 1, $i - $offset - 1), $i + 1];
+                }
+                if ($depth < 0) {
+                    break;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized expression is incomplete');
+    }
+
+    private static function keywordAt(string $sql, int $offset, string $keyword): bool
+    {
+        return strncasecmp(substr($sql, $offset), $keyword, strlen($keyword)) === 0
+            && self::keywordBounded($sql, $offset, strlen($keyword));
     }
 
     private static function keywordOffset(string $sql, string $keyword): ?int

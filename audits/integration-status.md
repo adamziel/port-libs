@@ -119645,3 +119645,33 @@ Decision: accepted after root passed; commit exactly this bounded B-tree empty-l
 
 Cleanup:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T074507Z` still contains modified lane files from the handed-off patch, so it was preserved and left registered as cleanup debt rather than removed.
+## Integration accepted - libsqlite SELECT SQL CTE execution - 2026-05-27T08:15:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T080505Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `db9b7278e2e2c863ba65aa5e659ed82c500988e3` (`Integrate libsqlite empty leaf freelist release`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `db9b7278e2e2c863ba65aa5e659ed82c500988e3`, `generated` `2026-05-27 08:03:30 UTC`, and `dashboardCommit` `f1372834657bd1eb0bf790aebfb29a8c69dc8e28`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Marker metadata was complete with `lane=libsqlite`, `base_sha=db9b7278e2e2c863ba65aa5e659ed82c500988e3`, patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T080505Z.patch`, and metadata `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T080505Z.md`.
+- Patch sha256 matched the ready marker: `02b1f1c8856e3fdefc60d9c25f5ebb11f0afcd2f04c5c7cff5cde047348a1798`.
+- Detached clean candidate `.tmux-team/tmp/clean-integrator-candidates/sql-exec-cte-20260527T080505Z` was based on current `db9b7278`; `git apply --check` passed and the patch applied cleanly.
+- Effective source delta is scoped to `lanes/libsqlite`: non-recursive `WITH` CTE materialization in `SQLiteSelectSql`, focused CTE assertions, copied WordPress CTE smoke, manifest/status evidence, and lane rework notes.
+- This is non-overlapping with accepted scalar operators, subqueries, VFS sync apply, B-tree root collapse, empty-leaf freelist release, and prior SQL grouped/ORDER/JOIN/SELECT text clusters.
+
+Verification evidence:
+- `php -l` passed for `lanes/libsqlite/src/SQLiteSelectSql.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-select-sql-cte.php`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 8016 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-cte.php` emitted valid JSON and selected `_site_transient_update_plugins`, `blogname`, and `home`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before focused checks: `df -Pk /` reported `84584064` KiB available, above the temporary `84000000` KiB floor; load was `2.16`; no exact no-argument root harness was active.
+
+Root evidence:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 33181 assertions, 0 failures`.
+
+Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
