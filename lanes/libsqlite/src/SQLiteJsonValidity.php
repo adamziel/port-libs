@@ -13,7 +13,7 @@ final class SQLiteJsonValidity
 
     public static function jsonValidSqlFunction(
         string $function,
-        string|SQLiteBlobValue|null $value,
+        string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value,
         ?int $flags = self::FLAG_STRICT_TEXT,
     ): ?bool {
         if (strcasecmp($function, 'json_valid') !== 0) {
@@ -27,7 +27,7 @@ final class SQLiteJsonValidity
     }
 
     /**
-     * @param list<string|SQLiteBlobValue|int|null> $arguments
+     * @param list<string|SQLiteBlobValue|SQLiteJsonSubtypeValue|int|null> $arguments
      */
     public static function jsonValidSqlFunctionArguments(string $function, array $arguments): ?bool
     {
@@ -44,7 +44,7 @@ final class SQLiteJsonValidity
         return self::jsonValidSqlFunction($function, $arguments[0], $flags);
     }
 
-    public static function jsonValid(string|SQLiteBlobValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool
+    public static function jsonValid(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool
     {
         if ($flags < 1 || $flags > 15) {
             throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be between 1 and 15');
@@ -55,6 +55,9 @@ final class SQLiteJsonValidity
 
         if ($value instanceof SQLiteBlobValue) {
             return self::blobValid($value->bytes, $flags);
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::subtypeValid($value->json, $flags);
         }
 
         return self::textValid($value, $flags);
@@ -111,5 +114,14 @@ final class SQLiteJsonValidity
         }
 
         return self::textValid($bytes, $flags);
+    }
+
+    private static function subtypeValid(string $json, int $flags): bool
+    {
+        if (($flags & (self::FLAG_STRICT_TEXT | self::FLAG_JSON5_TEXT)) === 0) {
+            return false;
+        }
+
+        return self::strictTextValid($json);
     }
 }

@@ -53,6 +53,11 @@ final class SQLitePragmaIntegrityCheck
 
         if (!$quick) {
             self::appendPointerMapErrors($database, $errors, $limit);
+            if (count($errors) >= $limit) {
+                return array_slice($errors, 0, $limit);
+            }
+
+            self::appendBtreeErrors($database, $errors, $limit);
         }
 
         return array_slice($errors, 0, $limit);
@@ -172,6 +177,149 @@ final class SQLitePragmaIntegrityCheck
                 self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for page {$pageNumber} is beyond the database image");
             }
         }
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendBtreeErrors(SQLiteDatabase $database, array &$errors, int $limit): void
+    {
+        $freePages = self::freelistPageNumbers($database);
+        $overflowPages = [];
+        $pageCount = $database->pageCount();
+        $usableSize = $database->usablePageSize();
+
+        for ($pageNumber = 1; $pageNumber <= $pageCount && count($errors) < $limit; $pageNumber++) {
+            if (isset($freePages[$pageNumber]) || isset($overflowPages[$pageNumber]) || $database->isPointerMapPage($pageNumber)) {
+                continue;
+            }
+
+            $page = $database->page($pageNumber);
+            $headerOffset = $pageNumber === 1 ? 100 : 0;
+            $flag = ord($page[$headerOffset]);
+            if (!in_array($flag, [0x02, 0x05, 0x0a, 0x0d], true)) {
+                self::appendInvalidBtreePointerMapError($database, $pageNumber, $errors, $limit);
+                continue;
+            }
+
+            try {
+                $header = SQLiteBTreePageHeader::parsePage($page, $database->header->pageSize, $headerOffset);
+                $header->freeSpaceBytes($page, $usableSize);
+                self::appendPointerMapTypeError($database, $pageNumber, $database->header->largestRootBtreePage >= $pageNumber ? SQLitePointerMapEntry::ROOT_PAGE : SQLitePointerMapEntry::BTREE_PAGE, 0, $errors, $limit);
+
+                $overflowReader = static function (int $firstOverflowPage, int $byteCount) use ($database, $pageNumber, &$overflowPages, &$errors, $limit): string {
+                    if ($byteCount < 0) {
+                        throw new \InvalidArgumentException('SQLite overflow byte count cannot be negative');
+                    }
+
+                    $pageNumbers = SQLiteOverflowPage::pageNumbersFromDatabase($database, $firstOverflowPage, $byteCount);
+                    $previousPage = $pageNumber;
+                    foreach ($pageNumbers as $index => $overflowPageNumber) {
+                        if (isset($overflowPages[$overflowPageNumber])) {
+                            throw new \InvalidArgumentException("SQLite overflow page {$overflowPageNumber} is referenced by more than one cell");
+                        }
+                        $overflowPages[$overflowPageNumber] = true;
+                        $expectedType = $index === 0 ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE : SQLitePointerMapEntry::OVERFLOW_PAGE;
+                        self::appendPointerMapTypeError($database, $overflowPageNumber, $expectedType, $previousPage, $errors, $limit);
+                        $previousPage = $overflowPageNumber;
+                    }
+
+                    return str_repeat("\0", $byteCount);
+                };
+
+                match ($header->pageType) {
+                    'table-leaf' => SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader),
+                    'index-leaf', 'index-interior' => SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader),
+                    'table-interior' => SQLiteTableInteriorCell::parsePageCells($page, $header),
+                    default => null,
+                };
+            } catch (\InvalidArgumentException $exception) {
+                self::append($errors, $limit, "btree page {$pageNumber}: " . self::formatError($exception));
+            }
+        }
+    }
+
+    /**
+     * @return array<int, true>
+     */
+    private static function freelistPageNumbers(SQLiteDatabase $database): array
+    {
+        $pages = [];
+        $pageNumber = $database->header->firstFreelistTrunkPage;
+        $seen = [];
+        while ($pageNumber !== 0 && $pageNumber <= $database->pageCount() && !isset($seen[$pageNumber])) {
+            $seen[$pageNumber] = true;
+            try {
+                $trunk = SQLiteFreelistTrunkPage::parse($pageNumber, $database->page($pageNumber), $database->usablePageSize(), $database->pageCount());
+            } catch (\InvalidArgumentException) {
+                break;
+            }
+
+            $pages[$pageNumber] = true;
+            foreach ($trunk->leafPageNumbers as $leafPageNumber) {
+                $pages[$leafPageNumber] = true;
+            }
+            $pageNumber = $trunk->nextTrunkPage ?? 0;
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendPointerMapTypeError(SQLiteDatabase $database, int $pageNumber, int $expectedType, int $expectedParent, array &$errors, int $limit): void
+    {
+        if (!$database->isAutoVacuum() || $pageNumber === 1 || $database->isPointerMapPage($pageNumber)) {
+            return;
+        }
+
+        try {
+            $entry = $database->pointerMapEntryForPage($pageNumber);
+        } catch (\InvalidArgumentException $exception) {
+            self::append($errors, $limit, self::formatError($exception));
+            return;
+        }
+
+        if ($entry->type !== $expectedType) {
+            self::append($errors, $limit, "pointer-map type {$entry->typeName()} for page {$pageNumber} does not match expected " . self::pointerMapTypeName($expectedType));
+            return;
+        }
+        if ($expectedParent !== 0 && $entry->parentPageNumber !== $expectedParent) {
+            self::append($errors, $limit, "pointer-map parent page {$entry->parentPageNumber} for page {$pageNumber} does not match expected parent {$expectedParent}");
+        }
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendInvalidBtreePointerMapError(SQLiteDatabase $database, int $pageNumber, array &$errors, int $limit): void
+    {
+        if (!$database->isAutoVacuum() || $pageNumber === 1 || $database->isPointerMapPage($pageNumber)) {
+            return;
+        }
+
+        try {
+            $entry = $database->pointerMapEntryForPage($pageNumber);
+        } catch (\InvalidArgumentException) {
+            return;
+        }
+
+        if (($entry->type === SQLitePointerMapEntry::ROOT_PAGE || $entry->type === SQLitePointerMapEntry::BTREE_PAGE) && ord($database->page($pageNumber)[0]) !== 0) {
+            self::append($errors, $limit, sprintf('btree page %d: Invalid SQLite b-tree page type flag: 0x%02x', $pageNumber, ord($database->page($pageNumber)[0])));
+        }
+    }
+
+    private static function pointerMapTypeName(int $type): string
+    {
+        return match ($type) {
+            SQLitePointerMapEntry::ROOT_PAGE => 'root-page',
+            SQLitePointerMapEntry::FREE_PAGE => 'free-page',
+            SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE => 'first-overflow-page',
+            SQLitePointerMapEntry::OVERFLOW_PAGE => 'overflow-page',
+            SQLitePointerMapEntry::BTREE_PAGE => 'btree-page',
+            default => 'unknown',
+        };
     }
 
     /**

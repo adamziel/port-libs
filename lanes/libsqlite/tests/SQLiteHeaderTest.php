@@ -23944,11 +23944,11 @@ SQL;
             ['wp_options' => $options],
         );
         $t->same(3, count($literalOrderRows));
-        $t->same(['siteurl', 'orphaned', 'home'], array_column($literalOrderRows, 'name'));
+        $t->same(['_site_transient_update_plugins', '_transient_feed', 'blogname'], array_column($literalOrderRows, 'name'));
         $t->same(['name'], array_keys($literalOrderRows[0]));
-        $t->same('siteurl', $literalOrderRows[0]['name']);
-        $t->same('orphaned', $literalOrderRows[1]['name']);
-        $t->same('home', $literalOrderRows[2]['name']);
+        $t->same('_site_transient_update_plugins', $literalOrderRows[0]['name']);
+        $t->same('_transient_feed', $literalOrderRows[1]['name']);
+        $t->same('blogname', $literalOrderRows[2]['name']);
         $t->same(false, array_key_exists('__sqlite_order_expr_0', $literalOrderRows[0]));
         $t->same(false, array_key_exists('__sqlite_order_expr_1', $literalOrderRows[0]));
 

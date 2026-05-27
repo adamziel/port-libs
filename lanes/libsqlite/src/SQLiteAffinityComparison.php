@@ -50,6 +50,11 @@ final class SQLiteAffinityComparison
             return $leftRank <=> $rightRank;
         }
         if ($leftRank === 1) {
+            $mixedNumeric = self::compareMixedIntegerReal($left, $right);
+            if ($mixedNumeric !== null) {
+                return $mixedNumeric;
+            }
+
             return ((float) $left) <=> ((float) $right);
         }
 
@@ -94,13 +99,13 @@ final class SQLiteAffinityComparison
             return $value;
         }
 
-        if (preg_match('/^[+-]?[0-9]+$/', $trimmed) === 1) {
+        if (preg_match('/^[+-]?[0-9]+$/', $trimmed) === 1 && self::integerLiteralFitsInt64($trimmed)) {
             return (int) $trimmed;
         }
 
         $real = (float) $trimmed;
 
-        return is_finite($real) && floor($real) === $real && preg_match('/[.eE]/', $trimmed) === 1 ? (int) $real : $real;
+        return is_finite($real) && floor($real) === $real && preg_match('/[.eE]/', $trimmed) === 1 && self::integerLiteralFitsInt64(sprintf('%.0F', $real)) ? (int) $real : $real;
     }
 
     private static function applyTextAffinity(mixed $value): mixed
@@ -157,6 +162,59 @@ final class SQLiteAffinityComparison
             'RTRIM' => strcmp(rtrim($left, " \t\r\n\0\x0B"), rtrim($right, " \t\r\n\0\x0B")),
             default => throw new \InvalidArgumentException("SQLite comparison collation {$collation} is not supported"),
         };
+    }
+
+    private static function integerLiteralFitsInt64(string $literal): bool
+    {
+        $literal = trim($literal);
+        $negative = str_starts_with($literal, '-');
+        $digits = ltrim($literal, '+-');
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return true;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        $length = strlen($digits);
+        $limitLength = strlen($limit);
+        if ($length !== $limitLength) {
+            return $length < $limitLength;
+        }
+
+        return strcmp($digits, $limit) <= 0;
+    }
+
+    private static function compareMixedIntegerReal(mixed $left, mixed $right): ?int
+    {
+        if ((is_int($left) || is_bool($left)) && is_float($right)) {
+            return self::compareIntegerToReal((int) $left, $right);
+        }
+        if (is_float($left) && (is_int($right) || is_bool($right))) {
+            return -self::compareIntegerToReal((int) $right, $left);
+        }
+
+        return null;
+    }
+
+    private static function compareIntegerToReal(int $integer, float $real): int
+    {
+        if (!is_finite($real)) {
+            return $real > 0.0 ? -1 : 1;
+        }
+        if ($integer === PHP_INT_MAX && $real >= 9223372036854775808.0) {
+            return -1;
+        }
+        if ($integer === PHP_INT_MIN && $real <= -9223372036854775808.0) {
+            return 0;
+        }
+        if ($real > 9223372036854775808.0) {
+            return -1;
+        }
+        if ($real < -9223372036854775808.0) {
+            return 1;
+        }
+
+        return ((float) $integer) <=> $real;
     }
 
     private static function assertComparable(mixed $value): void

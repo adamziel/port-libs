@@ -262,6 +262,18 @@ apply this release path to broader SQL DELETE/rebalance flows without repeating
 accepted bulk overflow freeblocks, page moves, index-interior merge, or this
 overflow release path.
 
+Status delta 2026-05-27 isolated B-tree overflow secure-delete current-next20
+slice: added `SQLiteOverflowFreelistReleasePlan::fromOverflowChains()` and
+`examples/wordpress-overflow-securedelete-current-next20.php`. The smoke starts
+from copied `wp_options` table and `option_name` index first overflow pages,
+follows the current SQLite next-page pointers, releases the obsolete pages to a
+full freelist, secure-delete clears released freelist leaves, and auto-vacuum
+pointer-map entries become `free-page` without requiring ext/sqlite. Focused
+`SQLiteBTreeOverflowSecureDeleteCurrentNext20Test.php` passed with 52 PASS
+lines / 52 assertions / 0 failures. Dependency closure: no new support
+component is needed; this reuses lane-local overflow next-pointer parsing,
+freelist planning, secure-delete clearing, and pointer-map mutation.
+
 ## VFS Locked Writer Scenario
 
 Copied WordPress database imports can now apply file-handle writes only after
