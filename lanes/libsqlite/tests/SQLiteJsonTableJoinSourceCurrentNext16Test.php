@@ -94,7 +94,7 @@ $tests['sqlite json table join source current next16 plan advertises dynamic rig
         "SELECT o.option_name AS option_name, j.atom AS priority FROM wp_options AS o JOIN json_tree(o.option_value, '$.rules') AS j ON j.key = 'priority'",
         ['wp_options' => $options],
     );
-    $t->same(['j.key', 'j.value', 'j.type', 'j.atom', 'j.id', 'j.parent', 'j.fullkey', 'j.path'], $plan['joins'][0]['rightColumns']);
+    $t->same(['j.key', 'j.value', 'j.type', 'j.atom', 'j.id', 'j.parent', 'j.fullkey', 'j.path', 'j.rowid', 'j._rowid_', 'j.oid'], $plan['joins'][0]['rightColumns']);
 };
 
 $tests['sqlite json table join source current next16 plan callback uses supplied current row'] = static function (TestRunner $t) use ($options): void {

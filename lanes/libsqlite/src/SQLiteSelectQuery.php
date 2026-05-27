@@ -131,12 +131,13 @@ final class SQLiteSelectQuery
         $partitionBy = self::expressionList($expression['partitionBy'] ?? [], 'window partition expressions');
         $orderBy = self::windowOrderList($expression['orderBy'] ?? []);
         $frame = self::windowFrame($expression['frame'] ?? null);
+        $filter = self::windowFilter($expression['filter'] ?? null);
 
         $result = array_fill(0, count($rows), null);
         foreach (self::windowPartitions($rows, $partitionBy) as $partitionIndexes) {
             $orderedIndexes = self::orderWindowPartition($rows, $partitionIndexes, $orderBy);
             $orderedRows = array_map(static fn (int $rowIndex): array => $rows[$rowIndex], $orderedIndexes);
-            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame);
+            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame, $filter);
             foreach ($orderedIndexes as $offset => $rowIndex) {
                 $result[$rowIndex] = $orderedValues[$offset];
             }
@@ -206,9 +207,10 @@ final class SQLiteSelectQuery
      * @param list<array<string,mixed>> $orderedRows
      * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
      * @param array{unit:string,preceding:int|float,following:int|float,exclude:string}|null $frame
+     * @param array<string,mixed>|null $filter
      * @return list<mixed>
      */
-    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame): array
+    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame, ?array $filter): array
     {
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
@@ -230,6 +232,9 @@ final class SQLiteSelectQuery
             } elseif ($arguments === []) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
             }
+            $filterValues = $filter === null
+                ? null
+                : array_map(static fn (array $row): bool => SQLiteSelectPredicate::filter([$row], $filter) !== [], $orderedRows);
 
             return SQLiteWindowFunction::aggregateFrameValues(
                 $function,
@@ -239,7 +244,11 @@ final class SQLiteSelectQuery
                 $frame['preceding'],
                 $frame['following'],
                 $frame['exclude'],
+                $filterValues,
             );
+        }
+        if ($filter !== null) {
+            throw new \InvalidArgumentException("SQLite SELECT query FILTER is not supported for {$function}");
         }
         if ($frame !== null) {
             throw new \InvalidArgumentException("SQLite SELECT query window frame is not supported for {$function}");
@@ -355,6 +364,21 @@ final class SQLiteSelectQuery
             'following' => $value['following'],
             'exclude' => $value['exclude'],
         ];
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private static function windowFilter(mixed $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite SELECT query window FILTER must be a predicate');
+        }
+
+        return $value;
     }
 
     private static function compareSqlValues(mixed $left, mixed $right): int

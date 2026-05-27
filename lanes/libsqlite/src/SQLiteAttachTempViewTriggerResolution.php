@@ -114,6 +114,52 @@ final class SQLiteAttachTempViewTriggerResolution
     }
 
     /**
+     * @return array{trigger:string,triggerSchema:string,target:string,targetSchema:string,targetForeignKeys:list<array<string,mixed>>,bodyForeignKeys:list<array<string,mixed>>,foreignKeySchemas:list<string>,crossSchemaReferences:list<array<string,mixed>>,status:string}
+     */
+    public static function foreignKeyContext(SQLiteAttachedSchemaCatalog $catalog, string $triggerName): array
+    {
+        $resolved = self::resolve($catalog, $triggerName);
+        $trigger = self::resolveTrigger($catalog, $triggerName);
+        $triggerTemporary = $resolved['triggerTemporary'];
+        $targetRecord = self::recordInSchema($catalog, $resolved['targetSchema'], $resolved['target']);
+        $targetForeignKeys = self::foreignKeysForRecord($targetRecord, $resolved['targetSchema'], 'target');
+        $bodyForeignKeys = [];
+
+        foreach ($resolved['bodyDependencies'] as $dependency) {
+            $dependencyRecord = self::resolveDependencyRecord($catalog, $dependency, $trigger['schema'], $triggerTemporary);
+            if ($dependencyRecord === null) {
+                continue;
+            }
+            foreach (self::foreignKeysForRecord($dependencyRecord['record'], $dependencyRecord['schema'], 'body') as $foreignKey) {
+                $bodyForeignKeys[] = $foreignKey;
+            }
+        }
+
+        $all = array_merge($targetForeignKeys, $bodyForeignKeys);
+        $schemas = [];
+        $crossSchema = [];
+        foreach ($all as $foreignKey) {
+            $schemas[$foreignKey['childSchema']] = true;
+            if ($foreignKey['childSchema'] !== $foreignKey['parentSchema']) {
+                $crossSchema[] = $foreignKey;
+            }
+        }
+        ksort($schemas);
+
+        return [
+            'trigger' => $resolved['trigger'],
+            'triggerSchema' => $resolved['triggerSchema'],
+            'target' => $resolved['target'],
+            'targetSchema' => $resolved['targetSchema'],
+            'targetForeignKeys' => $targetForeignKeys,
+            'bodyForeignKeys' => $bodyForeignKeys,
+            'foreignKeySchemas' => array_keys($schemas),
+            'crossSchemaReferences' => $crossSchema,
+            'status' => $resolved['status'] === 'resolved' && $crossSchema === [] ? 'resolved' : 'unresolved',
+        ];
+    }
+
+    /**
      * @return array{schema:string,name:string}
      */
     private static function splitQualifiedName(string $name): array
@@ -182,6 +228,126 @@ final class SQLiteAttachTempViewTriggerResolution
 
         $explicit = self::viewColumns($record->sql);
         return $explicit !== [] ? $explicit : self::selectColumns($record->sql);
+    }
+
+    private static function recordInSchema(SQLiteAttachedSchemaCatalog $catalog, string $schema, string $name): SQLiteSchemaRecord
+    {
+        foreach ($catalog->schemaRecords($schema) as $record) {
+            if (strcasecmp($record->name, $name) === 0) {
+                return $record;
+            }
+        }
+
+        throw new InvalidArgumentException("SQLite schema record does not exist: {$schema}.{$name}");
+    }
+
+    /**
+     * @param array{schema:?string,name:string} $dependency
+     * @return ?array{schema:string,record:SQLiteSchemaRecord}
+     */
+    private static function resolveDependencyRecord(SQLiteAttachedSchemaCatalog $catalog, array $dependency, string $triggerSchema, bool $tempTrigger): ?array
+    {
+        $schemas = $dependency['schema'] !== null
+            ? [$dependency['schema']]
+            : ($tempTrigger ? $catalog->searchOrder() : [$triggerSchema]);
+
+        foreach ($schemas as $schema) {
+            foreach ($catalog->schemaRecords($schema) as $record) {
+                if (strtolower($record->type) === 'table' && strcasecmp($record->name, $dependency['name']) === 0) {
+                    return ['schema' => $schema, 'record' => $record];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private static function foreignKeysForRecord(SQLiteSchemaRecord $record, string $schema, string $source): array
+    {
+        if ($record->sql === null || strtolower($record->type) !== 'table') {
+            return [];
+        }
+        if (!preg_match('/\bcreate\s+(?:temp(?:orary)?\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:["`\[]?[\w]+["`\]]?\s*\.\s*)?["`\[]?[\w]+["`\]]?\s*\((?<columns>.*)\)/is', $record->sql, $matches)) {
+            return [];
+        }
+
+        $foreignKeys = [];
+        foreach (self::splitCommaList($matches['columns']) as $definition) {
+            $trimmed = trim($definition);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if (preg_match('/^(?:constraint\s+(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)\s+)?foreign\s+key\s*\((?<child>[^)]*)\)\s+references\s+(?:(?<parentSchema>["`\[]?[\w]+["`\]]?)\s*\.\s*)?(?<parent>["`\[]?[\w]+["`\]]?)\s*(?:\((?<parentColumns>[^)]*)\))?(?<tail>.*)$/is', $trimmed, $fk)) {
+                $foreignKeys[] = self::foreignKeyRow(
+                    $schema,
+                    $record->name,
+                    self::identifierList($fk['child']),
+                    isset($fk['parentSchema']) && $fk['parentSchema'] !== '' ? strtolower(self::unquoteIdentifier($fk['parentSchema'])) : $schema,
+                    self::unquoteIdentifier($fk['parent']),
+                    isset($fk['parentColumns']) && $fk['parentColumns'] !== '' ? self::identifierList($fk['parentColumns']) : [],
+                    (string) ($fk['tail'] ?? ''),
+                    $source,
+                );
+                continue;
+            }
+
+            if (preg_match('/^(?<column>"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+).*?\breferences\s+(?:(?<parentSchema>["`\[]?[\w]+["`\]]?)\s*\.\s*)?(?<parent>["`\[]?[\w]+["`\]]?)\s*(?:\((?<parentColumns>[^)]*)\))?(?<tail>.*)$/is', $trimmed, $fk)) {
+                $foreignKeys[] = self::foreignKeyRow(
+                    $schema,
+                    $record->name,
+                    [self::unquoteIdentifier($fk['column'])],
+                    isset($fk['parentSchema']) && $fk['parentSchema'] !== '' ? strtolower(self::unquoteIdentifier($fk['parentSchema'])) : $schema,
+                    self::unquoteIdentifier($fk['parent']),
+                    isset($fk['parentColumns']) && $fk['parentColumns'] !== '' ? self::identifierList($fk['parentColumns']) : [],
+                    (string) ($fk['tail'] ?? ''),
+                    $source,
+                );
+            }
+        }
+
+        return $foreignKeys;
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @param list<string> $parentColumns
+     * @return array<string,mixed>
+     */
+    private static function foreignKeyRow(string $childSchema, string $childTable, array $childColumns, string $parentSchema, string $parentTable, array $parentColumns, string $tail, string $source): array
+    {
+        return [
+            'source' => $source,
+            'childSchema' => $childSchema,
+            'childTable' => $childTable,
+            'childColumns' => $childColumns,
+            'parentSchema' => $parentSchema,
+            'parentTable' => $parentTable,
+            'parentColumns' => $parentColumns,
+            'onUpdate' => self::foreignKeyAction($tail, 'update'),
+            'onDelete' => self::foreignKeyAction($tail, 'delete'),
+            'deferred' => (bool) preg_match('/\bdeferrable\b/i', $tail) && !preg_match('/\bnot\s+deferrable\b/i', $tail),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function identifierList(string $value): array
+    {
+        return array_values(array_filter(array_map(static fn (string $part): string => self::unquoteIdentifier(trim($part)), self::splitCommaList($value)), static fn (string $part): bool => $part !== ''));
+    }
+
+    private static function foreignKeyAction(string $tail, string $event): string
+    {
+        if (!preg_match('/\bon\s+' . preg_quote($event, '/') . '\s+(set\s+null|set\s+default|cascade|restrict|no\s+action)\b/i', $tail, $matches)) {
+            return 'NO ACTION';
+        }
+
+        return strtoupper((string) preg_replace('/\s+/', ' ', $matches[1]));
     }
 
     /**

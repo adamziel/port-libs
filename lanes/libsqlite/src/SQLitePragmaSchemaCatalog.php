@@ -69,7 +69,7 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{status: string, pragma: 'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
+     * @return array{status: string, pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
      */
     public function executeTableValuedPragma(string $sql): array
     {
@@ -77,11 +77,23 @@ final class SQLitePragmaSchemaCatalog
 
         return [
             'status' => 'ok',
-            'pragma' => 'foreign_key_list',
+            'pragma' => $parsed['pragma'],
             'schema' => $parsed['schema'] ?? 'main',
             'target' => $parsed['target'],
-            'rows' => $this->foreignKeyList($parsed['target']),
+            'rows' => match ($parsed['pragma']) {
+                'table_info' => $this->tableInfo($parsed['target'], false),
+                'table_xinfo' => $this->tableInfo($parsed['target'], true),
+                'index_list' => $this->indexList($parsed['target']),
+                'index_info' => $this->indexInfo($parsed['target']),
+                'index_xinfo' => $this->indexXInfo($parsed['target']),
+                'foreign_key_list' => $this->foreignKeyList($parsed['target']),
+            },
         ];
+    }
+
+    public function executeTableValuedPragmaCursor(string $sql): SQLitePragmaRowCursor
+    {
+        return new SQLitePragmaRowCursor($this->executeTableValuedPragma($sql));
     }
 
     /**
@@ -283,25 +295,26 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'foreign_key_list', schema: string|null, target: string}
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string|null, target: string}
      */
     public static function parseTableValuedPragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (!preg_match('/^pragma_foreign_key_list\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only pragma_foreign_key_list(table[, schema]) is supported');
+        if (!preg_match('/^pragma_(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
+            throw new InvalidArgumentException('Only table-valued PRAGMA schema functions are supported');
         }
 
+        $pragma = strtolower($matches['pragma']);
         $args = array_map('trim', self::splitTopLevel($matches['args'], ','));
         if (count($args) < 1 || count($args) > 2 || $args[0] === '') {
-            throw new InvalidArgumentException('pragma_foreign_key_list needs a table argument');
+            throw new InvalidArgumentException("pragma_{$pragma} needs a target argument");
         }
         if (count($args) === 2 && $args[1] === '') {
-            throw new InvalidArgumentException('pragma_foreign_key_list schema argument cannot be empty');
+            throw new InvalidArgumentException("pragma_{$pragma} schema argument cannot be empty");
         }
 
         return [
-            'pragma' => 'foreign_key_list',
+            'pragma' => $pragma,
             'schema' => isset($args[1]) ? strtolower(self::unquoteIdentifier($args[1])) : null,
             'target' => self::unquoteIdentifier($args[0]),
         ];

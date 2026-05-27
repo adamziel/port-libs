@@ -159,7 +159,7 @@ $tests['pragma foreign key list current next18 rejects malformed table valued sh
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_foreign_key_list()'));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_foreign_key_list('wp_options','main','extra')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_foreign_key_list'));
-    $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_table_info('wp_options')"));
+    $t->same('table_info', $catalog->executeTableValuedPragma("pragma_table_info('wp_options')")['pragma']);
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("foreign_key_list('wp_options')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_foreign_key_list('wp_options', '')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_foreign_key_list('wp_options','missing')"));

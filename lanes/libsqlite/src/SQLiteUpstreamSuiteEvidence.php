@@ -3490,6 +3490,87 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function focusedPhpPassAdmission(
+        int $currentPhpPass,
+        string $focusedPath,
+        string $testOutput,
+        string $nonOverlapNote
+    ): array {
+        if ($currentPhpPass < 0) {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission needs a non-negative current pass count');
+        }
+        if (!preg_match('#^lanes/libsqlite/tests/[A-Za-z0-9_./-]+Test\.php$#', $focusedPath)) {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission requires a lane-local focused test path');
+        }
+        if (trim($nonOverlapNote) === '') {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission requires a non-overlap note');
+        }
+
+        $parsed = $this->parseFocusedPhpTestOutput($testOutput);
+        $admitted = $parsed['focused']
+            && $parsed['selected_test_files'] === 1
+            && $parsed['summary_test_files'] === 1
+            && $parsed['assertions'] > 0
+            && $parsed['failures'] === 0;
+        $delta = $admitted ? $parsed['assertions'] : 0;
+
+        return [
+            'status' => $admitted ? 'admitted' : 'blocked',
+            'focused_path' => $focusedPath,
+            'current_php_pass' => $currentPhpPass,
+            'assertion_delta' => $delta,
+            'next_php_pass' => $currentPhpPass + $delta,
+            'selected_test_files' => $parsed['selected_test_files'],
+            'summary_test_files' => $parsed['summary_test_files'],
+            'failures' => $parsed['failures'],
+            'focused_output_seen' => $parsed['focused'],
+            'non_overlap_note' => trim($nonOverlapNote),
+            'dependency_closure' => 'no new support component needed; phpPass admission reuses local TestRunner output only',
+            'blocker' => $admitted ? null : $this->focusedPhpPassAdmissionBlocker($parsed),
+        ];
+    }
+
+    /**
+     * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int}
+     */
+    private function parseFocusedPhpTestOutput(string $output): array
+    {
+        $focused = preg_match('/Focused test run:\s+(\d+)\s+selected test files \(root lock skipped\)/', $output, $focusedMatch) === 1;
+        $summary = preg_match('/\n(\d+)\s+test files,\s+(\d+)\s+assertions,\s+(\d+)\s+failures\s*$/', $output, $summaryMatch) === 1;
+
+        return [
+            'focused' => $focused,
+            'selected_test_files' => $focused ? (int) $focusedMatch[1] : 0,
+            'summary_test_files' => $summary ? (int) $summaryMatch[1] : 0,
+            'assertions' => $summary ? (int) $summaryMatch[2] : 0,
+            'failures' => $summary ? (int) $summaryMatch[3] : 0,
+        ];
+    }
+
+    /**
+     * @param array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int} $parsed
+     */
+    private function focusedPhpPassAdmissionBlocker(array $parsed): string
+    {
+        if (!$parsed['focused']) {
+            return 'missing focused TestRunner output';
+        }
+        if ($parsed['selected_test_files'] !== 1 || $parsed['summary_test_files'] !== 1) {
+            return 'phpPass admission requires exactly one focused lane test file for this slice';
+        }
+        if ($parsed['failures'] !== 0) {
+            return 'focused TestRunner output contains failures';
+        }
+        if ($parsed['assertions'] <= 0) {
+            return 'focused TestRunner output has no assertions to count';
+        }
+
+        return 'focused TestRunner output was not countable';
+    }
+
+    /**
      * @param list<string> $scripts
      * @return array<string, mixed>
      */

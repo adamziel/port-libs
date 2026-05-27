@@ -11,6 +11,7 @@ final class SQLiteFreelistAllocationPlan
      * @param list<int> $appendedPageNumbers
      * @param array<int, string> $updatedFreelistPages
      * @param array<int, string> $updatedPointerMapPages
+     * @param list<array<string, int|string|null>> $allocationSteps
      */
     public function __construct(
         public readonly array $allocatedPageNumbers,
@@ -21,7 +22,16 @@ final class SQLiteFreelistAllocationPlan
         public readonly int $firstFreelistTrunkPage,
         public readonly int $freelistPageCount,
         public readonly array $updatedPointerMapPages = [],
+        public readonly array $allocationSteps = [],
     ) {
+    }
+
+    /**
+     * @return list<array<string, int|string|null>>
+     */
+    public function allocationSteps(): array
+    {
+        return $this->allocationSteps;
     }
 
     /**
