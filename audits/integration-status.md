@@ -119247,3 +119247,37 @@ Serialized root verification:
 Cleanup:
 - Removed accepted ready marker, patch, and metadata files after `834928f0a35dd73f636392f2b94baff504e6f4e8` was safely on `refs/heads/main`.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T045908Z` because it still reports modified/added libsqlite files matching the accepted handoff; no forced cleanup was used.
+## Integration accepted pending commit - libsqlite SELECT expression-index range cost - 2026-05-27T05:22:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260527T050759Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current detached candidate base is `bc16f99fb7fc623168b5be6c51abb94e95b40752` (`Integrate libsqlite VFS process file locks`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `bc16f99fb7fc623168b5be6c51abb94e95b40752`.
+- No Pages-outage integration exception was used.
+
+Selection evidence:
+- Recent libsqlite behavior sample included upstream-suite, dependency/open, JSON table, WAL, B-tree, scalar, encoding, and priority markers.
+- Chosen marker adds non-overlapping SQL planner range-cost behavior with focused assertion growth over the current accepted source and a copied WordPress smoke.
+- Direct apply failed only on stale `lane-status.json` and notes. Implementation, test, example, and manifest hunks were bounded-replayed in a detached clean worktree from current `main`; status and notes were reconciled from current `bc16f99f` evidence.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-expression-index-cost.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6998 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-expression-index-cost.php` emitted valid JSON for the copied WordPress expression-index cost smoke.
+- Manifest and lane-status JSON decode passed.
+- `git diff --check` passed before root.
+
+Runtime gates before serialized root:
+- `df -Pk /` reported `87036464` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.51`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Root verification: passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root`: `215 test files, 32163 assertions, 0 failures`.
+
+Cleanup debt:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260527T050759Z` still contains modified/added accepted lane files after publication, so it was preserved rather than removed.

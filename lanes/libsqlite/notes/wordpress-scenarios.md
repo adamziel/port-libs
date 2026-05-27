@@ -4268,3 +4268,26 @@ lane-local index interior cell/page assembly, freelist page-free planning, and
 auto-vacuum pointer-map mutation. Follow-up should target B-tree freeblock,
 freelist, or delete/rebalance apply behavior that is not covered by accepted
 page moves, table-interior merge, or this index-interior merge application.
+
+## SELECT Expression-Index Cost Scenario
+
+Copied WordPress option import previews can now rank competing SQLite
+expression-index plans before native row decoding. The smoke
+`examples/wordpress-select-expression-index-cost.php` reports a lower()
+point lookup beating a broader partial index because it is covering, satisfies
+the requested ORDER BY, and has lower estimated row/cost metadata, without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 bounded replayed SQL planner slice: extended
+`SQLiteSelectExpressionIndexPlan` with ranked point, range, IN, and BETWEEN
+plans over lower()/upper()/length()/CAST() copied `wp_options` predicates while
+preserving the existing first-usable `choose()` behavior. Focused
+`SQLiteHeaderTest.php` passed at 6998 assertions, +53 over the current
+accepted 6945 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local CREATE INDEX expression metadata, partial-index predicates, scalar
+value coercion, and bounded SELECT planner arrays. Follow-up should wire these
+ranked decisions into broader parser/executor planning without repeating
+accepted expression ORDER BY, GROUP BY/HAVING, SQL text JOIN, or first-pass
+expression-index planner work.

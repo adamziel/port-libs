@@ -19592,6 +19592,185 @@ SQL;
             'right' => [],
         ]));
     },
+    'ranks sqlite select expression index plans by estimated range cost' => static function (TestRunner $t): void {
+        $indexes = [
+            [
+                'name' => 'idx_lower_broad',
+                'rootPage' => 7,
+                'estimatedRows' => 12000,
+                'coveringColumns' => ['option_name'],
+                'sql' => 'CREATE INDEX idx_lower_broad ON wp_options(lower(option_name)) WHERE option_name IS NOT NULL',
+            ],
+            [
+                'name' => 'idx_lower_covering',
+                'rootPage' => 8,
+                'estimatedRows' => 180,
+                'coveringColumns' => ['option_name', 'autoload', 'option_value'],
+                'sql' => 'CREATE INDEX idx_lower_covering ON wp_options(lower(option_name)) WHERE option_name IS NOT NULL',
+            ],
+            [
+                'name' => 'idx_upper_desc',
+                'rootPage' => 9,
+                'estimatedRows' => 90,
+                'coveringColumns' => ['option_name', 'autoload'],
+                'sql' => 'CREATE INDEX idx_upper_desc ON wp_options(upper(option_name) DESC) WHERE option_name IS NOT NULL',
+            ],
+            [
+                'name' => 'idx_length',
+                'rootPage' => 10,
+                'estimatedRows' => 3000,
+                'coveringColumns' => ['option_name'],
+                'sql' => 'CREATE INDEX idx_length ON wp_options(length(option_name)) WHERE option_name IS NOT NULL',
+            ],
+            [
+                'name' => 'idx_int',
+                'rootPage' => 11,
+                'estimatedRows' => 800,
+                'coveringColumns' => ['option_value', 'autoload'],
+                'sql' => 'CREATE INDEX idx_int ON wp_options(CAST(option_value AS INTEGER)) WHERE option_value IS NOT NULL',
+            ],
+        ];
+
+        $pointPredicate = [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => 'siteurl',
+        ];
+        $pointPlans = SQLiteSelectExpressionIndexPlan::rankedPlans(
+            $indexes,
+            $pointPredicate,
+            [['column' => 'option_name']],
+            ['option_name', 'autoload']
+        );
+        $t->same(2, count($pointPlans));
+        $t->same('idx_lower_covering', $pointPlans[0]['name']);
+        $t->same(8, $pointPlans[0]['rootPage']);
+        $t->same('lower', $pointPlans[0]['type']);
+        $t->same('point', $pointPlans[0]['operator']);
+        $t->same('siteurl', $pointPlans[0]['values']);
+        $t->same(2, $pointPlans[0]['estimatedRows']);
+        $t->same(1, $pointPlans[0]['estimatedCost']);
+        $t->same(true, $pointPlans[0]['covering']);
+        $t->same(true, $pointPlans[0]['orderBySatisfied']);
+        $t->same(true, $pointPlans[0]['partial']);
+        $t->same(true, $pointPlans[0]['residualPredicateRequired']);
+        $t->same('idx_lower_broad', $pointPlans[1]['name']);
+        $t->same(120, $pointPlans[1]['estimatedRows']);
+        $t->same(114, $pointPlans[1]['estimatedCost']);
+        $t->same(false, $pointPlans[1]['covering']);
+
+        $bestPoint = SQLiteSelectExpressionIndexPlan::chooseLowestCost(
+            $indexes,
+            $pointPredicate,
+            [['column' => 'option_name']],
+            ['option_name', 'autoload']
+        );
+        $t->same('idx_lower_covering', $bestPoint['name']);
+        $t->same(1, $bestPoint['estimatedCost']);
+
+        $upperRange = SQLiteSelectExpressionIndexPlan::chooseLowestCost(
+            $indexes,
+            [
+                'operator' => 'AND',
+                'terms' => [
+                    ['operator' => '>=', 'left' => ['function' => 'upper', 'column' => 'option_name'], 'right' => '_TRANSIENT_'],
+                    ['operator' => '<', 'left' => ['function' => 'upper', 'column' => 'option_name'], 'right' => '_TRANSIENT`'],
+                ],
+            ],
+            [['column' => 'option_name', 'direction' => 'DESC']],
+            ['option_name', 'autoload']
+        );
+        $t->same('idx_upper_desc', $upperRange['name']);
+        $t->same('range->=', $upperRange['operator']);
+        $t->same('_TRANSIENT_', $upperRange['values']);
+        $t->same(23, $upperRange['estimatedRows']);
+        $t->same(32, $upperRange['estimatedCost']);
+        $t->same(true, $upperRange['orderBySatisfied']);
+        $t->same(true, $upperRange['covering']);
+        $t->same(true, $upperRange['descending']);
+
+        $lengthIn = SQLiteSelectExpressionIndexPlan::chooseLowestCost($indexes, [
+            'operator' => 'IN',
+            'left' => ['function' => 'length', 'column' => 'option_name'],
+            'values' => [4, 4, 7, 12, null],
+        ]);
+        $t->same('idx_length', $lengthIn['name']);
+        $t->same('IN', $lengthIn['operator']);
+        $t->same([4, 4, 7, 12, null], $lengthIn['values']);
+        $t->same(135, $lengthIn['estimatedRows']);
+        $t->same(144, $lengthIn['estimatedCost']);
+
+        $integerBetween = SQLiteSelectExpressionIndexPlan::chooseLowestCost(
+            $indexes,
+            [
+                'operator' => 'BETWEEN',
+                'left' => ['function' => 'cast_integer', 'column' => 'option_value'],
+                'lower' => 100,
+                'upper' => 60000,
+            ],
+            [],
+            ['option_value', 'autoload']
+        );
+        $t->same('idx_int', $integerBetween['name']);
+        $t->same('BETWEEN', $integerBetween['operator']);
+        $t->same(['lower' => 100, 'upper' => 60000], $integerBetween['values']);
+        $t->same(80, $integerBetween['estimatedRows']);
+        $t->same(90, $integerBetween['estimatedCost']);
+        $t->same(true, $integerBetween['covering']);
+
+        $mixedRanked = SQLiteSelectExpressionIndexPlan::rankedPlans(
+            $indexes,
+            [
+                'operator' => 'AND',
+                'terms' => [
+                    ['operator' => '=', 'left' => ['function' => 'lower', 'column' => 'option_name'], 'right' => 'home'],
+                    ['operator' => 'BETWEEN', 'left' => ['function' => 'cast_integer', 'column' => 'option_value'], 'lower' => 1, 'upper' => 100],
+                    ['operator' => 'IN', 'left' => ['function' => 'length', 'column' => 'option_name'], 'values' => [4, 7]],
+                ],
+            ],
+            [['column' => 'option_name']],
+            ['option_name']
+        );
+        $t->same(4, count($mixedRanked));
+        $t->same(['idx_lower_covering', 'idx_length', 'idx_int', 'idx_lower_broad'], array_column($mixedRanked, 'name'));
+        $t->same([1, 86, 95, 109], array_column($mixedRanked, 'estimatedCost'));
+        $t->same([2, 90, 80, 120], array_column($mixedRanked, 'estimatedRows'));
+        $t->same(['point', 'IN', 'BETWEEN', 'point'], array_column($mixedRanked, 'operator'));
+        $t->same([true, true, false, true], array_column($mixedRanked, 'orderBySatisfied'));
+        $t->same([true, true, false, true], array_column($mixedRanked, 'covering'));
+        $t->same([true, true, true, true], array_column($mixedRanked, 'partial'));
+
+        $reversedIntegerRange = SQLiteSelectExpressionIndexPlan::chooseLowestCost($indexes, [
+            'operator' => '<=',
+            'left' => 60000,
+            'right' => ['function' => 'cast_integer', 'column' => 'option_value'],
+        ]);
+        $t->same('range->=', $reversedIntegerRange['operator']);
+        $t->same(200, $reversedIntegerRange['estimatedRows']);
+        $t->same(222, $reversedIntegerRange['estimatedCost']);
+
+        $noPlan = SQLiteSelectExpressionIndexPlan::rankedPlans($indexes, [
+            'operator' => '=',
+            'left' => ['function' => 'upper', 'column' => 'option_value'],
+            'right' => 'SITEURL',
+        ]);
+        $t->same([], $noPlan);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::chooseLowestCost([
+            ['name' => 'bad_rows', 'estimatedRows' => 0, 'sql' => 'CREATE INDEX bad_rows ON wp_options(lower(option_name))'],
+        ], $pointPredicate));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::chooseLowestCost([
+            ['name' => 'bad_covering', 'coveringColumns' => ['option_name', ''], 'sql' => 'CREATE INDEX bad_covering ON wp_options(lower(option_name))'],
+        ], $pointPredicate, [], ['option_name']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::chooseLowestCost($indexes, [
+            'operator' => '>=',
+            'left' => ['function' => 'upper', 'column' => 'option_name'],
+            'right' => '_TRANSIENT_',
+        ], [
+            ['column' => 'option_name', 'direction' => 'SIDEWAYS'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::chooseLowestCost($indexes, $pointPredicate, [], ['']));
+    },
     'executes bounded sqlite select query plans through where projection joins and result clauses' => static function (TestRunner $t): void {
         $options = [
             ['wp_options.option_id' => 1, 'wp_options.option_name' => 'siteurl', 'wp_options.option_value' => 'https://example.test', 'wp_options.autoload' => 'yes'],

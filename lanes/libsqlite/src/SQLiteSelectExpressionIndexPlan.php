@@ -13,7 +13,48 @@ final class SQLiteSelectExpressionIndexPlan
      */
     public static function choose(array $indexDefinitions, array $predicate): ?array
     {
+        $plans = self::usablePlans($indexDefinitions, $predicate);
+
+        return $plans[0] ?? null;
+    }
+
+    /**
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return null|array<string,mixed>
+     */
+    public static function chooseLowestCost(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): ?array
+    {
+        $plans = self::usablePlans($indexDefinitions, $predicate, $orderBy, $neededColumns);
+
+        return $plans[0] ?? null;
+    }
+
+    /**
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return list<array<string,mixed>>
+     */
+    public static function rankedPlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): array
+    {
+        return self::usablePlans($indexDefinitions, $predicate, $orderBy, $neededColumns);
+    }
+
+    /**
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function usablePlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): array
+    {
         $terms = self::flattenAndTerms($predicate);
+        $plans = [];
         foreach ($terms as $term) {
             $constraint = self::constraintFromPredicate($term);
             if ($constraint === null) {
@@ -37,7 +78,12 @@ final class SQLiteSelectExpressionIndexPlan
                     continue;
                 }
 
-                return [
+                $estimatedRows = self::estimatedRows($index, $constraint);
+                $orderCompatible = self::orderCompatible($expression, $orderBy);
+                $covering = self::covering($index, $neededColumns);
+                $estimatedCost = self::estimatedCost($constraint, $estimatedRows, $expression->partial, $orderCompatible, $covering);
+
+                $plans[] = [
                     'usable' => true,
                     'rootPage' => $index['rootPage'] ?? null,
                     'name' => $index['name'] ?? null,
@@ -49,11 +95,20 @@ final class SQLiteSelectExpressionIndexPlan
                     'descending' => $expression->descending,
                     'partial' => $expression->partial,
                     'residualPredicateRequired' => $constraint['residualPredicateRequired'],
+                    'estimatedRows' => $estimatedRows,
+                    'estimatedCost' => $estimatedCost,
+                    'orderBySatisfied' => $orderCompatible,
+                    'covering' => $covering,
                 ];
             }
         }
 
-        return null;
+        usort($plans, static function (array $left, array $right): int {
+            return [$left['estimatedCost'], $left['estimatedRows'], (string) ($left['name'] ?? '')]
+                <=> [$right['estimatedCost'], $right['estimatedRows'], (string) ($right['name'] ?? '')];
+        });
+
+        return $plans;
     }
 
     /**
@@ -294,6 +349,131 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return true;
+    }
+
+    /**
+     * @param array{estimatedRows?:int} $index
+     * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     */
+    private static function estimatedRows(array $index, array $constraint): int
+    {
+        $baseRows = $index['estimatedRows'] ?? 1000;
+        if (!is_int($baseRows) || $baseRows < 1) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index estimatedRows must be a positive integer');
+        }
+
+        return max(1, min($baseRows, (int) ceil($baseRows * self::selectivity($constraint))));
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $constraint
+     */
+    private static function selectivity(array $constraint): float
+    {
+        if ($constraint['operator'] === 'point') {
+            return 0.01;
+        }
+        if ($constraint['operator'] === 'IN') {
+            $values = is_array($constraint['values']) ? array_values(array_filter(
+                $constraint['values'],
+                static fn (mixed $value): bool => $value !== null
+            )) : [];
+
+            return min(0.5, max(0.01, count(array_unique($values, SORT_REGULAR)) * 0.015));
+        }
+        if ($constraint['operator'] === 'BETWEEN') {
+            return 0.1;
+        }
+        if (str_starts_with($constraint['operator'], 'range-')) {
+            return 0.25;
+        }
+
+        return 1.0;
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function orderCompatible(SQLiteIndexColumn $expression, array $orderBy): bool
+    {
+        if ($orderBy === []) {
+            return false;
+        }
+        if (count($orderBy) !== 1) {
+            return false;
+        }
+
+        $order = $orderBy[0];
+        $column = $order['column'] ?? null;
+        if (!is_string($column) || strcasecmp($column, $expression->columnName) !== 0) {
+            return false;
+        }
+
+        $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
+        if ($direction !== 'ASC' && $direction !== 'DESC') {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY direction must be ASC or DESC');
+        }
+
+        return $expression->descending === ($direction === 'DESC');
+    }
+
+    /**
+     * @param array{coveringColumns?:list<string>} $index
+     * @param list<string> $neededColumns
+     */
+    private static function covering(array $index, array $neededColumns): bool
+    {
+        if ($neededColumns === []) {
+            return false;
+        }
+        $columns = $index['coveringColumns'] ?? [];
+        if (!is_array($columns) || !array_is_list($columns)) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index coveringColumns must be a list');
+        }
+
+        $normalized = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index coveringColumns must contain column names');
+            }
+            $normalized[strtolower($column)] = true;
+        }
+
+        foreach ($neededColumns as $neededColumn) {
+            if (!is_string($neededColumn) || $neededColumn === '') {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index needed columns must be column names');
+            }
+            if (!isset($normalized[strtolower($neededColumn)])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{operator:string} $constraint
+     */
+    private static function estimatedCost(array $constraint, int $estimatedRows, bool $partial, bool $orderCompatible, bool $covering): int
+    {
+        $cost = match ($constraint['operator']) {
+            'point' => 5,
+            'IN' => 12,
+            'BETWEEN' => 18,
+            default => str_starts_with($constraint['operator'], 'range-') ? 25 : 100,
+        };
+        $cost += $estimatedRows;
+        if ($partial) {
+            $cost -= 3;
+        }
+        if ($orderCompatible) {
+            $cost -= 8;
+        }
+        if ($covering) {
+            $cost -= 5;
+        }
+
+        return max(1, $cost);
     }
 
     /**

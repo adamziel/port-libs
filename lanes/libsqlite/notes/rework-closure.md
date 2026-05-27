@@ -754,3 +754,37 @@ filtering, grouped aggregate execution, and JSON row materialization. Follow-up
 should broaden virtual-table planner/VDBE cursor integration without repeating
 accepted JSON cursor, literal function-source SELECT wiring, host joins,
 LIMIT/OFFSET, window ranking, or duplicate hidden-constraint planning.
+
+## 2026-05-27 SELECT Expression-Index Range Cost
+
+This bounded replayed SQL planner slice does not repeat accepted SELECT SQL
+text execution, expression ORDER BY, GROUP BY/HAVING, SQL text JOIN, or the
+earlier first-pass expression-index planner. It adds cost-ranked plan selection
+for competing lower()/upper()/length()/CAST() expression indexes over copied
+`wp_options` predicates.
+
+Focused assertion delta: `SQLiteHeaderTest.php` passed at 6998 assertions,
+adding 53 assertions over the current accepted 6945 baseline. The new
+assertions cover point, range, IN, BETWEEN, mixed predicate ranking,
+partial-index residual flags, covering columns, ORDER BY compatibility,
+reversed range normalization, no-plan behavior, and metadata validation
+guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-expression-index-cost.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-expression-index-cost.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local CREATE INDEX expression metadata, partial-index predicates, scalar
+value coercion, and bounded SELECT planner arrays. Follow-up should wire these
+ranked decisions into broader parser/executor planning without repeating
+accepted expression ORDER BY, GROUP BY/HAVING, SQL text JOIN, or first-pass
+expression-index planner work.
