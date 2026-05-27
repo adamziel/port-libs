@@ -1122,8 +1122,16 @@ final class SQLiteUpstreamSuiteEvidence
     public function boundedRunnerAcceptanceGate(array $artifactRecord, string $acceptedRepositoryHead): array
     {
         $expectedManifestUuid = $this->manifest['upstream']['officialManifestUuid'] ?? null;
+        $expectedSqliteCommit = $this->manifest['upstream']['commit'] ?? null;
+        $expectedSqliteVersion = $this->manifest['upstream']['version'] ?? null;
         $actualManifestUuid = is_string($artifactRecord['sqlite_manifest_uuid'] ?? null)
             ? $artifactRecord['sqlite_manifest_uuid']
+            : null;
+        $actualSqliteCommit = is_string($artifactRecord['sqlite_commit'] ?? null)
+            ? $artifactRecord['sqlite_commit']
+            : null;
+        $actualSqliteVersion = is_string($artifactRecord['sqlite_version'] ?? null)
+            ? $artifactRecord['sqlite_version']
             : null;
         $actualHead = is_string($artifactRecord['repository_head'] ?? null)
             ? $artifactRecord['repository_head']
@@ -1156,6 +1164,22 @@ final class SQLiteUpstreamSuiteEvidence
                 'actual' => $actualManifestUuid,
             ];
         }
+        if (!is_string($expectedSqliteCommit) || $actualSqliteCommit !== $expectedSqliteCommit) {
+            $blockers[] = [
+                'id' => 'sqlite-commit-mismatch',
+                'evidence' => 'artifact SQLite git commit does not match the lane manifest upstream commit',
+                'expected' => $expectedSqliteCommit,
+                'actual' => $actualSqliteCommit,
+            ];
+        }
+        if (is_string($expectedSqliteVersion) && $actualSqliteVersion !== $expectedSqliteVersion) {
+            $blockers[] = [
+                'id' => 'sqlite-version-mismatch',
+                'evidence' => 'artifact SQLite VERSION does not match the lane manifest upstream version',
+                'expected' => $expectedSqliteVersion,
+                'actual' => $actualSqliteVersion,
+            ];
+        }
 
         return [
             'status' => $blockers === [] ? 'accepted-for-lane-evidence' : 'blocked',
@@ -1164,6 +1188,10 @@ final class SQLiteUpstreamSuiteEvidence
             'accepted_repository_head' => $acceptedRepositoryHead,
             'sqlite_manifest_uuid' => $actualManifestUuid,
             'expected_sqlite_manifest_uuid' => $expectedManifestUuid,
+            'sqlite_commit' => $actualSqliteCommit,
+            'expected_sqlite_commit' => $expectedSqliteCommit,
+            'sqlite_version' => $actualSqliteVersion,
+            'expected_sqlite_version' => $expectedSqliteVersion,
             'tests' => $tests,
             'errors' => $errors,
             'exit' => $exit,
@@ -1171,7 +1199,7 @@ final class SQLiteUpstreamSuiteEvidence
             'blockers' => $blockers,
             'next_gate' => $blockers === []
                 ? 'record this bounded runner artifact as accepted upstream-suite evidence in manifest/status'
-                : 'rerun or reparse the bounded runner from the accepted checkout and matching SQLite manifest before counting it',
+                : 'rerun or reparse the bounded runner from the accepted checkout and matching SQLite source manifest before counting it',
             'dependency_closure' => 'no new support component needed; acceptance gate validates lane-local artifact provenance before dependency-suite evidence is counted',
         ];
     }

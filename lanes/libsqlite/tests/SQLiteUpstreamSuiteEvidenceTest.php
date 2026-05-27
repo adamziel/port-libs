@@ -1270,6 +1270,8 @@ MD;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-notty-runner-20260526T102446Z
 
 - Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `1`
@@ -1287,6 +1289,8 @@ MD;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-rerun-foreground-20260526T134619Z
 
 - Repository HEAD: `e5897b4ac75ee1bf7a45063194c84592ccf26996`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `1`
@@ -1304,6 +1308,8 @@ MD;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123916Z
 
 - Repository HEAD: `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Patterns: `ext/fts5/test/fts5aux.test`
@@ -1370,6 +1376,8 @@ MD;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123916Z
 
 - Repository HEAD: `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Patterns: `ext/fts5/test/fts5aux.test`
@@ -1394,6 +1402,8 @@ MD;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-focused-fts5aux-20260526T160000Z
 
 - Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Exit: `1`
@@ -1402,6 +1412,8 @@ MD . $focusedReleaseFailureTail);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-wrong-manifest-20260526T160000Z
 
 - Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite git commit: `wrong-sqlite-commit`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `different-manifest`
 - Testset: `release`
 - Exit: `1`
@@ -1480,6 +1492,8 @@ MD . $focusedReleaseFailureTail);
         $artifact = [
             'status' => 'passed',
             'repository_head' => '53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2',
+            'sqlite_commit' => '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7',
+            'sqlite_version' => '3.54.0',
             'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
             'results' => [
                 'exit' => 0,
@@ -1503,6 +1517,8 @@ MD . $focusedReleaseFailureTail);
         $mismatched = $artifact;
         $mismatched['repository_head'] = 'different-head';
         $mismatched['sqlite_manifest_uuid'] = 'different-manifest';
+        $mismatched['sqlite_commit'] = 'different-sqlite-commit';
+        $mismatched['sqlite_version'] = '3.53.0';
         $mismatched['status'] = 'running-or-incomplete';
         $mismatched['results']['exit'] = null;
         $mismatched['results']['tests'] = null;
@@ -1513,13 +1529,68 @@ MD . $focusedReleaseFailureTail);
         );
 
         $t->same('blocked', $blocked['status']);
-        $t->same(3, $blocked['blocker_count']);
+        $t->same(5, $blocked['blocker_count']);
         $t->same([
             'artifact-not-passed',
             'repository-head-mismatch',
             'sqlite-manifest-uuid-mismatch',
+            'sqlite-commit-mismatch',
+            'sqlite-version-mismatch',
         ], array_column($blocked['blockers'], 'id'));
-        $t->contains('matching SQLite manifest', $blocked['next_gate']);
+        $t->same('different-sqlite-commit', $blocked['sqlite_commit']);
+        $t->same('8f70ec615f4cd247d36f92a22c99f65ebbcc22a7', $blocked['expected_sqlite_commit']);
+        $t->same('3.53.0', $blocked['sqlite_version']);
+        $t->same('3.54.0', $blocked['expected_sqlite_version']);
+        $t->contains('matching SQLite source manifest', $blocked['next_gate']);
+    },
+    'blocks bounded runner artifacts with missing or stale sqlite source provenance' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $missing = [
+            'status' => 'passed',
+            'repository_head' => 'accepted-head',
+            'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+            'results' => [
+                'exit' => 0,
+                'tests' => 10785,
+                'errors' => 0,
+            ],
+        ];
+
+        $missingGate = $evidence->boundedRunnerAcceptanceGate($missing, 'accepted-head');
+
+        $t->same('blocked', $missingGate['status']);
+        $t->same(2, $missingGate['blocker_count']);
+        $t->same([
+            'sqlite-commit-mismatch',
+            'sqlite-version-mismatch',
+        ], array_column($missingGate['blockers'], 'id'));
+        $t->same(null, $missingGate['sqlite_commit']);
+        $t->same('8f70ec615f4cd247d36f92a22c99f65ebbcc22a7', $missingGate['expected_sqlite_commit']);
+        $t->same(null, $missingGate['sqlite_version']);
+        $t->same('3.54.0', $missingGate['expected_sqlite_version']);
+        $t->same(10785, $missingGate['tests']);
+        $t->same(0, $missingGate['errors']);
+        $t->contains('matching SQLite source manifest', $missingGate['next_gate']);
+
+        $stale = $missing;
+        $stale['sqlite_commit'] = '1111111111111111111111111111111111111111';
+        $stale['sqlite_version'] = '3.53.0';
+
+        $staleGate = $evidence->boundedRunnerAcceptanceGate($stale, 'accepted-head');
+
+        $t->same('blocked', $staleGate['status']);
+        $t->same(2, $staleGate['blocker_count']);
+        $t->same([
+            'sqlite-commit-mismatch',
+            'sqlite-version-mismatch',
+        ], array_column($staleGate['blockers'], 'id'));
+        $t->same('1111111111111111111111111111111111111111', $staleGate['blockers'][0]['actual']);
+        $t->same('8f70ec615f4cd247d36f92a22c99f65ebbcc22a7', $staleGate['blockers'][0]['expected']);
+        $t->same('3.53.0', $staleGate['blockers'][1]['actual']);
+        $t->same('3.54.0', $staleGate['blockers'][1]['expected']);
+        $t->contains('artifact SQLite git commit', $staleGate['blockers'][0]['evidence']);
+        $t->contains('artifact SQLite VERSION', $staleGate['blockers'][1]['evidence']);
+        $t->contains('provenance before dependency-suite evidence', $staleGate['dependency_closure']);
     },
     'blocks bounded runner countability while guarded release artifact is still active' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
@@ -1956,6 +2027,8 @@ TXT;
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-pass-20260526T200000Z
 
 - Repository HEAD: `abc123accepted`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `0`
@@ -1969,6 +2042,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-active-20260526T200100Z
 
 - Repository HEAD: `abc123accepted`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 MD);
@@ -1978,6 +2053,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-failed-20260526T200200Z
 
 - Repository HEAD: `abc123accepted`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `1`
@@ -1995,6 +2072,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-timeout-20260526T200300Z
 
 - Repository HEAD: `abc123accepted`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `124`
@@ -2072,6 +2151,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-focused-encoding-20260527T020000Z
 
 - Repository HEAD: `focused-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Patterns: `enc.test` `collate1.test` `like.test`
@@ -2101,6 +2182,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-20260527T020100Z
 
 - Repository HEAD: `focused-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `0`
@@ -2127,6 +2210,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-focused-json-20260527T093000Z
 
 - Repository HEAD: `accepted-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Patterns: `json101.test` `json102.test`
@@ -2139,6 +2224,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-20260527T093100Z
 
 - Repository HEAD: `accepted-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Patterns: none
@@ -2151,6 +2238,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-focused-stale-20260527T093200Z
 
 - Repository HEAD: `stale-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `veryquick`
 - Patterns: `wal.test`
@@ -2163,6 +2252,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-focused-wrong-manifest-20260527T093300Z
 
 - Repository HEAD: `accepted-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `wrong-manifest`
 - Testset: `veryquick`
 - Patterns: `btree01.test`
@@ -2252,6 +2343,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-pass-20260526T203000Z
 
 - Repository HEAD: `closure-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `0`
@@ -2264,6 +2357,8 @@ MD);
 # SQLite Tcl Bounded Runner Evidence - libsqlite-release-failed-20260526T203100Z
 
 - Repository HEAD: `closure-head`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
 - SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
 - Testset: `release`
 - Exit: `1`

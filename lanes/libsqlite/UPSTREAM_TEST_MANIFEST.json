@@ -6,6 +6,7 @@
         "name": "sqlite/sqlite",
         "url": "https://github.com/sqlite/sqlite",
         "commit": "8f70ec615f4cd247d36f92a22c99f65ebbcc22a7",
+        "version": "3.54.0",
         "officialManifestUuid": "9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353",
         "license": "Public domain SQLite blessing",
         "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses.",

@@ -1,5 +1,38 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner SQLite Source Provenance Gate
+
+Date: 2026-05-27
+
+This isolated upstream-suite micro-slice tightens
+`SQLiteUpstreamSuiteEvidence::boundedRunnerAcceptanceGate()` so guarded
+bounded-runner artifacts must match the lane's SQLite upstream git commit and
+SQLite `VERSION`, in addition to the accepted repository head and manifest
+UUID, before they can become countable release/all or focused upstream-suite
+evidence.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change removes a concrete countability gap
+for stale hydrated SQLite-source artifacts: a zero-error audit/log pair from
+the wrong SQLite checkout or wrong `VERSION` now stays blocked instead of
+being admitted through manifest UUID alone.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 745 to 812 assertions, +67.
+
+Dependency closure: no new support component is needed. This composes parsed
+bounded-runner artifact fields with lane-local SQLite source provenance from
+`UPSTREAM_TEST_MANIFEST.json` only.
+
 ## Focused Native Mapping: Accepted-HEAD Runner Artifact Provenance Batch
 
 Date: 2026-05-27
