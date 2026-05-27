@@ -209,6 +209,105 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
     }
 
     /**
+     * @param list<array{name?:string,sql:string,rootPage?:int,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<string> $generatedColumnSql
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $incomingRows
+     * @param list<string> $uniqueColumns
+     * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where
+     * @param list<list<string>>|null $uniqueConstraints
+     * @param array<string,mixed> $lookupPredicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return array{upsert:array<string,mixed>,covering_plan:null|array<string,mixed>,index_changes:array<string,mixed>,insert_entries:list<array<string,mixed>>,returning_covering_rows:list<array<string,mixed>>,skipped_covering_rows:list<array<string,mixed>>}
+     */
+    public static function planUpsertCoveringTable(
+        array $indexDefinitions,
+        array $generatedColumnSql,
+        array $currentRows,
+        array $incomingRows,
+        array $uniqueColumns,
+        array $assignments,
+        ?callable $where = null,
+        ?array $uniqueConstraints = null,
+        string $rowidColumn = 'rowid',
+        array $lookupPredicate = [],
+        array $orderBy = [],
+        array $neededColumns = [],
+    ): array {
+        $generatedColumns = self::generatedColumns($generatedColumnSql);
+        $indexes = self::jsonbPatchIndexes($indexDefinitions, $generatedColumns);
+        $upsert = SQLiteUpsertDoUpdateWherePlan::execute($currentRows, $incomingRows, $uniqueColumns, $assignments, $where, $uniqueConstraints);
+
+        $updates = [];
+        foreach ($upsert['updated_rows'] as $updatedRow) {
+            if (!array_key_exists($rowidColumn, $updatedRow)) {
+                throw new \InvalidArgumentException("SQLite JSONB UPSERT covering rows need {$rowidColumn}");
+            }
+            $rowid = $updatedRow[$rowidColumn];
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException("SQLite JSONB UPSERT covering {$rowidColumn} must be integer or text");
+            }
+            $updates[$rowid] = $updatedRow;
+        }
+
+        $indexChanges = self::planUpdateIndexEntries($indexDefinitions, $generatedColumnSql, $currentRows, $updates, $rowidColumn);
+        $insertEntries = [];
+        foreach ($upsert['inserted_rows'] as $insertedRow) {
+            if (!array_key_exists($rowidColumn, $insertedRow)) {
+                throw new \InvalidArgumentException("SQLite JSONB UPSERT covering inserted rows need {$rowidColumn}");
+            }
+            $rowid = $insertedRow[$rowidColumn];
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException("SQLite JSONB UPSERT covering inserted {$rowidColumn} must be integer or text");
+            }
+            foreach ($indexes as $index) {
+                if (!self::partialRowMatches($insertedRow, $index['partialPredicate'])) {
+                    continue;
+                }
+                $insertEntries[] = [
+                    'operation' => 'insert-new',
+                    'index' => $index['name'],
+                    'rootPage' => $index['rootPage'],
+                    'rowid' => $rowid,
+                    'generatedColumn' => $index['generatedColumn'],
+                    'sourceColumn' => $index['sourceColumn'],
+                    'path' => $index['path'],
+                    'partial' => $index['partialPredicate'] !== null,
+                    'value' => self::evaluateIndexValue($index, $insertedRow),
+                ];
+            }
+        }
+
+        $coveringPlan = $lookupPredicate === []
+            ? null
+            : self::choose($indexDefinitions, $generatedColumnSql, $lookupPredicate, $orderBy, $neededColumns);
+
+        $returningRows = [];
+        $skippedCoveringRows = [];
+        foreach ($upsert['returning_rows'] as $row) {
+            if ($coveringPlan !== null && !$coveringPlan['covering']) {
+                $skippedCoveringRows[] = [
+                    'rowid' => $row[$rowidColumn] ?? null,
+                    'reason' => 'chosen index is not covering',
+                ];
+                continue;
+            }
+            $returningRows[] = self::coveringRow($row, $indexes, $generatedColumns, $neededColumns, $rowidColumn);
+        }
+
+        return [
+            'upsert' => $upsert,
+            'covering_plan' => $coveringPlan,
+            'index_changes' => $indexChanges,
+            'insert_entries' => $insertEntries,
+            'returning_covering_rows' => $returningRows,
+            'skipped_covering_rows' => $skippedCoveringRows,
+        ];
+    }
+
+    /**
      * @param list<string> $generatedColumnSql
      * @return array<string,array{generatedColumn:string,sourceColumn:string,patchJson:string,path:string}>
      */
@@ -578,6 +677,52 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<array{name:?string,rootPage:?int,generatedColumn:?string,sourceColumn:string,patchJson:string,path:string,partialPredicate:?array{column:string,value:mixed},descending:bool}> $indexes
+     * @param array<string,array{generatedColumn:string,sourceColumn:string,patchJson:string,path:string}> $generatedColumns
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function coveringRow(array $row, array $indexes, array $generatedColumns, array $neededColumns, string $rowidColumn): array
+    {
+        $output = [];
+        if (array_key_exists($rowidColumn, $row)) {
+            $output[$rowidColumn] = $row[$rowidColumn];
+        }
+
+        foreach ($neededColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite JSONB UPSERT covering needed columns must be column names');
+            }
+            if (array_key_exists($column, $row)) {
+                $output[$column] = $row[$column];
+                continue;
+            }
+
+            $matched = false;
+            foreach ($indexes as $index) {
+                if (!is_string($index['generatedColumn']) || strcasecmp($index['generatedColumn'], $column) !== 0) {
+                    continue;
+                }
+                $output[$column] = self::evaluateIndexValue($index, $row);
+                $matched = true;
+                break;
+            }
+            if (!$matched) {
+                $generated = $generatedColumns[strtolower($column)] ?? null;
+                if ($generated !== null) {
+                    $output[$column] = self::evaluateIndexValue($generated, $row);
+                    continue;
+                }
+
+                throw new \InvalidArgumentException("SQLite JSONB UPSERT covering column {$column} is not available");
+            }
+        }
+
+        return $output;
     }
 
     private static function reverseOperator(string $operator): string
