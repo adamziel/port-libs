@@ -59,6 +59,103 @@ final class SQLiteForeignKeyDeferredCascadePlan
     /**
      * @param list<array<string,mixed>> $parentRows
      * @param list<array<string,mixed>> $childRows
+     * @param list<array<string,mixed>> $updates
+     * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool,child_default?:mixed} $foreignKey
+     * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deferred:list<array<string,mixed>>,commit_actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int}
+     */
+    public static function updateParents(array $parentRows, array $childRows, array $updates, array $foreignKey): array
+    {
+        $spec = self::normalizeUpdateForeignKey($foreignKey);
+        $parents = array_values($parentRows);
+        $children = array_values($childRows);
+        $updatedKeys = [];
+        $deferred = [];
+        $parentChanges = 0;
+
+        foreach ($updates as $update) {
+            $oldKey = self::rowValue($update, $spec['parent_key'], 'update key');
+            $newKey = array_key_exists('new_' . $spec['parent_key'], $update)
+                ? $update['new_' . $spec['parent_key']]
+                : self::rowValue($update, 'new', 'update key');
+
+            foreach ($parents as $index => $parent) {
+                if (self::rowValue($parent, $spec['parent_key'], 'parent row') !== $oldKey) {
+                    continue;
+                }
+
+                foreach ($update as $column => $value) {
+                    if ($column !== $spec['parent_key'] && $column !== 'new' && !str_starts_with($column, 'new_')) {
+                        $parent[$column] = $value;
+                    }
+                }
+
+                if ($oldKey !== $newKey) {
+                    $parent[$spec['parent_key']] = $newKey;
+                    $updatedKeys[] = ['old' => $oldKey, 'new' => $newKey];
+                    $deferred[] = [
+                        'operation' => 'update-parent',
+                        'old_parent_key' => $oldKey,
+                        'new_parent_key' => $newKey,
+                        'action' => $spec['on_update'],
+                        'deferred' => $spec['deferred'],
+                    ];
+                }
+
+                $parents[$index] = $parent;
+                $parentChanges++;
+                break;
+            }
+        }
+
+        if ($spec['on_update'] === 'restrict' && self::hasReferencingUpdatedChild($children, $updatedKeys, $spec['child_key'])) {
+            throw new \InvalidArgumentException('SQLite foreign key RESTRICT prevents parent update before deferred commit');
+        }
+
+        $commit = self::commitUpdate($parents, $children, $updatedKeys, $spec);
+
+        return [
+            'parent' => $parents,
+            'child' => $commit['child'],
+            'deferred' => $deferred,
+            'commit_actions' => $commit['actions'],
+            'violations' => $commit['violations'],
+            'changes' => $parentChanges + $commit['child_changes'],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parentRows
+     * @param list<array<string,mixed>> $childRows
+     * @param list<array<string,mixed>> $updates
+     * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool,child_default?:mixed} $foreignKey
+     * @return array{before:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>},after:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deferred:list<array<string,mixed>>,commit_actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int},rollback:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deferred:list<array<string,mixed>>,commit_actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int}}
+     */
+    public static function updateParentsWithRollbackPreview(array $parentRows, array $childRows, array $updates, array $foreignKey): array
+    {
+        $before = ['parent' => array_values($parentRows), 'child' => array_values($childRows)];
+        $after = self::updateParents($parentRows, $childRows, $updates, $foreignKey);
+
+        return [
+            'before' => $before,
+            'after' => $after,
+            'rollback' => [
+                'parent' => $before['parent'],
+                'child' => $before['child'],
+                'deferred' => [],
+                'commit_actions' => [[
+                    'action' => 'rollback-update',
+                    'restored_parent_rows' => count($before['parent']),
+                    'restored_child_rows' => count($before['child']),
+                ]],
+                'violations' => [],
+                'changes' => 0,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parentRows
+     * @param list<array<string,mixed>> $childRows
      * @param list<array<string,mixed>> $deleteKeys
      * @param array{parent_key:string,child_key:string,on_delete?:string,deferred?:bool,child_default?:mixed} $foreignKey
      * @return array{before:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>},after:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deferred:list<array<string,mixed>>,commit_actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int},rollback:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,deferred:list<array<string,mixed>>,commit_actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int}}
@@ -147,6 +244,73 @@ final class SQLiteForeignKeyDeferredCascadePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param list<array{old:mixed,new:mixed}> $updatedKeys
+     * @param array{parent_key:string,child_key:string,on_update:string,deferred:bool,child_default:mixed} $spec
+     * @return array{child:list<array<string,mixed>>,actions:list<array<string,mixed>>,violations:list<array<string,mixed>>,child_changes:int}
+     */
+    private static function commitUpdate(array $parents, array $children, array $updatedKeys, array $spec): array
+    {
+        $updated = [];
+        foreach ($updatedKeys as $change) {
+            $updated[(string) $change['old']] = $change['new'];
+        }
+
+        $remainingKeys = self::keySet($parents, $spec['parent_key']);
+        $result = [];
+        $actions = [];
+        $violations = [];
+        $childChanges = 0;
+
+        foreach ($children as $child) {
+            $childKey = self::rowValue($child, $spec['child_key'], 'child row');
+            if ($childKey === null) {
+                $result[] = $child;
+                continue;
+            }
+
+            $referencesUpdatedParent = array_key_exists((string) $childKey, $updated);
+            if ($referencesUpdatedParent && $spec['on_update'] === 'cascade') {
+                $old = $childKey;
+                $child[$spec['child_key']] = $updated[(string) $childKey];
+                $actions[] = ['action' => 'cascade-update-child', 'old_child_key' => $old, 'new_child_key' => $child[$spec['child_key']], 'child' => $child];
+                $childChanges++;
+                $result[] = $child;
+                continue;
+            }
+
+            if ($referencesUpdatedParent && $spec['on_update'] === 'set null') {
+                $child[$spec['child_key']] = null;
+                $actions[] = ['action' => 'set-null-child', 'child_key' => $childKey, 'child' => $child];
+                $childChanges++;
+                $result[] = $child;
+                continue;
+            }
+
+            if ($referencesUpdatedParent && $spec['on_update'] === 'set default') {
+                $child[$spec['child_key']] = $spec['child_default'];
+                $actions[] = ['action' => 'set-default-child', 'child_key' => $childKey, 'default' => $spec['child_default'], 'child' => $child];
+                $childChanges++;
+                $result[] = $child;
+                continue;
+            }
+
+            if (!array_key_exists((string) $childKey, $remainingKeys)) {
+                $violations[] = ['child_key' => $childKey, 'reason' => 'missing-parent-after-update', 'child' => $child];
+            }
+            $result[] = $child;
+        }
+
+        return [
+            'child' => array_values($result),
+            'actions' => $actions,
+            'violations' => $violations,
+            'child_changes' => $childChanges,
+        ];
+    }
+
+    /**
      * @param array{parent_key:string,child_key:string,on_delete?:string,deferred?:bool,child_default?:mixed} $foreignKey
      * @return array{parent_key:string,child_key:string,on_delete:string,deferred:bool,child_default:mixed}
      */
@@ -154,10 +318,7 @@ final class SQLiteForeignKeyDeferredCascadePlan
     {
         $parentKey = self::identifier($foreignKey['parent_key'] ?? null, 'parent key');
         $childKey = self::identifier($foreignKey['child_key'] ?? null, 'child key');
-        $action = strtolower(trim((string) ($foreignKey['on_delete'] ?? 'no action')));
-        if (!in_array($action, ['cascade', 'no action', 'restrict', 'set null', 'set default'], true)) {
-            throw new \InvalidArgumentException('SQLite foreign key ON DELETE action is unsupported');
-        }
+        $action = self::normalizeAction($foreignKey['on_delete'] ?? 'no action', 'ON DELETE');
 
         return [
             'parent_key' => $parentKey,
@@ -166,6 +327,35 @@ final class SQLiteForeignKeyDeferredCascadePlan
             'deferred' => (bool) ($foreignKey['deferred'] ?? false),
             'child_default' => $foreignKey['child_default'] ?? null,
         ];
+    }
+
+    /**
+     * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool,child_default?:mixed} $foreignKey
+     * @return array{parent_key:string,child_key:string,on_update:string,deferred:bool,child_default:mixed}
+     */
+    private static function normalizeUpdateForeignKey(array $foreignKey): array
+    {
+        $parentKey = self::identifier($foreignKey['parent_key'] ?? null, 'parent key');
+        $childKey = self::identifier($foreignKey['child_key'] ?? null, 'child key');
+        $action = self::normalizeAction($foreignKey['on_update'] ?? 'no action', 'ON UPDATE');
+
+        return [
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'on_update' => $action,
+            'deferred' => (bool) ($foreignKey['deferred'] ?? false),
+            'child_default' => $foreignKey['child_default'] ?? null,
+        ];
+    }
+
+    private static function normalizeAction(mixed $value, string $label): string
+    {
+        $action = strtolower(trim((string) $value));
+        if (!in_array($action, ['cascade', 'no action', 'restrict', 'set null', 'set default'], true)) {
+            throw new \InvalidArgumentException("SQLite foreign key {$label} action is unsupported");
+        }
+
+        return $action;
     }
 
     private static function identifier(mixed $value, string $label): string
@@ -216,6 +406,27 @@ final class SQLiteForeignKeyDeferredCascadePlan
         foreach ($children as $child) {
             $value = self::rowValue($child, $childKey, 'child row');
             if ($value !== null && array_key_exists((string) $value, $deletedKeys)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @param list<array{old:mixed,new:mixed}> $updatedKeys
+     */
+    private static function hasReferencingUpdatedChild(array $children, array $updatedKeys, string $childKey): bool
+    {
+        $updated = [];
+        foreach ($updatedKeys as $change) {
+            $updated[(string) $change['old']] = true;
+        }
+
+        foreach ($children as $child) {
+            $value = self::rowValue($child, $childKey, 'child row');
+            if ($value !== null && array_key_exists((string) $value, $updated)) {
                 return true;
             }
         }

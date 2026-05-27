@@ -1127,7 +1127,7 @@ final class SQLiteCoreScalarFunction
             'time' => $instant->format('H:i:s'),
             'datetime' => $instant->format('Y-m-d H:i:s'),
             'unixepoch' => (int) $instant->format('U'),
-            'julianday' => ((int) $instant->format('U')) / 86400.0 + 2440587.5,
+            'julianday' => self::unixTimestampFloat($instant) / 86400.0 + 2440587.5,
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
@@ -1181,14 +1181,14 @@ final class SQLiteCoreScalarFunction
         if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
             return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
         }
-        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?(?:Z)?\z/i', $text) === 1) {
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z)?\z/i', $text) === 1) {
             return new \DateTimeImmutable(str_replace('T', ' ', rtrim($text, 'Zz')), $timezone);
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
     }
 
-    private static function strftimeSql(string $format, \DateTimeImmutable $instant): string
+    private static function strftimeSql(string $format, \DateTimeImmutable $instant): ?string
     {
         $result = '';
         $length = strlen($format);
@@ -1198,21 +1198,61 @@ final class SQLiteCoreScalarFunction
                 continue;
             }
             $offset++;
-            $result .= match ($format[$offset]) {
+            $replacement = match ($format[$offset]) {
                 '%' => '%',
                 'Y' => $instant->format('Y'),
+                'G' => $instant->format('o'),
+                'g' => substr($instant->format('o'), -2),
                 'm' => $instant->format('m'),
                 'd' => $instant->format('d'),
+                'e' => sprintf('%2d', (int) $instant->format('j')),
+                'F' => $instant->format('Y-m-d'),
                 'H' => $instant->format('H'),
+                'k' => sprintf('%2d', (int) $instant->format('G')),
+                'I' => $instant->format('h'),
+                'l' => sprintf('%2d', (int) $instant->format('g')),
                 'M' => $instant->format('i'),
                 'S' => $instant->format('s'),
+                'f' => sprintf('%02d.%03d', (int) $instant->format('s'), (int) floor(((int) $instant->format('u')) / 1000)),
+                'j' => sprintf('%03d', (int) $instant->format('z') + 1),
+                'p' => $instant->format('A'),
+                'P' => strtolower($instant->format('A')),
+                'R' => $instant->format('H:i'),
                 's' => $instant->format('U'),
-                'J' => sprintf('%.8F', ((int) $instant->format('U')) / 86400.0 + 2440587.5),
-                default => '%' . $format[$offset],
+                'T' => $instant->format('H:i:s'),
+                'u' => $instant->format('N'),
+                'U' => self::strftimeWeekNumber($instant, 0),
+                'V' => $instant->format('W'),
+                'w' => $instant->format('w'),
+                'W' => self::strftimeWeekNumber($instant, 1),
+                'J' => rtrim(rtrim(sprintf('%.9F', self::unixTimestampFloat($instant) / 86400.0 + 2440587.5), '0'), '.'),
+                default => null,
             };
+            if ($replacement === null) {
+                return null;
+            }
+            $result .= $replacement;
         }
 
         return $result;
+    }
+
+    private static function unixTimestampFloat(\DateTimeImmutable $instant): float
+    {
+        return (float) $instant->format('U') + ((float) $instant->format('u') / 1000000.0);
+    }
+
+    private static function strftimeWeekNumber(\DateTimeImmutable $instant, int $firstWeekday): string
+    {
+        $dayOfYear = (int) $instant->format('z');
+        $janFirst = $instant->setDate((int) $instant->format('Y'), 1, 1);
+        $janFirstWeekday = (int) $janFirst->format('w');
+        $daysUntilFirstWeekday = ($firstWeekday - $janFirstWeekday + 7) % 7;
+        if ($dayOfYear < $daysUntilFirstWeekday) {
+            return '00';
+        }
+
+        return sprintf('%02d', intdiv($dayOfYear - $daysUntilFirstWeekday, 7) + 1);
     }
 
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
