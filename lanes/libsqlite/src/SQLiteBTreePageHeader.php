@@ -160,7 +160,7 @@ final class SQLiteBTreePageHeader
             if ($offset + $size > $usableSize) {
                 throw new \InvalidArgumentException('SQLite b-tree freeblock extends beyond usable page space');
             }
-            if ($nextOffset !== 0 && $nextOffset <= $offset + $size + 3) {
+            if ($nextOffset !== 0 && $nextOffset < $offset + $size) {
                 throw new \InvalidArgumentException('SQLite b-tree freeblock chain is not in ascending non-overlapping order');
             }
 
@@ -220,6 +220,52 @@ final class SQLiteBTreePageHeader
             'freeblock_bytes' => $freeblockBytes,
             'free_space_bytes' => $freeSpaceBytes,
             'freeblocks' => $freeblocks,
+            'error' => $error,
+        ];
+    }
+
+    /**
+     * @return array{status:string,page_type:string,fragmented_free_bytes:int,current_next_fragment_bytes:int,unaccounted_fragment_bytes:int,current_next_fragments:list<array{current_offset:int,current_end_offset:int,next_offset:int,fragment_bytes:int}>,error:?string}
+     */
+    public function freeblockCurrentNextFragmentReport(string $page, ?int $usableSize = null): array
+    {
+        $fragments = [];
+        $fragmentBytes = 0;
+        $error = null;
+
+        try {
+            $freeblocks = $this->freeblocks($page, $usableSize);
+            for ($i = 0, $count = count($freeblocks) - 1; $i < $count; $i++) {
+                $current = $freeblocks[$i];
+                $next = $freeblocks[$i + 1];
+                $gap = $next->offset - $current->endOffset();
+                if ($gap > 0 && $gap < 4) {
+                    $fragmentBytes += $gap;
+                    $fragments[] = [
+                        'current_offset' => $current->offset,
+                        'current_end_offset' => $current->endOffset(),
+                        'next_offset' => $next->offset,
+                        'fragment_bytes' => $gap,
+                    ];
+                }
+            }
+
+            if ($fragmentBytes > $this->fragmentedFreeBytes) {
+                throw new \InvalidArgumentException('SQLite b-tree current/next freeblock fragments exceed the page fragmented-byte count');
+            }
+        } catch (\InvalidArgumentException $exception) {
+            $error = $exception->getMessage();
+            $fragments = [];
+            $fragmentBytes = 0;
+        }
+
+        return [
+            'status' => $error === null ? 'ok' : 'corrupt',
+            'page_type' => $this->pageType,
+            'fragmented_free_bytes' => $this->fragmentedFreeBytes,
+            'current_next_fragment_bytes' => $fragmentBytes,
+            'unaccounted_fragment_bytes' => $error === null ? $this->fragmentedFreeBytes - $fragmentBytes : 0,
+            'current_next_fragments' => $fragments,
             'error' => $error,
         ];
     }

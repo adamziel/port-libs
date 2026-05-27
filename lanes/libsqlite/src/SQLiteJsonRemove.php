@@ -9,7 +9,7 @@ final class SQLiteJsonRemove
     public static function removeSqlFunction(
         string $function,
         string|int|float|bool|SQLiteBlobValue|null $value,
-        string ...$paths,
+        ?string ...$paths,
     ): string|SQLiteBlobValue|null
     {
         if (strcasecmp($function, 'json_remove') === 0) {
@@ -19,6 +19,9 @@ final class SQLiteJsonRemove
             throw new \InvalidArgumentException('SQLite JSON remove function must be json_remove or jsonb_remove');
         }
         if ($value === null) {
+            return null;
+        }
+        if (in_array(null, $paths, true)) {
             return null;
         }
 
@@ -45,7 +48,7 @@ final class SQLiteJsonRemove
         }
 
         foreach ($arguments as $path) {
-            if (!is_string($path)) {
+            if ($path !== null && !is_string($path)) {
                 throw new \InvalidArgumentException('SQLite json_remove() path arguments must be text');
             }
         }
@@ -53,9 +56,12 @@ final class SQLiteJsonRemove
         return self::removeSqlFunction($function, $value, ...$arguments);
     }
 
-    public static function remove(string|int|float|bool|SQLiteBlobValue|null $value, string ...$paths): ?string
+    public static function remove(string|int|float|bool|SQLiteBlobValue|null $value, ?string ...$paths): ?string
     {
         if ($value === null) {
+            return null;
+        }
+        if (in_array(null, $paths, true)) {
             return null;
         }
 

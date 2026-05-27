@@ -76,6 +76,50 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * Execute bounded ATTACH/DETACH schema statements against this in-memory
+     * schema catalog. The optional loader receives the normalized file name and
+     * schema name and returns the schema records for that attached database.
+     *
+     * @param callable(string, string): list<SQLiteSchemaRecord>|null $recordLoader
+     * @return array{status: string, operation: string, schema: string, file: string|null, database_list: list<array{seq: int, name: string, file: string|null}>}
+     */
+    public function executeAttachDetachSql(string $sql, ?callable $recordLoader = null): array
+    {
+        $trimmed = trim($sql);
+        $trimmed = rtrim($trimmed, " \t\r\n;");
+
+        if (preg_match('/^attach(?:\s+database)?\s+(.+?)\s+as\s+(.+)$/is', $trimmed, $matches) === 1) {
+            $fileName = self::parseAttachFileExpression($matches[1]);
+            $schemaName = self::normalizeSchemaName($matches[2]);
+            $records = $recordLoader !== null ? $recordLoader($fileName, $schemaName) : [];
+            $this->attach($schemaName, $fileName, $records);
+
+            return [
+                'status' => 'ok',
+                'operation' => 'attach',
+                'schema' => $schemaName,
+                'file' => $fileName,
+                'database_list' => $this->databaseList(),
+            ];
+        }
+
+        if (preg_match('/^detach(?:\s+database)?\s+(.+)$/is', $trimmed, $matches) === 1) {
+            $schemaName = self::normalizeSchemaName($matches[1]);
+            $this->detach($schemaName);
+
+            return [
+                'status' => 'ok',
+                'operation' => 'detach',
+                'schema' => $schemaName,
+                'file' => null,
+                'database_list' => $this->databaseList(),
+            ];
+        }
+
+        throw new \InvalidArgumentException('SQLite schema catalog can only execute ATTACH or DETACH statements');
+    }
+
+    /**
      * @return list<array{seq: int, name: string, file: string|null}>
      */
     public function databaseList(): array
@@ -172,6 +216,30 @@ final class SQLiteAttachedSchemaCatalog
     public function executeSchemaPragmaCursor(string $sql): SQLitePragmaRowCursor
     {
         return new SQLitePragmaRowCursor($this->executeSchemaPragma($sql));
+    }
+
+    /**
+     * Execute SQLite's table-valued PRAGMA function form against the same
+     * current-source catalog resolution used by direct schema PRAGMAs.
+     *
+     * @return array{status: string, pragma: 'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
+     */
+    public function executeTableValuedPragma(string $sql): array
+    {
+        $parsed = SQLitePragmaSchemaCatalog::parseTableValuedPragma($sql);
+        $schemaName = $parsed['schema'];
+
+        if ($schemaName === null) {
+            $resolved = $this->resolveTable($parsed['target']);
+            $schemaName = $resolved['schema'] ?? 'main';
+        }
+
+        $result = $this->pragmaCatalog($schemaName)->executeTableValuedPragma(
+            'pragma_foreign_key_list(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
+        );
+        $result['schema'] = $schemaName;
+
+        return $result;
     }
 
     /**
@@ -273,6 +341,30 @@ final class SQLiteAttachedSchemaCatalog
         return $normalized;
     }
 
+    private static function parseAttachFileExpression(string $expression): string
+    {
+        $expression = trim($expression);
+        if ($expression === '') {
+            throw new \InvalidArgumentException('SQLite ATTACH file name cannot be empty');
+        }
+
+        $quote = $expression[0];
+        if (($quote === "'" || $quote === '"') && substr($expression, -1) === $quote) {
+            $body = substr($expression, 1, -1);
+            if ($body === '') {
+                throw new \InvalidArgumentException('SQLite ATTACH file name cannot be empty');
+            }
+
+            return str_replace($quote . $quote, $quote, $body);
+        }
+
+        if (preg_match('/^[A-Za-z0-9_\/.\-:]+$/', $expression) === 1) {
+            return $expression;
+        }
+
+        throw new \InvalidArgumentException('SQLite ATTACH file name must be a bounded string literal or path token');
+    }
+
     private static function unquoteIdentifier(string $identifier): string
     {
         $identifier = trim($identifier);
@@ -281,7 +373,7 @@ final class SQLiteAttachedSchemaCatalog
         }
         $first = $identifier[0];
         $last = $identifier[strlen($identifier) - 1];
-        if (($first === '"' && $last === '"') || ($first === '`' && $last === '`')) {
+        if (($first === '"' && $last === '"') || ($first === '`' && $last === '`') || ($first === "'" && $last === "'")) {
             return str_replace($first . $first, $first, substr($identifier, 1, -1));
         }
         if ($first === '[' && $last === ']') {
@@ -289,5 +381,10 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return $identifier;
+    }
+
+    private static function pragmaArgumentLiteral(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 }

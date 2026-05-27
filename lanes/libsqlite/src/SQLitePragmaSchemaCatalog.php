@@ -69,6 +69,22 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return array{status: string, pragma: 'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
+     */
+    public function executeTableValuedPragma(string $sql): array
+    {
+        $parsed = self::parseTableValuedPragma($sql);
+
+        return [
+            'status' => 'ok',
+            'pragma' => 'foreign_key_list',
+            'schema' => $parsed['schema'] ?? 'main',
+            'target' => $parsed['target'],
+            'rows' => $this->foreignKeyList($parsed['target']),
+        ];
+    }
+
+    /**
      * @return list<array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int}|array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int, hidden: int}>
      */
     public function tableInfo(string $tableName, bool $includeHidden = false): array
@@ -263,6 +279,31 @@ final class SQLitePragmaSchemaCatalog
             'pragma' => strtolower($matches['pragma']),
             'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
             'target' => self::unquoteIdentifier($matches['paren'] !== '' ? $matches['paren'] : $matches['equals']),
+        ];
+    }
+
+    /**
+     * @return array{pragma: 'foreign_key_list', schema: string|null, target: string}
+     */
+    public static function parseTableValuedPragma(string $sql): array
+    {
+        $trimmed = rtrim(trim($sql), ';');
+        if (!preg_match('/^pragma_foreign_key_list\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
+            throw new InvalidArgumentException('Only pragma_foreign_key_list(table[, schema]) is supported');
+        }
+
+        $args = array_map('trim', self::splitTopLevel($matches['args'], ','));
+        if (count($args) < 1 || count($args) > 2 || $args[0] === '') {
+            throw new InvalidArgumentException('pragma_foreign_key_list needs a table argument');
+        }
+        if (count($args) === 2 && $args[1] === '') {
+            throw new InvalidArgumentException('pragma_foreign_key_list schema argument cannot be empty');
+        }
+
+        return [
+            'pragma' => 'foreign_key_list',
+            'schema' => isset($args[1]) ? strtolower(self::unquoteIdentifier($args[1])) : null,
+            'target' => self::unquoteIdentifier($args[0]),
         ];
     }
 

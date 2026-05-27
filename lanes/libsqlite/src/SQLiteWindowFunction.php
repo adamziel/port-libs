@@ -311,6 +311,79 @@ final class SQLiteWindowFunction
     }
 
     /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @return list<mixed>
+     */
+    public static function aggregateFrameValues(
+        string $function,
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        int|float $preceding,
+        int|float $following,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
+        $function = strtolower($function);
+        if (!in_array($function, ['count', 'sum', 'group_concat'], true)) {
+            throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
+        }
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite window frame offsets must be non-negative');
+        }
+
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $filterRows = $filters === null ? null : self::rows($filters);
+        if ($filterRows !== null && count($filterRows) !== count($rows)) {
+            throw new \InvalidArgumentException('SQLite window FILTER values must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+        if ($unit === 'RANGE') {
+            foreach ($keys as $key) {
+                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
+                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
+                }
+            }
+        }
+
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $frameIndexes = self::frameIndexes($keys, $index, $preceding, $following, $unit);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+            if ($filterRows !== null) {
+                $frameIndexes = array_values(array_filter(
+                    $frameIndexes,
+                    static fn (int $frameIndex): bool => self::sqlTruthy($filterRows[$frameIndex]),
+                ));
+            }
+
+            $values = array_map(static fn (int $frameIndex): mixed => $rows[$frameIndex], $frameIndexes);
+            $result[] = match ($function) {
+                'count' => count(array_filter($values, static fn (mixed $value): bool => $value !== null)),
+                'sum' => self::sumFrameValues($values),
+                'group_concat' => self::groupConcatFrameValues($values),
+            };
+        }
+
+        return $result;
+    }
+
+    /**
      * @param list<mixed> $orderKeys
      * @return list<int>
      */
@@ -503,6 +576,40 @@ final class SQLiteWindowFunction
         }
 
         throw new \InvalidArgumentException('SQLite window ORDER BY values must be scalar, BLOB, or NULL');
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function sumFrameValues(array $values): int|float|null
+    {
+        $sum = null;
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (!is_int($value) && !is_float($value) && !is_bool($value)) {
+                throw new \InvalidArgumentException('SQLite window sum() values must be numeric or NULL');
+            }
+            $sum = ($sum ?? 0) + (is_bool($value) ? (int) $value : $value);
+        }
+
+        return $sum;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function groupConcatFrameValues(array $values): ?string
+    {
+        $text = [];
+        foreach ($values as $value) {
+            if ($value !== null) {
+                $text[] = self::valueText($value);
+            }
+        }
+
+        return $text === [] ? null : implode(',', $text);
     }
 
     private static function sortRank(mixed $value): int
