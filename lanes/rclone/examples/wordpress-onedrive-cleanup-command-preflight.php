@@ -82,6 +82,11 @@ $emptyRemoteArg = OneDriveCleanupCommand::run($objects, [
     'featureAvailable' => false,
     'walkError' => 'would not be reached',
 ]);
+$blankRemoteArg = OneDriveCleanupCommand::run($objects, [
+    'remoteArgs' => ['   '],
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
 $missingRemoteArgDisabled = OneDriveCleanupCommand::run($objects, [
     'remoteArgs' => [],
     'noVersions' => false,
@@ -96,6 +101,12 @@ $extraRemoteArgDisabled = OneDriveCleanupCommand::run($objects, [
 ]);
 $emptyRemoteArgDisabled = OneDriveCleanupCommand::run($objects, [
     'remoteArgs' => [''],
+    'noVersions' => false,
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
+$blankRemoteArgDisabled = OneDriveCleanupCommand::run($objects, [
+    'remoteArgs' => ["\t"],
     'noVersions' => false,
     'featureAvailable' => false,
     'walkError' => 'would not be reached',
@@ -173,6 +184,9 @@ return [
     'extraRemoteArgProviderCalled' => $extraRemoteArg['providerCalled'],
     'emptyRemoteArgError' => $emptyRemoteArg['error'],
     'emptyRemoteArgProviderCalled' => $emptyRemoteArg['providerCalled'],
+    'blankRemoteArgError' => $blankRemoteArg['error'],
+    'blankRemoteArgStoppedAt' => $blankRemoteArg['stoppedAt'],
+    'blankRemoteArgProviderCalled' => $blankRemoteArg['providerCalled'],
     'missingRemoteArgDisabledError' => $missingRemoteArgDisabled['error'],
     'missingRemoteArgDisabledStoppedAt' => $missingRemoteArgDisabled['stoppedAt'],
     'missingRemoteArgDisabledProviderCalled' => $missingRemoteArgDisabled['providerCalled'],
@@ -180,6 +194,8 @@ return [
     'extraRemoteArgDisabledProviderCalled' => $extraRemoteArgDisabled['providerCalled'],
     'emptyRemoteArgDisabledError' => $emptyRemoteArgDisabled['error'],
     'emptyRemoteArgDisabledProviderCalled' => $emptyRemoteArgDisabled['providerCalled'],
+    'blankRemoteArgDisabledError' => $blankRemoteArgDisabled['error'],
+    'blankRemoteArgDisabledProviderCalled' => $blankRemoteArgDisabled['providerCalled'],
     'validRemoteArgDisabledError' => $validRemoteArgDisabled['error'],
     'validRemoteArgDisabledStoppedAt' => $validRemoteArgDisabled['stoppedAt'],
     'validRemoteArgDisabledProviderCalled' => $validRemoteArgDisabled['providerCalled'],
