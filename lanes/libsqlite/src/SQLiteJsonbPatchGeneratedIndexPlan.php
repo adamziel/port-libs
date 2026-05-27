@@ -308,6 +308,106 @@ final class SQLiteJsonbPatchGeneratedIndexPlan
     }
 
     /**
+     * @param list<array{name?:string,sql:string,rootPage?:int,estimatedRows?:int,coveringColumns?:list<string>}> $indexDefinitions
+     * @param list<string> $generatedColumnSql
+     * @param list<array<string,mixed>> $currentRows
+     * @param callable(array<string,mixed>):bool $deleteWhere
+     * @param array<string,mixed> $lookupPredicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return array{covering_plan:null|array<string,mixed>,deleted_rows:list<array<string,mixed>>,remaining_rows:list<array<string,mixed>>,delete_entries:list<array<string,mixed>>,unchanged_entries:list<array<string,mixed>>,returning_covering_rows:list<array<string,mixed>>,skipped_covering_rows:list<array<string,mixed>>,changes:int}
+     */
+    public static function planDeleteCurrentCoveringTable(
+        array $indexDefinitions,
+        array $generatedColumnSql,
+        array $currentRows,
+        callable $deleteWhere,
+        string $rowidColumn = 'rowid',
+        array $lookupPredicate = [],
+        array $orderBy = [],
+        array $neededColumns = [],
+    ): array {
+        $generatedColumns = self::generatedColumns($generatedColumnSql);
+        $indexes = self::jsonbPatchIndexes($indexDefinitions, $generatedColumns);
+        $coveringPlan = $lookupPredicate === []
+            ? null
+            : self::choose($indexDefinitions, $generatedColumnSql, $lookupPredicate, $orderBy, $neededColumns);
+
+        $deletedRows = [];
+        $remainingRows = [];
+        $deleteEntries = [];
+        $unchangedEntries = [];
+        $returningRows = [];
+        $skippedCoveringRows = [];
+
+        foreach ($currentRows as $row) {
+            if (!array_key_exists($rowidColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite JSONB generated DELETE rows need {$rowidColumn}");
+            }
+            $rowid = $row[$rowidColumn];
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException("SQLite JSONB generated DELETE {$rowidColumn} must be integer or text");
+            }
+
+            if (!$deleteWhere($row)) {
+                $remainingRows[] = $row;
+                foreach ($indexes as $index) {
+                    $unchangedEntries[] = [
+                        'operation' => 'preserve-current',
+                        'index' => $index['name'],
+                        'rootPage' => $index['rootPage'],
+                        'rowid' => $rowid,
+                        'generatedColumn' => $index['generatedColumn'],
+                        'sourceColumn' => $index['sourceColumn'],
+                        'path' => $index['path'],
+                        'partial' => $index['partialPredicate'] !== null,
+                        'active' => self::partialRowMatches($row, $index['partialPredicate']),
+                    ];
+                }
+                continue;
+            }
+
+            $deletedRows[] = $row;
+            foreach ($indexes as $index) {
+                if (!self::partialRowMatches($row, $index['partialPredicate'])) {
+                    continue;
+                }
+                $deleteEntries[] = [
+                    'operation' => 'delete-current',
+                    'index' => $index['name'],
+                    'rootPage' => $index['rootPage'],
+                    'rowid' => $rowid,
+                    'generatedColumn' => $index['generatedColumn'],
+                    'sourceColumn' => $index['sourceColumn'],
+                    'path' => $index['path'],
+                    'partial' => $index['partialPredicate'] !== null,
+                    'value' => self::evaluateIndexValue($index, $row),
+                ];
+            }
+
+            if ($coveringPlan !== null && !$coveringPlan['covering']) {
+                $skippedCoveringRows[] = [
+                    'rowid' => $rowid,
+                    'reason' => 'chosen index is not covering',
+                ];
+                continue;
+            }
+            $returningRows[] = self::coveringRow($row, $indexes, $generatedColumns, $neededColumns, $rowidColumn);
+        }
+
+        return [
+            'covering_plan' => $coveringPlan,
+            'deleted_rows' => $deletedRows,
+            'remaining_rows' => $remainingRows,
+            'delete_entries' => $deleteEntries,
+            'unchanged_entries' => $unchangedEntries,
+            'returning_covering_rows' => $returningRows,
+            'skipped_covering_rows' => $skippedCoveringRows,
+            'changes' => count($deletedRows),
+        ];
+    }
+
+    /**
      * @param list<string> $generatedColumnSql
      * @return array<string,array{generatedColumn:string,sourceColumn:string,patchJson:string,path:string}>
      */

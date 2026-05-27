@@ -6469,6 +6469,206 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $burnupRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerDenominatorBurnupCurrentNext52(
+        array $burnupRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite release-runner denominator burnup requires current and next accepted HEAD values');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite release-runner denominator burnup requires a non-negative current mapped count');
+        }
+        if ($burnupRows === []) {
+            throw new \InvalidArgumentException('SQLite release-runner denominator burnup requires at least one row');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = [];
+        $blockers = [];
+        $mappedUnits = [];
+        $preservedUnits = [];
+        $openUnits = [];
+        $regressedUnits = [];
+        $seen = [];
+        $evidenceTypes = [];
+        $categories = [];
+        $nextTests = 0;
+        $currentTests = 0;
+
+        foreach ($burnupRows as $label => $row) {
+            if (!is_array($row)) {
+                $blockers[] = [
+                    'id' => 'burnup-row-invalid',
+                    'evidence' => 'denominator burnup row is not an array',
+                    'label' => is_string($label) ? $label : 'row-' . (string) count($entries),
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== ''
+                ? $row['unit']
+                : (is_string($label) ? $label : 'unit-' . (string) count($entries));
+            $category = is_string($row['category'] ?? null) && $row['category'] !== ''
+                ? $row['category']
+                : 'unclassified';
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'unmapped';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'unmapped';
+            $currentRowMapped = (bool) ($row['current_mapped'] ?? ($currentStatus === 'mapped'));
+            $nextRowMapped = (bool) ($row['next_mapped'] ?? ($nextStatus === 'mapped'));
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $evidenceType = is_string($row['evidence_type'] ?? null) && $row['evidence_type'] !== ''
+                ? $row['evidence_type']
+                : 'unspecified';
+            $currentRowTests = max(0, (int) ($row['current_tests'] ?? 0));
+            $nextRowTests = max(0, (int) ($row['next_tests'] ?? 0));
+            $rowBlockers = [];
+
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-denominator-unit';
+            }
+            $seen[$unit] = true;
+
+            if ($nextRowMapped && $evidence === '') {
+                $rowBlockers[] = 'mapped-unit-missing-evidence';
+            }
+            if ($currentRowMapped && !$nextRowMapped) {
+                $rowBlockers[] = 'mapped-unit-regressed';
+                $regressedUnits[] = $unit;
+            }
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            if (is_string($row['blocker'] ?? null) && $row['blocker'] !== '') {
+                $rowBlockers[] = $row['blocker'];
+            }
+
+            $movement = 'open';
+            if ($nextRowMapped && !$currentRowMapped) {
+                $movement = 'newly-mapped';
+                $mappedUnits[] = $unit;
+            } elseif ($nextRowMapped && $currentRowMapped) {
+                $movement = 'preserved';
+                $preservedUnits[] = $unit;
+            } elseif (!$nextRowMapped && !$currentRowMapped) {
+                $openUnits[] = $unit;
+            }
+
+            if ($nextRowMapped) {
+                $evidenceTypes[$evidenceType] = ($evidenceTypes[$evidenceType] ?? 0) + 1;
+                $nextTests += $nextRowTests;
+            }
+            if ($currentRowMapped) {
+                $currentTests += $currentRowTests;
+            }
+            $categories[$category] = ($categories[$category] ?? 0) + 1;
+
+            $rowBlockers = array_values(array_unique($rowBlockers));
+            foreach ($rowBlockers as $blocker) {
+                $blockers[] = [
+                    'id' => 'denominator-burnup-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => $blocker,
+                ];
+            }
+
+            $entries[] = [
+                'unit' => $unit,
+                'category' => $category,
+                'current_status' => $currentStatus,
+                'next_status' => $nextStatus,
+                'current_mapped' => $currentRowMapped,
+                'next_mapped' => $nextRowMapped,
+                'movement' => $movement,
+                'evidence_type' => $evidenceType,
+                'evidence' => $evidence,
+                'current_tests' => $currentRowTests,
+                'next_tests' => $nextRowTests,
+                'blockers' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        ksort($categories);
+        ksort($evidenceTypes);
+        sort($mappedUnits);
+        sort($preservedUnits);
+        sort($openUnits);
+        sort($regressedUnits);
+
+        $mappedDelta = count($mappedUnits);
+        $nextMapped = $currentMapped + ($blockers === [] ? $mappedDelta : 0);
+        $status = 'blocked';
+        if ($blockers === [] && $mappedDelta > 0) {
+            $status = 'current-next52-denominator-burnup-advanced';
+        } elseif ($blockers === [] && count($preservedUnits) > 0) {
+            $status = 'current-next52-denominator-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'category_count' => count($categories),
+            'categories' => $categories,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $nextMapped,
+            'mapped_delta' => $blockers === [] ? $mappedDelta : 0,
+            'newly_mapped_count' => count($mappedUnits),
+            'newly_mapped_units' => $mappedUnits,
+            'preserved_count' => count($preservedUnits),
+            'preserved_units' => $preservedUnits,
+            'open_count' => count($openUnits),
+            'open_units' => $openUnits,
+            'regressed_count' => count($regressedUnits),
+            'regressed_units' => $regressedUnits,
+            'current_tests_total' => $currentTests,
+            'next_tests_total' => $nextTests,
+            'tests_total_delta' => max(0, $nextTests - $currentTests),
+            'evidence_types' => $evidenceTypes,
+            'entries' => $entries,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_denominator_burnup' => $status === 'current-next52-denominator-burnup-advanced',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next52-denominator-burnup-advanced'
+                ? 'publish only the newly mapped current-next52 denominator units and keep release/all parity gated on zero-error runner artifacts'
+                : 'keep current-next52 denominator movement uncounted until rows have evidence, no regressions, and focused PHP admission is clean',
+            'dependency_closure' => 'no new support component needed; current-next52 denominator burnup composes lane-local mapped-unit rows, evidence labels, and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function denominatorAuditInt(array $row, string $key): int

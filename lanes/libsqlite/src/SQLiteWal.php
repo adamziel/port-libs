@@ -1150,6 +1150,99 @@ final class SQLiteWal
 
     /**
      * @param list<int> $pageNumbers
+     * @param list<int> $yieldedSlots
+     * @return array{mode:string,status:string,yielded_slots:list<int>,current_reader_end_frame:int|null,next_reader_end_frame:int,first_checkpoint:array<string,mixed>,yielded_checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string|null>,next_reader_images:list<string|null>,current_reader_kept_snapshot:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,reader_yield_unblocked_reset:bool,read_marks_before:list<array<string,mixed>>,read_marks_after:list<array<string,mixed>>,yield_count:int,dependencies:list<string>}
+     */
+    public function restartCheckpointReaderYieldCurrentNext(
+        string $databaseBytes,
+        SQLiteShmIndex $shm,
+        array $pageNumbers,
+        array $yieldedSlots,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart checkpoint reader yield requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL restart checkpoint reader yield mode: {$mode}");
+        }
+
+        $yieldedSlots = array_values(array_unique($yieldedSlots));
+        sort($yieldedSlots, SORT_NUMERIC);
+        foreach ($yieldedSlots as $slot) {
+            if (!is_int($slot) || $slot < 0 || $slot >= SQLiteShmIndex::READER_COUNT) {
+                throw new \InvalidArgumentException('SQLite WAL restart checkpoint reader yield slots must be valid reader slots');
+            }
+        }
+
+        $firstTransition = $this->restartReadMarkTransition($databaseBytes, $shm, $mode);
+        $currentReaderEndFrame = $firstTransition['current_reader_end_frame'];
+        $yieldedMarks = [];
+        foreach ($shm->readMarks as $mark) {
+            $yieldedMarks[] = in_array($mark['slot'], $yieldedSlots, true) ? null : $mark['frame'];
+        }
+
+        $afterYieldPlan = $this->readMarkPlan($yieldedMarks);
+        $yieldedReaderEndFrame = $afterYieldPlan['checkpoint_pinned_frame'];
+        $yieldedCheckpoint = $this->durableCheckpointResult($databaseBytes, $mode, $yieldedReaderEndFrame);
+        $nextWal = $yieldedCheckpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($yieldedCheckpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL restart checkpoint reader yield pages must be integers');
+            }
+
+            $current[] = $currentReaderEndFrame === null
+                ? self::databasePageVisibilityOrError($databaseBytes, $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null || $nextWal->frameCount() === 0
+                ? self::databasePageVisibilityOrError($yieldedCheckpoint['database_bytes'], $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $yieldedCheckpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'mode' => $mode,
+            'status' => $yieldedCheckpoint['busy'] ? 'still-pinned' : 'yielded-reset-ready',
+            'yielded_slots' => $yieldedSlots,
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'first_checkpoint' => $firstTransition['checkpoint'],
+            'yielded_checkpoint' => $yieldedCheckpoint,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_images' => $currentImages,
+            'next_reader_images' => $nextImages,
+            'current_reader_kept_snapshot' => $currentReaderEndFrame !== null && $firstTransition['checkpoint']['busy'],
+            'next_reader_uses_database' => !in_array('wal', self::visibilityColumn($next, 'source'), true),
+            'next_reader_uses_restarted_wal' => $nextWal !== null && $nextWal->frameCount() === 0 && $yieldedCheckpoint['wal_bytes_length'] === 32,
+            'reader_yield_unblocked_reset' => $firstTransition['checkpoint']['busy'] && !$yieldedCheckpoint['busy'],
+            'read_marks_before' => $firstTransition['current_shm']['read_marks'],
+            'read_marks_after' => $afterYieldPlan['read_marks'],
+            'yield_count' => 2 * count($pageNumbers),
+            'dependencies' => array_values(array_unique(array_merge(
+                $firstTransition['dependencies'],
+                $yieldedCheckpoint['dependencies'],
+                ['wal-restart-checkpoint-reader-yield-current-next52']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{mode:string,status:string,current_reader_end_frame:int|null,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_reader_kept_snapshot:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,transition:array<string,mixed>,dependencies:list<string>}
      */
     public function restartReadMarkReaderMapTransition(string $databaseBytes, SQLiteShmIndex $shm, array $pageNumbers, string $mode = 'restart'): array

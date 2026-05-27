@@ -9,8 +9,7 @@ final class SQLiteSelectRecursiveJsonMaterialization
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $indexColumns
-     * @param list<string> $orderColumns
-     * @return array{sql:string,rows:list<array<string,mixed>>,indexColumns:list<string>,orderColumns:list<string>,indexes:array<string,list<int>>,keys:array<int,string>,currentNext:list<array{key:array<string,mixed>,current:array<string,mixed>,next:?array<string,mixed>,currentPosition:int,nextPosition:int|null}>,recursiveCurrentNext:list<array{iteration:int,current:array<string,mixed>,next:?array<string,mixed>,currentJsonRows:list<array<string,mixed>>,nextJsonRows:list<array<string,mixed>>,currentPosition:int,nextPosition:int|null,acceptedNext:list<array<string,mixed>>,skippedDuplicates:list<array<string,mixed>>,emitted:bool}>,trace:array<string,mixed>,dependencies:list<string>}
+     * @return array{sql:string,rows:list<array<string,mixed>>,indexColumns:list<string>,orderColumns:list<string>,indexes:array<string,list<int>>,keys:array<int,string>,currentNext:list<array{key:array<string,mixed>,current:array<string,mixed>,next:?array<string,mixed>,currentPosition:int,nextPosition:int|null}>,recursiveCurrentNext:list<array{iteration:int,current:array<string,mixed>,next:?array<string,mixed>,currentJsonRows:list<array<string,mixed>>,nextJsonRows:list<array<string,mixed>>,currentPosition:int,nextPosition:int|null,acceptedNext:list<array<string,mixed>>,skippedDuplicates:list<array<string,mixed>>,emitted:bool,generatedCount:int,acceptedNextCount:int,queueAfterCount:int}>,trace:array<string,mixed>,dependencies:list<string>}
      */
     public static function materialize(string $sql, array $tables, array $indexColumns, array $orderColumns = []): array
     {
@@ -37,6 +36,7 @@ final class SQLiteSelectRecursiveJsonMaterialization
             'dependencies' => [
                 'sqlite-select-recursive-materialized-current-source',
                 'sqlite-json-table-derived-current-next',
+                'sqlite-recursive-current-next-materialization',
                 'sqlite-recursive-json-table-yield',
                 'sqlite-recursive-current-next-json-yield-boundary',
             ],
@@ -101,7 +101,7 @@ final class SQLiteSelectRecursiveJsonMaterialization
     /**
      * @param array{name:string,columns:list<string>,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>} $trace
      * @param list<array<string,mixed>> $jsonRows
-     * @return list<array{iteration:int,current:array<string,mixed>,next:?array<string,mixed>,currentJsonRows:list<array<string,mixed>>,nextJsonRows:list<array<string,mixed>>,currentPosition:int,nextPosition:int|null,acceptedNext:list<array<string,mixed>>,skippedDuplicates:list<array<string,mixed>>,emitted:bool}>
+     * @return list<array{iteration:int,current:array<string,mixed>,next:?array<string,mixed>,currentJsonRows:list<array<string,mixed>>,nextJsonRows:list<array<string,mixed>>,currentPosition:int,nextPosition:int|null,acceptedNext:list<array<string,mixed>>,skippedDuplicates:list<array<string,mixed>>,emitted:bool,generatedCount:int,acceptedNextCount:int,queueAfterCount:int}>
      */
     private static function recursiveCurrentNext(array $trace, array $jsonRows): array
     {
@@ -111,15 +111,24 @@ final class SQLiteSelectRecursiveJsonMaterialization
         ));
         $pairs = [];
 
-        foreach ($trace['trace'] as $entry) {
+        $entries = $trace['trace'];
+        $count = count($entries);
+        foreach ($entries as $position => $entry) {
             if (!is_array($entry['current'] ?? null)) {
                 continue;
             }
 
             $current = $entry['current'];
-            $currentPosition = self::recursiveRowPosition($rows, $current);
-            $nextPosition = $currentPosition === null ? null : ($currentPosition + 1 < count($rows) ? $currentPosition + 1 : null);
-            $next = $nextPosition === null ? null : $rows[$nextPosition];
+            $nextEntry = $entries[$position + 1] ?? null;
+            $next = is_array($nextEntry) && is_array($nextEntry['current'] ?? null)
+                ? $nextEntry['current']
+                : null;
+            $generated = $entry['generated'] ?? [];
+            $acceptedNext = array_values(array_filter(
+                $entry['accepted_next'] ?? [],
+                static fn (mixed $row): bool => is_array($row),
+            ));
+            $queueAfter = $entry['queue_after'] ?? [];
 
             $pairs[] = [
                 'iteration' => (int) ($entry['iteration'] ?? count($pairs)),
@@ -127,17 +136,17 @@ final class SQLiteSelectRecursiveJsonMaterialization
                 'next' => $next,
                 'currentJsonRows' => self::jsonRowsForRecursiveRow($jsonRows, $current),
                 'nextJsonRows' => $next === null ? [] : self::jsonRowsForRecursiveRow($jsonRows, $next),
-                'currentPosition' => $currentPosition ?? count($pairs),
-                'nextPosition' => $nextPosition,
-                'acceptedNext' => array_values(array_filter(
-                    $entry['accepted_next'] ?? [],
-                    static fn (mixed $row): bool => is_array($row),
-                )),
+                'currentPosition' => $position,
+                'nextPosition' => $position + 1 < $count ? $position + 1 : null,
+                'acceptedNext' => $acceptedNext,
                 'skippedDuplicates' => array_values(array_filter(
                     $entry['skipped_duplicates'] ?? [],
                     static fn (mixed $row): bool => is_array($row),
                 )),
                 'emitted' => (bool) ($entry['emitted'] ?? false),
+                'generatedCount' => is_array($generated) ? count($generated) : 0,
+                'acceptedNextCount' => count($acceptedNext),
+                'queueAfterCount' => is_array($queueAfter) ? count($queueAfter) : 0,
             ];
         }
 
@@ -203,6 +212,49 @@ final class SQLiteSelectRecursiveJsonMaterialization
         }
 
         return $match[1];
+    }
+
+    /**
+     * @param array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>} $trace
+     * @return list<array{current:array<string,mixed>,next:?array<string,mixed>,currentPosition:int,nextPosition:int|null,emitted:bool,generatedCount:int,acceptedNextCount:int,queueAfterCount:int}>
+     */
+    private static function traceCurrentNext(array $trace): array
+    {
+        $entries = $trace['trace'];
+        $pairs = [];
+        $count = count($entries);
+        for ($position = 0; $position < $count; $position++) {
+            $entry = $entries[$position];
+            $nextEntry = $entries[$position + 1] ?? null;
+            $current = $entry['current'] ?? null;
+            if (!is_array($current)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON trace current row is malformed');
+            }
+
+            $next = null;
+            if (is_array($nextEntry)) {
+                $next = $nextEntry['current'] ?? null;
+                if (!is_array($next)) {
+                    throw new \InvalidArgumentException('SQLite recursive JSON trace next row is malformed');
+                }
+            }
+
+            $generated = $entry['generated'] ?? [];
+            $acceptedNext = $entry['accepted_next'] ?? [];
+            $queueAfter = $entry['queue_after'] ?? [];
+            $pairs[] = [
+                'current' => $current,
+                'next' => $next,
+                'currentPosition' => $position,
+                'nextPosition' => $next === null ? null : $position + 1,
+                'emitted' => (bool) ($entry['emitted'] ?? false),
+                'generatedCount' => is_array($generated) ? count($generated) : 0,
+                'acceptedNextCount' => is_array($acceptedNext) ? count($acceptedNext) : 0,
+                'queueAfterCount' => is_array($queueAfter) ? count($queueAfter) : 0,
+            ];
+        }
+
+        return $pairs;
     }
 
     private static function keywordBounded(string $sql, int $offset, int $length): bool

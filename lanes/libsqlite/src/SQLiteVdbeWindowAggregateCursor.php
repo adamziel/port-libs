@@ -322,6 +322,16 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
+     * @return array{values:list<mixed>,firstValue:mixed,lastValue:mixed,nthValue:mixed,rowids:list<mixed>}
+     */
+    public function currentValueFrameSummary(int $nth = 2, bool $applyFilter = true, string $rowidColumn = 'rowid'): array
+    {
+        $this->requireCurrentRow();
+
+        return $this->valueFrameSummaryAt($this->position, $nth, $applyFilter, $rowidColumn);
+    }
+
+    /**
      * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,firstValue:mixed,lastValue:mixed,nthValue:mixed}
      */
     public function currentSummary(): array
@@ -365,6 +375,22 @@ final class SQLiteVdbeWindowAggregateCursor
         return [
             'current' => $this->frameRowsAt($this->position, $applyFilter),
             'next' => $this->position + 1 < count($this->orderedRows) ? $this->frameRowsAt($this->position + 1, $applyFilter) : null,
+            'advanced' => false,
+        ];
+    }
+
+    /**
+     * @return array{current:array{values:list<mixed>,firstValue:mixed,lastValue:mixed,nthValue:mixed,rowids:list<mixed>},next:array{values:list<mixed>,firstValue:mixed,lastValue:mixed,nthValue:mixed,rowids:list<mixed>}|null,advanced:bool}
+     */
+    public function currentNextValueFrameSummary(int $nth = 2, bool $applyFilter = true, string $rowidColumn = 'rowid'): array
+    {
+        $this->requireCurrentRow();
+
+        return [
+            'current' => $this->valueFrameSummaryAt($this->position, $nth, $applyFilter, $rowidColumn),
+            'next' => $this->position + 1 < count($this->orderedRows)
+                ? $this->valueFrameSummaryAt($this->position + 1, $nth, $applyFilter, $rowidColumn)
+                : null,
             'advanced' => false,
         ];
     }
@@ -528,6 +554,27 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         return array_values(array_filter($rows, fn (array $row): bool => self::isSqlTrue($row[$this->filterColumn])));
+    }
+
+    /**
+     * @return array{values:list<mixed>,firstValue:mixed,lastValue:mixed,nthValue:mixed,rowids:list<mixed>}
+     */
+    private function valueFrameSummaryAt(int $position, int $nth, bool $applyFilter, string $rowidColumn): array
+    {
+        if ($nth <= 0) {
+            throw new \InvalidArgumentException('SQLite VDBE window nth_value() index must be positive');
+        }
+
+        $rows = $this->frameRowsAt($position, $applyFilter);
+        $values = array_map(fn (array $row): mixed => $row[$this->valueColumn], $rows);
+
+        return [
+            'values' => $values,
+            'firstValue' => $values[0] ?? null,
+            'lastValue' => $values[count($values) - 1] ?? null,
+            'nthValue' => $values[$nth - 1] ?? null,
+            'rowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $rows),
+        ];
     }
 
     /**

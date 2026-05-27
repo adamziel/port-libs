@@ -71,12 +71,16 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             $prefix = $loop['prefix'];
             $samples = $sampleMap[self::key($prefix)] ?? [];
             $estimate = self::estimateLoopRows($samples, $lowerInclusive, $upperBound, $upperInclusive, $collation, (int) $loop['matched']);
+            $currentNext = self::currentNextForRange($samples, $lowerInclusive, $upperBound, $upperInclusive, $collation);
             $loopEstimates[] = [
                 'prefix' => $prefix,
                 'matched' => $loop['matched'],
                 'estimatedRows' => $estimate,
                 'sampleCount' => count($samples),
                 'rowids' => $loop['rowids'],
+                'current' => $currentNext['current'],
+                'next' => $currentNext['next'],
+                'rangeSamples' => $currentNext['rangeSamples'],
             ];
             $estimatedRows += $estimate;
         }
@@ -89,6 +93,7 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         return $scan + [
             'stat4SamplesUsed' => array_sum(array_column($loopEstimates, 'sampleCount')),
             'stat4LoopEstimates' => $loopEstimates,
+            'stat4CurrentNextByPrefix' => self::currentNextByPrefix($loopEstimates),
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $cost,
             'orderByMode' => $orderEvidence['mode'],
@@ -96,6 +101,9 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             'partialOrderBy' => $orderEvidence['partial'],
             'blockSortRequired' => $orderEvidence['blockSortRequired'],
             'sortBreakColumns' => $orderEvidence['breakColumns'],
+            'orderByDirections' => $orderEvidence['directions'],
+            'reverseScan' => $orderEvidence['reverseScan'],
+            'sortBlockCount' => $orderEvidence['blockSortRequired'] ? $estimatedSeeks : 0,
             'detail' => self::detail($indexName, $skippedColumn, $rangeColumn, $orderEvidence),
         ];
     }
@@ -148,6 +156,64 @@ final class SQLiteSkipScanStat4PartialOrderPlan
         return max(1, min(max(1, $fallback), $span === 0 ? $fallback : $span));
     }
 
+    /**
+     * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $samples
+     * @return array{current:array<string,mixed>|null,next:array<string,mixed>|null,rangeSamples:int}
+     */
+    private static function currentNextForRange(array $samples, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): array
+    {
+        $inRange = [];
+        foreach ($samples as $sample) {
+            if (self::within($sample['suffix'], $lower, $upper, $upperInclusive, $collation)) {
+                $inRange[] = $sample;
+            }
+        }
+
+        usort($inRange, static fn (array $left, array $right): int => self::compare($left['suffix'], $right['suffix'], $collation));
+
+        return [
+            'current' => self::sampleEvidence($inRange[0] ?? null),
+            'next' => self::sampleEvidence($inRange[1] ?? null),
+            'rangeSamples' => count($inRange),
+        ];
+    }
+
+    /**
+     * @param array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}|null $sample
+     * @return array<string,mixed>|null
+     */
+    private static function sampleEvidence(?array $sample): ?array
+    {
+        if ($sample === null) {
+            return null;
+        }
+
+        return [
+            'prefix' => $sample['prefix'],
+            'suffix' => $sample['suffix'],
+            'nEq' => $sample['nEq'],
+            'nLt' => $sample['nLt'],
+            'nDLt' => $sample['nDLt'],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $loopEstimates
+     * @return list<array{prefix:mixed,current:array<string,mixed>|null,next:array<string,mixed>|null,rangeSamples:int}>
+     */
+    private static function currentNextByPrefix(array $loopEstimates): array
+    {
+        return array_map(
+            static fn (array $loop): array => [
+                'prefix' => $loop['prefix'],
+                'current' => $loop['current'] ?? null,
+                'next' => $loop['next'] ?? null,
+                'rangeSamples' => (int) ($loop['rangeSamples'] ?? 0),
+            ],
+            $loopEstimates,
+        );
+    }
+
     private static function within(mixed $value, mixed $lower, mixed $upper, bool $upperInclusive, string $collation): bool
     {
         if ($value === null) {
@@ -168,30 +234,46 @@ final class SQLiteSkipScanStat4PartialOrderPlan
 
     /**
      * @param list<array{column:string,direction?:string}> $orderBy
-     * @return array{mode:string,satisfied:bool,partial:bool,blockSortRequired:bool,breakColumns:list<string>}
+     * @return array{mode:string,satisfied:bool,partial:bool,blockSortRequired:bool,breakColumns:list<string>,directions:list<string>,reverseScan:bool}
      */
     private static function orderEvidence(string $skippedColumn, string $rangeColumn, array $orderBy): array
     {
         if ($orderBy === []) {
-            return ['mode' => 'none', 'satisfied' => false, 'partial' => false, 'blockSortRequired' => false, 'breakColumns' => []];
+            return ['mode' => 'none', 'satisfied' => false, 'partial' => false, 'blockSortRequired' => false, 'breakColumns' => [], 'directions' => [], 'reverseScan' => false];
         }
 
-        $columns = array_map(static fn (array $term): string => strtolower((string) ($term['column'] ?? '')), $orderBy);
+        $columns = [];
+        $directions = [];
+        foreach ($orderBy as $term) {
+            $column = strtolower((string) ($term['column'] ?? ''));
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if (!in_array($direction, ['ASC', 'DESC'], true)) {
+                throw new \InvalidArgumentException('SQLite STAT4 skip-scan ORDER BY direction must be ASC or DESC');
+            }
+            $columns[] = $column;
+            $directions[] = $direction;
+        }
+
+        $allDesc = $directions !== [] && count(array_unique($directions)) === 1 && $directions[0] === 'DESC';
         if ($columns === [strtolower($skippedColumn), strtolower($rangeColumn)]) {
-            return ['mode' => 'full', 'satisfied' => true, 'partial' => false, 'blockSortRequired' => false, 'breakColumns' => []];
+            if (count(array_unique($directions)) === 1) {
+                return ['mode' => $allDesc ? 'full-reverse' : 'full', 'satisfied' => true, 'partial' => false, 'blockSortRequired' => false, 'breakColumns' => [], 'directions' => $directions, 'reverseScan' => $allDesc];
+            }
+
+            return ['mode' => 'mixed-direction-external-sort', 'satisfied' => false, 'partial' => false, 'blockSortRequired' => true, 'breakColumns' => [$skippedColumn, $rangeColumn], 'directions' => $directions, 'reverseScan' => false];
         }
         if ($columns[0] === strtolower($rangeColumn)) {
-            return ['mode' => 'partial-current-next', 'satisfied' => false, 'partial' => true, 'blockSortRequired' => true, 'breakColumns' => [$skippedColumn]];
+            return ['mode' => 'partial-current-next', 'satisfied' => false, 'partial' => true, 'blockSortRequired' => true, 'breakColumns' => [$skippedColumn], 'directions' => $directions, 'reverseScan' => $directions[0] === 'DESC'];
         }
         if ($columns[0] === strtolower($skippedColumn)) {
-            return ['mode' => 'prefix-only', 'satisfied' => count($columns) === 1, 'partial' => count($columns) > 1, 'blockSortRequired' => count($columns) > 1, 'breakColumns' => [$rangeColumn]];
+            return ['mode' => $directions[0] === 'DESC' ? 'prefix-only-reverse' : 'prefix-only', 'satisfied' => count($columns) === 1, 'partial' => count($columns) > 1, 'blockSortRequired' => count($columns) > 1, 'breakColumns' => [$rangeColumn], 'directions' => $directions, 'reverseScan' => $directions[0] === 'DESC'];
         }
 
-        return ['mode' => 'external-sort', 'satisfied' => false, 'partial' => false, 'blockSortRequired' => true, 'breakColumns' => $columns];
+        return ['mode' => 'external-sort', 'satisfied' => false, 'partial' => false, 'blockSortRequired' => true, 'breakColumns' => $columns, 'directions' => $directions, 'reverseScan' => false];
     }
 
     /**
-     * @param array{mode:string,satisfied:bool,partial:bool,blockSortRequired:bool,breakColumns:list<string>} $orderEvidence
+     * @param array{mode:string,satisfied:bool,partial:bool,blockSortRequired:bool,breakColumns:list<string>,directions:list<string>,reverseScan:bool} $orderEvidence
      */
     private static function detail(string $indexName, string $skippedColumn, string $rangeColumn, array $orderEvidence): string
     {
