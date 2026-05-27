@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 03:51:48 UTC",
-    "sourceCommit": "e331c8db19724a4ba346e1a3ed0df47b3838f3f1",
-    "sourceCommitShort": "e331c8db1972",
+    "generated": "2026-05-27 03:59:00 UTC",
+    "sourceCommit": "9fa6b520717d2f9c744a8e73a65744c135bd8d0a",
+    "sourceCommitShort": "9fa6b520717d",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "c13467cad8ba5e40bd90d46751339d499785325a",
-    "dashboardCommitShort": "c13467cad8ba",
+    "dashboardCommit": "fcd5f398a2afaf4e1715b8a0bd3dd06bce580873",
+    "dashboardCommitShort": "fcd5f398a2af",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "421",
-            "coverage": "421 / 1589",
-            "php": "765 pass / 0 fail",
+            "mapped": "422",
+            "coverage": "422 / 1589",
+            "php": "766 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded current-source encoding replay on...",
-            "currentWork": "Latest encoding slice rejects malformed UTF-8 before SQLite UTF-16LE/UTF-16BE record seri...",
-            "nextTarget": "Next encoding/storage gap: compose validated record text encoding with broader planner/ex...",
+            "audit": "bounded replayed SQL text GROUP BY/HAVING...",
+            "currentWork": "Latest SQL execution/planner slice parses bounded SQLite SELECT text with GROUP BY and HA...",
+            "nextTarget": "Next SQL execution gap: expression ORDER BY or range-cost planner decisions without repea...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "a8b2b07"
+            "commit": "e331c8d"
         },
         {
             "library": "LightningCSS",
