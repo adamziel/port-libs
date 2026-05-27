@@ -119746,3 +119746,36 @@ Pending final gates:
 - Accepted marker artifacts `.ready`, `.patch`, and `.md` were removed after the commit was safely on `main`.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T083111Z` still contains the accepted lane changes as dirty local files, so it was preserved and left registered. The clean detached candidate worktree was clean and removed without `--force`.
 - Dashboard publication should run next because local `refs/heads/main` has moved beyond live Pages source `bcf9b6b38957b788f158f22dba475b13cf360880`.
+## Integration accepted - libsqlite B-tree parent prune - 2026-05-27T08:55:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T083721Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `9e7dbb0b0f9ffccade0eab839514d75a09ddebe8` (`Integrate libsqlite empty leaf batch release`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `9e7dbb0b0f9ffccade0eab839514d75a09ddebe8`, generated `2026-05-27 08:45:34 UTC`, dashboard commit `dd6c28a71f4d10eb5f28e26bb4fdd689c1c14ae0`.
+- No Pages-outage exception was used.
+
+Candidate evidence:
+- The ready marker included `lane=libsqlite`, `base_sha=bcf9b6b38957b788f158f22dba475b13cf360880`, `patch=...port-dev-libsqlite-btree-20260527T083721Z.patch`, and `metadata=...port-dev-libsqlite-btree-20260527T083721Z.md`.
+- Patch sha256 matched the marker: `cb2a282281d5aca5d17be90fe71a0b9911f1a4c36091d25d29a6b7b51c3cddbf`.
+- Whole-patch replay on current `9e7dbb0b` was stale only in manifest/status/test context. The implementation and smoke applied cleanly; tests, manifest, status, and notes were bounded-replayed and reconciled from current source.
+- Effective behavior delta adds `SQLiteBTreeParentPrunePlan`, `wordpress-btree-parent-prune.php`, focused table/index parent-prune assertions, mapped coverage row `focusedBtreeParentPrunePlan`, `phpPass` `794`, and mapped coverage `445 / 1589`.
+- This does not repeat accepted root collapse, page relocation, index-interior merge, empty-leaf batch release, overflow freelist release, JSON dynamic joins, SQL CTEs, or VFS sync apply.
+
+Verification:
+- Syntax: `php -l lanes/libsqlite/src/SQLiteBTreeParentPrunePlan.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `php -l lanes/libsqlite/examples/wordpress-btree-parent-prune.php` all passed.
+- Focused: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 8194 assertions, 0 failures`.
+- WordPress smoke: `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-btree-parent-prune.php` emitted valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before focused/smoke/diff-check were open: `/` had at least `80269852` KiB free, load was below `25`, and no exact no-argument root harness was active.
+
+Root verification:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed from the exact candidate snapshot: `215 test files, 33359 assertions, 0 failures`.
+- The final guard before root was open under the lowered temporary floor: `/` reported at least `79394540` KiB available, load was below `25`, and no exact no-argument root harness was active before lock acquisition.
+
+Decision: accepted. Commit exactly this source-moving slice, consume the ready marker and its patch/metadata artifacts after the commit is safely on `refs/heads/main`, preserve dirty worker worktrees unless cleanly removable without force, and stop for dashboard publication.
+
+Cleanup debt:
+- Preserve the originating worker worktree if it remains dirty after commit. Remove only accepted marker artifacts after the verified commit is safely on `refs/heads/main`.

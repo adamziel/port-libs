@@ -4584,3 +4584,26 @@ diagnostics, secure-delete clearing, and pointer-map mutation machinery.
 Follow-up should continue B-tree delete/rebalance materialization without
 repeating page relocation, root collapse, overflow freelist release,
 single-leaf empty release, or this batch free path.
+
+## B-tree Parent Prune Scenario
+
+Copied WordPress `wp_options` diagnostics can now prune an emptied table or
+index child page from its interior parent after transient cleanup deletes the
+last row or index entry. The smoke
+`examples/wordpress-btree-parent-prune.php` reports right-most and left-child
+parent pointer repair, obsolete child and overflow page freelist release,
+secure-delete clearing, and auto-vacuum pointer-map entries rewritten to
+`free-page` without requiring ext/sqlite.
+
+Status delta 2026-05-27 bounded B-tree replay: added
+`SQLiteBTreeParentPrunePlan` for bounded parent interior page pruning after an
+empty leaf delete. Focused `SQLiteHeaderTest.php` passes at 8194 assertions
+with 0 failures; this slice adds 58 focused assertions over the
+8136-assertion accepted empty-leaf batch baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local B-tree interior cell assembly/parsing, leaf delete results,
+freelist planning, secure-delete clearing, and pointer-map mutation machinery.
+Follow-up should continue multi-level delete/rebalance materialization without
+repeating page relocation, root collapse, index-interior merge, empty-leaf
+batch release, overflow freelist release, or this parent-prune path.

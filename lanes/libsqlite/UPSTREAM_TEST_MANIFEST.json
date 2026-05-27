@@ -1126,6 +1126,12 @@
             "phpPass": 1,
             "phpFail": 0,
             "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance and pointer-map evidence while adding native interior redistribution assertions."
+        },
+        "focusedBtreeParentPrunePlan": {
+            "upstreamScope": "SQLite b-tree delete/rebalance parent pruning after a child leaf becomes empty, represented as bounded native PHP page-image planning rather than a fresh upstream Tcl run.",
+            "nativeEvidence": "SQLiteBTreeParentPrunePlan focused PHP coverage plus copied wp_options parent-prune smoke.",
+            "status": "mapped-focused-native",
+            "phpPass": 1
         }
     },
     "wordpressScenarios": {

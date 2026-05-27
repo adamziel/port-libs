@@ -13,6 +13,7 @@ use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreePlan;
 use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafBatchFreePlan;
+use PortLibs\LibSqlite\SQLiteBTreeParentPrunePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageMovePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBTreeRootCollapsePlan;
@@ -23171,5 +23172,142 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::indexLeafFromDeleteResult($database, 3, $emptyDelete));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::indexLeafFromDeleteResult($database, 3, ['page' => $indexPage, 'record_values' => ['siteurl', 1], 'obsolete_overflow_page_numbers' => []]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 2, ['page' => $emptyDelete['page'], 'rowids' => [1], 'obsolete_overflow_page_numbers' => ['bad']]));
+    },
+    'plans sqlite table parent prune after empty rightmost child delete' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 6);
+        $parentPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(3, 20),
+            SQLiteTableInteriorCell::encode(4, 40),
+        ], 5, $pageSize);
+        $leftLeaf = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes']))], $pageSize);
+        $middleLeaf = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(30, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes']))], $pageSize);
+        $payload = SQLiteRecord::encode([null, '_transient_parent_prune', str_repeat('cached:', 90), 'no']);
+        $localLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $pageSize);
+        $overflowPage = SQLiteOverflowPage::encodeChainAtPages(substr($payload, $localLength), [6], $pageSize)[6];
+        $rightLeaf = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(50, $payload, $pageSize, 6)], $pageSize);
+        $delete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease(
+            $rightLeaf,
+            50,
+            static fn (int $_firstOverflowPage, int $_byteCount): array => [6],
+            secureDelete: true,
+        );
+        $database = SQLiteDatabase::fromBytes($firstPage . $parentPage . $leftLeaf . $middleLeaf . $rightLeaf . $overflowPage);
+
+        $plan = SQLiteBTreeParentPrunePlan::tableChild($database, 2, 5, $delete, true);
+        $postPages = [1 => $database->page(1), 2 => $database->page(2), 3 => $database->page(3), 4 => $database->page(4), 5 => $database->page(5), 6 => $database->page(6)];
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $postParentHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(2), $pageSize);
+        $postParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postParentHeader);
+
+        $t->same(SQLiteBTreeParentPrunePlan::class, get_class($plan));
+        $t->same('parent-prune-empty-child', $plan->toArray()['action']);
+        $t->same(2, $plan->parentPageNumber);
+        $t->same(5, $plan->obsoleteChildPageNumber);
+        $t->same('table-interior', $plan->parentPageType);
+        $t->same('table-leaf', $plan->childPageType);
+        $t->same(2, $plan->parentBeforeCellCount);
+        $t->same(1, $plan->parentAfterCellCount);
+        $t->same(5, $plan->rightMostPointerBefore);
+        $t->same(4, $plan->rightMostPointerAfter);
+        $t->same([50], $plan->deletedRowIds);
+        $t->same([], $plan->deletedRecordValues);
+        $t->same([6], $plan->obsoleteOverflowPageNumbers);
+        $t->same([5, 6], $plan->freedPageNumbers);
+        $t->same([1, 2, 5, 6], array_keys($plan->pageImages));
+        $t->same(1, $postParentHeader->cellCount);
+        $t->same(4, $postParentHeader->rightMostPointer);
+        $t->same([3], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $postParentCells));
+        $t->same([20], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $postParentCells));
+        $t->same([5, 6], $postDatabase->freelistPageNumbers());
+        $t->same([6, 5], $postDatabase->freelistAllocationOrder());
+        $t->same(5, SQLiteHeader::parse($plan->pageImages[1])->firstFreelistTrunkPage);
+        $t->same(2, SQLiteHeader::parse($plan->pageImages[1])->freelistPageCount);
+        $t->same(0, unpack('N', substr($plan->pageImages[5], 0, 4))[1]);
+        $t->same([6], SQLiteFreelistTrunkPage::parse(5, $plan->pageImages[5], $pageSize, $pageSize)->leafPageNumbers);
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(6));
+    },
+    'plans sqlite index parent prune after empty left child delete with auto-vacuum pointer map' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 7);
+        $firstPage = substr_replace($firstPage, pack('N', 4), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([3 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 5 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 6 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 7 => [SQLitePointerMapEntry::BTREE_PAGE, 4]] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - 3), 5);
+        }
+        $parentPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 'no', 7]), $pageSize, null, 3),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['transient', 'yes', 12]), $pageSize, null, 5),
+        ], 6, $pageSize);
+        $leftLeaf = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 'no', 7])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 'no', 8])),
+        ], $pageSize);
+        $middleLeaf = SQLiteIndexLeafPage::assemble([SQLiteIndexCell::encode(SQLiteRecord::encode(['transient', 'yes', 12]))], $pageSize);
+        $rightLeaf = SQLiteIndexLeafPage::assemble([SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 'yes', 20]))], $pageSize);
+        $delete = SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease(
+            $leftLeaf,
+            [['autoload', 'no', 7], ['autoload', 'no', 8]],
+            static fn (int $_firstOverflowPage, int $_byteCount): array => [],
+            secureDelete: true,
+        );
+        $database = SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $leftLeaf . $parentPage . $middleLeaf . $rightLeaf . $emptyPage);
+
+        $plan = SQLiteBTreeParentPrunePlan::indexChild($database, 4, 3, $delete, true);
+        $postPages = [1 => $database->page(1), 2 => $database->page(2), 3 => $database->page(3), 4 => $database->page(4), 5 => $database->page(5), 6 => $database->page(6), 7 => $database->page(7)];
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $postParentHeader = SQLiteBTreePageHeader::parsePage($postDatabase->page(4), $pageSize);
+        $postParentCells = SQLiteIndexCell::parsePageCells($postDatabase->page(4), $postParentHeader, $pageSize);
+        $postParentRecords = array_map(static fn (SQLiteIndexCell $cell): array => SQLiteRecord::parse($cell->payload)->values, $postParentCells);
+
+        $t->same('parent-prune-empty-child', $plan->toArray()['action']);
+        $t->same(4, $plan->parentPageNumber);
+        $t->same(3, $plan->obsoleteChildPageNumber);
+        $t->same('index-interior', $plan->parentPageType);
+        $t->same('index-leaf', $plan->childPageType);
+        $t->same(2, $plan->parentBeforeCellCount);
+        $t->same(1, $plan->parentAfterCellCount);
+        $t->same(6, $plan->rightMostPointerBefore);
+        $t->same(6, $plan->rightMostPointerAfter);
+        $t->same([], $plan->deletedRowIds);
+        $t->same([['autoload', 'no', 7], ['autoload', 'no', 8]], $plan->deletedRecordValues);
+        $t->same([], $plan->obsoleteOverflowPageNumbers);
+        $t->same([3], $plan->freedPageNumbers);
+        $t->same([1, 2, 3, 4], array_keys($plan->pageImages));
+        $t->same([2], array_keys($plan->freePlan->updatedPointerMapPages));
+        $t->same([], $plan->freePlan->clearedPageNumbers);
+        $t->same(1, $postParentHeader->cellCount);
+        $t->same(6, $postParentHeader->rightMostPointer);
+        $t->same([5], array_map(static fn (SQLiteIndexCell $cell): int => $cell->leftChildPage ?? 0, $postParentCells));
+        $t->same([['transient', 'yes', 12]], $postParentRecords);
+        $t->same([3], $postDatabase->freelistPageNumbers());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(3)->parentPageNumber);
+        $t->same([], SQLiteFreelistTrunkPage::parse(3, $plan->pageImages[3], $pageSize, $pageSize)->leafPageNumbers);
+        $t->same(['action' => 'parent-prune-empty-child', 'parent_page' => 4, 'obsolete_child_page' => 3, 'parent_page_type' => 'index-interior', 'child_page_type' => 'index-leaf', 'parent_before_cells' => 2, 'parent_after_cells' => 1, 'right_most_pointer_before' => 6, 'right_most_pointer_after' => 6, 'deleted_rowids' => [], 'deleted_record_values' => [['autoload', 'no', 7], ['autoload', 'no', 8]], 'obsolete_overflow_pages' => [], 'freed_pages' => [3], 'freelist_page_count' => 1, 'first_freelist_trunk_page' => 3, 'updated_page_numbers' => [1, 2, 3, 4], 'updated_pointer_map_page_numbers' => [2], 'secure_delete_cleared_pages' => []], $plan->toArray());
+    },
+    'rejects sqlite parent prune for non-empty child, missing parent reference, or empty-parent collapse cases' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 4);
+        $parentPage = SQLiteTableInteriorPage::assemble([SQLiteTableInteriorCell::encode(3, 20)], 4, $pageSize);
+        $leftLeaf = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(10, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes']))], $pageSize);
+        $rightLeaf = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(30, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes']))], $pageSize);
+        $delete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($leftLeaf, 10, static fn (int $_firstOverflowPage, int $_byteCount): array => []);
+        $database = SQLiteDatabase::fromBytes($firstPage . $parentPage . $leftLeaf . $rightLeaf);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 3, $delete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 4, ['page' => $rightLeaf, 'rowids' => [30], 'obsolete_overflow_page_numbers' => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 9, $delete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 3, 4, $delete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::indexChild($database, 2, 3, $delete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 3, ['page' => $delete['page'], 'obsolete_overflow_page_numbers' => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeParentPrunePlan::tableChild($database, 2, 3, ['page' => $delete['page'], 'rowids' => [10], 'obsolete_overflow_page_numbers' => ['bad']]));
     },
 ];
