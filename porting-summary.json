@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 16:45:12 UTC",
-    "sourceCommit": "65c2604262f6bf9ab39500a30cd9cb9c76428812",
-    "sourceCommitShort": "65c2604262f6",
+    "generated": "2026-05-27 17:00:21 UTC",
+    "sourceCommit": "4e7dbe25b0fee516ea96b5e41e63b5b705f0ad61",
+    "sourceCommitShort": "4e7dbe25b0fe",
     "sourceBranch": "main",
-    "dashboardCommit": "f510125e73c43ca91635f95398bbd19a880379b0",
-    "dashboardCommitShort": "f510125e73c4",
+    "dashboardCommit": "8ddbbd267d34ac92b1d03a75ef1032b4371f9978",
+    "dashboardCommitShort": "8ddbbd267d34",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "450",
             "coverage": "450 / 1589",
-            "php": "803 pass / 0 fail",
+            "php": "933 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Update-from conflict-current slice verifi...",
-            "currentWork": "Added SQLiteUpdateFromSql bounded UPDATE FROM SQL execution over row arrays. It delegates...",
-            "nextTarget": "Continue non-overlapping SQL executor/planner, pager/VFS transaction application, JSON pl...",
+            "audit": "Upstream-style PHP corpus verified by sup...",
+            "currentWork": "Added SQLiteUpstreamCorpusTest.php with 130 independent upstream-style PHP PASS cases cov...",
+            "nextTarget": "Continue high-yield libsqlite closure: accept behavior-producing patches that add at leas...",
             "blocker": "Full SQLite release/all-suite parity remains gated by remaining native pa...",
-            "commit": "update-"
+            "commit": "upstrea"
         },
         {
             "library": "LightningCSS",
