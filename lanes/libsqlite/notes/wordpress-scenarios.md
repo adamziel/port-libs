@@ -4560,3 +4560,27 @@ expression evaluator, join executor, and copied WordPress option fixtures.
 Follow-up should broaden JSON planner/JSONB behavior without repeating
 accepted JSON hidden/visible constraints, parser-level JSON table SELECT
 sources, JSON cursor iteration, or this row-correlated dynamic JOIN path.
+
+## B-tree Empty Leaf Batch Free Scenario
+
+Copied WordPress `wp_options` diagnostics can now batch-release multiple
+emptied B-tree leaves after a transient cleanup deletes the final table row and
+the matching `option_name` index entry. The smoke
+`examples/wordpress-btree-empty-leaf-batch-free.php` reports both emptied
+leaves plus obsolete overflow pages released through one freelist operation,
+secure-delete clearing of released leaf/overflow pages, preserved existing
+freelist trunk shape, and auto-vacuum pointer-map entries rewritten to
+`free-page` without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteBTreeEmptyLeafBatchFreePlan` for bounded multi-leaf delete/rebalance
+release. Focused `SQLiteHeaderTest.php` passes at 8136 assertions with
+0 failures; this slice adds 60 focused assertions over the 8076-assertion
+lane-status baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local B-tree leaf delete helpers, freelist planning, overflow page
+diagnostics, secure-delete clearing, and pointer-map mutation machinery.
+Follow-up should continue B-tree delete/rebalance materialization without
+repeating page relocation, root collapse, overflow freelist release,
+single-leaf empty release, or this batch free path.

@@ -119714,3 +119714,35 @@ Decision: accepted. Commit exactly this source-moving slice, consume the ready m
 Cleanup:
 - Consumed accepted marker artifacts: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.ready`, `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.patch`, and `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T081959Z.md`.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T081959Z` still contains modified lane files from the handed-off patch, so it was preserved and left registered as cleanup debt rather than removed.
+## Integration accepted - libsqlite B-tree empty leaf batch release - 2026-05-27T08:39:31Z
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before the pass was `bcf9b6b38957b788f158f22dba475b13cf360880` (`Integrate libsqlite JSON dynamic joins`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `bcf9b6b38957b788f158f22dba475b13cf360880`, `generated` `2026-05-27 08:33:08 UTC`, and `dashboardCommit` `6405dd6533b3ee47eff2c2b2a02866dbeee5e28e`.
+- The dashboard guard was open for exactly one source-moving libsqlite marker. No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T083111Z.ready`.
+- Marker metadata was complete: `lane=libsqlite`, `base_sha=839ea381834840995aa1d2e8bab3442aac6924b7`, `patch=...port-dev-libsqlite-btree-20260527T083111Z.patch`, and `metadata=...port-dev-libsqlite-btree-20260527T083111Z.md`.
+- Patch sha256 matched the ready marker: `f24462d6de9c73fa802d81c51cc9716927aa96869d2ed4a80a19f39849ca3e48`.
+- In detached clean candidate `.tmux-team/tmp/clean-integrator-candidates/btree-batch-free-20260527T083111Z` from current source `bcf9b6b38957b788f158f22dba475b13cf360880`, `git apply --check` passed and the patch applied cleanly.
+- The effective delta is a focused B-tree batch-free behavior slice: `SQLiteBTreeEmptyLeafBatchFreePlan`, copied WordPress empty-leaf batch-free smoke, focused assertions, manifest/status, and lane notes. It does not repeat accepted root-collapse, page relocation, overflow freelist release, or JSON dynamic join work.
+- A competing WAL transaction append marker had a larger reported `+74` assertion delta but required bounded status/manifest/notes replay from older source `276fafa0`; the clean-applying B-tree marker was selected as the strongest immediately processable non-overlapping behavior slice.
+
+Runtime and verification evidence:
+- Runtime gates before focused checks were open: `df -Pk /` reported `81324712` KiB available, load was `1.14`, and no exact no-argument root harness was active.
+- `php -l` passed for `lanes/libsqlite/src/SQLiteBTreeEmptyLeafBatchFreePlan.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-btree-empty-leaf-batch-free.php`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-btree-empty-leaf-batch-free.php` passed and emitted valid JSON with freed pages `[3,6,9,5,11]`, freelist `[4,10,3,6,9,5,11]`, and pointer-map `free-page` rewrites.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 8136 assertions, 0 failures`.
+- Remaining ready-marker count at focused-test decision time: `7794` total ready markers, including `4103` `port-dev-libsqlite-*` ready markers.
+
+Pending final gates:
+- `git diff --check` passed from the exact candidate snapshot.
+- Serialized no-argument root ran with repo-local `TMPDIR` under `.tmux-team/tmp/clean-integrator-run.lock` and passed: `215 test files, 33301 assertions, 0 failures`.
+- Before final commit, `refs/heads/main` still equaled `bcf9b6b38957b788f158f22dba475b13cf360880`.
+- Decision: accepted for one source-moving commit (`Integrate libsqlite empty leaf batch release`), with an audit-only amend for cleanup-debt evidence after the passing root run.
+- Accepted marker artifacts `.ready`, `.patch`, and `.md` were removed after the commit was safely on `main`.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T083111Z` still contains the accepted lane changes as dirty local files, so it was preserved and left registered. The clean detached candidate worktree was clean and removed without `--force`.
+- Dashboard publication should run next because local `refs/heads/main` has moved beyond live Pages source `bcf9b6b38957b788f158f22dba475b13cf360880`.
