@@ -1041,7 +1041,7 @@ final class SQLitePragmaSchemaCatalog
 
     private static function generatedHiddenCode(string $tail): int
     {
-        if (!self::containsTopLevelKeyword($tail, 'GENERATED') && !self::containsTopLevelKeyword($tail, 'AS')) {
+        if (self::generatedAsExpressionOffset($tail) === null) {
             return 0;
         }
         if (self::containsTopLevelKeyword($tail, 'STORED')) {
@@ -1049,6 +1049,25 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return 2;
+    }
+
+    private static function generatedAsExpressionOffset(string $tail): ?int
+    {
+        $offset = 0;
+        while (true) {
+            $asOffset = self::findTopLevelKeyword(substr($tail, $offset), 'AS');
+            if ($asOffset === null) {
+                return null;
+            }
+
+            $asOffset += $offset;
+            $after = ltrim(substr($tail, $asOffset + strlen('AS')));
+            if ($after !== '' && $after[0] === '(') {
+                return $asOffset;
+            }
+
+            $offset = $asOffset + strlen('AS');
+        }
     }
 
     private static function createIndexIsUnique(string $sql): bool

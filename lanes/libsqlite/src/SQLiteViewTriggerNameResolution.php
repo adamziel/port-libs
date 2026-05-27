@@ -10,7 +10,7 @@ final class SQLiteViewTriggerNameResolution
 {
     /**
      * @param list<SQLiteSchemaRecord> $records
-     * @return array{trigger:string,target:string,targetType:string,targetTemporary:bool,insteadOf:bool,columns:list<string>,referencedNew:list<string>,referencedOld:list<string>,missingNew:list<string>,missingOld:list<string>,bodyDependencies:list<string>,status:string}
+     * @return array{trigger:string,triggerSchema:string,target:string,targetSchema:string,targetType:string,targetTemporary:bool,insteadOf:bool,columns:list<string>,referencedNew:list<string>,referencedOld:list<string>,missingNew:list<string>,missingOld:list<string>,bodyDependencies:list<string>,status:string}
      */
     public static function resolveTrigger(array $records, string $triggerName): array
     {
@@ -23,9 +23,11 @@ final class SQLiteViewTriggerNameResolution
         }
 
         $trigger = self::parseTrigger($triggerRecord->sql);
-        $target = self::resolveTarget($records, $trigger['table'], self::isTemporaryObject($triggerRecord));
+        $triggerSchema = self::schemaOfRecord($triggerRecord);
+        $target = self::resolveTarget($records, $trigger['table'], self::isTemporaryObject($triggerRecord), $trigger['schema']);
         if ($target === null) {
-            throw new InvalidArgumentException("SQLite trigger target does not resolve: {$trigger['table']}");
+            $qualifiedName = $trigger['schema'] === null ? $trigger['table'] : $trigger['schema'] . '.' . $trigger['table'];
+            throw new InvalidArgumentException("SQLite trigger target does not resolve: {$qualifiedName}");
         }
 
         $columns = self::columnsForRecord($target);
@@ -34,7 +36,9 @@ final class SQLiteViewTriggerNameResolution
 
         return [
             'trigger' => $triggerRecord->name,
+            'triggerSchema' => $triggerSchema,
             'target' => $target->name,
+            'targetSchema' => self::schemaOfRecord($target),
             'targetType' => strtolower($target->type),
             'targetTemporary' => self::isTemporaryObject($target),
             'insteadOf' => $trigger['timing'] === 'instead of',
@@ -50,7 +54,7 @@ final class SQLiteViewTriggerNameResolution
 
     /**
      * @param list<SQLiteSchemaRecord> $records
-     * @return list<array{trigger:string,target:string,targetType:string,targetTemporary:bool,insteadOf:bool,columns:list<string>,referencedNew:list<string>,referencedOld:list<string>,missingNew:list<string>,missingOld:list<string>,bodyDependencies:list<string>,status:string}>
+     * @return list<array{trigger:string,triggerSchema:string,target:string,targetSchema:string,targetType:string,targetTemporary:bool,insteadOf:bool,columns:list<string>,referencedNew:list<string>,referencedOld:list<string>,missingNew:list<string>,missingOld:list<string>,bodyDependencies:list<string>,status:string}>
      */
     public static function resolveTriggers(array $records): array
     {
@@ -120,11 +124,14 @@ final class SQLiteViewTriggerNameResolution
     /**
      * @param list<SQLiteSchemaRecord> $records
      */
-    private static function resolveTarget(array $records, string $name, bool $tempTrigger): ?SQLiteSchemaRecord
+    private static function resolveTarget(array $records, string $name, bool $tempTrigger, ?string $schema): ?SQLiteSchemaRecord
     {
         $matches = [];
         foreach ($records as $record) {
             if (!in_array(strtolower($record->type), ['table', 'view'], true) || strcasecmp($record->name, $name) !== 0) {
+                continue;
+            }
+            if ($schema !== null && strcasecmp(self::schemaOfRecord($record), $schema) !== 0) {
                 continue;
             }
             $matches[] = $record;
@@ -139,6 +146,9 @@ final class SQLiteViewTriggerNameResolution
             if ($tempTrigger && $leftTemp !== $rightTemp) {
                 return $leftTemp ? -1 : 1;
             }
+            if (!$tempTrigger && $leftTemp !== $rightTemp) {
+                return $leftTemp ? 1 : -1;
+            }
 
             return $left->rowId <=> $right->rowId;
         });
@@ -147,17 +157,19 @@ final class SQLiteViewTriggerNameResolution
     }
 
     /**
-     * @return array{timing:string,table:string}
+     * @return array{timing:string,schema:?string,table:string}
      */
     private static function parseTrigger(string $sql): array
     {
-        if (!preg_match('/\bcreate\s+(?:temp(?:orary)?\s+)?trigger\s+(?:if\s+not\s+exists\s+)?(?:["`\[]?[\w]+["`\]]?\s*\.\s*)?["`\[]?[\w]+["`\]]?\s+(?:(before|after|instead\s+of)\s+)?(?:insert|delete|update)(?:\s+of\s+[^;]+?)?\s+on\s+(?:["`\[]?[\w]+["`\]]?\s*\.\s*)?(["`\[]?[\w]+["`\]]?)/is', $sql, $matches)) {
+        $identifier = '(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)';
+        if (!preg_match('/\bcreate\s+(?:temp(?:orary)?\s+)?trigger\s+(?:if\s+not\s+exists\s+)?(?:' . $identifier . '\s*\.\s*)?' . $identifier . '\s+(?:(before|after|instead\s+of)\s+)?(?:insert|delete|update)(?:\s+of\s+[^;]+?)?\s+on\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<table>' . $identifier . ')/is', $sql, $matches)) {
             throw new InvalidArgumentException('SQLite trigger SQL must include a target table or view');
         }
 
         return [
             'timing' => isset($matches[1]) && $matches[1] !== '' ? strtolower((string) preg_replace('/\s+/', ' ', $matches[1])) : 'before',
-            'table' => self::unquoteIdentifier($matches[2]),
+            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? self::unquoteIdentifier($matches['schema']) : null,
+            'table' => self::unquoteIdentifier($matches['table']),
         ];
     }
 
@@ -335,6 +347,18 @@ final class SQLiteViewTriggerNameResolution
     private static function isTemporaryObject(SQLiteSchemaRecord $record): bool
     {
         return (bool) ($record->sql !== null && preg_match('/\bcreate\s+temp(?:orary)?\s+/i', $record->sql));
+    }
+
+    private static function schemaOfRecord(SQLiteSchemaRecord $record): string
+    {
+        if (self::isTemporaryObject($record)) {
+            return 'temp';
+        }
+        if ($record->sql !== null && preg_match('/\bcreate\s+(?:table|view|trigger)\s+(?:if\s+not\s+exists\s+)?(?<schema>"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)\s*\./i', $record->sql, $matches)) {
+            return self::unquoteIdentifier($matches['schema']);
+        }
+
+        return 'main';
     }
 
     private static function unquoteIdentifier(string $identifier): string

@@ -68,7 +68,7 @@ $cases = [
         $stack->rollbackStatementOnErrorWithPlan('insert-duplicate-option', 512);
         return $stack->pendingWalFrameIndexes();
     },
-    'statement rollback with plan keeps pending page numbers for savepoint rollback' => static function () use ($makeStack): mixed {
+    'statement rollback with plan restores prior pending page numbers for savepoint rollback' => static function () use ($makeStack): mixed {
         $stack = $makeStack();
         $stack->rollbackStatementOnErrorWithPlan('insert-duplicate-option', 512);
         return $stack->pendingPageNumbers();
@@ -293,7 +293,7 @@ $expected = [
     'statement rollback with plan leaves savepoint names' => ['wp-import', 'plugin-options'],
     'statement rollback with plan clears statement journal state' => [],
     'statement rollback with plan trims pending wal frames' => [1, 2],
-    'statement rollback with plan keeps pending page numbers for savepoint rollback' => [1, 2, 3, 4],
+    'statement rollback with plan restores prior pending page numbers for savepoint rollback' => [1, 2],
     'statement rollback with plan keeps outer savepoint rollback images' => 'before-plugin-option',
     'statement rollback with plan allows later wal frame recording' => [1, 2, 3],
     'statement rollback with plan returns discarded frame page numbers' => [3, 4],

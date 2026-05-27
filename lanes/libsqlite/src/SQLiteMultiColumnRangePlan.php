@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteMultiColumnRangePlan
 {
     /**
-     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return null|array<string,mixed>
@@ -20,7 +20,7 @@ final class SQLiteMultiColumnRangePlan
     }
 
     /**
-     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array<string,mixed>>
@@ -43,12 +43,17 @@ final class SQLiteMultiColumnRangePlan
 
             $prefix = self::usablePrefix($columns, $constraints);
             if ($prefix['count'] === 0 || $prefix['rangeColumn'] === null) {
-                continue;
+                $prefix = self::usableSkipScanPrefix($columns, $constraints, $index);
+                if ($prefix['count'] === 0 || $prefix['rangeColumn'] === null) {
+                    continue;
+                }
             }
 
             $estimatedRows = self::estimatedRows($index, $prefix);
-            $orderBySatisfied = self::orderBySatisfied($columns, $orderBy, $prefix['equalityPrefix'], $prefix['rangeColumn']);
-            $cost = $estimatedRows + 40 - ($prefix['equalityPrefix'] * 10) + (count($prefix['residualRangeColumns']) * 3);
+            $orderBySatisfied = $prefix['usesSkipScan']
+                ? self::skipScanOrderBySatisfied($columns, $orderBy, $prefix['skippedColumns'], $prefix['equalityPrefix'], $prefix['rangeColumn'])
+                : self::orderBySatisfied($columns, $orderBy, $prefix['equalityPrefix'], $prefix['rangeColumn']);
+            $cost = $estimatedRows + 40 - ($prefix['equalityPrefix'] * 10) + (count($prefix['residualRangeColumns']) * 3) + $prefix['skipScanPenalty'];
             if ($orderBySatisfied) {
                 $cost -= 8;
             }
@@ -65,6 +70,11 @@ final class SQLiteMultiColumnRangePlan
                 'residualRangeColumns' => $prefix['residualRangeColumns'],
                 'residualConstraints' => $prefix['residualConstraints'],
                 'residualPredicateRequired' => $prefix['residualConstraints'] !== [],
+                'usesSkipScan' => $prefix['usesSkipScan'],
+                'skippedColumns' => $prefix['skippedColumns'],
+                'skipScanLoops' => $prefix['skipScanLoops'],
+                'skipScanPenalty' => $prefix['skipScanPenalty'],
+                'currentIndexColumnOffset' => $prefix['currentIndexColumnOffset'],
                 'orderBySatisfied' => $orderBySatisfied,
                 'estimatedRows' => $estimatedRows,
                 'estimatedCost' => max(1, $cost),
@@ -188,7 +198,7 @@ final class SQLiteMultiColumnRangePlan
     /**
      * @param list<SQLiteIndexColumn> $columns
      * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
-     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>}
+     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
      */
     private static function usablePrefix(array $columns, array $constraints): array
     {
@@ -238,7 +248,109 @@ final class SQLiteMultiColumnRangePlan
             'rangeConstraint' => $rangeConstraint,
             'residualRangeColumns' => array_values($residualRangeColumns),
             'residualConstraints' => $residualConstraints,
+            'usesSkipScan' => false,
+            'skippedColumns' => [],
+            'skipScanLoops' => 1,
+            'skipScanPenalty' => 0,
+            'currentIndexColumnOffset' => max(0, $equalityPrefix),
         ];
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $columns
+     * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
+     * @param array{distinctValues?:array<string,int>} $index
+     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
+     */
+    private static function usableSkipScanPrefix(array $columns, array $constraints, array $index): array
+    {
+        $empty = [
+            'count' => 0,
+            'usedColumns' => [],
+            'equalityPrefix' => 0,
+            'rangeColumn' => null,
+            'rangeConstraint' => null,
+            'residualRangeColumns' => [],
+            'residualConstraints' => [],
+            'usesSkipScan' => false,
+            'skippedColumns' => [],
+            'skipScanLoops' => 1,
+            'skipScanPenalty' => 0,
+            'currentIndexColumnOffset' => 0,
+        ];
+
+        $columnCount = count($columns);
+        for ($start = 1; $start < $columnCount; $start++) {
+            $skippedColumns = array_map(
+                static fn (SQLiteIndexColumn $column): string => $column->columnName,
+                array_slice($columns, 0, $start),
+            );
+            if (!self::skippedColumnsHaveLoopEvidence($index, $skippedColumns)) {
+                continue;
+            }
+
+            $used = [];
+            $equalityPrefix = 0;
+            $rangeColumn = null;
+            $rangeConstraint = null;
+            $residualConstraints = [];
+            $pastRange = false;
+
+            for ($offset = $start; $offset < $columnCount; $offset++) {
+                $column = $columns[$offset];
+                $matches = $constraints[strtolower($column->columnName)] ?? [];
+                if ($pastRange) {
+                    array_push($residualConstraints, ...self::rangeConstraints($matches));
+                    continue;
+                }
+
+                $equality = self::firstConstraint($matches, ['point', 'IN']);
+                if ($equality !== null && self::hasNonNullValue($equality['values'])) {
+                    $used[] = $column->columnName;
+                    $equalityPrefix++;
+                    continue;
+                }
+
+                $range = self::firstRangeConstraint($matches);
+                if ($range !== null && self::hasNonNullValue($range['values'])) {
+                    $used[] = $column->columnName;
+                    $rangeColumn = $column->columnName;
+                    $rangeConstraint = $range;
+                    $pastRange = true;
+                    continue;
+                }
+                break;
+            }
+
+            if ($equalityPrefix === 0 || $rangeColumn === null) {
+                continue;
+            }
+
+            $residualRangeColumns = [];
+            foreach ($residualConstraints as $constraint) {
+                $key = strtolower($constraint['column']);
+                $residualRangeColumns[$key] = $constraint['column'];
+            }
+
+            $skipScanLoops = self::skipScanLoops($index, $skippedColumns);
+
+            return [
+                'count' => count($used),
+                'usedColumns' => $used,
+                'equalityPrefix' => $equalityPrefix,
+                'rangeColumn' => $rangeColumn,
+                'rangeConstraint' => $rangeConstraint,
+                'residualRangeColumns' => array_values($residualRangeColumns),
+                'residualConstraints' => $residualConstraints,
+                'usesSkipScan' => true,
+                'skippedColumns' => $skippedColumns,
+                'skipScanLoops' => $skipScanLoops,
+                'skipScanPenalty' => 18 + ($skipScanLoops * 4) + (($start - 1) * 8),
+                'currentIndexColumnOffset' => $start + $equalityPrefix,
+            ];
+        }
+
+        return $empty;
     }
 
     /**
@@ -314,7 +426,7 @@ final class SQLiteMultiColumnRangePlan
 
     /**
      * @param array{estimatedRows?:int} $index
-     * @param array{equalityPrefix:int,residualRangeColumns:list<string>} $prefix
+     * @param array{equalityPrefix:int,residualRangeColumns:list<string>,usesSkipScan?:bool,skipScanLoops?:int} $prefix
      */
     private static function estimatedRows(array $index, array $prefix): int
     {
@@ -326,8 +438,126 @@ final class SQLiteMultiColumnRangePlan
         for ($i = 0; $i < $prefix['equalityPrefix']; $i++) {
             $selectivity *= 0.08;
         }
+        if (($prefix['usesSkipScan'] ?? false) === true) {
+            $selectivity *= min(1.0, max(1, $prefix['skipScanLoops'] ?? 1) * 0.35);
+        }
 
         return max(1, min($baseRows, (int) ceil($baseRows * $selectivity)));
+    }
+
+    /**
+     * @param array{distinctValues?:array<string,int>} $index
+     * @param list<string> $skippedColumns
+     */
+    private static function skippedColumnsHaveLoopEvidence(array $index, array $skippedColumns): bool
+    {
+        foreach ($skippedColumns as $column) {
+            if (self::distinctValueCount($index, $column) < 2) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{distinctValues?:array<string,int>} $index
+     * @param list<string> $skippedColumns
+     */
+    private static function skipScanLoops(array $index, array $skippedColumns): int
+    {
+        $loops = 1;
+        foreach ($skippedColumns as $column) {
+            $loops *= self::distinctValueCount($index, $column);
+        }
+
+        return max(1, $loops);
+    }
+
+    /**
+     * @param array{distinctValues?:array<string,int>} $index
+     */
+    private static function distinctValueCount(array $index, string $column): int
+    {
+        $distinctValues = $index['distinctValues'] ?? [];
+        if (!is_array($distinctValues)) {
+            return 0;
+        }
+        foreach ($distinctValues as $key => $count) {
+            if (strcasecmp((string) $key, $column) !== 0) {
+                continue;
+            }
+            if (!is_int($count) || $count < 1) {
+                throw new \InvalidArgumentException('SQLite multicolumn range distinctValues counts must be positive integers');
+            }
+
+            return $count;
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $columns
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $skippedColumns
+     */
+    private static function skipScanOrderBySatisfied(array $columns, array $orderBy, array $skippedColumns, int $equalityPrefix, ?string $rangeColumn): bool
+    {
+        if ($orderBy === [] || $rangeColumn === null) {
+            return false;
+        }
+        $leadingOrder = array_slice($orderBy, 0, count($skippedColumns));
+        if (count($leadingOrder) !== count($skippedColumns)) {
+            self::validateOrderBy($orderBy);
+
+            return false;
+        }
+        foreach ($leadingOrder as $offset => $order) {
+            $column = self::orderColumn($order);
+            if (strcasecmp($column, $skippedColumns[$offset]) !== 0) {
+                return false;
+            }
+        }
+
+        return self::orderBySatisfied($columns, $orderBy, 0, $rangeColumn);
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function validateOrderBy(array $orderBy): void
+    {
+        foreach ($orderBy as $order) {
+            self::orderColumn($order);
+            self::orderDirection($order);
+        }
+    }
+
+    /**
+     * @param array{column:string,direction?:string} $order
+     */
+    private static function orderColumn(array $order): string
+    {
+        $column = $order['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            throw new \InvalidArgumentException('SQLite multicolumn range ORDER BY column must be a column name');
+        }
+
+        return $column;
+    }
+
+    /**
+     * @param array{column:string,direction?:string} $order
+     */
+    private static function orderDirection(array $order): string
+    {
+        $direction = strtoupper((string) ($order['direction'] ?? 'ASC'));
+        if ($direction !== 'ASC' && $direction !== 'DESC') {
+            throw new \InvalidArgumentException('SQLite multicolumn range ORDER BY direction must be ASC or DESC');
+        }
+
+        return $direction;
     }
 
     private static function hasNonNullValue(mixed $value): bool
