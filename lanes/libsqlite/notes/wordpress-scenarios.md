@@ -3703,3 +3703,25 @@ assertions and 0 failures.
 Dependency closure: no new shared support component is needed. This is a
 lane-local VFS/open admission helper; a future real VFS/process-lock component
 remains gated on durable cross-process byte-range locking evidence.
+
+## SQLite VFS Sidecar Preflight Scenario
+
+Copied WordPress database tooling can now resolve bounded SQLite VFS sidecar
+paths without requiring ext/sqlite or activating a shared VFS component. The
+smoke `examples/wordpress-vfs-sidecar-preflight.php` reports main database,
+`-wal`, `-shm`, rollback-journal, super-journal glob, and temp-directory
+planning for writable, immutable read-only, nolock repair, and create-copy
+opens.
+
+Status delta 2026-05-27 isolated dependency/open slice: added
+`SQLiteVfsSidecarPlan` with 69 focused assertions covering sidecar path
+derivation, WAL/SHM/journal read-write policy, immutable and nolock suppression
+of shared-memory sidecars, `rwc` create-copy sidecar write policy, open-failure
+preservation, in-memory exclusion, dependency tags, and empty-path guards.
+Focused `SQLiteHeaderTest.php` passed at 4629 assertions, up from the
+lane-status recorded 4560 baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local file URI parsing and open admission. A future full native VFS
+component remains gated on actual filesystem byte-range locking, SHM-index
+mapping, and durable sidecar creation/deletion evidence.

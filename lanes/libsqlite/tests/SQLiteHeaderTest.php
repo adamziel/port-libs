@@ -79,6 +79,7 @@ use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalHeader;
+use PortLibs\LibSqlite\SQLiteVfsSidecarPlan;
 use PortLibs\LibSqlite\SQLiteWalOpenView;
 use PortLibs\LibSqlite\SQLiteWindowFunction;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
@@ -15204,6 +15205,104 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => new SQLiteLockCoordinator([' ' => 'shared']));
         $t->throws(InvalidArgumentException::class, static fn () => $coordinator->plan('reader', 'hot'));
         $t->throws(InvalidArgumentException::class, static fn () => $coordinator->set('reader', ''));
+    },
+    'plans sqlite vfs sidecar paths for wal shm journal and temp files' => static function (TestRunner $t): void {
+        $rw = SQLiteVfsSidecarPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared&vfs=unix', true, true);
+        $t->same('ready', $rw['status']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite', $rw['path']);
+        $t->same('/srv/www/wp-content/database', $rw['directory']);
+        $t->same('.ht.sqlite', $rw['basename']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-wal', $rw['wal_path']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-shm', $rw['shm_path']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-journal', $rw['journal_path']);
+        $t->same('/srv/www/wp-content/database/.ht.sqlite-mj*', $rw['super_journal_glob']);
+        $t->same('/srv/www/wp-content/database', $rw['temp_directory']);
+        $t->same(false, $rw['read_only']);
+        $t->same(false, $rw['immutable']);
+        $t->same(false, $rw['nolock']);
+        $t->same(true, $rw['wal_readable']);
+        $t->same(true, $rw['wal_writable']);
+        $t->same(true, $rw['shm_readable']);
+        $t->same(true, $rw['shm_writable']);
+        $t->same(true, $rw['journal_readable']);
+        $t->same(true, $rw['journal_writable']);
+        $t->same(true, $rw['uses_shared_memory']);
+        $t->same(true, $rw['requires_directory_write']);
+        $t->same('shared', $rw['open']['cache']);
+        $t->same('unix', $rw['open']['vfs']);
+        $t->same([
+            'file-uri-parser',
+            'vfs-admission',
+            'shared-cache-coordination',
+            'vfs-sidecar-paths',
+            'wal-sidecar-open',
+            'rollback-journal-sidecar-open',
+            'shared-memory-sidecar-open',
+        ], $rw['dependencies']);
+
+        $immutable = SQLiteVfsSidecarPlan::forFilename('file:/srv/www/archive/site.db?mode=ro&immutable=1&vfs=unix-none', true, false);
+        $t->same('ready', $immutable['status']);
+        $t->same(true, $immutable['read_only']);
+        $t->same(true, $immutable['immutable']);
+        $t->same(false, $immutable['wal_writable']);
+        $t->same(false, $immutable['shm_readable']);
+        $t->same(false, $immutable['shm_writable']);
+        $t->same(false, $immutable['journal_readable']);
+        $t->same(false, $immutable['journal_writable']);
+        $t->same(false, $immutable['uses_shared_memory']);
+        $t->same(false, $immutable['requires_directory_write']);
+        $t->same(sys_get_temp_dir(), $immutable['temp_directory']);
+        $t->same([
+            'file-uri-parser',
+            'vfs-admission',
+            'immutable-readonly-open',
+            'vfs-sidecar-paths',
+            'wal-sidecar-open',
+            'rollback-journal-sidecar-open',
+        ], $immutable['dependencies']);
+
+        $nolock = SQLiteVfsSidecarPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&nolock=1&psow=0', true, true);
+        $t->same('ready', $nolock['status']);
+        $t->same(true, $nolock['nolock']);
+        $t->same(true, $nolock['wal_writable']);
+        $t->same(false, $nolock['shm_readable']);
+        $t->same(false, $nolock['shm_writable']);
+        $t->same(true, $nolock['journal_readable']);
+        $t->same(true, $nolock['journal_writable']);
+        $t->same(false, $nolock['uses_shared_memory']);
+        $t->same(['file-uri-parser', 'nolock-open', 'vfs-sidecar-paths', 'wal-sidecar-open', 'rollback-journal-sidecar-open'], $nolock['dependencies']);
+
+        $create = SQLiteVfsSidecarPlan::forFilename('file:/srv/www/wp-content/database/new-site.db?mode=rwc', false, true);
+        $t->same('create', $create['status']);
+        $t->same(false, $create['wal_readable']);
+        $t->same(true, $create['wal_writable']);
+        $t->same(false, $create['journal_readable']);
+        $t->same(true, $create['journal_writable']);
+        $t->same(true, $create['requires_directory_write']);
+
+        $cannotCreate = SQLiteVfsSidecarPlan::forFilename('file:/srv/www/wp-content/database/new-site.db?mode=rwc', false, false);
+        $t->same('cannot-create', $cannotCreate['status']);
+        $t->same(false, $cannotCreate['open']['can_open']);
+        $t->same(false, $cannotCreate['wal_writable']);
+        $t->same(false, $cannotCreate['journal_writable']);
+        $t->same(true, $cannotCreate['requires_directory_write']);
+        $t->same('database directory is not writable', $cannotCreate['open']['reason']);
+
+        $memory = SQLiteVfsSidecarPlan::forFilename('file::memory:?mode=memory&cache=private', false, false);
+        $t->same('memory', $memory['status']);
+        $t->same(':memory:', $memory['path']);
+        $t->same('', $memory['wal_path']);
+        $t->same('', $memory['shm_path']);
+        $t->same('', $memory['journal_path']);
+        $t->same('', $memory['super_journal_glob']);
+        $t->same('', $memory['temp_directory']);
+        $t->same(false, $memory['wal_readable']);
+        $t->same(false, $memory['wal_writable']);
+        $t->same(false, $memory['uses_shared_memory']);
+        $t->same(false, $memory['requires_directory_write']);
+        $t->same(['file-uri-parser', 'vfs-sidecar-paths'], $memory['dependencies']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsSidecarPlan::forFilename('file:?mode=rw', true, true));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

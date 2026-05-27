@@ -118075,3 +118075,33 @@ Runtime gate evidence before serialized root:
 Cleanup note:
 - Accepted marker ready/patch/metadata artifacts were removed after the commit was safely on `main`.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-closure-20260527T002327Z` still has modified/added libsqlite files, so it was preserved as cleanup debt and not removed.
+
+## Integration accepted - libsqlite VFS sidecar preflight - 2026-05-27T00:36:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T002506Z.ready`.
+
+Decision: accepting one bounded-rebased libsqlite behavior marker from clean detached worktree `.tmux-team/tmp/clean-candidates/libsqlite-vfs-sidecar-20260527T002506Z`.
+
+Dashboard guard evidence:
+- Local `refs/heads/main` before candidate verification was `a391c8eb11f9fc7acc4bf631070f1d8cdd98c828` (`Integrate libsqlite B-tree leaf merge plan`).
+- Cache-busted live Pages reported the same `sourceCommit` `a391c8eb11f9fc7acc4bf631070f1d8cdd98c828`, generated `2026-05-27 00:32:29 UTC`, with dashboard commit `5f0d26bbbe705605010ddfcc9bdd1f7043e218da`.
+
+Candidate evidence:
+- Marker lane was `libsqlite`; marker base was `394176c506d021d22c96cec03187121354766f33`, one accepted commit behind current main.
+- Direct patch apply failed only on `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/notes/rework-closure.md`; implementation, test, manifest, scenario, and example hunks applied cleanly with those stale status/notes files excluded.
+- Patch adds `SQLiteVfsSidecarPlan`, a copied WordPress VFS sidecar smoke, manifest mapping, and focused assertions for main DB, WAL, SHM, rollback-journal, super-journal glob, temp-directory, immutable, nolock, create-copy, failed-open, and in-memory sidecar policy diagnostics.
+- Focused `SQLiteHeaderTest.php` passed at `1 test files, 4629 assertions, 0 failures`.
+- Full libsqlite focused tests passed at `2 test files, 5411 assertions, 0 failures`.
+- WordPress VFS sidecar smoke emitted valid JSON and exited 0.
+- Syntax checks passed for the new source, focused test, and smoke.
+- JSON validation passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/libsqlite` passed before root.
+- `latestCommit` was reconciled to start with accepted source `a391c8eb11f9fc7acc4bf631070f1d8cdd98c828`, per status hygiene instructions, as part of this real behavior acceptance.
+
+Runtime gate evidence before serialized root:
+- `df -Pk /` reported `131034852` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.43`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Serialized root verification:
+- `php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29831 assertions, 0 failures`.
