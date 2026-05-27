@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 05:39:21 UTC",
-    "sourceCommit": "5edeb12d201253acfce49339e03be1d5e30c7aa4",
-    "sourceCommitShort": "5edeb12d2012",
+    "generated": "2026-05-27 05:45:34 UTC",
+    "sourceCommit": "a38364048a64638aa067b29fff10a5c89e109f46",
+    "sourceCommitShort": "a38364048a64",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "ebe4fc278e7890356a9654cd98344b3b2035c146",
-    "dashboardCommitShort": "ebe4fc278e78",
+    "dashboardCommit": "ed52d1bb3fd3ee6a4bd44b5ebd879928074146e0",
+    "dashboardCommitShort": "ed52d1bb3fd3",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "435",
-            "coverage": "435 / 1589",
-            "php": "779 pass / 0 fail",
+            "mapped": "436",
+            "coverage": "436 / 1589",
+            "php": "780 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed B-tree bulk overflow del...",
-            "currentWork": "SQLiteTableLeafPage and SQLiteIndexLeafPage can now bulk-delete overflow-backed rows/reco...",
+            "audit": "Focused VFS savepoint rollback apply evid...",
+            "currentWork": "Clean-integrated VFS savepoint rollback application; next focus is non-overlapping B-tree...",
             "nextTarget": "Connect returned obsolete overflow pages from bulk delete into full freelist and auto-vac...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "1f26605"
+            "commit": "5edeb12"
         },
         {
             "library": "LightningCSS",
