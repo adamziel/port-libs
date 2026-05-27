@@ -4137,3 +4137,26 @@ Dependency closure: no new shared support component is needed. This reuses the
 accepted rollback-journal recovery planner and VFS file-handle writer; the
 next dependency/open target should be broader pager transaction or durable
 lock/fsync coordination rather than another preview-only sidecar diagnostic.
+
+## JSON Table Virtual Cursor Scenario
+
+Copied WordPress import and repair tooling can now iterate planned
+`json_each()` and `json_tree()` rowsets through a bounded virtual-table cursor
+without ext/sqlite. The smoke `examples/wordpress-json-table-cursor.php`
+reports cursor open/filter/next/eof behavior, rowid aliases, column access,
+rewind, JSONB payload iteration, SQL NULL empty cursors, and malformed JSONB
+diagnostics for copied plugin settings.
+
+Status delta 2026-05-27 isolated JSON-table slice: added
+`SQLiteJsonTableCursor` with focused assertions covering validated planner
+metadata, residual filtering, `json_tree` and `json_each` cursor iteration,
+`rowid`/`_rowid_`/`oid` aliases, JSON subtype and JSONB inputs, missing-root
+and SQL NULL empty cursors, malformed JSONB/text diagnostics, EOF guards, and
+malformed argument guards. Focused selected coverage passed at 81 assertions.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local JSON table planning, JSONB/text/subtype validation, residual
+predicate filtering, and row materialization. Follow-up should connect this
+cursor lifecycle to parser/VDBE-style execution with correlated host-column
+arguments without repeating accepted host-row joins or literal SELECT/FROM
+parser wiring.

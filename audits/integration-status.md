@@ -118980,3 +118980,32 @@ Decision: accepted for commit. Dashboard publication should run next after the s
 
 Cleanup debt:
 - The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T035948Z` still contains modified lane files after the accepted patch was committed on `main`, so it was preserved and left registered. Only the ready marker handoff artifacts were removed.
+## Integration accepted - libsqlite JSON table virtual cursor - 2026-05-27T04:16:53Z
+
+Candidate selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T040556Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before replay was `bddc2238ab6be66d4bb399dabb9d35bb2aba5954` (`Integrate libsqlite B-tree page move`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `bddc2238ab6be66d4bb399dabb9d35bb2aba5954`, `generated` `2026-05-27 04:13:16 UTC`, and `dashboardCommit` `39867010cc94eaffaeeff3a1afdcba7c57c2f6dc`, so the source-moving guard was open.
+- The sampled newer B-tree marker repeated the just-accepted B-tree page-move cluster and was skipped as duplicate; the JSON cursor marker had higher non-overlapping focused yield than the sampled SELECT DISTINCT SQL text marker.
+
+Replay/apply evidence:
+- Marker base was older source `ff7d7b51bdfb3bf3cc1800b3e09e437c6cc7a001`.
+- Direct apply against a clean detached `bddc2238` worktree failed only for `lanes/libsqlite/lane-status.json`; implementation, test, WordPress smoke, and notes hunks applied cleanly when stale status/manifest files were excluded.
+- Accepted delta adds `SQLiteJsonTableCursor`, `wordpress-json-table-cursor.php`, focused JSON table cursor assertions, mapped coverage `424 -> 425`, and committed libsqlite `phpPass` `768 -> 769`.
+
+Focused verification before root:
+- Runtime gate: `df -Pk /` reported `95185464` KiB available, one-minute load was `1.37`, and no exact no-argument root harness process was running.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6396 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-cursor.php` passed and emitted valid JSON.
+- `php -l` passed for `SQLiteJsonTableCursor.php`, `wordpress-json-table-cursor.php`, and `SQLiteHeaderTest.php`.
+- JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, and the WordPress smoke output.
+- `git diff --check` passed before the serialized root run.
+
+Serialized root verification is pending under the clean-integrator lock from this exact candidate snapshot.
+
+Root verification completed: `php tools/run-tests.php` passed with `215 test files, 31561 assertions, 0 failures` using repo-local `TMPDIR` under the clean-integrator lock. Final acceptance and marker cleanup are pending atomic ref publication.
+
+Final decision: accepted as `a7a273837d6799f8754858ba72907c023700475f` before audit-only amend. Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T040556Z` still has modified/staged accepted files, so it is preserved as cleanup debt instead of removed. Dashboard publication should run next for this accepted source.

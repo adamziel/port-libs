@@ -49,6 +49,7 @@ use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonQuote;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteJsonTableCursor;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
@@ -6937,6 +6938,148 @@ return [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
         ]));
+    },
+    'opens sqlite json table virtual cursors over planned rows' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"rules":[{"name":"seo","priority":2,"autoload":true},{"name":"cache","priority":7,"autoload":false},{"name":"forms","priority":4,"autoload":true}],"flags":["alpha","beta"]}}';
+        $cursor = SQLiteJsonTableCursor::open('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['text', 'integer', 'true', 'false']],
+            ['column' => 'atom', 'operator' => 'IS NOT NULL'],
+        ]);
+
+        $t->same('json_tree', $cursor->functionName());
+        $t->same(9, $cursor->count());
+        $t->same(true, $cursor->plan()['runnable']);
+        $t->same(true, $cursor->plan()['jsonValid']);
+        $t->same(null, $cursor->plan()['jsonError']);
+        $t->same('text', $cursor->plan()['jsonInputKind']);
+        $t->same(['json', 'root'], array_column($cursor->plan()['used'], 'column'));
+        $t->same(['type', 'atom'], array_column($cursor->plan()['residual'], 'column'));
+        $t->same(false, $cursor->eof());
+        $t->same(2, $cursor->rowid());
+        $t->same(2, $cursor->column('rowid'));
+        $t->same(2, $cursor->column('_rowid_'));
+        $t->same(2, $cursor->column('oid'));
+        $t->same('name', $cursor->column('key'));
+        $t->same('seo', $cursor->column('value'));
+        $t->same('text', $cursor->column('type'));
+        $t->same('seo', $cursor->column('atom'));
+        $t->same('$.plugin.rules[0].name', $cursor->column('fullkey'));
+        $t->same('$.plugin.rules[0]', $cursor->column('path'));
+        $t->same($settings, $cursor->column('json'));
+        $t->same('$.plugin.rules', $cursor->column('root'));
+        $t->same(['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'json', 'root'], array_keys($cursor->row() ?? []));
+
+        $cursor->next();
+        $t->same(3, $cursor->rowid());
+        $t->same('priority', $cursor->column('key'));
+        $t->same(2, $cursor->column('value'));
+        $t->same('integer', $cursor->column('type'));
+        $t->same(2, $cursor->column('atom'));
+        $cursor->next();
+        $t->same(4, $cursor->rowid());
+        $t->same('autoload', $cursor->column('key'));
+        $t->same(1, $cursor->column('value'));
+        $t->same('true', $cursor->column('type'));
+        $t->same(1, $cursor->column('atom'));
+
+        $allRows = $cursor->all();
+        $t->same(['name', 'priority', 'autoload', 'name', 'priority', 'autoload', 'name', 'priority', 'autoload'], array_column($allRows, 'key'));
+        $t->same(['seo', 2, 1, 'cache', 7, 0, 'forms', 4, 1], array_column($allRows, 'atom'));
+        $t->same([2, 3, 4, 6, 7, 8, 10, 11, 12], array_column($allRows, 'id'));
+        $t->same(['$.plugin.rules[0].name', '$.plugin.rules[0].priority', '$.plugin.rules[0].autoload', '$.plugin.rules[1].name', '$.plugin.rules[1].priority', '$.plugin.rules[1].autoload', '$.plugin.rules[2].name', '$.plugin.rules[2].priority', '$.plugin.rules[2].autoload'], array_column($allRows, 'fullkey'));
+
+        while (!$cursor->eof()) {
+            $cursor->next();
+        }
+        $t->same(true, $cursor->eof());
+        $t->same(null, $cursor->rowid());
+        $t->same(null, $cursor->row());
+        $t->throws(OutOfBoundsException::class, static fn () => $cursor->column('key'));
+        $cursor->rewind();
+        $t->same(false, $cursor->eof());
+        $t->same(2, $cursor->rowid());
+
+        $eachCursor = SQLiteJsonTableCursor::open('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['flags' => ['alpha', 'beta', 'release']]]))],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.flags'],
+            ['column' => 'atom', 'operator' => 'LIKE', 'value' => ['pattern' => '%a']],
+        ]);
+        $t->same('json_each', $eachCursor->functionName());
+        $t->same('jsonb', $eachCursor->plan()['jsonInputKind']);
+        $t->same(2, $eachCursor->count());
+        $t->same([0, 1], array_column($eachCursor->all(), 'key'));
+        $t->same(['alpha', 'beta'], array_column($eachCursor->all(), 'atom'));
+        $t->same([1, 2], array_column($eachCursor->all(), 'id'));
+        $t->same('alpha', $eachCursor->column('value'));
+        $eachCursor->next();
+        $t->same('beta', $eachCursor->column('value'));
+        $eachCursor->next();
+        $t->same(true, $eachCursor->eof());
+
+        $subtypeCursor = SQLiteJsonTableCursor::open('JSON_TREE', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject('plugin', new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonObject('enabled', true, 'count', 3))))],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['object', 'true', 'integer']],
+        ]);
+        $t->same('json_tree', $subtypeCursor->functionName());
+        $t->same('json-subtype', $subtypeCursor->plan()['jsonInputKind']);
+        $t->same(3, $subtypeCursor->count());
+        $t->same(['plugin', 'enabled', 'count'], array_column($subtypeCursor->all(), 'key'));
+        $t->same(['object', 'integer', 'integer'], array_column($subtypeCursor->all(), 'type'));
+        $t->same([null, 1, 3], array_column($subtypeCursor->all(), 'atom'));
+
+        $missingCursor = SQLiteJsonTableCursor::open('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.missing'],
+        ]);
+        $t->same(true, $missingCursor->plan()['runnable']);
+        $t->same(0, $missingCursor->count());
+        $t->same(true, $missingCursor->eof());
+        $t->same([], $missingCursor->all());
+
+        $nullCursor = SQLiteJsonTableCursor::open('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => null],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same(null, $nullCursor->plan()['jsonValid']);
+        $t->same('sql-null', $nullCursor->plan()['jsonInputKind']);
+        $t->same(0, $nullCursor->count());
+        $t->same(true, $nullCursor->eof());
+
+        $malformedJsonb = new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7));
+        $badCursor = SQLiteJsonTableCursor::open('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $malformedJsonb],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+        ]);
+        $t->same(false, $badCursor->plan()['runnable']);
+        $t->same(false, $badCursor->plan()['jsonValid']);
+        $t->same('malformed JSONB', $badCursor->plan()['jsonError']);
+        $t->same('jsonb', $badCursor->plan()['jsonInputKind']);
+        $t->same(0, $badCursor->count());
+        $t->same(true, $badCursor->eof());
+        $t->same([], $badCursor->all());
+
+        $badTextCursor = SQLiteJsonTableCursor::open('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => '{plugin:,,}'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+        ]);
+        $t->same(false, $badTextCursor->plan()['runnable']);
+        $t->same(false, $badTextCursor->plan()['jsonValid']);
+        $t->same('malformed JSON text', $badTextCursor->plan()['jsonError']);
+        $t->same('text', $badTextCursor->plan()['jsonInputKind']);
+        $t->same(0, $badTextCursor->count());
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableCursor::open('json_group_array', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableCursor::open('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTableCursor::open('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => 7],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $cursor->column('missing'));
     },
     'joins host rows to sqlite json table-valued scans' => static function (TestRunner $t): void {
         $hostRows = [

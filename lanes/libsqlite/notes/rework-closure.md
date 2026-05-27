@@ -581,3 +581,37 @@ VFS file-handle writer, while adding native rollback-journal sidecar deletion
 application. Follow-up should connect pager transaction state to this writer
 or broaden durable fsync/locking integration without repeating this rollback
 apply path.
+
+## 2026-05-27 JSON Table Virtual Cursor
+
+This isolated JSON-table slice does not repeat accepted JSON table host-row
+joins, JSON table LIMIT/OFFSET/window ranking, malformed hidden-json planner
+diagnostics, duplicate hidden constraints, or queued literal SELECT/FROM JSON
+table parser wiring. It adds `SQLiteJsonTableCursor`, a bounded native cursor
+facade over accepted `json_each()` / `json_tree()` plans so focused tests can
+exercise virtual-table open/filter/next/eof/column/rowid semantics directly.
+
+Focused assertion delta: the selected `SQLiteHeaderTest.php` test adds 81
+passing assertions for validated planner metadata, residual filtering,
+`json_tree` and `json_each` cursor iteration, `rowid`/`_rowid_`/`oid` aliases,
+JSON subtype and JSONB inputs, missing-root and SQL NULL empty cursors,
+malformed JSONB/text diagnostics, EOF guards, and malformed argument guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTableCursor.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-cursor.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["opens sqlite json table virtual cursors over planned rows"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-json-table-cursor.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local JSON table planning, JSONB/text/subtype validation, residual
+predicate filtering, and row materialization. Follow-up should connect this
+cursor lifecycle to parser/VDBE-style execution with correlated host-column
+arguments without repeating accepted host-row joins or literal SELECT/FROM
+parser wiring.
