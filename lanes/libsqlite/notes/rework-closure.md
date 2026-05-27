@@ -1,5 +1,30 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 B-tree Freeblock/Freelist Rebalance
+
+This isolated B-tree slice adds `SQLiteBTreeFreeblockFreelistRebalancePlan`
+for non-empty table/index leaf delete results: the modified leaf page with
+reusable freeblocks is kept in the page-image set while obsolete overflow pages
+from the deleted cell are released through native freelist planning. It avoids
+accepted empty-leaf release, bulk overflow freeblock materialization, overflow
+freelist-release-only, page move, root collapse, and index-interior merge
+clusters.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeFreeblockFreelistRebalancePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-btree-freeblock-freelist-rebalance.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-btree-freeblock-freelist-rebalance.php
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+table/index delete results, B-tree freeblock accounting, freelist free
+planning, secure-delete clearing, and auto-vacuum pointer-map mutation.
+
 ## 2026-05-27 SELECT SQL Compound Text Dispatch
 
 This isolated SQL execution/planner slice adds parser-level compound SELECT

@@ -2,6 +2,27 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Freeblock/Freelist Rebalance Scenario
+
+Copied WordPress transient cleanup can now keep a non-empty table or
+`option_name` index leaf page after deletion while releasing that deleted
+cell's obsolete overflow pages into the SQLite freelist. The smoke
+`examples/wordpress-btree-freeblock-freelist-rebalance.php` reports reusable
+leaf freeblocks, freelist trunk/leaf page images, secure-delete clearing of
+released overflow pages, and auto-vacuum pointer-map free-page rewrites without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteBTreeFreeblockFreelistRebalancePlan` with focused assertions for table
+and index leaves, overflow release into empty and existing freelists,
+auto-vacuum pointer-map rewrites, post-plan database inspection, secure-delete
+clearing, and malformed rebalance guards. Focused `SQLiteHeaderTest.php`
+passes at 8500 assertions and 0 failures in this worktree.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+table/index delete results, B-tree freeblock accounting, freelist free
+planning, secure-delete clearing, and auto-vacuum pointer-map mutation.
+
 ## SELECT SQL Compound Scenario
 
 Copied single-site and network `wp_options` previews can now execute bounded
