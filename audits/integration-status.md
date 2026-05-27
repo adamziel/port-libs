@@ -119101,3 +119101,34 @@ Follow-up root verification:
 - Post-root `git diff --check`: passed before commit.
 - Accepted commit: `6f58bdec20f16c5c267fb3f305373b2dcdf3f846` (`Integrate libsqlite WAL checkpoint transactions`).
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T042857Z` still contains the exported marker changes after publication, so it was preserved as cleanup debt rather than removed.
+## Integration accepted pending commit - libsqlite VFS lock state - 2026-05-27T04:47:00Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T043405Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `f34a1a06d5fb5001acd56b08e461e5ce602a114e` (`Integrate libsqlite WAL checkpoint transactions`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `f34a1a06d5fb5001acd56b08e461e5ce602a114e`, `generated` `2026-05-27 04:39:56 UTC`, and dashboard commit `dd0a81ffbffb725225bc26625222d545ddaced3a`.
+
+Decision:
+- Accepted bounded replay of the VFS lock-state application marker.
+- Direct apply from marker base `9b6b4b6a035fb436e1ddcd3e415bc590bd288329` to current `f34a1a06` failed only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, and `lanes/libsqlite/notes/rework-closure.md`.
+- Implementation, test, and WordPress smoke hunks applied cleanly with stale manifest/status/rework-note files excluded.
+- Reconciled manifest/status counters from current `f34a1a06` evidence instead of accepting stale JSON wholesale.
+
+Verification before serialized root:
+- `php -l lanes/libsqlite/src/SQLiteVfsLockState.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-vfs-lock-state-apply.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 6671 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-lock-state-apply.php`: passed and emitted valid JSON.
+- `php` JSON decode for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Follow-up root verification:
+- Runtime gates before root: `/` had `90704492` KiB available, load average was `1.32`, and no exact `php tools/run-tests.php` root harness was active.
+- Serialized no-argument root harness under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`: `215 test files, 31836 assertions, 0 failures`.
+- Post-root `git diff --check`: passed before commit.
+- Accepted commit before audit-only amend: `35c4a39a73afa25095648773fb27c86ca064fc5c` (`Integrate libsqlite VFS lock state`).
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T043405Z` still contains the exported marker changes after publication, so it is preserved as cleanup debt rather than removed.

@@ -88,6 +88,7 @@ use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
+use PortLibs\LibSqlite\SQLiteVfsLockState;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
@@ -18300,6 +18301,135 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, ''));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, 'wp', -1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteLockByteRangePlan::forLevel('/tmp/wp.sqlite', 'shared', false, 'wp', 510));
+    },
+    'applies sqlite vfs lock state conflicts for open handles' => static function (TestRunner $t): void {
+        $path = '/srv/www/wp-content/database/.ht.sqlite';
+        $locks = new SQLiteVfsLockState();
+
+        $readerA = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', false, 'wp-reader-a', 4));
+        $t->same('acquired', $readerA['status']);
+        $t->same(true, $readerA['applied']);
+        $t->same($path, $readerA['path']);
+        $t->same('wp-reader-a', $readerA['connection']);
+        $t->same('shared', $readerA['requested']);
+        $t->same('shared', $readerA['held']);
+        $t->same(['wp-reader-a' => 'shared'], $readerA['holders']);
+        $t->same([], $readerA['blocking']);
+        $t->same(1, count($readerA['ranges']));
+        $t->same(1073741830, $readerA['ranges'][0]['offset']);
+        $t->same(['sqlite-lock-byte-range', 'vfs-file-lock', 'vfs-lock-state-application'], $readerA['dependencies']);
+        $t->same(null, $readerA['reason']);
+
+        $readerB = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', false, 'wp-reader-b', 9));
+        $t->same('acquired', $readerB['status']);
+        $t->same('shared', $readerB['held']);
+        $t->same(['wp-reader-a' => 'shared', 'wp-reader-b' => 'shared'], $readerB['holders']);
+
+        $reserved = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'reserved', false, 'wp-admin', 12));
+        $t->same('acquired', $reserved['status']);
+        $t->same('reserved', $reserved['held']);
+        $t->same(['wp-reader-a' => 'shared', 'wp-reader-b' => 'shared', 'wp-admin' => 'reserved'], $reserved['holders']);
+        $t->same(2, count($reserved['ranges']));
+        $t->same('reserved', $reserved['ranges'][1]['name']);
+
+        $secondWriter = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'reserved', false, 'wp-cron', 18));
+        $t->same('blocked', $secondWriter['status']);
+        $t->same(false, $secondWriter['applied']);
+        $t->same('reserved', $secondWriter['requested']);
+        $t->same(null, $secondWriter['held']);
+        $t->same([['connection' => 'wp-admin', 'level' => 'reserved']], $secondWriter['blocking']);
+        $t->same('writer_lock_conflicts_with_existing_writer', $secondWriter['reason']);
+        $t->same(['wp-reader-a' => 'shared', 'wp-reader-b' => 'shared', 'wp-admin' => 'reserved'], $secondWriter['holders']);
+
+        $pending = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'pending', false, 'wp-admin'));
+        $t->same('acquired', $pending['status']);
+        $t->same('pending', $pending['held']);
+        $t->same('pending', $pending['requested']);
+        $t->same(['wp-reader-a' => 'shared', 'wp-reader-b' => 'shared', 'wp-admin' => 'pending'], $pending['holders']);
+
+        $newReader = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', false, 'wp-rest', 22));
+        $t->same('blocked', $newReader['status']);
+        $t->same(false, $newReader['applied']);
+        $t->same([['connection' => 'wp-admin', 'level' => 'pending']], $newReader['blocking']);
+        $t->same('pending_or_exclusive_lock_blocks_new_reader', $newReader['reason']);
+
+        $exclusiveBlocked = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin'));
+        $t->same('blocked', $exclusiveBlocked['status']);
+        $t->same('pending', $exclusiveBlocked['held']);
+        $t->same('exclusive_lock_waits_for_all_other_holders', $exclusiveBlocked['reason']);
+        $t->same([
+            ['connection' => 'wp-reader-a', 'level' => 'shared'],
+            ['connection' => 'wp-reader-b', 'level' => 'shared'],
+        ], $exclusiveBlocked['blocking']);
+
+        $releaseA = $locks->release($path, 'wp-reader-a');
+        $t->same('released', $releaseA['status']);
+        $t->same(true, $releaseA['applied']);
+        $t->same('shared', $releaseA['held']);
+        $t->same(['wp-reader-b' => 'shared', 'wp-admin' => 'pending'], $releaseA['holders']);
+
+        $releaseB = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'none', false, 'wp-reader-b'));
+        $t->same('released', $releaseB['status']);
+        $t->same('shared', $releaseB['held']);
+        $t->same(['wp-admin' => 'pending'], $releaseB['holders']);
+
+        $exclusive = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'exclusive', false, 'wp-admin'));
+        $t->same('acquired', $exclusive['status']);
+        $t->same('exclusive', $exclusive['held']);
+        $t->same(['wp-admin' => 'exclusive'], $exclusive['holders']);
+        $t->same(3, count($exclusive['ranges']));
+        $t->same('shared', $exclusive['ranges'][2]['name']);
+
+        $lateReader = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', false, 'wp-late-reader'));
+        $t->same('blocked', $lateReader['status']);
+        $t->same([['connection' => 'wp-admin', 'level' => 'exclusive']], $lateReader['blocking']);
+        $t->same('pending_or_exclusive_lock_blocks_new_reader', $lateReader['reason']);
+
+        $nolock = $locks->acquire(SQLiteLockByteRangePlan::forLevel($path, 'shared', true, 'repair-copy'));
+        $t->same('blocked', $nolock['status']);
+        $t->same(false, $nolock['applied']);
+        $t->same('nolock VFS disables POSIX byte-range locking', $nolock['reason']);
+        $t->same(['sqlite-lock-byte-range', 'nolock-open', 'vfs-lock-state-application'], $nolock['dependencies']);
+
+        $open = SQLiteOpenPlan::forFilename('file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared', true, true);
+        $secondPath = '/srv/www/wp-content/database/second.sqlite';
+        $openPlan = SQLiteLockByteRangePlan::forOpenPlan($open, 'shared', 'wp-cli', 31);
+        $openApplied = $locks->acquire($openPlan);
+        $t->same('blocked', $openApplied['status']);
+        $t->same($path, $openApplied['path']);
+        $t->same('wp-cli', $openApplied['connection']);
+        $t->same([['connection' => 'wp-admin', 'level' => 'exclusive']], $openApplied['blocking']);
+
+        $otherPath = $locks->acquire(SQLiteLockByteRangePlan::forLevel($secondPath, 'exclusive', false, 'isolated-writer'));
+        $t->same('acquired', $otherPath['status']);
+        $t->same(['isolated-writer' => 'exclusive'], $otherPath['holders']);
+        $t->same([
+            $path => ['wp-admin' => 'exclusive'],
+            $secondPath => ['isolated-writer' => 'exclusive'],
+        ], $locks->snapshot());
+
+        $clearFirst = $locks->release($path);
+        $t->same('released', $clearFirst['status']);
+        $t->same(null, $clearFirst['connection']);
+        $t->same([], $clearFirst['holders']);
+        $t->same([$secondPath => ['isolated-writer' => 'exclusive']], $locks->snapshot());
+
+        $t->same(['isolated-writer' => 'exclusive'], $locks->holders($secondPath));
+        $t->same([], $locks->holders('/srv/www/wp-content/database/missing.sqlite'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $locks->release(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $locks->release("/tmp/bad\0name.sqlite"));
+        $t->throws(InvalidArgumentException::class, static fn () => $locks->release('/tmp/site.sqlite', ''));
+        $t->throws(InvalidArgumentException::class, static fn () => $locks->acquire([
+            'level' => 'shared',
+            'can_lock' => true,
+            'nolock' => false,
+            'path' => '/tmp/site.sqlite',
+            'connection' => null,
+            'ranges' => [],
+            'dependencies' => [],
+            'reason' => null,
+        ]));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];
