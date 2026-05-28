@@ -2419,6 +2419,75 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext183(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        int $batchSize = 1,
+        ?int $resumeAfterRowid = null,
+    ): array {
+        if ($batchSize < 1) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path rowid batch size must be positive');
+        }
+
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext180(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceBatchProfile183(
+            $plan['currentGeneratedPathRowidCurrentSourceMaterialization180'],
+            $batchSize,
+            $resumeAfterRowid,
+            false,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceBatchProfile183(
+            $plan['nextGeneratedPathRowidCurrentSourceMaterialization180'],
+            $batchSize,
+            $resumeAfterRowid,
+            $plan['next180ReplanReasons'] !== [],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceBatchTransitions183($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons183($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceBatch183'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceBatch183'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceBatch183Transitions'] = $transitions;
+        $plan['next183ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next180ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next183ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'yield-current-json-table-generated-path-rowid-batch-next183-before-source-replan';
+        $plan['nextReaderPolicy'] = $plan['next183ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-batch-next183'
+            : 'restart-next-json-table-generated-path-rowid-batch-next183';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next183'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext170(
         string $function,
         array $currentSource,
@@ -12044,6 +12113,205 @@ final class SQLiteJsonTablePlan
                 'orderFence' => 'json-table-generated-path-rowid-xnext-order-fence-changed',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xnext-cost-changed',
                 default => 'json-table-generated-path-rowid-xnext-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $materialization
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBatchProfile183(
+        array $materialization,
+        int $batchSize,
+        ?int $resumeAfterRowid,
+        bool $staleAfterNextSource,
+    ): array {
+        $rows = array_values(array_filter(
+            $materialization['materializedRows'] ?? [],
+            static fn (mixed $row): bool => is_array($row),
+        ));
+        $rowids = array_values(array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), $rows));
+        $resumeOrdinal = 0;
+        $resumeFound = $resumeAfterRowid === null;
+        if ($resumeAfterRowid !== null) {
+            $position = array_search($resumeAfterRowid, $rowids, true);
+            if ($position !== false) {
+                $resumeOrdinal = (int) $position + 1;
+                $resumeFound = true;
+            }
+        }
+
+        $materializationOpcode = (string) ($materialization['materializationOpcode'] ?? '');
+        $blocked = $staleAfterNextSource
+            || (bool) ($materialization['resetRequired'] ?? true)
+            || $materializationOpcode === ''
+            || str_contains($materializationOpcode, 'empty')
+            || str_contains($materializationOpcode, 'reset')
+            || str_contains($materializationOpcode, 'blocked');
+        $batchRows = $blocked || !$resumeFound ? [] : array_slice($rows, $resumeOrdinal, $batchSize);
+        $batchRowids = array_values(array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), $batchRows));
+        $remainingRows = $blocked || !$resumeFound ? [] : array_slice($rows, $resumeOrdinal + count($batchRows));
+        $remainingRowids = array_values(array_map(static fn (array $row): int => (int) ($row['rowid'] ?? 0), $remainingRows));
+        $eof = !$blocked && $resumeFound && $remainingRowids === [];
+        $emitCost = $blocked || !$resumeFound ? 1000000 : max(1, count($batchRows));
+        $opcode = self::jsonTableGeneratedPathRowidBatchOpcode183($blocked, $resumeFound, $batchRows, $remainingRowids, $staleAfterNextSource);
+
+        $yieldTape = [];
+        foreach ($batchRows as $index => $row) {
+            $yieldTape[] = [
+                'ordinal' => $resumeOrdinal + $index,
+                'rowid' => (int) ($row['rowid'] ?? 0),
+                'path' => is_string($row['path'] ?? null) ? $row['path'] : null,
+                'sourceGeneration' => (string) ($row['source_generation'] ?? ''),
+                'opcode' => $opcode,
+            ];
+        }
+
+        return [
+            'sourceGeneration' => (string) ($materialization['sourceGeneration'] ?? ''),
+            'materializationFingerprint' => (string) ($materialization['materializationFingerprint'] ?? ''),
+            'materializationOpcode' => (string) ($materialization['materializationOpcode'] ?? ''),
+            'batchSize' => $batchSize,
+            'resumeAfterRowid' => $resumeAfterRowid,
+            'resumeOrdinal' => $resumeOrdinal,
+            'resumeFound' => $resumeFound,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'batchOpcode' => $opcode,
+            'batchRows' => $batchRows,
+            'batchRowids' => $batchRowids,
+            'remainingRowids' => $remainingRowids,
+            'eofAfterBatch' => $eof,
+            'yieldTape' => $yieldTape,
+            'emitCost' => $emitCost,
+            'costClass' => self::jsonTableGeneratedPathRowidBatchCostClass183($opcode, count($batchRows), $remainingRowids),
+            'batchFingerprint' => hash('sha256', json_encode([
+                $materialization['materializationFingerprint'] ?? null,
+                $batchSize,
+                $resumeAfterRowid,
+                $opcode,
+                $batchRowids,
+                $remainingRowids,
+                $staleAfterNextSource,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $batchRows
+     * @param list<int> $remainingRowids
+     */
+    private static function jsonTableGeneratedPathRowidBatchOpcode183(
+        bool $blocked,
+        bool $resumeFound,
+        array $batchRows,
+        array $remainingRowids,
+        bool $staleAfterNextSource,
+    ): string {
+        if ($staleAfterNextSource) {
+            return 'restart-next-source-generated-path-rowid-batch-next183';
+        }
+        if ($blocked) {
+            return 'block-current-source-generated-path-rowid-batch-next183';
+        }
+        if (!$resumeFound) {
+            return 'reseek-current-source-generated-path-rowid-batch-next183';
+        }
+        if ($batchRows === []) {
+            return 'yield-eof-current-source-generated-path-rowid-batch-next183';
+        }
+        if ($remainingRowids === []) {
+            return 'yield-final-current-source-generated-path-rowid-batch-next183';
+        }
+
+        return 'yield-partial-current-source-generated-path-rowid-batch-next183';
+    }
+
+    /**
+     * @param list<int> $remainingRowids
+     */
+    private static function jsonTableGeneratedPathRowidBatchCostClass183(string $opcode, int $batchCount, array $remainingRowids): string
+    {
+        if (str_starts_with($opcode, 'restart-next-source')) {
+            return 'json-table-generated-path-rowid-batch-restart-next183';
+        }
+        if (str_starts_with($opcode, 'block-current-source')) {
+            return 'json-table-generated-path-rowid-batch-blocked-next183';
+        }
+        if (str_starts_with($opcode, 'reseek-current-source')) {
+            return 'json-table-generated-path-rowid-batch-reseek-next183';
+        }
+        if (str_contains($opcode, 'eof')) {
+            return 'json-table-generated-path-rowid-batch-eof-next183';
+        }
+        if ($batchCount === 1 && $remainingRowids === []) {
+            return 'json-table-generated-path-rowid-batch-point-next183';
+        }
+        if ($remainingRowids === []) {
+            return 'json-table-generated-path-rowid-batch-final-next183';
+        }
+
+        return 'json-table-generated-path-rowid-batch-partial-next183';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBatchTransitions183(array $current, array $next): array
+    {
+        $fields = [
+            'sourceGeneration',
+            'materializationFingerprint',
+            'materializationOpcode',
+            'batchSize',
+            'resumeAfterRowid',
+            'resumeOrdinal',
+            'resumeFound',
+            'staleAfterNextSource',
+            'batchOpcode',
+            'batchRowids',
+            'remainingRowids',
+            'eofAfterBatch',
+            'yieldTape',
+            'emitCost',
+            'costClass',
+            'batchFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBatchReplanReasons183(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceGeneration', 'materializationFingerprint', 'materializationOpcode', 'staleAfterNextSource' => 'json-table-generated-path-rowid-batch-next183-source-changed',
+                'batchSize', 'resumeAfterRowid', 'resumeOrdinal', 'resumeFound', 'batchOpcode', 'eofAfterBatch' => 'json-table-generated-path-rowid-batch-next183-cursor-changed',
+                'batchRowids', 'remainingRowids', 'yieldTape' => 'json-table-generated-path-rowid-batch-next183-rowset-changed',
+                'emitCost', 'costClass' => 'json-table-generated-path-rowid-batch-next183-cost-changed',
+                'batchFingerprint' => 'json-table-generated-path-rowid-batch-next183-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-batch-next183-state-changed',
             };
         }
 
