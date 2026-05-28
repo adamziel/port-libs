@@ -2312,6 +2312,75 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<int> $visiblePages
+     * @return array<string,mixed>
+     */
+    public function applyHotJournalSavepointCheckpointPinnedReaderCurrentSourceNext163(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databasePath,
+        array $visiblePages,
+        int $pinnedReaderEndFrame,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($pinnedReaderEndFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint pinned-reader next163 requires a positive reader frame');
+        }
+
+        $applied = $this->applyHotJournalSavepointCheckpointCurrentSourceNext160(
+            $savepoints,
+            $savepoint,
+            $databasePath,
+            $visiblePages,
+            'restart',
+            $pinnedReaderEndFrame,
+            $pinnedReaderEndFrame,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+
+        $checkpoint = $applied['savepoint_checkpoint'] ?? [];
+        $boundary = $applied['reader_boundary'] ?? [];
+        $walAction = is_array($checkpoint) && isset($checkpoint['current_durable']['wal_action'])
+            ? (string) $checkpoint['current_durable']['wal_action']
+            : null;
+        $retainedWalBytes = is_array($checkpoint) ? (int) ($checkpoint['current_wal_bytes_length'] ?? 0) : 0;
+        $nextWalBytes = is_array($checkpoint) && isset($checkpoint['current_durable']['wal_bytes'])
+            ? strlen((string) $checkpoint['current_durable']['wal_bytes'])
+            : 0;
+        $readerSources = is_array($boundary) ? (array) ($boundary['current_reader_sources'] ?? []) : [];
+
+        $applied['status'] = $applied['status'] === 'applied'
+            ? 'applied-pinned-reader'
+            : $applied['status'];
+        $applied['pinned_reader'] = [
+            'status' => $applied['status'] === 'applied-pinned-reader'
+                ? 'wal-hot-journal-savepoint-checkpoint-pinned-reader-current-source-next163'
+                : 'wal-hot-journal-savepoint-checkpoint-pinned-reader-skipped-next163',
+            'reader_end_frame' => $pinnedReaderEndFrame,
+            'checkpoint_busy' => is_array($checkpoint) ? (bool) ($checkpoint['busy'] ?? false) : false,
+            'checkpoint_reason' => is_array($checkpoint) ? (string) ($checkpoint['reason'] ?? '') : '',
+            'wal_action' => $walAction,
+            'retained_wal_bytes_length' => $retainedWalBytes,
+            'next_wal_bytes_length' => $nextWalBytes,
+            'reader_sources' => $readerSources,
+            'reader_kept_wal_snapshot' => $walAction === 'preserve_wal',
+            'wal_prefix_preserved_for_pinned_reader' => $walAction === 'preserve_wal' && $nextWalBytes === $retainedWalBytes,
+            'dependency_closure' => 'no new support component needed; reuses hot rollback-journal recovery, WAL savepoint current-prefix truncation, restart checkpoint, and native VFS file writer apply',
+            'non_overlap' => 'extends accepted next160 truncate/no-reader VFS apply by keeping a pinned current reader on the retained WAL prefix during restart checkpoint reset instead of deleting the WAL sidecar',
+        ];
+        $applied['dependencies'] = array_values(array_unique(array_merge(
+            $applied['dependencies'],
+            ['sqlite-wal-hot-journal-savepoint-checkpoint-pinned-reader-current-source-next163']
+        )));
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @param list<int> $visiblePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint_append:array<string, mixed>,atomic:bool}
