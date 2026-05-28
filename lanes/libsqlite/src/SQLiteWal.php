@@ -989,6 +989,117 @@ final class SQLiteWal
     /**
      * @param list<int> $pageNumbers
      * @param list<int|null> $readMarks
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderPinCurrentNext68(
+        string $databaseBytes,
+        array $pageNumbers,
+        array $readMarks,
+        ?int $nextReaderSlot = null,
+        string $mode = 'restart'
+    ): array {
+        $base = $this->checkpointReaderPinCurrentNext($databaseBytes, $pageNumbers, $readMarks, $mode);
+        if (!$base['pin_blocks_reset']) {
+            throw new \RuntimeException('SQLite WAL current/next reader-pin handoff requires a checkpoint pinned by an older current reader');
+        }
+
+        $readMarkPlan = $base['read_mark_plan'];
+        $latestFrame = $readMarkPlan['last_commit_frame'];
+        if ($latestFrame === null) {
+            throw new \RuntimeException('SQLite WAL current/next reader-pin handoff requires a committed WAL frame');
+        }
+
+        $nextReadMarks = array_values($readMarks);
+        $chosenSlot = $nextReaderSlot ?? self::nextReaderSlot($nextReadMarks, $readMarkPlan);
+        if ($chosenSlot === null) {
+            throw new \RuntimeException('SQLite WAL current/next reader-pin handoff requires a reusable read-mark slot');
+        }
+        if ($chosenSlot < 0 || $chosenSlot >= SQLiteShmIndex::READER_COUNT) {
+            throw new \InvalidArgumentException('SQLite WAL current/next reader-pin handoff slot is outside the WAL-index reader range');
+        }
+
+        $slotReusable = false;
+        foreach ($readMarkPlan['read_marks'] as $mark) {
+            if ($mark['slot'] === $chosenSlot && !$mark['pins_checkpoint'] && in_array($chosenSlot, $readMarkPlan['reusable_slots'], true)) {
+                $slotReusable = true;
+                break;
+            }
+        }
+        if (!$slotReusable && array_key_exists($chosenSlot, $nextReadMarks) && $nextReadMarks[$chosenSlot] !== null) {
+            throw new \InvalidArgumentException('SQLite WAL current/next reader-pin handoff cannot overwrite an active non-reusable reader slot');
+        }
+
+        while (count($nextReadMarks) <= $chosenSlot) {
+            $nextReadMarks[] = null;
+        }
+        $nextReadMarks[$chosenSlot] = $latestFrame;
+        $nextPlan = $this->readMarkPlan($nextReadMarks);
+        $checkpointWithNext = $this->durableCheckpointResult($databaseBytes, $mode, $nextPlan['checkpoint_pinned_frame']);
+
+        $releasedReadMarks = $nextReadMarks;
+        foreach ($readMarkPlan['read_marks'] as $mark) {
+            if ($mark['pins_checkpoint']) {
+                $releasedReadMarks[$mark['slot']] = null;
+            }
+        }
+        $releasedPlan = $this->readMarkPlan($releasedReadMarks);
+        $releasedCheckpoint = $this->durableCheckpointResult($databaseBytes, $mode, $releasedPlan['checkpoint_pinned_frame']);
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL current/next reader-pin handoff pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $base['current_reader_end_frame']);
+            $next[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $latestFrame);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'mode' => $base['mode'],
+            'status' => $checkpointWithNext['busy'] ? 'current-reader-pinned-next-reader-active' : 'next-reader-active',
+            'current_reader_end_frame' => $base['current_reader_end_frame'],
+            'next_reader_end_frame' => $latestFrame,
+            'next_reader_slot' => $chosenSlot,
+            'current_read_marks' => array_values($readMarks),
+            'next_read_marks' => $nextReadMarks,
+            'released_read_marks' => $releasedReadMarks,
+            'current_pin_frames' => array_values(array_map(
+                static fn (array $mark): int => (int) $mark['frame'],
+                array_filter($readMarkPlan['read_marks'], static fn (array $mark): bool => (bool) $mark['pins_checkpoint'])
+            )),
+            'next_reader_slot_reusable_before' => $slotReusable,
+            'checkpoint_with_next' => $checkpointWithNext,
+            'released_checkpoint' => $releasedCheckpoint,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_errors' => self::visibilityErrors($current),
+            'next_errors' => self::visibilityErrors($next),
+            'current_images' => $currentImages,
+            'next_images' => $nextImages,
+            'current_stable' => $currentImages === self::visibilityImages($base['current_after']),
+            'next_matches_latest_snapshot' => $nextImages === self::visibilityImages($base['next_after']),
+            'next_reader_does_not_pin_checkpoint' => $nextPlan['checkpoint_pinned_frame'] === $readMarkPlan['checkpoint_pinned_frame'],
+            'release_unblocks_reset' => !$releasedCheckpoint['busy'] && $releasedCheckpoint['can_reset'],
+            'base' => $base,
+            'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
+                'wal-reader-pin-current-next68',
+                'sqlite-wal-readmark-current-next-handoff',
+            ]))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
      * @param list<array{page_number:int,commit_page_count:int,page_image:string}> $appendFrames
      * @return array<string,mixed>
      */

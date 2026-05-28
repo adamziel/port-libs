@@ -180,6 +180,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
 
     /**
      * @param array<string,mixed> $term
+     * @param array<string,mixed> $row
      * @return array<string,mixed>
      */
     private static function evaluateTerm(array $term, array $row): array
@@ -187,23 +188,42 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $operator = (string) ($term['operator'] ?? '');
         if ($operator === 'AND') {
             $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+            $hasNull = false;
+            foreach ($children as $child) {
+                if (($child['result'] ?? null) === false) {
+                    return array_replace($term, ['actual' => array_column($children, 'actual'), 'result' => false, 'ok' => false, 'terms' => $children]);
+                }
+                $hasNull = $hasNull || (($child['result'] ?? null) === null);
+            }
+            $result = $hasNull ? null : true;
 
-            return array_replace($term, ['actual' => array_column($children, 'actual'), 'ok' => self::termsOk($children), 'terms' => $children]);
+            return array_replace($term, ['actual' => array_column($children, 'actual'), 'result' => $result, 'ok' => $result !== false, 'terms' => $children]);
         }
         if ($operator === 'OR') {
             $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+            $hasNull = false;
+            foreach ($children as $child) {
+                if (($child['result'] ?? null) === true) {
+                    return array_replace($term, ['actual' => array_column($children, 'actual'), 'result' => true, 'ok' => true, 'terms' => $children]);
+                }
+                $hasNull = $hasNull || (($child['result'] ?? null) === null);
+            }
+            $result = $hasNull ? null : false;
 
-            return array_replace($term, ['actual' => array_column($children, 'actual'), 'ok' => self::anyTermOk($children), 'terms' => $children]);
+            return array_replace($term, ['actual' => array_column($children, 'actual'), 'result' => $result, 'ok' => $result !== false, 'terms' => $children]);
         }
         if ($operator === 'NOT') {
             $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+            $childResult = $children[0]['result'] ?? null;
+            $result = $childResult === null ? null : !$childResult;
 
-            return array_replace($term, ['actual' => $children[0]['actual'] ?? null, 'ok' => !self::termsOk($children), 'terms' => $children]);
+            return array_replace($term, ['actual' => $children[0]['actual'] ?? null, 'result' => $result, 'ok' => $result !== false, 'terms' => $children]);
         }
 
         $actual = self::evalExpr($term['expr'], $row);
+        $result = self::compare($actual, $operator, $term['value']);
 
-        return $term + ['actual' => $actual, 'ok' => self::compare($actual, $operator, $term['value'])];
+        return $term + ['actual' => $actual, 'result' => $result, 'ok' => $result !== false];
     }
 
     /**
@@ -224,19 +244,30 @@ final class SQLiteJsonbCheckCurrentNextPlan
      */
     private static function evalFunction(string $name, array $args): mixed
     {
-        return match ($name) {
-            'json_valid' => SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', $args) ? 1 : 0,
-            'json_type' => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', $args),
-            'json_array_length' => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_array_length', $args),
-            'json_extract', 'jsonb_extract' => SQLiteJsonExtract::extractSqlFunction($name, $args[0] ?? null, ...array_map(static fn (mixed $arg): string => (string) $arg, array_slice($args, 1))),
-            default => throw new \InvalidArgumentException('SQLite JSONB CHECK current/next plan supports JSON CHECK functions only'),
-        };
+        if (!in_array($name, ['json_valid', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract'], true)) {
+            throw new \InvalidArgumentException('SQLite JSONB CHECK current/next plan supports JSON CHECK functions only');
+        }
+
+        try {
+            return match ($name) {
+                'json_valid' => SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', $args) ? 1 : 0,
+                'json_type' => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', $args),
+                'json_array_length' => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_array_length', $args),
+                'json_extract', 'jsonb_extract' => SQLiteJsonExtract::extractSqlFunction($name, $args[0] ?? null, ...array_map(static fn (mixed $arg): string => (string) $arg, array_slice($args, 1))),
+            };
+        } catch (\InvalidArgumentException) {
+            if ($name === 'json_valid') {
+                return 0;
+            }
+
+            return null;
+        }
     }
 
-    private static function compare(mixed $actual, string $operator, mixed $expected): bool
+    private static function compare(mixed $actual, string $operator, mixed $expected): ?bool
     {
         if ($operator === 'truthy') {
-            return $actual !== null && $actual !== 0 && $actual !== false && $actual !== '';
+            return $actual === null ? null : ($actual !== 0 && $actual !== false && $actual !== '');
         }
         if ($operator === 'IS NULL') {
             return $actual === null;
@@ -244,20 +275,25 @@ final class SQLiteJsonbCheckCurrentNextPlan
         if ($operator === 'IS NOT NULL') {
             return $actual !== null;
         }
-        if ($actual === null) {
-            return false;
-        }
         if ($operator === 'BETWEEN') {
             return is_array($expected) && self::compare($actual, '>=', $expected['lower']) && self::compare($actual, '<=', $expected['upper']);
         }
         if ($operator === 'IN') {
+            $hasNull = false;
             foreach ((array) $expected as $value) {
+                if ($value === null) {
+                    $hasNull = true;
+                    continue;
+                }
                 if (self::compare($actual, '=', $value)) {
                     return true;
                 }
             }
 
-            return false;
+            return $actual === null || $hasNull ? null : false;
+        }
+        if ($actual === null || $expected === null) {
+            return null;
         }
 
         $comparison = (is_int($actual) || is_float($actual) || is_int($expected) || is_float($expected))
@@ -485,6 +521,14 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $parts[] = trim(substr($sql, $start));
 
         return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitOr(string $sql): array
+    {
+        return self::splitLogical($sql, 'OR');
     }
 
     /**

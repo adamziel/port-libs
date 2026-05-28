@@ -42,6 +42,13 @@ final class SQLiteVfsFileControlState
             'lock_timeout' => self::nonNegativeInt($fileControls['lock_timeout'] ?? 0, 'SQLite VFS lock timeout'),
             'data_version' => self::positiveInt($fileControls['data_version'] ?? 1, 'SQLite VFS data version'),
             'has_moved' => false,
+            'atomic_write_active' => false,
+            'atomic_write_generation' => self::nonNegativeInt($fileControls['atomic_write_generation'] ?? 0, 'SQLite VFS atomic-write generation'),
+            'last_sync_flags' => null,
+            'sync_count' => self::nonNegativeInt($fileControls['sync_count'] ?? 0, 'SQLite VFS sync count'),
+            'commit_phase_two_count' => self::nonNegativeInt($fileControls['commit_phase_two_count'] ?? 0, 'SQLite VFS commit phase-two count'),
+            'write_hint_bytes' => self::optionalNonNegativeInt($fileControls['write_hint_bytes'] ?? null, 'SQLite VFS write hint bytes'),
+            'overwrite_pages' => [],
         ];
     }
 
@@ -106,6 +113,13 @@ final class SQLiteVfsFileControlState
             'data_version' => $this->readOnlyValue('data_version', $op),
             'has_moved' => $this->hasMoved($argument),
             'tempfilename', 'temp_filename' => $this->tempFilename($argument),
+            'begin_atomic_write' => $this->beginAtomicWrite(),
+            'commit_atomic_write' => $this->commitAtomicWrite(),
+            'rollback_atomic_write' => $this->rollbackAtomicWrite(),
+            'sync' => $this->syncControl($argument),
+            'commit_phasetwo', 'commit_phase_two' => $this->commitPhaseTwo(),
+            'write_hint' => $this->writeHint($argument),
+            'overwrite' => $this->overwrite($argument),
             default => $this->result('notfound', $op, false, null, null, 'unsupported_file_control'),
         };
     }
@@ -186,6 +200,45 @@ final class SQLiteVfsFileControlState
     }
 
     /**
+     * @param array<string|int, mixed> $controls
+     * @return array{status:string,count:int,pairs:list<array{ordinal:int,op:string,current:array<string, mixed>,next:array<string, mixed>,result:array<string, mixed>}>,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    public function currentNext68(array $controls): array
+    {
+        $pairs = [];
+        $ordinal = 0;
+        foreach ($controls as $op => $argument) {
+            if (is_int($op)) {
+                if (!is_array($argument) || !array_key_exists('op', $argument)) {
+                    throw new \InvalidArgumentException('SQLite VFS current/next68 item requires an op');
+                }
+                $op = (string) $argument['op'];
+                $argument = $argument['value'] ?? null;
+            } else {
+                $op = (string) $op;
+            }
+
+            $current = $this->snapshot68();
+            $result = $this->apply($op, $argument);
+            $pairs[] = [
+                'ordinal' => $ordinal++,
+                'op' => (string) $result['op'],
+                'current' => $current,
+                'next' => $this->snapshot68(),
+                'result' => $result,
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'count' => count($pairs),
+            'pairs' => $pairs,
+            'controls' => $this->controls,
+            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-current-next68']))),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function snapshot64(): array
@@ -201,6 +254,22 @@ final class SQLiteVfsFileControlState
             'powersafe_overwrite' => $this->controls['powersafe_overwrite'],
             'has_moved' => $this->controls['has_moved'],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function snapshot68(): array
+    {
+        return array_merge($this->snapshot64(), [
+            'atomic_write_active' => $this->controls['atomic_write_active'],
+            'atomic_write_generation' => $this->controls['atomic_write_generation'],
+            'last_sync_flags' => $this->controls['last_sync_flags'],
+            'sync_count' => $this->controls['sync_count'],
+            'commit_phase_two_count' => $this->controls['commit_phase_two_count'],
+            'write_hint_bytes' => $this->controls['write_hint_bytes'],
+            'overwrite_pages' => $this->controls['overwrite_pages'],
+        ]);
     }
 
     /**
@@ -378,6 +447,119 @@ final class SQLiteVfsFileControlState
     /**
      * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
      */
+    private function beginAtomicWrite(): array
+    {
+        if ($this->readOnly || $this->immutable || $this->memory) {
+            return $this->result('ignored', 'begin_atomic_write', false, $this->controls['atomic_write_active'], $this->controls['atomic_write_active'], 'atomic_write_requires_writable_file_handle');
+        }
+
+        $previous = (bool) $this->controls['atomic_write_active'];
+        $this->controls['atomic_write_active'] = true;
+
+        return $this->result('ok', 'begin_atomic_write', !$previous, true, $previous, $previous ? 'atomic_write_already_active' : null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function commitAtomicWrite(): array
+    {
+        if (!$this->controls['atomic_write_active']) {
+            return $this->result('ignored', 'commit_atomic_write', false, false, false, 'atomic_write_not_active');
+        }
+
+        $previous = true;
+        $this->controls['atomic_write_active'] = false;
+        $this->controls['atomic_write_generation']++;
+
+        return $this->result('ok', 'commit_atomic_write', true, false, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function rollbackAtomicWrite(): array
+    {
+        if (!$this->controls['atomic_write_active']) {
+            return $this->result('ignored', 'rollback_atomic_write', false, false, false, 'atomic_write_not_active');
+        }
+
+        $previous = true;
+        $this->controls['atomic_write_active'] = false;
+
+        return $this->result('ok', 'rollback_atomic_write', true, false, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function syncControl(mixed $argument): array
+    {
+        if ($this->readOnly || $this->memory) {
+            return $this->result('ignored', 'sync', false, $this->controls['last_sync_flags'], $this->controls['last_sync_flags'], 'sync_requires_writable_file_handle');
+        }
+
+        $previous = $this->controls['last_sync_flags'];
+        $flags = self::syncFlags($argument);
+        $this->controls['last_sync_flags'] = $flags;
+        $this->controls['sync_count']++;
+
+        return $this->result('ok', 'sync', $flags !== $previous, $flags, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function commitPhaseTwo(): array
+    {
+        if ($this->readOnly || $this->memory) {
+            return $this->result('ignored', 'commit_phasetwo', false, $this->controls['commit_phase_two_count'], $this->controls['commit_phase_two_count'], 'commit_phase_two_requires_writable_file_handle');
+        }
+
+        $previous = $this->controls['commit_phase_two_count'];
+        $this->controls['commit_phase_two_count']++;
+
+        return $this->result('ok', 'commit_phasetwo', true, $this->controls['commit_phase_two_count'], $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function writeHint(mixed $argument): array
+    {
+        if ($this->readOnly || $this->immutable || $this->memory) {
+            return $this->result('ignored', 'write_hint', false, $this->controls['write_hint_bytes'], $this->controls['write_hint_bytes'], 'write_hint_requires_writable_file_handle');
+        }
+
+        $previous = $this->controls['write_hint_bytes'];
+        $value = $argument === null ? null : self::nonNegativeInt($argument, 'SQLite VFS write hint bytes');
+        $this->controls['write_hint_bytes'] = $value;
+
+        return $this->result('ok', 'write_hint', $value !== $previous, $value, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function overwrite(mixed $argument): array
+    {
+        if ($this->readOnly || $this->immutable || $this->memory) {
+            return $this->result('ignored', 'overwrite', false, $this->controls['overwrite_pages'], $this->controls['overwrite_pages'], 'overwrite_requires_writable_file_handle');
+        }
+
+        $page = self::positiveInt($argument, 'SQLite VFS overwrite page');
+        $previous = $this->controls['overwrite_pages'];
+        if (!in_array($page, $this->controls['overwrite_pages'], true)) {
+            $this->controls['overwrite_pages'][] = $page;
+            sort($this->controls['overwrite_pages']);
+        }
+
+        return $this->result('ok', 'overwrite', $previous !== $this->controls['overwrite_pages'], $this->controls['overwrite_pages'], $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
     private function readOnlyValue(string $key, string $op): array
     {
         return $this->result('ok', $op, false, $this->controls[$key], $this->controls[$key], null);
@@ -478,5 +660,35 @@ final class SQLiteVfsFileControlState
         }
 
         return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function syncFlags(mixed $value): array
+    {
+        if ($value === null) {
+            return ['normal'];
+        }
+        if (is_string($value)) {
+            $parts = preg_split('/[|,\s]+/', strtolower(trim($value))) ?: [];
+        } elseif (is_array($value)) {
+            $parts = array_map(static fn (mixed $part): string => strtolower(trim((string) $part)), $value);
+        } else {
+            throw new \InvalidArgumentException('SQLite VFS sync flags must be a string or list');
+        }
+
+        $flags = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            if (!in_array($part, ['normal', 'full', 'dataonly'], true)) {
+                throw new \InvalidArgumentException('SQLite VFS sync flag is invalid');
+            }
+            $flags[] = $part;
+        }
+
+        return $flags === [] ? ['normal'] : array_values(array_unique($flags));
     }
 }

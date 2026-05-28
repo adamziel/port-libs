@@ -120,6 +120,87 @@ final class SQLiteSelectRecursiveJsonMaterialization
     }
 
     /**
+     * @param array<string,mixed> $plan
+     * @param list<string> $identityColumns
+     * @return list<array{iteration:int,current:array<string,mixed>,next:?array<string,mixed>,currentKey:array<string,mixed>,nextKey:?array<string,mixed>,currentJsonRows:list<array<string,mixed>>,nextJsonRows:list<array<string,mixed>>,currentJsonCount:int,nextJsonCount:int,acceptedNext:list<array<string,mixed>>,acceptedNextKeys:list<array<string,mixed>>,acceptedNextJsonRows:list<list<array<string,mixed>>>,acceptedNextJsonCounts:list<int>,skippedDuplicates:list<array<string,mixed>>,skippedDuplicateKeys:list<array<string,mixed>>,emitted:bool,status:string,queueAfterCount:int}>
+     */
+    public static function recursiveJsonCurrentNextFrontier(array $plan, array $identityColumns): array
+    {
+        $rows = $plan['rows'] ?? null;
+        $pairs = $plan['recursiveCurrentNext'] ?? null;
+        if (!is_array($rows) || !is_array($pairs)) {
+            throw new \InvalidArgumentException('SQLite recursive JSON frontier needs a recursive materialization plan');
+        }
+        if ($identityColumns === []) {
+            throw new \InvalidArgumentException('SQLite recursive JSON frontier needs identity columns');
+        }
+
+        $frontier = [];
+        foreach ($pairs as $pair) {
+            if (!is_array($pair) || !is_array($pair['current'] ?? null)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON frontier pair is malformed');
+            }
+
+            $current = $pair['current'];
+            $next = $pair['next'] ?? null;
+            if ($next !== null && !is_array($next)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON frontier next row is malformed');
+            }
+
+            self::assertColumns($current, $identityColumns);
+            if ($next !== null) {
+                self::assertColumns($next, $identityColumns);
+            }
+
+            $currentJsonRows = self::jsonRowsForRecursiveRow($rows, $current);
+            $nextJsonRows = $next === null ? [] : self::jsonRowsForRecursiveRow($rows, $next);
+            $acceptedNext = array_values(array_filter(
+                $pair['acceptedNext'] ?? [],
+                static fn (mixed $row): bool => is_array($row),
+            ));
+            $skippedDuplicates = array_values(array_filter(
+                $pair['skippedDuplicates'] ?? [],
+                static fn (mixed $row): bool => is_array($row),
+            ));
+
+            $acceptedNextJsonRows = [];
+            foreach ($acceptedNext as $accepted) {
+                self::assertColumns($accepted, $identityColumns);
+                $acceptedNextJsonRows[] = self::jsonRowsForRecursiveRow($rows, $accepted);
+            }
+
+            foreach ($skippedDuplicates as $skipped) {
+                self::assertColumns($skipped, $identityColumns);
+            }
+
+            $frontier[] = [
+                'iteration' => (int) ($pair['iteration'] ?? count($frontier)),
+                'current' => $current,
+                'next' => $next,
+                'currentKey' => self::projectColumns($current, $identityColumns),
+                'nextKey' => $next === null ? null : self::projectColumns($next, $identityColumns),
+                'currentJsonRows' => $currentJsonRows,
+                'nextJsonRows' => $nextJsonRows,
+                'currentJsonCount' => count($currentJsonRows),
+                'nextJsonCount' => count($nextJsonRows),
+                'acceptedNext' => $acceptedNext,
+                'acceptedNextKeys' => array_map(static fn (array $row): array => self::projectColumns($row, $identityColumns), $acceptedNext),
+                'acceptedNextJsonRows' => $acceptedNextJsonRows,
+                'acceptedNextJsonCounts' => array_map(static fn (array $jsonRows): int => count($jsonRows), $acceptedNextJsonRows),
+                'skippedDuplicates' => $skippedDuplicates,
+                'skippedDuplicateKeys' => array_map(static fn (array $row): array => self::projectColumns($row, $identityColumns), $skippedDuplicates),
+                'emitted' => (bool) ($pair['emitted'] ?? false),
+                'status' => $next === null
+                    ? 'terminal-current'
+                    : (((bool) ($pair['emitted'] ?? false)) ? 'emitted-current' : 'queued-current'),
+                'queueAfterCount' => (int) ($pair['queueAfterCount'] ?? 0),
+            ];
+        }
+
+        return $frontier;
+    }
+
+    /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>}
      */
