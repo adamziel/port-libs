@@ -255,7 +255,7 @@ final class SQLiteSelectExpression
         return match (strtoupper($collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("Unsupported SQLite SELECT CASE collation: {$collation}"),
         };
     }

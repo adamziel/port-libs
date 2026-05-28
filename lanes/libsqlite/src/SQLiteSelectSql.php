@@ -1214,7 +1214,7 @@ final class SQLiteSelectSql
 
         if ($joinOffset !== null) {
             $joinSql = trim(substr($sql, $joinOffset));
-            $currentRows = self::qualifiedRows($base['rows'], $base['alias']);
+            $currentRows = self::qualifiedSourceRows($base);
             while ($joinSql !== '') {
                 [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns, $outerRow);
                 $joins[] = $join;
@@ -1235,7 +1235,7 @@ final class SQLiteSelectSql
         }
 
         $source = [
-            'from' => $joins === [] ? $base['rows'] : self::qualifiedRows($base['rows'], $base['alias']),
+            'from' => $joins === [] ? self::unqualifiedSourceRows($base) : self::qualifiedSourceRows($base),
             'joins' => $joins,
         ];
         if ($outerRow !== null || ($base['name'] ?? null) === 'subquery') {
@@ -1243,6 +1243,28 @@ final class SQLiteSelectSql
         }
 
         return $source;
+    }
+
+    /**
+     * @param array{name:string,alias:string,rows:list<array<string,mixed>>} $source
+     * @return list<array<string,mixed>>
+     */
+    private static function qualifiedSourceRows(array $source): array
+    {
+        return ($source['name'] === 'json_each' || $source['name'] === 'json_tree')
+            ? self::qualifiedJsonRows($source['rows'], $source['alias'])
+            : self::qualifiedRows($source['rows'], $source['alias']);
+    }
+
+    /**
+     * @param array{name:string,alias:string,rows:list<array<string,mixed>>} $source
+     * @return list<array<string,mixed>>
+     */
+    private static function unqualifiedSourceRows(array $source): array
+    {
+        return ($source['name'] === 'json_each' || $source['name'] === 'json_tree')
+            ? self::unqualifiedJsonRows($source['rows'])
+            : $source['rows'];
     }
 
     /**
@@ -1708,6 +1730,24 @@ final class SQLiteSelectSql
         }
 
         return $qualified;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function unqualifiedJsonRows(array $rows): array
+    {
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('id', $row)) {
+                continue;
+            }
+            $rows[$index]['rowid'] = $row['id'];
+            $rows[$index]['_rowid_'] = $row['id'];
+            $rows[$index]['oid'] = $row['id'];
+        }
+
+        return $rows;
     }
 
     private static function literalExpressionValue(array $expression, string $context): mixed
@@ -3531,9 +3571,6 @@ final class SQLiteSelectSql
         }
 
         if ($name === 'json_group_array' || $name === 'jsonb_group_array') {
-            if (($term['distinct'] ?? false) === true) {
-                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
-            }
             if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) !== 'column') || !isset($arguments[0]['name']) || !is_string($arguments[0]['name'])) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs one column argument");
             }
@@ -3596,6 +3633,9 @@ final class SQLiteSelectSql
             if (isset($term['orderBy'])) {
                 $spec['orderBy'] = $term['orderBy']['name'];
             }
+            if (($term['distinct'] ?? false) === true) {
+                $spec['distinct'] = true;
+            }
             if (isset($term['filter'])) {
                 $spec['filter'] = $term['filter'];
             }
@@ -3613,6 +3653,9 @@ final class SQLiteSelectSql
         $arguments = $term['arguments'];
         $column = str_replace(['.', '-'], '_', $arguments[0]['name']);
         $name = strtolower($term['name']) === 'jsonb_group_array' ? 'jsonbGroupArray' : 'jsonGroupArray';
+        if (($term['distinct'] ?? false) === true) {
+            $name .= 'Distinct';
+        }
         if (isset($term['orderBy'])) {
             $name .= 'OrderBy' . str_replace(['.', '-'], '_', $term['orderBy']['name']);
         }

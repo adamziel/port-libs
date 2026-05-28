@@ -1804,6 +1804,109 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderPinRestartCurrentNext76(
+        string $databaseBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $currentReleasedShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader-pin current/next76 requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL checkpoint reader-pin current/next76 mode: {$mode}");
+        }
+
+        $first = $this->restartReadMarkTransition($databaseBytes, $currentShm, $mode);
+        $nextPin = $this->restartReadMarkTransition($databaseBytes, $nextReaderShm, $mode);
+        $afterCurrentRelease = $this->restartReadMarkTransition($databaseBytes, $currentReleasedShm, $mode);
+        $afterAllRelease = $this->restartReadMarkTransition($databaseBytes, $allReleasedShm, $mode);
+        $nextReaderEndFrame = self::highestActiveReadMarkFrame($nextReaderShm);
+        $currentReleasedReaderEndFrame = self::highestActiveReadMarkFrame($currentReleasedShm);
+        if ($currentReleasedReaderEndFrame !== null) {
+            $afterCurrentRelease['checkpoint'] = $this->durableCheckpointResult($databaseBytes, $mode, $currentReleasedReaderEndFrame);
+            $afterCurrentRelease['status'] = $afterCurrentRelease['checkpoint']['busy'] ? 'current-reader-pinned' : 'restart-ready';
+            $afterCurrentRelease['current_reader_end_frame'] = $currentReleasedReaderEndFrame;
+            $afterCurrentRelease['current_reader_kept_snapshot'] = $afterCurrentRelease['checkpoint']['busy'];
+            $afterCurrentRelease['next_read_marks'] = array_map(
+                static fn (array $mark): ?int => $mark['frame'],
+                $currentReleasedShm->readMarks
+            );
+        }
+
+        $finalWal = null;
+        if ($afterAllRelease['checkpoint']['wal_bytes'] !== '') {
+            $finalWal = self::parse($afterAllRelease['checkpoint']['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        }
+
+        $current = [];
+        $next = [];
+        $final = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint reader-pin current/next76 pages must be integers');
+            }
+
+            $current[] = $first['current_reader_end_frame'] === null
+                ? self::databasePageVisibilityOrError($databaseBytes, $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $first['current_reader_end_frame']);
+            $next[] = $nextReaderEndFrame === null
+                ? self::databasePageVisibilityOrError($databaseBytes, $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $nextReaderEndFrame);
+            $final[] = $finalWal === null || $afterAllRelease['next_wal_frame_count'] === 0
+                ? self::databasePageVisibilityOrError($afterAllRelease['checkpoint']['database_bytes'], $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($finalWal, $afterAllRelease['checkpoint']['database_bytes'], $pageNumber, $afterAllRelease['next_wal_frame_count']);
+        }
+
+        return [
+            'mode' => $mode,
+            'status' => $first['status'] === 'current-reader-pinned' && $afterCurrentRelease['status'] === 'current-reader-pinned' && $afterAllRelease['status'] === 'restart-ready'
+                ? 'reader-pin-next-reader-blocks-restart-current-next76'
+                : 'reader-pin-next-reader-' . $afterCurrentRelease['status'],
+            'first' => $first,
+            'next_pin' => $nextPin,
+            'after_current_release' => $afterCurrentRelease,
+            'after_all_release' => $afterAllRelease,
+            'current_reader_end_frame' => $first['current_reader_end_frame'],
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'final_reader_end_frame' => $afterAllRelease['next_wal_frame_count'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'final_reader' => $final,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'final_reader_sources' => self::visibilityColumn($final, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'final_reader_frame_indexes' => self::visibilityColumn($final, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'final_reader_errors' => self::visibilityErrors($final),
+            'current_reader_kept_snapshot' => $first['current_reader_kept_snapshot'],
+            'next_reader_kept_snapshot' => $afterCurrentRelease['current_reader_kept_snapshot'],
+            'next_reader_blocks_reset' => $afterCurrentRelease['checkpoint']['busy'],
+            'final_reset_ready' => !$afterAllRelease['checkpoint']['busy'] && in_array($afterAllRelease['checkpoint']['wal_action'], ['restart_wal', 'truncate_wal'], true),
+            'current_next_images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'next_final_images_match' => self::visibilityImages($next) === self::visibilityImages($final),
+            'dependencies' => array_values(array_unique(array_merge(
+                $first['dependencies'],
+                $nextPin['dependencies'],
+                $afterCurrentRelease['dependencies'],
+                $afterAllRelease['dependencies'],
+                ['wal-reader-pin-checkpoint-restart-current-next76']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
@@ -2066,6 +2169,18 @@ final class SQLiteWal
     private static function visibilityImages(array $rows): array
     {
         return array_map(static fn (array $row): ?string => is_string($row['image'] ?? null) ? $row['image'] : null, $rows);
+    }
+
+    private static function highestActiveReadMarkFrame(SQLiteShmIndex $shm): ?int
+    {
+        $frames = [];
+        foreach ($shm->readMarks as $mark) {
+            if (isset($mark['frame']) && is_int($mark['frame']) && $mark['frame'] > 0) {
+                $frames[] = $mark['frame'];
+            }
+        }
+
+        return $frames === [] ? null : max($frames);
     }
 
     /**

@@ -159,7 +159,7 @@ final class SQLiteAffinityComparison
         return match (strtoupper($collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(strtolower($left), strtolower($right)),
-            'RTRIM' => strcmp(rtrim($left, " \t\r\n\0\x0B"), rtrim($right, " \t\r\n\0\x0B")),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("SQLite comparison collation {$collation} is not supported"),
         };
     }

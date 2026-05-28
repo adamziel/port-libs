@@ -30,6 +30,7 @@ final class SQLiteWalSavepointCheckpointPlan
             throw new \InvalidArgumentException("Unsupported SQLite checkpoint mode after savepoint rollback: {$mode}");
         }
 
+        self::assertCurrentWalSource($wal, $walBytes);
         $truncation = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
         $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
         $currentWal = SQLiteWal::parse($currentWalBytes, $wal->header->pageSize, true);
@@ -910,6 +911,23 @@ final class SQLiteWalSavepointCheckpointPlan
         sort($pageNumbers, SORT_NUMERIC);
 
         return $pageNumbers;
+    }
+
+    private static function assertCurrentWalSource(SQLiteWal $wal, string $walBytes): void
+    {
+        $source = SQLiteWal::parse($walBytes, $wal->header->pageSize, $wal->checksumsValidated);
+        if ($source->header->pageSize !== $wal->header->pageSize) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source page size mismatch');
+        }
+        if ($source->header->checkpointSequence !== $wal->header->checkpointSequence) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source checkpoint sequence mismatch');
+        }
+        if ($source->header->salt1 !== $wal->header->salt1 || $source->header->salt2 !== $wal->header->salt2) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source salt mismatch');
+        }
+        if ($source->frameCount() !== $wal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source frame count mismatch');
+        }
     }
 
     /**

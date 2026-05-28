@@ -168,7 +168,7 @@ final class SQLiteLikeCurrentNextCursor
         return match (strtoupper($this->collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("Unsupported SQLite LIKE current/next collation: {$this->collation}"),
         };
     }

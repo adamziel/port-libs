@@ -146,8 +146,48 @@ final class SQLiteGroupedAggregate
             });
         }
 
-        $values = array_map(static fn (array $entry): mixed => $entry['row'][$column], $filtered);
+        $values = [];
+        $seen = [];
+        $distinct = ($aggregate['distinct'] ?? false) === true;
+        foreach ($filtered as $entry) {
+            $value = $entry['row'][$column];
+            if ($distinct) {
+                $key = self::distinctJsonAggregateKey($value);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+            }
+            $values[] = $value;
+        }
         $summary[$summaryColumn] = SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $values);
+    }
+
+    private static function distinctJsonAggregateKey(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return 'json:' . $value->json;
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_bool($value)) {
+            return 'bool:' . ($value ? '1' : '0');
+        }
+        if (is_int($value)) {
+            return 'int:' . $value;
+        }
+        if (is_float($value)) {
+            return 'float:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        return 'json:' . json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**

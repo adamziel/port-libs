@@ -87,7 +87,12 @@ $tests['json aggregate filter order current next73 supports having over grouped 
 $tests['json aggregate filter order current next73 rejects malformed filter and non-column order'] = static function (TestRunner $t) use ($tables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT json_group_array(option_name) FILTER (autoload = 'yes') AS names FROM wp_options", $tables));
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT json_group_array(option_name ORDER BY option_id + 1) AS names FROM wp_options", $tables));
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT json_group_array(DISTINCT option_name ORDER BY option_id) AS names FROM wp_options", $tables));
+};
+
+$tests['json aggregate filter order current next73 now admits distinct order follow-up'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute("SELECT json_group_array(DISTINCT option_name ORDER BY option_id) AS names FROM wp_options", $tables);
+
+    $t->same('["siteurl","blogname","plugin_rules","plugin_queue","empty_option"]', $rows[0]['names']);
 };
 
 $filterCases = [
