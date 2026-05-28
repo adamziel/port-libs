@@ -925,6 +925,58 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourcePathOrderByCostNext131(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourcePathConstraintPushdownNext123(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentCoverage = self::orderByConstraintCoverage120($plan['current']['used'], $orderBy);
+        $nextCoverage = self::orderByConstraintCoverage120($plan['next']['used'], $orderBy);
+        $currentPartialOrder = self::jsonTablePartialOrderCostProfile124($plan['current'], $plan['currentCostOrder'], $currentCoverage);
+        $nextPartialOrder = self::jsonTablePartialOrderCostProfile124($plan['next'], $plan['nextCostOrder'], $nextCoverage);
+        $currentProfile = self::jsonTablePathOrderByCostProfile131($plan['currentPathConstraint'], $currentPartialOrder, $plan['currentRows']);
+        $nextProfile = self::jsonTablePathOrderByCostProfile131($plan['nextPathConstraint'], $nextPartialOrder, $plan['nextRows']);
+        $transitions = self::jsonTablePathOrderByCostTransitions131($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathOrderByCostReplanReasons131($transitions);
+
+        $plan['currentPathOrderByCost'] = $currentProfile;
+        $plan['nextPathOrderByCost'] = $nextProfile;
+        $plan['pathOrderByCostTransitions'] = $transitions;
+        $plan['next131ReplanReasons'] = array_values(array_unique(array_merge($plan['next123ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next131ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-path-orderby-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next131ReplanReasons'] === []
+            ? 'reuse-current-json-table-path-orderby-cost-source-plan'
+            : 'prepare-next-json-table-path-orderby-cost-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-path-orderby-cost-current-source-next131'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceNestedPathPlannerNext121(
         string $function,
         array $currentSource,
@@ -5626,6 +5678,141 @@ final class SQLiteJsonTablePlan
                 'rowCount' => 'json-table-nested-hidden-row-count-changed',
                 'rootRowidTape' => 'json-table-nested-hidden-output-changed',
                 default => 'json-table-nested-hidden-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $pathCost
+     * @param array<string,mixed> $partialOrder
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private static function jsonTablePathOrderByCostProfile131(array $pathCost, array $partialOrder, array $rows): array
+    {
+        $pathEstimatedCost = (int) $pathCost['pathEstimatedCost'];
+        $sortPenalty = (int) $partialOrder['blockSortPenalty'];
+        $effectiveCost = $pathEstimatedCost >= 1000000
+            ? $pathEstimatedCost
+            : $pathEstimatedCost + $sortPenalty;
+        $orderedPathTape = self::jsonTablePathRowidTape126($rows);
+
+        return [
+            'selectedPathSignature' => $pathCost['selectedPathSignature'],
+            'pathScanStrategy' => (string) $pathCost['pathScanStrategy'],
+            'pathEstimatedCost' => $pathEstimatedCost,
+            'pathRowCount' => (int) $pathCost['pathRowCount'],
+            'orderBy' => $partialOrder['orderBy'],
+            'consumedPrefixColumns' => $partialOrder['consumedPrefixColumns'],
+            'suffixColumns' => $partialOrder['suffixColumns'],
+            'prefixConsumedCount' => (int) $partialOrder['prefixConsumedCount'],
+            'requiresSorter' => (bool) $partialOrder['blockSortRequired'],
+            'sortPenalty' => $sortPenalty,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTablePathOrderByCostClass131((string) $pathCost['pathScanStrategy'], (bool) $partialOrder['blockSortRequired'], $effectiveCost),
+            'orderedPathTape' => $orderedPathTape,
+            'firstOrderedPath' => $orderedPathTape[0] ?? null,
+            'lastOrderedPath' => $orderedPathTape === [] ? null : $orderedPathTape[array_key_last($orderedPathTape)],
+        ];
+    }
+
+    private static function jsonTablePathOrderByCostClass131(string $pathScanStrategy, bool $requiresSorter, int $effectiveCost): string
+    {
+        if ($pathScanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$requiresSorter) {
+            return 'json-table-path-order-stream';
+        }
+        if ($pathScanStrategy === 'path-constraint-pushdown') {
+            return $effectiveCost <= 12
+                ? 'json-table-path-order-block-sort'
+                : 'json-table-path-order-sort';
+        }
+
+        return 'json-table-full-path-order-sort';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTablePathOrderByCostTransitions131(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'selectedPathSignature',
+                'current' => $current['selectedPathSignature'],
+                'next' => $next['selectedPathSignature'],
+                'changed' => $current['selectedPathSignature'] !== $next['selectedPathSignature'],
+            ],
+            [
+                'field' => 'pathScanStrategy',
+                'current' => $current['pathScanStrategy'],
+                'next' => $next['pathScanStrategy'],
+                'changed' => $current['pathScanStrategy'] !== $next['pathScanStrategy'],
+            ],
+            [
+                'field' => 'consumedPrefixColumns',
+                'current' => $current['consumedPrefixColumns'],
+                'next' => $next['consumedPrefixColumns'],
+                'changed' => $current['consumedPrefixColumns'] !== $next['consumedPrefixColumns'],
+            ],
+            [
+                'field' => 'suffixColumns',
+                'current' => $current['suffixColumns'],
+                'next' => $next['suffixColumns'],
+                'changed' => $current['suffixColumns'] !== $next['suffixColumns'],
+            ],
+            [
+                'field' => 'requiresSorter',
+                'current' => $current['requiresSorter'],
+                'next' => $next['requiresSorter'],
+                'changed' => $current['requiresSorter'] !== $next['requiresSorter'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'orderedPathTape',
+                'current' => $current['orderedPathTape'],
+                'next' => $next['orderedPathTape'],
+                'changed' => $current['orderedPathTape'] !== $next['orderedPathTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTablePathOrderByCostReplanReasons131(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'selectedPathSignature', 'pathScanStrategy' => 'json-table-path-orderby-path-changed',
+                'consumedPrefixColumns', 'suffixColumns' => 'json-table-path-orderby-prefix-changed',
+                'requiresSorter' => 'json-table-path-orderby-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-path-orderby-cost-changed',
+                'orderedPathTape' => 'json-table-path-orderby-output-changed',
+                default => 'json-table-path-orderby-state-changed',
             };
         }
 
