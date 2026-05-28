@@ -168,6 +168,150 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
     }
 
     /**
+     * @param list<array{name:string, source?:string, active?:bool}> $preparedTriggers
+     * @param array<string,list<SQLiteSchemaRecord>> $nextSchemaRecords
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext89(
+        SQLiteAttachedSchemaCatalog $catalog,
+        array $preparedTriggers,
+        array $nextSchemaRecords = [],
+        array $schemaStates = [],
+    ): array {
+        if ($preparedTriggers === []) {
+            throw new \InvalidArgumentException('SQLite attach WAL temp trigger-cache current-source-next89 requires prepared triggers');
+        }
+
+        $schemaCookies = self::schemaCookies($schemaStates);
+        $cookieChanged = array_fill_keys($schemaCookies['changed_schemas'], true);
+        $triggerNames = [];
+        $sources = [];
+        $active = [];
+        $before = [];
+
+        foreach ($preparedTriggers as $index => $trigger) {
+            if (!isset($trigger['name']) || trim((string) $trigger['name']) === '') {
+                throw new \InvalidArgumentException("SQLite prepared trigger {$index} requires a name");
+            }
+
+            $name = trim((string) $trigger['name']);
+            $source = self::normalizeName((string) ($trigger['source'] ?? 'main'));
+            $catalog->schemaCacheSnapshot($source);
+            $triggerNames[] = $name;
+            $sources[$name] = $source;
+            $active[$name] = (bool) ($trigger['active'] ?? false);
+            $before[$name] = self::triggerCacheEntry($catalog, $name);
+        }
+
+        foreach ($nextSchemaRecords as $schema => $records) {
+            $catalog->replaceSchemaRecords((string) $schema, $records);
+        }
+
+        $triggerPlans = [];
+        $reprepareTriggers = [];
+        $stableTriggers = [];
+        $currentSnapshotTriggers = [];
+        $resetSchemaTriggers = [];
+        $nextStepSchemaTriggers = [];
+        $cookieExpiredTriggers = [];
+        $recordExpiredTriggers = [];
+        $sourceSchemas = [];
+        $primarySource = $sources[$triggerNames[0]];
+
+        foreach ($triggerNames as $name) {
+            $after = self::triggerCacheEntry($catalog, $name);
+            $sourceSchemas[$name] = $sources[$name];
+            $recordChanged = $before[$name] !== $after;
+            $dependencySchemas = self::triggerDependencySchemas($sources[$name], $before[$name]);
+            $cookieSchemas = array_values(array_filter(
+                $dependencySchemas,
+                static fn (string $schema): bool => isset($cookieChanged[$schema]),
+            ));
+            $cookieChangedForTrigger = $cookieSchemas !== [];
+            $requiresReprepare = $recordChanged || $cookieChangedForTrigger;
+
+            if (!$requiresReprepare) {
+                $action = 'reuse_prepared_trigger_current_and_next_source';
+                $sqliteResult = 'SQLITE_OK';
+                $stableTriggers[] = $name;
+            } elseif ($active[$name]) {
+                $action = 'finish_current_source_then_sqlite_schema_on_reset';
+                $sqliteResult = 'SQLITE_OK';
+                $currentSnapshotTriggers[] = $name;
+                $resetSchemaTriggers[] = $name;
+                $reprepareTriggers[] = $name;
+            } else {
+                $action = 'sqlite_schema_before_next_trigger_step';
+                $sqliteResult = 'SQLITE_SCHEMA';
+                $nextStepSchemaTriggers[] = $name;
+                $reprepareTriggers[] = $name;
+            }
+
+            if ($cookieChangedForTrigger) {
+                $cookieExpiredTriggers[] = $name;
+            }
+            if ($recordChanged) {
+                $recordExpiredTriggers[] = $name;
+            }
+
+            $triggerPlans[$name] = [
+                'source_schema' => $sources[$name],
+                'active' => $active[$name],
+                'before' => $before[$name],
+                'after' => $after,
+                'dependency_schemas' => $dependencySchemas,
+                'cookie_changed_schemas' => $cookieSchemas,
+                'trigger_changed' => ($before[$name]['sql'] ?? null) !== ($after['sql'] ?? null),
+                'target_changed' => ($before[$name]['target'] ?? null) !== ($after['target'] ?? null),
+                'body_dependencies_changed' => ($before[$name]['body_dependencies'] ?? []) !== ($after['body_dependencies'] ?? []),
+                'schema_cookie_changed' => $cookieChangedForTrigger,
+                'record_changed' => $recordChanged,
+                'requires_reprepare' => $requiresReprepare,
+                'current_step_result' => $sqliteResult,
+                'next_step_action' => $action,
+                'current_source_kept_until_reset' => $active[$name] && $requiresReprepare,
+                'next_source_requires_reprepare' => $requiresReprepare,
+            ];
+        }
+
+        $changedSchemas = array_values(array_unique(array_merge(
+            array_keys($nextSchemaRecords),
+            $schemaCookies['changed_schemas'],
+        )));
+        sort($changedSchemas);
+
+        return [
+            'status' => $reprepareTriggers === [] ? 'trigger_cache_stable' : 'trigger_cache_expired',
+            'operation' => 'attach-wal-temp-trigger-cache-current-source-next89',
+            'source_schema' => $primarySource,
+            'source_schemas' => $sourceSchemas,
+            'trigger_count' => count($triggerNames),
+            'active_trigger_count' => count(array_filter($active)),
+            'triggers' => $triggerPlans,
+            'reprepare_triggers' => $reprepareTriggers,
+            'stable_triggers' => $stableTriggers,
+            'active_current_snapshot_triggers' => $currentSnapshotTriggers,
+            'reset_schema_triggers' => $resetSchemaTriggers,
+            'next_step_schema_triggers' => $nextStepSchemaTriggers,
+            'cookie_expired_triggers' => $cookieExpiredTriggers,
+            'record_expired_triggers' => $recordExpiredTriggers,
+            'requires_reprepare' => $reprepareTriggers !== [],
+            'schema_record_updates' => array_keys($nextSchemaRecords),
+            'changed_schemas' => $changedSchemas,
+            'schema_cookies_current' => $schemaCookies['current'],
+            'schema_cookies_next' => $schemaCookies['next'],
+            'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
+            'dependencies' => [
+                'sqlite-attach-wal-temp-trigger-cache-current-source-next89',
+                'sqlite-prepared-trigger-current-source-reset',
+                'sqlite-wal-page-one-schema-cookie',
+                'sqlite-temp-schema-cookie-trigger-expiry',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $operations
      * @return list<array{operation_index:int,kind:string,schema:string,table:string,cookie_delta:int,journal:string,source:string}>
      */
@@ -269,6 +413,30 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
             'status' => $resolved['status'],
             'sql' => $trigger['record']->sql,
         ];
+    }
+
+    /**
+     * @param array{schema:string,target:array{schema:string},body_dependencies:list<array{schema:?string,name:string}>} $entry
+     * @return list<string>
+     */
+    private static function triggerDependencySchemas(string $source, array $entry): array
+    {
+        $schemas = [$source, (string) $entry['schema'], (string) $entry['target']['schema']];
+        foreach ($entry['body_dependencies'] as $dependency) {
+            $schema = $dependency['schema'] ?? null;
+            $schemas[] = $schema === null || $schema === '' ? $source : (string) $schema;
+        }
+
+        $normalized = [];
+        foreach ($schemas as $schema) {
+            $name = self::normalizeName($schema);
+            if (!in_array($name, $normalized, true)) {
+                $normalized[] = $name;
+            }
+        }
+        sort($normalized);
+
+        return $normalized;
     }
 
     /**

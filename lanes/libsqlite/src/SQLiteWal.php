@@ -2168,6 +2168,91 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderRestartCurrentSourceNext89(
+        string $databaseBytes,
+        string $walBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $currentReleasedShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($source->toBytes() !== $this->toBytes()) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart current-source bytes mismatch');
+        }
+
+        $plan = $this->checkpointReaderPinRestartCurrentSourceNext83(
+            $databaseBytes,
+            $currentShm,
+            $nextReaderShm,
+            $currentReleasedShm,
+            $allReleasedShm,
+            $pageNumbers,
+            $mode
+        );
+
+        $afterCurrentCheckpoint = $plan['after_current_release']['checkpoint'];
+        $afterAllCheckpoint = $plan['after_all_release']['checkpoint'];
+        $currentPlan = $currentShm->checkpointPlan();
+        $nextPlan = $nextReaderShm->checkpointPlan();
+        $currentReleasedPlan = $currentReleasedShm->checkpointPlan();
+        $allReleasedPlan = $allReleasedShm->checkpointPlan();
+
+        return array_merge($plan, [
+            'status' => str_replace('current-source-next83', 'current-source-next89', (string) $plan['status']),
+            'current_source_verified' => true,
+            'current_source' => [
+                'kind' => 'current_wal_sidecar',
+                'wal_bytes_length' => strlen($walBytes),
+                'frame_count' => $source->frameCount(),
+                'committed_frame_count' => $source->lastCommitFrame()?->index ?? 0,
+                'checkpoint_sequence' => $source->header->checkpointSequence,
+                'page_size' => $source->header->pageSize,
+                'salt1' => $source->header->salt1,
+                'salt2' => $source->header->salt2,
+                'checksums_validated' => $source->checksumsValidated,
+            ],
+            'restart_source' => [
+                'kind' => $afterAllCheckpoint['wal_action'],
+                'wal_bytes_length' => $afterAllCheckpoint['wal_bytes_length'],
+                'checkpoint_sequence' => is_array($afterAllCheckpoint['wal_header']) ? $afterAllCheckpoint['wal_header']['checkpoint_sequence'] : null,
+                'salt1' => is_array($afterAllCheckpoint['wal_header']) ? $afterAllCheckpoint['wal_header']['salt1'] : null,
+                'salt2' => is_array($afterAllCheckpoint['wal_header']) ? $afterAllCheckpoint['wal_header']['salt2'] : null,
+                'database_bytes_length' => strlen((string) $afterAllCheckpoint['database_bytes']),
+            ],
+            'read_mark_sources' => [
+                'current' => $currentPlan,
+                'next_reader' => $nextPlan,
+                'current_released' => $currentReleasedPlan,
+                'all_released' => $allReleasedPlan,
+            ],
+            'current_source_checkpointed_frame_count' => $plan['first']['checkpoint']['checkpointed_frame_count'],
+            'next_source_checkpointed_frame_count' => $afterCurrentCheckpoint['checkpointed_frame_count'],
+            'final_source_checkpointed_frame_count' => $afterAllCheckpoint['checkpointed_frame_count'],
+            'current_checkpoint_pinned_frame' => $currentPlan['checkpoint_pinned_frame'],
+            'next_checkpoint_pinned_frame' => $nextPlan['checkpoint_pinned_frame'],
+            'current_released_checkpoint_pinned_frame' => $currentReleasedPlan['checkpoint_pinned_frame'],
+            'all_released_checkpoint_pinned_frame' => $allReleasedPlan['checkpoint_pinned_frame'],
+            'current_reader_preserves_sidecar_source' => in_array('preserved-wal', $plan['current_source_names'], true),
+            'next_reader_uses_checkpoint_source' => in_array('checkpoint-database', $plan['next_source_names_after_current_release'], true),
+            'final_reader_uses_restarted_source' => $plan['final_uses_reset_database_only'] && in_array($afterAllCheckpoint['wal_action'], ['restart_wal', 'truncate_wal'], true),
+            'dependencies' => array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                $currentPlan['dependencies'],
+                $nextPlan['dependencies'],
+                $currentReleasedPlan['dependencies'],
+                $allReleasedPlan['dependencies'],
+                ['wal-reader-checkpoint-restart-current-source-next89']
+            ))),
+        ]);
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
