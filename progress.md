@@ -42,11 +42,34 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current sample reports 27 GiB total and about 12 GiB available.
-- Root filesystem: current sample reports `/` at 452G size, 372G used, 80G available, 83% used.
-- Current launch mode: high-concurrency supervisor run, not the old 2-lane bootstrap target. The latest sample saw 160 tmux sessions plus active lane, reseed, evaluator, auditor, integrator, dashboard, capacity, verifier, and watchdog sessions.
+- Memory: current sample reports 27 GiB total and about 16 GiB available.
+- Root filesystem: current sample reports `/` at 452G size with about 2.4G available, 100% used; `/tmp` has about 7.1G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The worker pool drained during the latest verification pass and must be refilled under the critical disk gate without long sleep loops.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 01:15 UTC):
+  Batch69 conflict subset is integrated and verified in the rolling clean
+  integration worktree. Implementation source advanced to
+  `567c2b39ba3b79d2de54677d5b687a36fb461174` (`Integrate libsqlite batch 69
+  conflict subset`). The accepted subset resolved pager69, select69, suite69,
+  and vfs69 conflicts by preserving existing batch68 current-next methods and
+  adding the batch69 methods beside them. Coverage added pager savepoint
+  rollback-to-current retry handling, recursive JSON SELECT yield-tape
+  materialization, suite-denominator current-source freshness gates, and VFS
+  SQL/file-control current-next parsing. Verification passed: conflict-marker
+  scan, `php -l` for four changed PHP source files, `git diff --check` for
+  staged and unstaged libsqlite changes, focused batch69 plus adjacent batch68
+  tests `7 test files / 2045 assertions / 0 failures`, full libsqlite lane
+  `488 test files / 57667 assertions / 0 failures / 26631 PASS lines`, and
+  root `701 test files / 82135 assertions / 0 failures / 29659 PASS lines`
+  with no runtime warnings. This is `+277` libsqlite PASS lines over the
+  published batch68/69 clean subset (`26354 -> 26631`); mapped upstream
+  coverage remains `464 / 1589` because suite69 explicitly preserves
+  denominator countability without claiming a new accepted inventory row.
+  Next decision: consume the four accepted markers, refill the tmux pool under
+  the disk gate, and integrate ready batch70/batch71 libsqlite outputs by
+  expected PASS-line movement.
 
 - 2026-05-28 supervisor continuation (shell samples 01:00 UTC):
   Batch68/69 clean subset is integrated and verified in the rolling clean
