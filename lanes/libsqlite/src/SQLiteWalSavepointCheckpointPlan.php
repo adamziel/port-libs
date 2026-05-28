@@ -1576,6 +1576,169 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function readerCheckpointSavepointCurrentSourceNext139(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        SQLiteShmIndex $activeReaderShm,
+        SQLiteShmIndex $releasedReaderShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint savepoint current-source next139 requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint savepoint current-source next139 requires restart or truncate mode');
+        }
+
+        self::assertCurrentWalSource($wal, $walBytes);
+        self::assertShmMatchesWal($activeReaderShm, $wal, 'active reader');
+        self::assertShmMatchesWal($releasedReaderShm, $wal, 'released reader');
+
+        $activePlan = $activeReaderShm->checkpointPlan();
+        $releasedPlan = $releasedReaderShm->checkpointPlan();
+        $activeReaderEndFrame = $activePlan['checkpoint_pinned_frame'];
+        if (!is_int($activeReaderEndFrame) || $activeReaderEndFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint savepoint current-source next139 requires an active reader pin');
+        }
+
+        $rollback = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $retainedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $writerReaderEndFrame = min($activeReaderEndFrame, $retainedWal->frameCount());
+        $activeCheckpoint = $retainedWal->durableCheckpointResult($databaseBytes, $mode, $writerReaderEndFrame);
+        $releasedCheckpoint = $retainedWal->durableCheckpointResult($databaseBytes, $mode);
+        $activeNextWal = $activeCheckpoint['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($activeCheckpoint['wal_bytes'], $wal->header->pageSize, true);
+        $releasedNextWal = $releasedCheckpoint['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($releasedCheckpoint['wal_bytes'], $wal->header->pageSize, true);
+        $activeNextEndFrame = $activeNextWal?->frameCount() ?? 0;
+        $releasedNextEndFrame = $releasedNextWal?->frameCount() ?? 0;
+
+        $rows = [];
+        $activeReader = [];
+        $writerCurrent = [];
+        $activeNext = [];
+        $releasedNext = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL reader checkpoint savepoint current-source next139 pages must be integers');
+            }
+
+            $active = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $activeReaderEndFrame);
+            $current = $retainedWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $writerReaderEndFrame);
+            $blockedNext = $activeNextWal === null
+                ? self::databasePageVisibility($activeCheckpoint['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $activeNextWal->readerSnapshotPageImage($activeCheckpoint['database_bytes'], $pageNumber, $activeNextEndFrame);
+            $next = $releasedNextWal === null
+                ? self::databasePageVisibility($releasedCheckpoint['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $releasedNextWal->readerSnapshotPageImage($releasedCheckpoint['database_bytes'], $pageNumber, $releasedNextEndFrame);
+
+            $activeReader[] = $active;
+            $writerCurrent[] = $current;
+            $activeNext[] = $blockedNext;
+            $releasedNext[] = $next;
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'active_reader_source' => (string) $active['source'],
+                'writer_current_source' => (string) $current['source'],
+                'active_next_source' => (string) $blockedNext['source'],
+                'released_next_source' => (string) $next['source'],
+                'active_reader_frame' => $active['frame_index'] ?? null,
+                'writer_current_frame' => $current['frame_index'] ?? null,
+                'active_next_frame' => $blockedNext['frame_index'] ?? null,
+                'released_next_frame' => $next['frame_index'] ?? null,
+                'active_reader_label' => rtrim(substr((string) $active['image'], 0, 72), ".\0"),
+                'writer_current_label' => rtrim(substr((string) $current['image'], 0, 72), ".\0"),
+                'released_next_label' => rtrim(substr((string) $next['image'], 0, 72), ".\0"),
+                'reader_held_rolled_back_frame' => ($active['frame_index'] ?? 0) > $retainedWal->frameCount(),
+                'writer_rolled_back_reader_image' => $active['image'] !== $current['image'],
+                'released_next_matches_writer_current' => $next['image'] === $current['image'],
+                'source_transition' => $active['source'] . '>' . $current['source'] . '>' . $blockedNext['source'] . '>' . $next['source'],
+            ];
+        }
+
+        $activeSources = self::visibilityColumn($activeReader, 'source');
+        $writerSources = self::visibilityColumn($writerCurrent, 'source');
+        $activeNextSources = self::visibilityColumn($activeNext, 'source');
+        $releasedNextSources = self::visibilityColumn($releasedNext, 'source');
+        $writerImages = self::visibilityColumn($writerCurrent, 'image');
+        $releasedImages = self::visibilityColumn($releasedNext, 'image');
+
+        return [
+            'status' => $activeCheckpoint['busy']
+                && !$releasedCheckpoint['busy']
+                && $activePlan['reset_blocked']
+                && !$releasedPlan['reset_blocked']
+                    ? 'reader-checkpoint-savepoint-current-source-next139'
+                    : 'reader-checkpoint-savepoint-current-source-next139-incomplete',
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'current_source_verified' => true,
+            'shm_source_verified' => true,
+            'active_reader_end_frame' => $activeReaderEndFrame,
+            'writer_current_reader_end_frame' => $writerReaderEndFrame,
+            'active_next_reader_end_frame' => $activeNextEndFrame,
+            'released_next_reader_end_frame' => $releasedNextEndFrame,
+            'retained_frame_count' => $retainedWal->frameCount(),
+            'discarded_frame_count' => $rollback['discarded_frame_count'],
+            'rolled_back_frame_indexes' => array_map(static fn (array $frame): int => $frame['frame_index'], $rollback['discarded_wal_frames']),
+            'rolled_back_page_numbers' => self::discardedPageNumbers($rollback['discarded_wal_frames']),
+            'current_source' => self::walSourceSummary($wal, strlen($walBytes)),
+            'retained_source' => self::walSourceSummary($retainedWal, strlen($retainedWalBytes)),
+            'active_shm_source' => self::shmSourceSummary($activeReaderShm, $activePlan),
+            'released_shm_source' => self::shmSourceSummary($releasedReaderShm, $releasedPlan),
+            'active_checkpoint' => $activeCheckpoint,
+            'released_checkpoint' => $releasedCheckpoint,
+            'active_wal_action' => $activeCheckpoint['wal_action'],
+            'released_wal_action' => $releasedCheckpoint['wal_action'],
+            'active_checkpoint_busy' => $activeCheckpoint['busy'],
+            'released_checkpoint_busy' => $releasedCheckpoint['busy'],
+            'active_checkpoint_reason' => $activeCheckpoint['reason'],
+            'released_checkpoint_reason' => $releasedCheckpoint['reason'],
+            'active_reader' => $activeReader,
+            'writer_current_reader' => $writerCurrent,
+            'active_next_reader' => $activeNext,
+            'released_next_reader' => $releasedNext,
+            'current_source_rows' => $rows,
+            'active_reader_sources' => $activeSources,
+            'writer_current_sources' => $writerSources,
+            'active_next_sources' => $activeNextSources,
+            'released_next_sources' => $releasedNextSources,
+            'active_reader_frame_indexes' => self::visibilityColumn($activeReader, 'frame_index'),
+            'writer_current_frame_indexes' => self::visibilityColumn($writerCurrent, 'frame_index'),
+            'active_next_frame_indexes' => self::visibilityColumn($activeNext, 'frame_index'),
+            'released_next_frame_indexes' => self::visibilityColumn($releasedNext, 'frame_index'),
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'active_reader_keeps_original_wal' => in_array(true, array_column($rows, 'reader_held_rolled_back_frame'), true),
+            'writer_current_uses_retained_prefix' => in_array('wal', $writerSources, true) && $writerReaderEndFrame === $retainedWal->frameCount(),
+            'active_reader_blocks_checkpoint_reset' => $activeCheckpoint['busy'] && $activeCheckpoint['wal_action'] === 'preserve_wal',
+            'reader_release_unblocks_checkpoint' => !$releasedCheckpoint['busy'],
+            'released_next_uses_checkpoint_database' => !in_array('wal', $releasedNextSources, true),
+            'released_next_matches_writer_current' => $releasedImages === $writerImages,
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'yield_count' => (4 * count($pageNumbers)) + count($rollback['discarded_wal_frames']),
+            'dependencies' => array_values(array_unique(array_merge(
+                $activeCheckpoint['dependencies'],
+                $releasedCheckpoint['dependencies'],
+                $activePlan['dependencies'],
+                $releasedPlan['dependencies'],
+                ['sqlite-wal-reader-checkpoint-savepoint-current-source-next139']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
      */
     public static function releaseThenRollbackCheckpointCurrentNext(
@@ -1878,6 +2041,37 @@ final class SQLiteWalSavepointCheckpointPlan
             throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source frame count mismatch');
         }
         self::exactWalFrameSourceRows($wal, $walBytes);
+    }
+
+    private static function assertShmMatchesWal(SQLiteShmIndex $shm, SQLiteWal $wal, string $label): void
+    {
+        $salt = $shm->header['salt'] ?? [];
+        if (($salt[0] ?? null) !== $wal->header->salt1 || ($salt[1] ?? null) !== $wal->header->salt2) {
+            throw new \InvalidArgumentException("SQLite WAL reader checkpoint savepoint current-source next139 {$label} SHM salt does not match current WAL");
+        }
+        if ((int) ($shm->header['mx_frame'] ?? -1) !== $wal->frameCount()) {
+            throw new \InvalidArgumentException("SQLite WAL reader checkpoint savepoint current-source next139 {$label} SHM mxFrame does not match current WAL");
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $checkpointPlan
+     * @return array<string,mixed>
+     */
+    private static function shmSourceSummary(SQLiteShmIndex $shm, array $checkpointPlan): array
+    {
+        $salt = $shm->header['salt'] ?? [];
+
+        return [
+            'mx_frame' => $shm->header['mx_frame'],
+            'backfilled_frame_count' => $shm->backfilledFrameCount,
+            'backfill_attempted_frame_count' => $shm->backfillAttemptedFrameCount,
+            'salt1' => $salt[0] ?? null,
+            'salt2' => $salt[1] ?? null,
+            'checkpoint_pinned_frame' => $checkpointPlan['checkpoint_pinned_frame'],
+            'reset_blocked' => $checkpointPlan['reset_blocked'],
+            'read_locks' => $checkpointPlan['read_locks'],
+        ];
     }
 
     /**
