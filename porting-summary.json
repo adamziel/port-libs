@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 02:40:37 UTC",
-    "sourceCommit": "b2c14b599f85189948728e25ff437a81a36ff040",
-    "sourceCommitShort": "b2c14b599f85",
-    "sourceBranch": "main",
-    "dashboardCommit": "b2c14b599f85189948728e25ff437a81a36ff040",
-    "dashboardCommitShort": "b2c14b599f85",
+    "generated": "2026-05-28 02:59:35 UTC",
+    "sourceCommit": "38862d88d470acfe37ee6203b99b8b521d596012",
+    "sourceCommitShort": "38862d88d470",
+    "sourceBranch": "unknown",
+    "dashboardCommit": "38862d88d470acfe37ee6203b99b8b521d596012",
+    "dashboardCommitShort": "38862d88d470",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "466",
-            "coverage": "466 / 1589",
-            "php": "32160 pass / 0 fail",
+            "mapped": "481",
+            "coverage": "481 / 1589",
+            "php": "33161 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch82 clean subset covering attach, B-tree,...",
-            "audit": "Implementation commit 5f6cdc0611d9a369216...",
-            "currentWork": "Accepted verified batch82 subset; dashboard/status publication and marker cleanup are nex...",
-            "nextTarget": "Publish dashboard/status for batch82, consume accepted marker triplets and inactive workt...",
-            "blocker": "No blocker for the accepted batch82 subset: focused, full libsqlite, and...",
-            "commit": "5f6cdc0"
+            "phase": "accepted batch83-84 clean subset covering attach, B-tre...",
+            "audit": "Implementation commit 6dff30ccbf405b91db7...",
+            "currentWork": "Accepted verified batch83-84 subset; dashboard/status publication and marker cleanup are...",
+            "nextTarget": "Publish dashboard/status for batch83-84, consume accepted marker triplets and inactive wo...",
+            "blocker": "No blocker for the accepted batch83-84 subset: focused, regression, full...",
+            "commit": "6dff30c"
         },
         {
             "library": "LightningCSS",
