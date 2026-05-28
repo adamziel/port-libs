@@ -43,10 +43,31 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 2.5G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10 libsqlite batch76/batch77 development workers with no long sleepers; keep refills bounded because disk remains critical.
+- Root filesystem: current sample reports `/` at 452G size with about 2.0G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 9-10 libsqlite batch78/batch79/batch80 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 02:09 UTC):
+  Batch75 clean subset is integrated and root-verified in the rolling clean
+  integration worktree. Implementation source advanced to
+  `4ac914e0c75878516262ea2cdbf7f24b906a2247` (`Integrate libsqlite batch 75
+  clean subset`). Accepted handoffs: btree75, encoding75, jsonagg75, jsonvt75,
+  pager75, sqlplan75, suite75, trigger75, vfs75, and wal75. Worker
+  `lane-status.json` hunks were excluded during patch application because they
+  were stale after the batch74 dashboard/status commit; supervisor status was
+  regenerated from verified evidence. Verification passed: `php -l` for
+  changed PHP files, changed WordPress examples, conflict-marker scan,
+  `git diff --check`, focused accepted subset `10 test files / 2503
+  assertions / 0 failures`, full libsqlite `544 test files / 64631 assertions
+  / 0 failures / 29984 PASS lines`, and root `757 test files / 89099
+  assertions / 0 failures / 33012 PASS lines`. This is `+602` libsqlite PASS
+  lines over the published batch74 subset (`29382 -> 29984`); mapped upstream
+  coverage remains `464 / 1589`. The worker pool was refilled with bounded
+  batch80 current-source lanes after root verification drained it. Next
+  decision: publish this status/dashboard, consume accepted batch75
+  markers/worktrees, and integrate clean batch76/77/78/79 handoffs by verified
+  PASS-line movement while keeping disk cleanup bounded.
 
 - 2026-05-28 supervisor continuation (shell samples 01:59 UTC):
   Batch74 clean subset is integrated and root-verified in the rolling clean
