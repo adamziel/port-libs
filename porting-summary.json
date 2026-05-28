@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 04:17:17 UTC",
-    "sourceCommit": "deac6c7a5011d312e0df081df3fddc200d241f40",
-    "sourceCommitShort": "deac6c7a5011",
+    "generated": "2026-05-28 04:29:07 UTC",
+    "sourceCommit": "f8e4faab4be40d6a2537c06a3664dcaf141eb8e1",
+    "sourceCommitShort": "f8e4faab4be4",
     "sourceBranch": "main",
-    "dashboardCommit": "deac6c7a5011d312e0df081df3fddc200d241f40",
-    "dashboardCommitShort": "deac6c7a5011",
+    "dashboardCommit": "f8e4faab4be40d6a2537c06a3664dcaf141eb8e1",
+    "dashboardCommitShort": "f8e4faab4be4",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "568",
-            "coverage": "568 / 1589",
-            "php": "38278 pass / 0 fail",
+            "mapped": "576",
+            "coverage": "576 / 1589",
+            "php": "38766 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch94 clean subset covering ATTACH, B-tree,...",
-            "audit": "Implementation commit beb259c39c4923b0ec0...",
-            "currentWork": "Accepted verified batch94 subset; dashboard/status publication and marker cleanup are nex...",
-            "nextTarget": "Publish dashboard/status for batch94, consume accepted marker triplets and inactive clean...",
-            "blocker": "No blocker for the accepted batch94 subset: focused, full libsqlite, and...",
-            "commit": "beb259c"
+            "phase": "accepted batch97 clean subset covering ATTACH, B-tree,...",
+            "audit": "Implementation commit ee994303f78cc47c131...",
+            "currentWork": "Accepted verified batch97 subset; dashboard/status publication and marker cleanup are nex...",
+            "nextTarget": "Publish dashboard/status for batch97, consume accepted marker triplets and inactive clean...",
+            "blocker": "No blocker for the accepted batch97 subset: focused, full libsqlite, and...",
+            "commit": "ee99430"
         },
         {
             "library": "LightningCSS",
