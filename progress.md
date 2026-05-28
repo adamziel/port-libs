@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 04:52 UTC):
+  Batch100 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `7ddab58fbf7d3a4d030d536b206670da3624ed4b` (`Integrate libsqlite batch
+  100 subset`) accepted 10 current-source libsqlite handoffs and a focused
+  comparator fix. Full-suite intake exposed stale JSON aggregate default-window
+  rejection expectations and a raw `strcmp()` magnitude instability in the
+  UTF-16 cursor; the integration updated the JSON tests to accepted default
+  frame behavior and normalized cursor comparisons to signs before rerunning
+  full/root gates. Verification passed: php -l `33` changed/untracked PHP
+  files, 10 changed WordPress examples/self-tests with valid JSON, git diff
+  --check, focused changed/regression tests `13 test files / 807 assertions /
+  0 failures / 723 PASS lines`, full libsqlite `709 test files / 81626
+  assertions / 0 failures / 40110 PASS lines`, and root `922 test files /
+  106094 assertions / 0 failures / 43138 PASS lines` with
+  `memory_limit=512M`. This is `+636` public libsqlite PASS-line movement over
+  batch99 (`39474 -> 40110`); mapped coverage advances from `587 / 1589` to
+  `597 / 1589`. Completed ready panes were replaced with bounded direct
+  launches, leaving 10 active current-base libsqlite workers and 0 sleepers
+  while dashboard/status publication proceeds.
+
 - 2026-05-28 supervisor continuation (shell/live samples 04:35 UTC):
   Batch99 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
