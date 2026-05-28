@@ -8,6 +8,224 @@ final class SQLiteWalHotJournalSavepointReplayPlan
 {
     /**
      * @param list<int> $pageNumbers
+     * @param array<int,string> $currentStatementSourcePages
+     * @return array<string,mixed>
+     */
+    public static function statementCurrentSourceNext91(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $currentStatementName,
+        string $nextStatementName,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databasePath,
+        array $pageNumbers,
+        array $currentStatementSourcePages,
+        bool $nextCommitFrame = false,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($currentStatementName === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay requires a current statement name');
+        }
+        if ($nextStatementName === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay requires a next statement name');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay next page numbers are one-based');
+        }
+        if ($nextBeforeImage === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay requires a next statement before image');
+        }
+        if (strlen($nextBeforeImage) !== $wal->header->pageSize) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay next before image must match WAL page size');
+        }
+        if ($currentStatementSourcePages === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay requires current statement source pages');
+        }
+
+        if ($journalBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay requires rollback-journal bytes');
+        }
+        if ($journal->toBytes() !== $journalBytes) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay rollback journal bytes do not match the parsed journal');
+        }
+        if ($wal->toBytes() !== $walBytes) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source replay WAL bytes do not match the parsed WAL');
+        }
+
+        $hot = $journal->hotJournalRecoveryResult(
+            $databaseBytes,
+            $journalBytes,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $recoveredDatabaseBytes = $hot['recovered'] ? $hot['database_bytes'] : $databaseBytes;
+        $walRecovery = SQLiteWal::transactionRecoveryBoundary($walBytes, $recoveredDatabaseBytes, $wal->header->pageSize);
+        $checkpointBytes = $walRecovery['checkpoint_database_bytes'] ?? null;
+        if (!is_string($checkpointBytes)) {
+            throw new \LogicException('SQLite WAL hot-journal statement current-source replay requires a checkpointable current WAL image');
+        }
+
+        $statement = $savepoints->rollbackStatementCurrentSourceAndBeginNext86(
+            $currentStatementName,
+            $nextStatementName,
+            $checkpointBytes,
+            $currentStatementSourcePages,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $wal->header->pageSize,
+            $nextCommitFrame
+        );
+
+        $statementPayloadKey = $databasePath . '#statement-current-source-next91';
+        $walPayloadKey = $databasePath . '-wal#statement-current-source-next91';
+        $nextWalBytes = substr($walBytes, 0, 32 + ($statement['rollback_to_wal_frame'] * (24 + $wal->header->pageSize)));
+        $journalPath = $databasePath . '-journal';
+        $walPath = $databasePath . '-wal';
+        $operations = [];
+        $payloads = [];
+        if ($hot['recovered']) {
+            $payloads[$databasePath . '#hot-journal'] = $recoveredDatabaseBytes;
+            $operations[] = [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($recoveredDatabaseBytes),
+                'payload_key' => $databasePath . '#hot-journal',
+                'reason' => 'restore_hot_journal_database_before_statement_wal_current_source',
+            ];
+            $operations[] = [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($recoveredDatabaseBytes),
+                'reason' => 'trim_hot_journal_database_before_statement_wal_current_source',
+            ];
+            $operations[] = [
+                'op' => 'delete',
+                'path' => $journalPath,
+                'reason' => 'delete_hot_journal_before_statement_wal_current_source',
+            ];
+        }
+
+        $payloads[$databasePath . '#current-wal-checkpoint91'] = $checkpointBytes;
+        $operations[] = [
+            'op' => 'write',
+            'path' => $databasePath,
+            'offset' => 0,
+            'bytes' => strlen($checkpointBytes),
+            'payload_key' => $databasePath . '#current-wal-checkpoint91',
+            'reason' => 'checkpoint_current_wal_before_statement_rollback',
+        ];
+        $operations[] = [
+            'op' => 'truncate',
+            'path' => $databasePath,
+            'bytes' => strlen($checkpointBytes),
+            'reason' => 'trim_checkpointed_current_wal_before_statement_rollback',
+        ];
+        $operations[] = [
+            'op' => 'write',
+            'path' => $databasePath,
+            'offset' => 0,
+            'bytes' => strlen($statement['rolled_back_database_bytes']),
+            'payload_key' => $statementPayloadKey,
+            'reason' => 'restore_statement_subjournal_after_hot_journal_wal_current_source',
+        ];
+        $operations[] = [
+            'op' => 'truncate',
+            'path' => $databasePath,
+            'bytes' => strlen($statement['rolled_back_database_bytes']),
+            'reason' => 'trim_statement_recovered_current_source_before_next_statement',
+        ];
+        $operations[] = [
+            'op' => 'write',
+            'path' => $databasePath . '-wal',
+            'offset' => 0,
+            'bytes' => strlen($nextWalBytes),
+            'payload_key' => $walPayloadKey,
+            'reason' => 'restore_statement_rollback_wal_prefix_before_next_statement',
+        ];
+        $operations[] = [
+            'op' => 'truncate',
+            'path' => $databasePath . '-wal',
+            'bytes' => strlen($nextWalBytes),
+            'reason' => 'discard_statement_wal_frames_before_next_statement',
+        ];
+        $operations[] = [
+            'op' => 'sync',
+            'path' => $databasePath,
+            'durable' => true,
+            'reason' => 'sync_statement_current_source_after_hot_journal_wal_replay',
+        ];
+
+        $payloads[$statementPayloadKey] = $statement['rolled_back_database_bytes'];
+        $payloads[$walPayloadKey] = $nextWalBytes;
+
+        return [
+            'status' => $hot['recovered'] ? 'hot_journal_wal_statement_current_source_recovered_next91' : 'hot_journal_wal_statement_current_source_skipped_next91',
+            'reason' => $hot['recovered'] ? 'hot_journal_and_current_wal_precede_statement_rollback' : 'statement_rollback_uses_current_wal_without_hot_journal_recovery',
+            'database_path' => $databasePath,
+            'journal_path' => $journalPath,
+            'wal_path' => $walPath,
+            'savepoint' => $savepoint,
+            'current_statement' => $currentStatementName,
+            'next_statement' => $nextStatementName,
+            'hot_recovered' => $hot['recovered'],
+            'statement_database_bytes' => $statement['rolled_back_database_bytes'],
+            'statement_wal_bytes' => $nextWalBytes,
+            'statement_wal_bytes_length' => strlen($nextWalBytes),
+            'checkpoint_database_bytes' => $checkpointBytes,
+            'current_source' => [
+                'journal_bytes_match' => true,
+                'wal_bytes_match' => true,
+                'journal_checksum_validated' => $journal->checksumsValidated,
+                'wal_checksum_validated' => $wal->checksumsValidated,
+                'journal_page_count' => $journal->pageCount(),
+                'wal_frame_count' => $wal->frameCount(),
+                'hot_journal_reason' => SQLiteRollbackJournal::hotJournalCandidate($journalBytes, $databaseReservedLock, $requiresSuperJournal, $superJournalExists)['reason'],
+                'database_reserved_lock' => $databaseReservedLock,
+                'requires_super_journal' => $requiresSuperJournal,
+                'super_journal_exists' => $superJournalExists,
+            ],
+            'current_source_pages' => array_keys($currentStatementSourcePages),
+            'current_source_prefixes' => $statement['current_source_prefixes'],
+            'next_source_prefixes' => $statement['next_source_prefixes'],
+            'rollback_to_frame' => $statement['rollback_to_wal_frame'],
+            'next_wal_frame_index' => $statement['next_wal_frame_index'],
+            'next_page_number' => $statement['next_page_number'],
+            'next_commit_frame' => $statement['next_commit_frame'],
+            'rollback_restored_page_numbers' => $statement['rollback_restored_page_numbers'],
+            'rollback_discarded_wal_frames' => $statement['rollback_discarded_wal_frames'],
+            'statement_journals_after_rollback' => $statement['statement_journals_after_rollback'],
+            'statement_journals_after_next' => $statement['statement_journals_after_next'],
+            'pending_page_numbers_after_next' => $statement['pending_page_numbers_after_next'],
+            'pending_wal_frame_indexes_after_next' => $statement['pending_wal_frame_indexes_after_next'],
+            'hot_journal' => $hot,
+            'wal_recovery' => $walRecovery,
+            'statement_recovery' => $statement,
+            'operations' => $operations,
+            'payloads' => $payloads,
+            'dependencies' => array_values(array_unique(array_merge(
+                $hot['recovered'] ? ['sqlite-rollback-journal-recovery'] : [],
+                $walRecovery['dependencies'],
+                $statement['dependencies'],
+                [
+                    'sqlite-wal-hot-journal-statement-current-source-next91',
+                    'sqlite-statement-subjournal-after-hot-journal-wal-current-source',
+                ]
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,hot_recovered:bool,journal_action:string,rollback_to_frame:int,original_frame_count:int,retained_frame_count:int,discarded_frame_count:int,current_wal_bytes:string,current_wal_bytes_length:int,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,can_checkpoint:bool,checkpoint_database_page_count:int|null,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,operations:list<array<string,mixed>>,payloads:array<string,string>,hot_journal:array<string,mixed>,savepoint_truncation:array<string,mixed>,wal_recovery:array<string,mixed>,current_source:array<string,mixed>,dependencies:list<string>}
      */
     public static function replayCurrentSourceNext87(

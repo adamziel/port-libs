@@ -1097,6 +1097,73 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},next_source:array{kind:string,checkpoint_sequence:int|null,salt1:int|null,salt2:int|null,page_size:int,frame_count:int,wal_bytes_length:int,database_bytes_length:int},dependencies:list<string>}
+     */
+    public static function releaseThenRollbackCheckpointCurrentSourceNext91(
+        SQLiteSavepointStack $savepoints,
+        string $releasedSavepoint,
+        string $rollbackSavepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'truncate',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        self::assertCurrentWalSource($wal, $walBytes);
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL release/rollback current-source checkpoint requires restart or truncate mode');
+        }
+
+        $working = clone $savepoints;
+        $working->release($releasedSavepoint);
+        $retainedWalBytes = $working->walRollbackToWalBytes($rollbackSavepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $checkpoint = self::afterRollbackTo($working, $rollbackSavepoint, $wal, $walBytes, $databaseBytes, $mode, $currentReaderEndFrame);
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+
+        $plan = self::releaseThenRollbackCheckpointCurrentNext(
+            $savepoints,
+            $releasedSavepoint,
+            $rollbackSavepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+
+        $plan['current_source_verified'] = true;
+        $plan['current_source'] = self::walSourceSummary($wal, strlen($walBytes));
+        $plan['retained_source'] = self::walSourceSummary($retainedWal, strlen($retainedWalBytes));
+        $plan['next_source'] = [
+            'kind' => $nextWal === null ? 'checkpoint_database' : $durable['wal_action'],
+            'checkpoint_sequence' => $nextWal?->header->checkpointSequence,
+            'salt1' => $nextWal?->header->salt1,
+            'salt2' => $nextWal?->header->salt2,
+            'page_size' => $nextWal?->header->pageSize ?? $wal->header->pageSize,
+            'frame_count' => $nextWal?->frameCount() ?? 0,
+            'wal_bytes_length' => strlen($durable['wal_bytes']),
+            'database_bytes_length' => strlen($durable['database_bytes']),
+        ];
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-wal-release-rollback-checkpoint-current-source-next91']
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,rollback_to_frame:int,retained_frame_count:int,discarded_frame_count:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,committed_frame_names:list<string>,committed_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,current_reader_kept_retained_wal:bool,next_reader_uses_checkpoint_database:bool,images_match:bool,current_durable:array<string,mixed>,dependencies:list<string>}
      */
     public static function commitCurrentAfterRollbackTo(

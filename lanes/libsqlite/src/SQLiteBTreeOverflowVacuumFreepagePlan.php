@@ -14,6 +14,7 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
      */
     private function __construct(
         public readonly SQLiteOverflowFreelistReleasePlan $releasePlan,
+        public readonly SQLiteDatabase $sourceDatabase,
         public readonly SQLiteDatabase $currentDatabase,
         public readonly array $currentPageImages,
         public readonly array $currentFreelistPages,
@@ -76,7 +77,77 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
             'current_page_numbers' => array_keys($this->currentPageImages),
             'updated_pointer_map_page_numbers' => array_keys($this->releasePlan->freePlan->updatedPointerMapPages),
             'secure_delete_cleared_pages' => $this->releasePlan->freePlan->clearedPageNumbers,
+            'overflow_pointermap_freepage_current_source_next91' => $this->overflowPointerMapFreepageCurrentSourceNext91(),
         ];
+    }
+
+    /**
+     * @return list<array{source:string,page_number:int,current_type_name:string|null,current_parent_page_number:int|null,next_type_name:string|null,next_parent_page_number:int|null,freelist_role:string,freelist_position:int|null,next_allocation_position:int|null,secure_deleted:bool,pointer_map_page:int|null}>
+     */
+    public function overflowPointerMapFreepageCurrentSourceNext91(): array
+    {
+        $currentEntries = [];
+        if ($this->releasePlan->freePlan->freedPointerMapEntries !== []) {
+            foreach ($this->releasePlan->releasedOverflowPages as $pageNumber) {
+                if ($this->releasePlan->freePlan->databasePageCount < $pageNumber) {
+                    continue;
+                }
+                if (!$this->sourceDatabase->isAutoVacuum() || $this->sourceDatabase->isPointerMapPage($pageNumber)) {
+                    continue;
+                }
+                $currentEntries[$pageNumber] = $this->sourceDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+        }
+
+        $nextEntries = [];
+        foreach ($this->releasePlan->freePlan->freedPointerMapEntries as $entry) {
+            $nextEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $freelistPositions = [];
+        foreach ($this->currentFreelistPages as $index => $pageNumber) {
+            $freelistPositions[$pageNumber] = $index;
+        }
+
+        $allocationPositions = [];
+        foreach ($this->nextAllocationOrder as $index => $pageNumber) {
+            $allocationPositions[$pageNumber] = $index;
+        }
+
+        $newTrunks = array_fill_keys($this->releasePlan->freePlan->newTrunkPageNumbers, true);
+        $leaves = array_fill_keys($this->releasePlan->freePlan->leafPageNumbers, true);
+        $cleared = array_fill_keys($this->releasePlan->freePlan->clearedPageNumbers, true);
+
+        $rows = [];
+        foreach ($this->releasePlan->sources as $source) {
+            foreach ($source['pages'] as $pageNumber) {
+                $current = $currentEntries[$pageNumber] ?? null;
+                $next = $nextEntries[$pageNumber] ?? null;
+
+                $role = 'freelist-existing';
+                if (isset($newTrunks[$pageNumber])) {
+                    $role = 'freelist-trunk';
+                } elseif (isset($leaves[$pageNumber])) {
+                    $role = 'freelist-leaf';
+                }
+
+                $rows[] = [
+                    'source' => $source['source'],
+                    'page_number' => $pageNumber,
+                    'current_type_name' => $current['type_name'] ?? null,
+                    'current_parent_page_number' => $current['parent_page_number'] ?? null,
+                    'next_type_name' => $next['type_name'] ?? null,
+                    'next_parent_page_number' => $next['parent_page_number'] ?? null,
+                    'freelist_role' => $role,
+                    'freelist_position' => $freelistPositions[$pageNumber] ?? null,
+                    'next_allocation_position' => $allocationPositions[$pageNumber] ?? null,
+                    'secure_deleted' => isset($cleared[$pageNumber]),
+                    'pointer_map_page' => $next['pointer_map_page'] ?? ($current['pointer_map_page'] ?? null),
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     private static function fromReleasePlan(
@@ -98,6 +169,7 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
 
         return new self(
             $releasePlan,
+            $database,
             $currentDatabase,
             $currentPageImages,
             $currentDatabase->freelistPageNumbers(),

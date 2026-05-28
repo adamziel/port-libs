@@ -27,7 +27,8 @@ final class SQLiteJsonTablePlan
         $residual = [];
 
         foreach ($constraints as $constraint) {
-            $column = strtolower($constraint['column']);
+            $column = self::normalizeConstraintColumn((string) $constraint['column']);
+            $constraint['column'] = $column;
             $operator = strtoupper($constraint['operator']);
             $usable = $constraint['usable'] ?? true;
             if ($column === 'limit' || $column === 'offset') {
@@ -1903,6 +1904,13 @@ final class SQLiteJsonTablePlan
                 || (is_array($value) && isset($value['pattern']) && is_string($value['pattern'])),
             default => false,
         };
+    }
+
+    private static function normalizeConstraintColumn(string $column): string
+    {
+        $column = strtolower($column);
+
+        return self::isRowIdAlias($column) ? 'id' : $column;
     }
 
     /**
