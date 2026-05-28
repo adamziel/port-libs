@@ -252,32 +252,52 @@ final class SQLiteSchemaDdlReparsePlan
                 throw new InvalidArgumentException("SQLite schema DDL reparse cannot rename {$old} to existing table {$new}");
             }
 
+            $rewritten = [];
             foreach ($records as $offset => $record) {
+                if (!self::recordMayReferenceTable($record, $old)) {
+                    continue;
+                }
+
+                $nextSql = $record->sql === null ? null : SQLiteAlterTableRenamePlan::renameTableSql($record->sql, $old, $new);
                 if ($record->type === 'table' && strcasecmp($record->name, $old) === 0) {
                     $records[$offset] = new SQLiteSchemaRecord(
                         'table',
                         $new,
                         $new,
                         $record->rootPage,
-                        $record->sql === null ? null : SQLiteAlterTableRenamePlan::renameTableSql($record->sql, $old, $new),
+                        $nextSql,
                         $record->rowId,
                     );
+                    $rewritten[] = 'table:' . $record->name;
                     continue;
                 }
 
-                if ($record->sql !== null && strcasecmp($record->tableName, $old) === 0) {
-                    $records[$offset] = new SQLiteSchemaRecord(
-                        $record->type,
-                        $record->name,
-                        $new,
-                        $record->rootPage,
-                        SQLiteAlterTableRenamePlan::renameTableSql($record->sql, $old, $new),
-                        $record->rowId,
-                    );
+                if ($nextSql === $record->sql && strcasecmp($record->tableName, $old) !== 0) {
+                    continue;
                 }
+
+                $records[$offset] = new SQLiteSchemaRecord(
+                    $record->type,
+                    $record->name,
+                    strcasecmp($record->tableName, $old) === 0 ? $new : $record->tableName,
+                    $record->rootPage,
+                    $nextSql,
+                    $record->rowId,
+                );
+                $rewritten[] = $record->type . ':' . $record->name;
             }
 
-            return ['kind' => 'alter_table_rename', 'old_name' => $old, 'new_name' => $new, 'changed' => true];
+            return [
+                'kind' => 'alter_table_rename',
+                'old_name' => $old,
+                'new_name' => $new,
+                'rewritten_records' => $rewritten,
+                'dependent_reparse_count' => count(array_values(array_filter(
+                    $rewritten,
+                    static fn (string $entry): bool => !str_starts_with($entry, 'table:'),
+                ))),
+                'changed' => true,
+            ];
         }
 
         if (preg_match('/^alter\s+table\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+rename\s+column\s+(?<old>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+to\s+(?<new>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {

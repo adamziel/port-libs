@@ -3204,6 +3204,7 @@ final class SQLiteSelectSql
         }
 
         $outerRow = self::qualifyOuterRowForCorrelation($outerRow, $tables);
+        $plan['correlatedOuterRow'] = $outerRow;
         $sourceAlias = isset($plan['sourceAlias']) && is_string($plan['sourceAlias']) && $plan['sourceAlias'] !== ''
             ? $plan['sourceAlias']
             : null;
@@ -4149,14 +4150,10 @@ final class SQLiteSelectSql
     {
         $rewritten = [];
         foreach ($select as $term) {
-            $aggregate = self::aggregateSummaryColumn($term, $valueColumn);
-            if ($aggregate !== null) {
-                $rewritten[] = [
-                    'type' => 'column',
-                    'name' => $aggregate['summaryColumn'],
-                    'alias' => $term['alias'] ?? $aggregate['summaryColumn'],
-                ];
-                continue;
+            $alias = $term['alias'] ?? null;
+            $term = self::rewriteAggregateExpression($term, $valueColumn);
+            if ($alias !== null && !isset($term['alias'])) {
+                $term['alias'] = $alias;
             }
             $rewritten[] = $term;
         }

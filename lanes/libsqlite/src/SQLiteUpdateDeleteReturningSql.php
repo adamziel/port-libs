@@ -281,7 +281,7 @@ final class SQLiteUpdateDeleteReturningSql
             return static fn (): bool => true;
         }
 
-        $terms = preg_split('/\s+AND\s+/i', $where) ?: [];
+        $terms = self::splitWhereAnd($where);
 
         return static function (array $row) use ($terms): ?bool {
             foreach ($terms as $term) {
@@ -300,6 +300,17 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function evaluatePredicate(string $term, array $row): ?bool
     {
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $term, $match) === 1) {
+            $value = self::rowValue($row, self::rowValueColumns($match[1]));
+            $lower = self::rowValueExpressions($match[3], $row);
+            $upper = self::rowValueExpressions($match[4], $row);
+            $result = self::nullableAnd(
+                self::rowValueCompareBoolean($value, '>=', $lower),
+                self::rowValueCompareBoolean($value, '<=', $upper),
+            );
+
+            return isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result;
+        }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $tuples = self::rowValueTupleList($match[3], $row);
@@ -407,6 +418,20 @@ final class SQLiteUpdateDeleteReturningSql
     private static function evaluateReturningExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $value = self::rowValue($row, self::rowValueColumns($match[1]));
+            $lower = self::rowValueExpressions($match[3], $row);
+            $upper = self::rowValueExpressions($match[4], $row);
+            $result = self::nullableAnd(
+                self::rowValueCompareBoolean($value, '>=', $lower),
+                self::rowValueCompareBoolean($value, '<=', $upper),
+            );
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = self::negateNullable($result);
+            }
+
+            return $result === null ? null : ($result ? 1 : 0);
+        }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
@@ -627,12 +652,10 @@ final class SQLiteUpdateDeleteReturningSql
         if (count($left) !== count($right)) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value arity mismatch');
         }
-        $unknown = false;
         foreach ($left as $index => $leftValue) {
             $rightValue = $right[$index];
             if ($leftValue === null || $rightValue === null) {
-                $unknown = true;
-                continue;
+                return null;
             }
             if ($leftValue == $rightValue) {
                 continue;
@@ -641,12 +664,115 @@ final class SQLiteUpdateDeleteReturningSql
             return $leftValue <=> $rightValue;
         }
 
-        return $unknown ? null : 0;
+        return 0;
     }
 
     private static function negateNullable(?bool $value): ?bool
     {
         return $value === null ? null : !$value;
+    }
+
+    private static function nullableAnd(?bool $left, ?bool $right): ?bool
+    {
+        if ($left === false || $right === false) {
+            return false;
+        }
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function rowValueCompareBoolean(array $left, string $operator, array $right): ?bool
+    {
+        $comparison = self::rowValueCompare($left, $right);
+
+        return match ($operator) {
+            '=' => $comparison === null ? null : $comparison === 0,
+            '<>', '!=' => $comparison === null ? null : $comparison !== 0,
+            '>' => $comparison === null ? null : $comparison > 0,
+            '>=' => $comparison === null ? null : $comparison >= 0,
+            '<' => $comparison === null ? null : $comparison < 0,
+            '<=' => $comparison === null ? null : $comparison <= 0,
+            default => false,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitWhereAnd(string $sql): array
+    {
+        $parts = [];
+        $buffer = '';
+        $inString = false;
+        $depth = 0;
+        $betweenNeedsAnd = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $buffer .= "'";
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $depth === 0 && self::keywordAt($sql, $i, 'BETWEEN')) {
+                $betweenNeedsAnd = true;
+                $buffer .= substr($sql, $i, 7);
+                $i += 6;
+                continue;
+            }
+            if (!$inString && $depth === 0 && self::keywordAt($sql, $i, 'AND')) {
+                if ($betweenNeedsAnd) {
+                    $betweenNeedsAnd = false;
+                    $buffer .= substr($sql, $i, 3);
+                    $i += 2;
+                    continue;
+                }
+                $parts[] = trim($buffer);
+                $buffer = '';
+                $i += 2;
+                continue;
+            }
+            $buffer .= $char;
+        }
+        if (trim($buffer) !== '') {
+            $parts[] = trim($buffer);
+        }
+
+        return $parts;
+    }
+
+    private static function keywordAt(string $sql, int $offset, string $keyword): bool
+    {
+        $length = strlen($keyword);
+        if (strncasecmp(substr($sql, $offset, $length), $keyword, $length) !== 0) {
+            return false;
+        }
+        $before = $offset === 0 ? ' ' : $sql[$offset - 1];
+        $after = $sql[$offset + $length] ?? ' ';
+
+        return !preg_match('/[A-Za-z0-9_]/', $before) && !preg_match('/[A-Za-z0-9_]/', $after);
     }
 
     /**

@@ -7,6 +7,63 @@ namespace PortLibs\LibSqlite;
 final class SQLiteSkipScanStat4PartialOrderPlan
 {
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function coveringCurrentSourceNext125(
+        array $preparedSource,
+        array $currentSource,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $orderBy,
+        array $neededColumns,
+    ): array {
+        $prepared = self::sourceCoveringPlan($preparedSource, $partialPredicate, $queryTerms, $orderBy, $neededColumns);
+        $current = self::sourceCoveringPlan($currentSource, $partialPredicate, $queryTerms, $orderBy, $neededColumns);
+
+        $preparedSignature = self::sourceSignature($preparedSource);
+        $currentSignature = self::sourceSignature($currentSource);
+        $stale = $preparedSignature !== $currentSignature;
+        $selected = $stale ? $current : $prepared;
+        $selectedSource = $stale ? $currentSource : $preparedSource;
+
+        return [
+            'status' => $selected === null ? 'unusable' : 'usable',
+            'selectedSource' => $stale ? 'current' : 'prepared',
+            'stalePreparedStatement' => $stale,
+            'reprepareRequired' => $stale,
+            'schemaCookieChanged' => self::nonNegativeSourceInt($preparedSource, 'schemaCookie') !== self::nonNegativeSourceInt($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::nonNegativeSourceInt($preparedSource, 'stat4Generation') !== self::nonNegativeSourceInt($currentSource, 'stat4Generation'),
+            'indexRootChanged' => self::sourceString($preparedSource, 'indexName') !== self::sourceString($currentSource, 'indexName')
+                || self::optionalSourceInt($preparedSource, 'rootPage') !== self::optionalSourceInt($currentSource, 'rootPage'),
+            'rowSignatureChanged' => self::rowSignature(self::sourceRows($preparedSource)) !== self::rowSignature(self::sourceRows($currentSource)),
+            'stat4SignatureChanged' => self::stat4Signature(self::sourceList($preparedSource, 'stat4Samples')) !== self::stat4Signature(self::sourceList($currentSource, 'stat4Samples')),
+            'coveringSignatureChanged' => self::columnSignature(self::sourceStringList($preparedSource, 'coveringColumns')) !== self::columnSignature(self::sourceStringList($currentSource, 'coveringColumns')),
+            'preparedSource' => self::sourceFenceSummary($preparedSource, $prepared, $preparedSignature),
+            'currentSource' => self::sourceFenceSummary($currentSource, $current, $currentSignature),
+            'selectedPlan' => $selected,
+            'currentSourceFence' => [
+                'name' => self::sourceString($selectedSource, 'name'),
+                'schemaCookie' => self::nonNegativeSourceInt($selectedSource, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeSourceInt($selectedSource, 'stat4Generation'),
+                'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
+                'rootPage' => self::optionalSourceInt($selectedSource, 'rootPage'),
+                'coveringSignature' => self::columnSignature(self::sourceStringList($selectedSource, 'coveringColumns')),
+            ],
+            'detail' => ($stale ? 'REPREPARE ' : 'REUSE PREPARED ')
+                . 'COVERING PARTIAL SKIP-SCAN '
+                . self::sourceString($selectedSource, 'name')
+                . ' '
+                . ($selected['detail'] ?? 'NO PLAN'),
+            'dependencies' => ['sqlite-sqlplanner-covering-partial-skipscan-current-source-next125'],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
@@ -446,5 +503,218 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             'sourceOffset' => $sourceOffset,
             'covering' => $covering,
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>|null
+     */
+    private static function sourceCoveringPlan(array $source, SQLiteIndexPredicate $partialPredicate, array $queryTerms, array $orderBy, array $neededColumns): ?array
+    {
+        return self::coveringCurrentSourcePlan(
+            self::sourceRows($source),
+            self::sourceString($source, 'indexName'),
+            self::sourceString($source, 'skippedColumn'),
+            self::sourceString($source, 'rangeColumn'),
+            $source['lowerInclusive'] ?? null,
+            $source['upperBound'] ?? null,
+            $partialPredicate,
+            $queryTerms,
+            self::sourceList($source, 'stat4Samples'),
+            $orderBy,
+            self::sourceStringList($source, 'coveringColumns'),
+            $neededColumns,
+            self::sourceBool($source, 'upperInclusive', true),
+            self::sourceString($source, 'collation', 'BINARY'),
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed>|null $plan
+     * @return array<string,mixed>
+     */
+    private static function sourceFenceSummary(array $source, ?array $plan, string $signature): array
+    {
+        return [
+            'name' => self::sourceString($source, 'name'),
+            'schemaCookie' => self::nonNegativeSourceInt($source, 'schemaCookie'),
+            'stat4Generation' => self::nonNegativeSourceInt($source, 'stat4Generation'),
+            'rootPage' => self::optionalSourceInt($source, 'rootPage'),
+            'sourceSignature' => $signature,
+            'indexName' => self::sourceString($source, 'indexName'),
+            'status' => $plan === null ? 'unusable' : ($plan['status'] ?? 'usable'),
+            'covering' => (bool) ($plan['covering'] ?? false),
+            'tableSeekRequired' => (bool) ($plan['tableSeekRequired'] ?? true),
+            'coveredRowCount' => (int) ($plan['coveredRowCount'] ?? 0),
+            'rowids' => $plan['rowids'] ?? [],
+            'estimatedRows' => (int) ($plan['estimatedRows'] ?? 0),
+            'estimatedCost' => (int) ($plan['estimatedCost'] ?? 0),
+            'orderByMode' => $plan['orderByMode'] ?? 'none',
+            'blockSortRequired' => (bool) ($plan['blockSortRequired'] ?? false),
+            'coveringSignature' => self::columnSignature(self::sourceStringList($source, 'coveringColumns')),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return list<array<string,mixed>>
+     */
+    private static function sourceRows(array $source): array
+    {
+        return self::sourceList($source, 'rows');
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return list<array<string,mixed>>
+     */
+    private static function sourceList(array $source, string $key): array
+    {
+        $value = $source[$key] ?? null;
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs list {$key}");
+        }
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs row arrays in {$key}");
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourceString(array $source, string $key, ?string $default = null): string
+    {
+        $value = $source[$key] ?? $default;
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourceBool(array $source, string $key, bool $default): bool
+    {
+        $value = $source[$key] ?? $default;
+        if (!is_bool($value)) {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs boolean {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function nonNegativeSourceInt(array $source, string $key): int
+    {
+        $value = $source[$key] ?? null;
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs non-negative integer {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function optionalSourceInt(array $source, string $key): ?int
+    {
+        $value = $source[$key] ?? null;
+        if ($value === null) {
+            return null;
+        }
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs non-negative integer {$key}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return list<string>
+     */
+    private static function sourceStringList(array $source, string $key): array
+    {
+        $value = $source[$key] ?? null;
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \InvalidArgumentException("SQLite STAT4 skip-scan current source needs list {$key}");
+        }
+
+        return self::validatedColumnList($value, "SQLite STAT4 skip-scan current source {$key}");
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function sourceSignature(array $source): string
+    {
+        return hash('sha256', implode("\n", [
+            self::sourceString($source, 'name'),
+            (string) self::nonNegativeSourceInt($source, 'schemaCookie'),
+            (string) self::nonNegativeSourceInt($source, 'stat4Generation'),
+            self::sourceString($source, 'indexName'),
+            (string) (self::optionalSourceInt($source, 'rootPage') ?? -1),
+            self::sourceString($source, 'skippedColumn'),
+            self::sourceString($source, 'rangeColumn'),
+            serialize($source['lowerInclusive'] ?? null),
+            serialize($source['upperBound'] ?? null),
+            self::sourceBool($source, 'upperInclusive', true) ? '1' : '0',
+            self::sourceString($source, 'collation', 'BINARY'),
+            self::columnSignature(self::sourceStringList($source, 'coveringColumns')),
+            self::rowSignature(self::sourceRows($source)),
+            self::stat4Signature(self::sourceList($source, 'stat4Samples')),
+        ]));
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function columnSignature(array $columns): string
+    {
+        $normalized = array_map('strtolower', $columns);
+        sort($normalized, SORT_STRING);
+
+        return implode(',', $normalized);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function rowSignature(array $rows): string
+    {
+        $parts = [];
+        foreach ($rows as $row) {
+            ksort($row);
+            $parts[] = serialize($row);
+        }
+
+        return hash('sha256', implode("\n", $parts));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $samples
+     */
+    private static function stat4Signature(array $samples): string
+    {
+        $parts = [];
+        foreach ($samples as $sample) {
+            ksort($sample);
+            $parts[] = serialize($sample);
+        }
+
+        return hash('sha256', implode("\n", $parts));
     }
 }

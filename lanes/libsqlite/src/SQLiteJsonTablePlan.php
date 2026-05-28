@@ -1017,6 +1017,116 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceNestedConstraintCostNext125(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceNestedPathPlannerNext121(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableIndexedConstraintCostProfile119($plan['current'], $plan['currentCostOrder']);
+        $nextProfile = self::jsonTableIndexedConstraintCostProfile119($plan['next'], $plan['nextCostOrder']);
+        $transitions = self::jsonTableIndexedConstraintTransitions119($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedConstraintReplanReasons119($transitions);
+
+        $currentProfile['nestedRoot'] = $plan['currentNestedPath']['root'];
+        $currentProfile['nestedPathMode'] = $plan['currentNestedPath']['mode'];
+        $currentProfile['matchedRowCount'] = count($plan['currentRows']);
+        $currentProfile['matchedFullkeys'] = array_values(array_map(
+            static fn (array $row): mixed => $row['fullkey'] ?? null,
+            $plan['currentRows'],
+        ));
+        $nextProfile['nestedRoot'] = $plan['nextNestedPath']['root'];
+        $nextProfile['nestedPathMode'] = $plan['nextNestedPath']['mode'];
+        $nextProfile['matchedRowCount'] = count($plan['nextRows']);
+        $nextProfile['matchedFullkeys'] = array_values(array_map(
+            static fn (array $row): mixed => $row['fullkey'] ?? null,
+            $plan['nextRows'],
+        ));
+
+        $nestedTransitions = [
+            [
+                'field' => 'nestedRoot',
+                'current' => $currentProfile['nestedRoot'],
+                'next' => $nextProfile['nestedRoot'],
+                'changed' => $currentProfile['nestedRoot'] !== $nextProfile['nestedRoot'],
+            ],
+            [
+                'field' => 'nestedPathMode',
+                'current' => $currentProfile['nestedPathMode'],
+                'next' => $nextProfile['nestedPathMode'],
+                'changed' => $currentProfile['nestedPathMode'] !== $nextProfile['nestedPathMode'],
+            ],
+            [
+                'field' => 'matchedRowCount',
+                'current' => $currentProfile['matchedRowCount'],
+                'next' => $nextProfile['matchedRowCount'],
+                'changed' => $currentProfile['matchedRowCount'] !== $nextProfile['matchedRowCount'],
+            ],
+            [
+                'field' => 'matchedFullkeys',
+                'current' => $currentProfile['matchedFullkeys'],
+                'next' => $nextProfile['matchedFullkeys'],
+                'changed' => $currentProfile['matchedFullkeys'] !== $nextProfile['matchedFullkeys'],
+            ],
+        ];
+        $nestedReasons = [];
+        foreach ($nestedTransitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $nestedReasons[] = match ($transition['field']) {
+                'nestedRoot' => 'json-table-nested-constraint-root-changed',
+                'nestedPathMode' => 'json-table-nested-constraint-mode-changed',
+                'matchedRowCount' => 'json-table-nested-constraint-row-count-changed',
+                'matchedFullkeys' => 'json-table-nested-constraint-output-changed',
+                default => 'json-table-nested-constraint-cost-changed',
+            };
+        }
+
+        $plan['currentNestedConstraintCost'] = $currentProfile;
+        $plan['nextNestedConstraintCost'] = $nextProfile;
+        $plan['nestedConstraintCostTransitions'] = array_merge($transitions, $nestedTransitions);
+        $plan['next125ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next121ReplanReasons'],
+            $reasons,
+            $nestedReasons,
+        )));
+        $plan['replanRequired'] = $plan['next125ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-constraint-cost-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next125ReplanReasons'] === []
+            ? 'reuse-current-json-table-nested-constraint-cost-plan'
+            : 'prepare-next-json-table-nested-constraint-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-nested-constraint-cost-current-source-next125'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourcePathConstraintPushdownNext123(
         string $function,
         array $currentSource,

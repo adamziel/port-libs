@@ -99,6 +99,11 @@ final class SQLiteGroupedAggregate
             'max' => SQLiteNumericAggregate::max($values),
             'groupConcat' => SQLiteTextAggregate::groupConcat($values, '|'),
         ];
+        foreach (self::invariantColumns($rows) as $column => $value) {
+            if (!array_key_exists($column, $summary)) {
+                $summary[$column] = $value;
+            }
+        }
         foreach ($jsonAggregates as $aggregate) {
             self::applyJsonAggregate($summary, $rows, $aggregate);
         }

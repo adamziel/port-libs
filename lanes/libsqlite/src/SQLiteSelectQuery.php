@@ -28,7 +28,7 @@ final class SQLiteSelectQuery
             if (!is_array($groupBy)) {
                 throw new \InvalidArgumentException('SQLite SELECT query groupBy clause must be an aggregate plan');
             }
-            $rows = self::applyGroupBy($rows, $groupBy);
+            $rows = self::applyGroupBy($rows, $groupBy, $plan);
         }
 
         if (array_key_exists('select', $plan)) {
@@ -1022,7 +1022,7 @@ final class SQLiteSelectQuery
      * @param array<string,mixed> $groupBy
      * @return list<array<string,mixed>>
      */
-    private static function applyGroupBy(array $rows, array $groupBy): array
+    private static function applyGroupBy(array $rows, array $groupBy, array $plan = []): array
     {
         $groupColumn = self::groupColumns($groupBy);
         $valueColumn = array_key_exists('valueColumn', $groupBy)
@@ -1036,6 +1036,13 @@ final class SQLiteSelectQuery
 
         if ($groupColumn === []) {
             $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates);
+            if ($rows === [] && isset($plan['correlatedOuterRow']) && is_array($plan['correlatedOuterRow'])) {
+                foreach ($plan['correlatedOuterRow'] as $column => $value) {
+                    if (is_string($column) && !array_key_exists($column, $summaries[0])) {
+                        $summaries[0][$column] = $value;
+                    }
+                }
+            }
         } else {
             $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn, $jsonAggregates);
         }
