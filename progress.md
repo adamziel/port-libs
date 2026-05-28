@@ -43,10 +43,35 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 1.4G available, 100% used; `/tmp` has about 6.7G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite next106 development workers with no long sleepers; keep refills bounded because disk remains critical.
+- Root filesystem: current sample reports `/` at 452G size with about 2.9G available, 100% used; `/tmp` has about 6.7G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite next108 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 05:31 UTC):
+  Batch106 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `9019df6907db0bab95578ad10ff5d285936e1c48` (`Integrate libsqlite batch
+  106 subset`) accepted 10 current-source libsqlite handoffs while leaving
+  `runner106` queued for suite-evidence rebase and `jsonvt104` queued for
+  targeted JSON table rebase because both source patches conflicted. Full
+  intake exposed a btree106 regression against the accepted next86 overflow
+  pointer-map test; integration fixed the delete/rebalance admission path by
+  threading the index overflow reader through validation before acceptance.
+  Verification passed: php-lint for `31` changed/untracked PHP files, 10
+  changed WordPress examples/self-tests, git diff --check, focused changed
+  tests `10 test files / 657 assertions / 0 failures / 574 PASS lines`,
+  focused B-tree regression `3 test files / 161 assertions / 0 failures /
+  161 PASS lines`, full libsqlite `749 test files / 85067 assertions /
+  0 failures / 42491 PASS lines`, and root `962 test files / 109535
+  assertions / 0 failures / 45519 PASS lines` with `memory_limit=512M`.
+  This is `+618` public libsqlite PASS-line movement over batch104/105
+  (`41873 -> 42491`); mapped coverage remains conservative at `604 / 1589`
+  because the accepted worker evidence did not claim fresh manifest-backed
+  mapped rows. The drained worker pool and disk-full relaunch failure were
+  corrected by removing inactive accepted/applied worktrees whose patches and
+  logs were already preserved, restoring tmux `main` to 11 bounded libsqlite
+  next108 workers with no sleepers.
 
 - 2026-05-28 supervisor continuation (shell samples 05:24 UTC):
   Batch104/105 clean subset is integrated and root-verified in the rolling
