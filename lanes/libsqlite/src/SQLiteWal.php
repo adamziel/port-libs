@@ -2653,6 +2653,135 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
+     * @return array<string,mixed>
+     */
+    public function restartTruncateReaderPinCurrentSourceNext119(
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        array $readMarks
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 requires at least one page number');
+        }
+
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($source->toBytes() !== $this->toBytes()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 bytes mismatch');
+        }
+
+        $currentReadPlan = $source->readMarkPlan($readMarks);
+        $pinnedFrame = $currentReadPlan['checkpoint_pinned_frame'];
+        $currentEndFrame = $pinnedFrame ?? $currentReadPlan['recommended_reader_frame'] ?? $source->frameCount();
+        if (!is_int($currentEndFrame)) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 could not choose a current reader frame');
+        }
+
+        $pinnedRestart = $source->durableCheckpointResult($databaseBytes, 'restart', $pinnedFrame);
+        $pinnedTruncate = $source->durableCheckpointResult($databaseBytes, 'truncate', $pinnedFrame);
+        $releasedRestart = $source->durableCheckpointResult($databaseBytes, 'restart', null);
+        $releasedTruncate = $source->durableCheckpointResult($databaseBytes, 'truncate', null);
+
+        $pinnedWal = self::parse((string) $pinnedRestart['wal_bytes'], $source->header->pageSize, $source->checksumsValidated);
+        $restartWal = self::parse((string) $releasedRestart['wal_bytes'], $source->header->pageSize, $source->checksumsValidated);
+        $truncateWal = $releasedTruncate['wal_bytes'] === ''
+            ? null
+            : self::parse((string) $releasedTruncate['wal_bytes'], $source->header->pageSize, $source->checksumsValidated);
+
+        $current = [];
+        $pinnedNext = [];
+        $restartNext = [];
+        $truncateNext = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL restart/truncate reader-pin current-source next119 pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($source, $databaseBytes, $pageNumber, $currentEndFrame);
+            $pinnedNext[] = self::safeReaderVisibility($pinnedWal, (string) $pinnedRestart['database_bytes'], $pageNumber, $source->frameCount());
+            $restartNext[] = $restartWal->frameCount() === 0
+                ? self::databasePageVisibilityOrError((string) $releasedRestart['database_bytes'], $source->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($restartWal, (string) $releasedRestart['database_bytes'], $pageNumber, $restartWal->frameCount());
+            $truncateNext[] = $truncateWal === null || $truncateWal->frameCount() === 0
+                ? self::databasePageVisibilityOrError((string) $releasedTruncate['database_bytes'], $source->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($truncateWal, (string) $releasedTruncate['database_bytes'], $pageNumber, $truncateWal->frameCount());
+        }
+
+        $releasedReadMarks = array_fill(0, max(1, count($readMarks)), null);
+        $releasedReadPlan = $restartWal->readMarkPlan($releasedReadMarks);
+        $currentImages = self::visibilityImages($current);
+        $restartImages = self::visibilityImages($restartNext);
+        $truncateImages = self::visibilityImages($truncateNext);
+
+        return [
+            'status' => $pinnedFrame !== null
+                && $pinnedRestart['wal_action'] === 'preserve_wal'
+                && $pinnedTruncate['wal_action'] === 'preserve_wal'
+                && $releasedRestart['wal_action'] === 'restart_wal'
+                && $releasedTruncate['wal_action'] === 'truncate_wal'
+                    ? 'reader-pin-restart-truncate-current-source-next119'
+                    : 'reader-pin-restart-truncate-current-source-next119-incomplete',
+            'source_status' => 'current-source',
+            'current_reader_end_frame' => $currentEndFrame,
+            'checkpoint_pinned_frame' => $pinnedFrame,
+            'current_read_marks' => $currentReadPlan,
+            'released_read_marks' => $releasedReadPlan,
+            'pinned_restart' => $pinnedRestart,
+            'pinned_truncate' => $pinnedTruncate,
+            'released_restart' => $releasedRestart,
+            'released_truncate' => $releasedTruncate,
+            'current_reader' => $current,
+            'pinned_next_reader' => $pinnedNext,
+            'restart_next_reader' => $restartNext,
+            'truncate_next_reader' => $truncateNext,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'pinned_next_sources' => self::visibilityColumn($pinnedNext, 'source'),
+            'restart_next_sources' => self::visibilityColumn($restartNext, 'source'),
+            'truncate_next_sources' => self::visibilityColumn($truncateNext, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'pinned_next_frame_indexes' => self::visibilityColumn($pinnedNext, 'frame_index'),
+            'restart_next_frame_indexes' => self::visibilityColumn($restartNext, 'frame_index'),
+            'truncate_next_frame_indexes' => self::visibilityColumn($truncateNext, 'frame_index'),
+            'pinned_restart_preserves_wal' => $pinnedRestart['wal_action'] === 'preserve_wal',
+            'pinned_truncate_preserves_wal' => $pinnedTruncate['wal_action'] === 'preserve_wal',
+            'released_restart_uses_new_header' => $releasedRestart['wal_action'] === 'restart_wal' && $restartWal->frameCount() === 0,
+            'released_truncate_removes_wal' => $releasedTruncate['wal_action'] === 'truncate_wal' && $releasedTruncate['wal_bytes'] === '',
+            'restart_truncate_database_match' => $releasedRestart['database_bytes'] === $releasedTruncate['database_bytes'],
+            'current_restart_images_match' => $currentImages === $restartImages,
+            'current_truncate_images_match' => $currentImages === $truncateImages,
+            'restart_truncate_images_match' => $restartImages === $truncateImages,
+            'source_generation' => [
+                'wal_bytes_length' => strlen($walBytes),
+                'frame_count' => $source->frameCount(),
+                'checkpoint_sequence' => $source->header->checkpointSequence,
+                'salt' => [$source->header->salt1, $source->header->salt2],
+                'checksums_validated' => $source->checksumsValidated,
+            ],
+            'released_restart_generation' => [
+                'wal_bytes_length' => $releasedRestart['wal_bytes_length'],
+                'checkpoint_sequence' => is_array($releasedRestart['wal_header']) ? $releasedRestart['wal_header']['checkpoint_sequence'] : null,
+                'salt' => is_array($releasedRestart['wal_header']) ? [$releasedRestart['wal_header']['salt1'], $releasedRestart['wal_header']['salt2']] : null,
+            ],
+            'released_truncate_generation' => [
+                'wal_bytes_length' => $releasedTruncate['wal_bytes_length'],
+                'checkpoint_sequence' => is_array($releasedTruncate['wal_header']) ? $releasedTruncate['wal_header']['checkpoint_sequence'] : null,
+                'salt' => is_array($releasedTruncate['wal_header']) ? [$releasedTruncate['wal_header']['salt1'], $releasedTruncate['wal_header']['salt2']] : null,
+            ],
+            'dependencies' => array_values(array_unique(array_merge(
+                $currentReadPlan['dependencies'] ?? ['wal-index-read-marks'],
+                $releasedReadPlan['dependencies'] ?? ['wal-index-read-marks'],
+                $pinnedRestart['dependencies'],
+                $pinnedTruncate['dependencies'],
+                $releasedRestart['dependencies'],
+                $releasedTruncate['dependencies'],
+                ['sqlite-wal-reader-pin-restart-truncate-current-source-next119']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

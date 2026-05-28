@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLitePagerStatementRecoveryPlan
 {
     /**
-     * @param list<array{database_path:string,database_bytes:string,statement_journal_path?:string,statement_pages:array<int,string>,outer_journal_bytes?:string,reserved_lock?:bool}> $databases
+     * @param list<array{database_path:string,database_bytes:string,statement_journal_path?:string,statement_journal_exists?:bool,statement_pages:array<int,string>,outer_journal_bytes?:string,reserved_lock?:bool}> $databases
      * @return array{status:string,reason:string,master_journal_path:string,master_journal_exists:bool,master_journal_members:list<string>,database_count:int,recovered_database_count:int,skipped_database_count:int,current_page_prefixes:array<string,array<int,string>>,next_page_prefixes:array<string,array<int,string>>,statement_journal_actions:array<string,string>,outer_journal_actions:array<string,string>,master_journal_action:string,operations:list<array<string,mixed>>,payloads:array<string,string>,databases:array<string,array<string,mixed>>,dependencies:list<string>}
      */
     public static function masterJournalStatementRecoveryCurrentNext(
@@ -79,9 +79,10 @@ final class SQLitePagerStatementRecoveryPlan
             $statementJournalPath = isset($database['statement_journal_path']) && (string) $database['statement_journal_path'] !== ''
                 ? (string) $database['statement_journal_path']
                 : $databasePath . '-stmt-journal';
+            $statementJournalExists = (bool) ($database['statement_journal_exists'] ?? true);
             $memberPresent = isset($memberSet[$outerJournalPath]);
             $reservedLock = (bool) ($database['reserved_lock'] ?? false);
-            $canRecover = $masterExists && $memberPresent && !$reservedLock;
+            $canRecover = $masterExists && $memberPresent && !$reservedLock && $statementJournalExists;
             $nextBytes = $canRecover
                 ? self::restorePages($databaseBytes, $normalizedPages, $pageSize)
                 : $databaseBytes;
@@ -124,12 +125,13 @@ final class SQLitePagerStatementRecoveryPlan
                 'database_path' => $databasePath,
                 'outer_journal_path' => $outerJournalPath,
                 'statement_journal_path' => $statementJournalPath,
+                'statement_journal_exists' => $statementJournalExists,
                 'master_member_present' => $memberPresent,
                 'reserved_lock' => $reservedLock,
                 'recovered' => $canRecover,
                 'reason' => $canRecover
                     ? 'master_journal_member_statement_rollback'
-                    : ($reservedLock ? 'database_has_reserved_lock' : ($masterExists ? 'missing_master_journal_member' : 'missing_master_journal')),
+                    : ($reservedLock ? 'database_has_reserved_lock' : (!$statementJournalExists ? 'missing_statement_journal' : ($masterExists ? 'missing_master_journal_member' : 'missing_master_journal'))),
                 'page_numbers' => array_keys($normalizedPages),
                 'current_page_prefixes' => $currentPrefixes[$databasePath],
                 'next_page_prefixes' => $nextPrefixes[$databasePath],

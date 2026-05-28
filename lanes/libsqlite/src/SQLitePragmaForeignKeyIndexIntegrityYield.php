@@ -193,7 +193,7 @@ final class SQLitePragmaForeignKeyIndexIntegrityYield
             }
             $indexName = (string) $index['name'];
             $xinfo = array_values(array_filter(
-                $catalog->execute("PRAGMA index_xinfo({$indexName})")['rows'],
+                $catalog->execute('PRAGMA index_xinfo(' . self::pragmaArgumentLiteral($indexName) . ')')['rows'],
                 static fn (array $row): bool => (int) $row['key'] === 1
             ));
             $indexColumns = array_map(static fn (array $row): string => (string) $row['name'], $xinfo);
@@ -372,5 +372,10 @@ final class SQLitePragmaForeignKeyIndexIntegrityYield
         $rowid = $row['rowid'] === null ? 'NULL' : (string) $row['rowid'];
 
         return "foreign key mismatch in {$row['table']} rowid {$rowid} references {$row['parent']} fkid {$row['fkid']}";
+    }
+
+    private static function pragmaArgumentLiteral(string $value): string
+    {
+        return "'" . str_replace("'", "''", $value) . "'";
     }
 }

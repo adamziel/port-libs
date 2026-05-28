@@ -10465,6 +10465,66 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerCountabilityCurrentSourceNext118(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerReleaseAdmissionCurrentSourceNext114(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $blocked = (int) ($record['blocker_count'] ?? 0) > 0;
+        $mappedDelta = !$blocked && ($record['admitted_release_admission_ids'] ?? []) !== [] ? 1 : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next118-upstream-runner-countability-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next118-upstream-runner-countability-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next118-upstream-runner-countability-countable';
+        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + (int) ($record['php_pass_delta'] ?? 0);
+        $record['counts_upstream_runner_release_admission_current_source_next114'] = false;
+        $record['counts_upstream_runner_countability_current_source_next118'] = $status === 'current-source-next118-upstream-runner-countability-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next118-upstream-runner-countability-countable'
+            ? 'publish only the current-source next118 focused runner-countability row and exact focused PASS-line movement; release/all parity remains gated on a separate zero-error broad artifact'
+            : 'keep current-source next118 runner countability uncounted until authoritative launcher-base provenance, current integration source heads, lane-local zero-error guarded runner rows, duplicate-runner state, focused-scope admission, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next118 runner countability composes lane-local bounded runner artifacts, authoritative launcher Base accepted HEAD provenance, current integration/dashboard/status/implementation source heads, active-runner gates, focused-scope admission decisions, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array
@@ -10824,6 +10884,173 @@ final class SQLiteUpstreamSuiteEvidence
                 : 'keep current-next52 denominator movement uncounted until rows have evidence, no regressions, and focused PHP admission is clean',
             'dependency_closure' => 'no new support component needed; current-next52 denominator burnup composes lane-local mapped-unit rows, evidence labels, and focused PHP TestRunner admission only',
         ];
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $burnupRows
+     * @return array<string, mixed>
+     */
+    public function upstreamReleaseDenominatorBurnupCurrentSourceNext119(
+        array $burnupRows,
+        string $launcherBaseHead,
+        string $integrationSourceHead,
+        string $nextSourceHead,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote
+    ): array {
+        $record = $this->releaseRunnerDenominatorBurnupCurrentNext52(
+            $burnupRows,
+            $launcherBaseHead,
+            $nextSourceHead,
+            $currentMapped,
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $expectedLauncherBase = '6b824ac24854056466145761d32a9f27720d286a';
+        $expectedIntegrationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $sourceBlockers = [];
+
+        if ($launcherBaseHead !== $expectedLauncherBase) {
+            $sourceBlockers[] = [
+                'id' => 'current-source-next119-source-blocked',
+                'evidence' => 'launcher-base-head-mismatch',
+            ];
+        }
+        if ($integrationSourceHead !== $expectedIntegrationSource) {
+            $sourceBlockers[] = [
+                'id' => 'current-source-next119-source-blocked',
+                'evidence' => 'integration-source-head-mismatch',
+            ];
+        }
+
+        $admittedUnits = [];
+        $preservedUnits = [];
+        $blockedUnits = [];
+        $next119Rows = [];
+        foreach (is_array($record['entries'] ?? null) ? $record['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $unit = is_string($entry['unit'] ?? null) ? $entry['unit'] : '';
+            $source = null;
+            foreach ($burnupRows as $candidate) {
+                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                    $source = $candidate;
+                    break;
+                }
+            }
+
+            $admissionStatus = is_array($source) && is_string($source['release_admission_status'] ?? null)
+                ? $source['release_admission_status']
+                : '';
+            $admissionScope = is_array($source) && is_string($source['release_scope'] ?? null)
+                ? $source['release_scope']
+                : '';
+            $removedBlocker = is_array($source) && is_string($source['removed_blocker'] ?? null)
+                ? trim($source['removed_blocker'])
+                : '';
+            $runnerCommand = is_array($source) && is_string($source['runner_command'] ?? null)
+                ? $source['runner_command']
+                : '';
+            $artifactPath = is_array($source) && is_string($source['artifact_path'] ?? null)
+                ? $source['artifact_path']
+                : '';
+            $movement = is_string($entry['movement'] ?? null) ? $entry['movement'] : 'open';
+            $nextMapped = ($entry['next_mapped'] ?? false) === true;
+            $currentMappedRow = ($entry['current_mapped'] ?? false) === true;
+            $newAdmission = $nextMapped && !$currentMappedRow;
+            $rowBlockers = is_array($entry['blockers'] ?? null) ? $entry['blockers'] : [];
+
+            if ($newAdmission) {
+                if ($admissionStatus !== 'admitted') {
+                    $rowBlockers[] = 'release-admission-status-not-admitted';
+                }
+                if ($admissionScope !== 'focused-current-source-denominator') {
+                    $rowBlockers[] = 'release-scope-not-focused-current-source-denominator';
+                }
+                if ($removedBlocker === '') {
+                    $rowBlockers[] = 'removed-blocker-missing';
+                }
+                if (!str_starts_with($artifactPath, 'lanes/libsqlite/')) {
+                    $rowBlockers[] = 'artifact-path-not-lane-local';
+                }
+                if (!str_contains($runnerCommand, '--jobs 1') || !str_contains($runnerCommand, '--stop-on-error')) {
+                    $rowBlockers[] = 'guarded-runner-command-missing';
+                }
+            }
+            if (is_array($source) && ($source['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-all-parity-claim-not-allowed';
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedUnits[] = $unit;
+                $sourceBlockers[] = [
+                    'id' => 'current-source-next119-denominator-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($newAdmission) {
+                $admittedUnits[] = $unit;
+            } elseif ($movement === 'preserved') {
+                $preservedUnits[] = $unit;
+            }
+
+            $entry['release_admission_status'] = $admissionStatus;
+            $entry['release_scope'] = $admissionScope;
+            $entry['removed_blocker'] = $removedBlocker;
+            $entry['artifact_path'] = $artifactPath;
+            $entry['runner_command'] = $runnerCommand;
+            $entry['blockers'] = $rowBlockers;
+            $next119Rows[] = $entry;
+        }
+
+        sort($admittedUnits, SORT_STRING);
+        sort($preservedUnits, SORT_STRING);
+        sort($blockedUnits, SORT_STRING);
+
+        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $sourceBlockers);
+        $blocked = $blockers !== [];
+        $mappedDelta = $blocked ? 0 : count($admittedUnits);
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next119-upstream-release-denominator-burnup-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next119-upstream-release-denominator-burnup-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next119-upstream-release-denominator-burnup-countable';
+        $record['launcher_base_head'] = $launcherBaseHead;
+        $record['integration_source_head'] = $integrationSourceHead;
+        $record['expected_launcher_base_head'] = $expectedLauncherBase;
+        $record['expected_integration_source_head'] = $expectedIntegrationSource;
+        $record['entries'] = $next119Rows;
+        $record['admitted_units'] = $admittedUnits;
+        $record['preserved_units'] = $preservedUnits;
+        $record['blocked_units'] = $blockedUnits;
+        $record['mapped_delta'] = $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $blocked ? 0 : (int) ($record['php_pass_delta'] ?? 0);
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + (int) ($record['php_pass_delta'] ?? 0);
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['counts_denominator_burnup'] = false;
+        $record['counts_upstream_release_denominator_burnup_current_source_next119'] = $status === 'current-source-next119-upstream-release-denominator-burnup-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next119-upstream-release-denominator-burnup-countable'
+            ? 'publish only the current-source next119 focused denominator burnup unit; release/all parity stays gated on separate zero-error broad artifacts'
+            : 'keep current-source next119 denominator burnup uncounted until launcher-base, integration-source, lane-local guarded artifact, focused-scope admission, and focused PHP gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next119 denominator burnup composes lane-local release-runner rows, authoritative launcher base, integration source provenance, guarded runner command evidence, and focused TestRunner PASS-line admission only';
+
+        return $record;
     }
 
     /**

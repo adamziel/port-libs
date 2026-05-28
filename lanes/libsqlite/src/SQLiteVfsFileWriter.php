@@ -1066,10 +1066,12 @@ final class SQLiteVfsFileWriter
             $statementJournalPath = isset($database['statement_journal_path']) && (string) $database['statement_journal_path'] !== ''
                 ? (string) $database['statement_journal_path']
                 : $databasePath . '-stmt-journal';
+            $statementJournalExists = is_file($this->localPath($statementJournalPath));
 
             $hydrated[] = array_merge($database, [
                 'database_bytes' => $databaseBytes,
                 'statement_journal_path' => $statementJournalPath,
+                'statement_journal_exists' => $statementJournalExists,
             ]);
             $sourceDatabasePaths[] = $databasePath;
             $sourceDatabaseBytes[$databasePath] = strlen($databaseBytes);

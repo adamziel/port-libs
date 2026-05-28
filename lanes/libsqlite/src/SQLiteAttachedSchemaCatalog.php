@@ -484,9 +484,20 @@ final class SQLiteAttachedSchemaCatalog
                 'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
+            if (isset($resolved['record'])) {
+                $parsed['target'] = $resolved['record']->name;
+            }
         }
 
-        $result = $this->pragmaCatalog($schemaName)->execute($sql);
+        if ($parsed['pragma'] === 'table_list') {
+            $pragmaSql = 'PRAGMA ' . $schemaName . '.table_list'
+                . ($parsed['target'] === '' ? '' : '(' . self::pragmaArgumentLiteral($parsed['target']) . ')');
+        } else {
+            $pragmaSql = $parsed['target'] === '' && in_array($parsed['pragma'], ['function_list', 'module_list', 'collation_list'], true)
+                ? 'PRAGMA ' . $parsed['pragma']
+                : 'PRAGMA ' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')';
+        }
+        $result = $this->pragmaCatalog($schemaName)->execute($pragmaSql);
         $result['schema'] = $schemaName;
 
         return $result;
@@ -536,6 +547,9 @@ final class SQLiteAttachedSchemaCatalog
                 'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
+            if (isset($resolved['record'])) {
+                $parsed['target'] = $resolved['record']->name;
+            }
         }
 
         $pragmaSql = $parsed['target'] === '' && $parsed['pragma'] !== 'table_list'
@@ -646,15 +660,52 @@ final class SQLiteAttachedSchemaCatalog
      */
     private static function splitQualifiedName(string $name): array
     {
-        $parts = preg_split('/\s*\.\s*/', trim($name), 2);
-        if ($parts === false || $parts === []) {
+        $name = trim($name);
+        if ($name === '') {
             throw new \InvalidArgumentException('SQLite schema object name cannot be empty');
         }
-        if (count($parts) === 1) {
-            return ['schema' => '', 'name' => self::unquoteIdentifier($parts[0])];
+
+        $dot = self::firstUnquotedDot($name);
+        if ($dot === null) {
+            return ['schema' => '', 'name' => self::unquoteIdentifier($name)];
         }
 
-        return ['schema' => self::normalizeSchemaName($parts[0]), 'name' => self::unquoteIdentifier($parts[1])];
+        return [
+            'schema' => self::normalizeSchemaName(substr($name, 0, $dot)),
+            'name' => self::unquoteIdentifier(substr($name, $dot + 1)),
+        ];
+    }
+
+    private static function firstUnquotedDot(string $name): ?int
+    {
+        $length = strlen($name);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $name[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                for ($i++; $i < $length; $i++) {
+                    if ($name[$i] !== $quote) {
+                        continue;
+                    }
+                    if (isset($name[$i + 1]) && $name[$i + 1] === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    break;
+                }
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($name, ']', $i + 1);
+                $i = $end === false ? $length : $end;
+                continue;
+            }
+            if ($char === '.') {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**

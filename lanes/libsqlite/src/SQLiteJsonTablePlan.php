@@ -925,6 +925,53 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceIndexedConstraintCostNext119(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceConstraintCostOrderNext113(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableIndexedConstraintCostProfile119($plan['current'], $plan['currentCostOrder']);
+        $nextProfile = self::jsonTableIndexedConstraintCostProfile119($plan['next'], $plan['nextCostOrder']);
+        $transitions = self::jsonTableIndexedConstraintTransitions119($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedConstraintReplanReasons119($transitions);
+
+        $plan['currentIndexedConstraintCost'] = $currentProfile;
+        $plan['nextIndexedConstraintCost'] = $nextProfile;
+        $plan['indexedConstraintTransitions'] = $transitions;
+        $plan['next119ReplanReasons'] = array_values(array_unique(array_merge($plan['next113ReplanReasons'], $reasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-indexed-constraint-cost-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next119ReplanReasons'] === []
+            ? 'reuse-current-json-table-indexed-constraint-cost-plan'
+            : 'prepare-next-json-table-indexed-constraint-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-indexed-constraint-cost-current-source-next119'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceHiddenConstraintPlannerNext88(
         string $function,
         array $currentSource,
@@ -1671,6 +1718,143 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $currentHostRows
+     * @param list<array<string,mixed>> $nextHostRows
+     * @param list<array{column:string,sourceColumn?:string,value?:mixed,operator?:string,usable?:bool}> $constraintSources
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,hostKeyColumn:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,hostOrderTransition:array{current:list<mixed>,next:list<mixed>,changed:bool},replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,leftJoin:bool,dependencies:list<string>}
+     */
+    public static function lateralConstraintHiddenCurrentSourceNext118(
+        array $currentHostRows,
+        array $nextHostRows,
+        string $hostKeyColumn,
+        string $function,
+        array $constraintSources,
+        array $orderBy = [],
+        string $joinType = 'inner',
+    ): array {
+        if ($hostKeyColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 requires a host key column');
+        }
+        if ($constraintSources === []) {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 requires constraint sources');
+        }
+
+        $function = self::normalizeFunction($function);
+        $joinType = strtolower($joinType);
+        if ($joinType !== 'inner' && $joinType !== 'left') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden current-source next118 join type must be inner or left');
+        }
+
+        $currentIndex = self::keyedHostRows118($currentHostRows, $hostKeyColumn, $constraintSources, 'current');
+        $nextIndex = self::keyedHostRows118($nextHostRows, $hostKeyColumn, $constraintSources, 'next');
+        $hostKeys = array_values(array_unique(array_merge($currentIndex['keys'], $nextIndex['keys'])));
+
+        $current = [];
+        $next = [];
+        $transitions = [];
+        $reasons = [];
+        foreach ($hostKeys as $ordinal => $hostKey) {
+            $currentEntry = $currentIndex['rows'][$hostKey] ?? null;
+            $nextEntry = $nextIndex['rows'][$hostKey] ?? null;
+            $pair = null;
+
+            if ($currentEntry !== null && $nextEntry !== null) {
+                $pair = self::hiddenConstraintSourceCurrentSourceNext102(
+                    $function,
+                    $currentEntry['row'],
+                    $nextEntry['row'],
+                    $constraintSources,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
+                $nextPlan = self::lateralConstraintHiddenHostPlan118($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
+            } elseif ($currentEntry !== null) {
+                $single = self::hiddenConstraintSourceCurrentSourceNext102(
+                    $function,
+                    $currentEntry['row'],
+                    $currentEntry['row'],
+                    $constraintSources,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
+                $nextPlan = null;
+            } else {
+                $single = self::hiddenConstraintSourceCurrentSourceNext102(
+                    $function,
+                    $nextEntry['row'],
+                    $nextEntry['row'],
+                    $constraintSources,
+                    $orderBy,
+                );
+                $currentPlan = null;
+                $nextPlan = self::lateralConstraintHiddenHostPlan118($nextEntry['ordinal'], $nextEntry['row'], $single, 'next', $joinType);
+            }
+
+            if ($currentPlan !== null) {
+                $currentPlan['hostKey'] = $currentEntry['value'];
+                $current[] = $currentPlan;
+            }
+            if ($nextPlan !== null) {
+                $nextPlan['hostKey'] = $nextEntry['value'];
+                $next[] = $nextPlan;
+            }
+
+            $reason = self::lateralConstraintHiddenTransitionReason118($currentPlan, $nextPlan, $pair);
+            if ($reason !== 'stable-lateral-hidden-current-source') {
+                $reasons[$reason] = true;
+            }
+            foreach (($pair['replanReasons'] ?? []) as $pairReason) {
+                $reasons[$pairReason] = true;
+            }
+
+            $transitions[] = [
+                'ordinal' => $ordinal,
+                'hostKey' => $currentEntry['value'] ?? $nextEntry['value'],
+                'hostKeyToken' => $hostKey,
+                'currentOrdinal' => $currentEntry['ordinal'] ?? null,
+                'nextOrdinal' => $nextEntry['ordinal'] ?? null,
+                'ordinalChanged' => ($currentEntry['ordinal'] ?? null) !== ($nextEntry['ordinal'] ?? null),
+                'current' => $currentPlan,
+                'next' => $nextPlan,
+                'changed' => $reason !== 'stable-lateral-hidden-current-source',
+                'reason' => $reason,
+                'currentRows' => $currentPlan['rowCount'] ?? 0,
+                'nextRows' => $nextPlan['rowCount'] ?? 0,
+                'rowCountChanged' => ($currentPlan['rowCount'] ?? 0) !== ($nextPlan['rowCount'] ?? 0),
+                'currentNullExtended' => $currentPlan['nullExtended'] ?? false,
+                'nextNullExtended' => $nextPlan['nullExtended'] ?? false,
+                'constraintValueTransitions' => $pair['constraintValueTransitions'] ?? [],
+                'pairReplanReasons' => $pair['replanReasons'] ?? [],
+            ];
+        }
+
+        return [
+            'function' => $function,
+            'hostKeyColumn' => $hostKeyColumn,
+            'current' => $current,
+            'next' => $next,
+            'transitions' => $transitions,
+            'hostOrderTransition' => [
+                'current' => $currentIndex['values'],
+                'next' => $nextIndex['values'],
+                'changed' => $currentIndex['keys'] !== $nextIndex['keys'],
+            ],
+            'replanRequired' => $reasons !== [],
+            'replanReasons' => array_keys($reasons),
+            'currentReaderPolicy' => 'pin-current-lateral-hidden-current-source-until-host-key-advances',
+            'nextReaderPolicy' => $reasons === []
+                ? 'reuse-current-lateral-hidden-current-source-tape'
+                : 'prepare-next-lateral-hidden-current-source-tape',
+            'leftJoin' => $joinType === 'left',
+            'dependencies' => [
+                'sqlite-json-table-hidden-constraint-source-current-source-next102',
+                'sqlite-json-table-lateral-hidden-current-source-next118',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -2060,6 +2244,224 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-cost-class-changed',
                 'rowOrder' => 'json-table-output-order-changed',
                 default => 'json-table-cost-order-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $costOrder
+     * @return array{indexedConstraints:list<array<string,mixed>>,selected:array<string,mixed>|null,selectedSignature:string|null,scanStrategy:string,indexedEstimatedRows:int,indexedEstimatedCost:int,sortPenalty:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
+     */
+    private static function jsonTableIndexedConstraintCostProfile119(array $plan, array $costOrder): array
+    {
+        $indexed = [];
+        foreach ($plan['constraintUsage'] as $usage) {
+            if (($usage['kind'] ?? null) !== 'visible' || ($usage['usable'] ?? true) !== true) {
+                continue;
+            }
+
+            $argumentIndex = $usage['argvIndex'] === null ? null : (int) $usage['argvIndex'] - 1;
+            $candidateUsage = $usage;
+            $candidateUsage['value'] = $argumentIndex !== null && array_key_exists($argumentIndex, $plan['filterArguments'])
+                ? $plan['filterArguments'][$argumentIndex]
+                : null;
+            $candidate = self::jsonTableIndexedConstraintCandidate119($candidateUsage, (int) $plan['estimatedRows'], (int) $plan['estimatedCost']);
+            if ($candidate !== null) {
+                $indexed[] = $candidate;
+            }
+        }
+
+        usort(
+            $indexed,
+            static fn (array $left, array $right): int => [$left['indexedEstimatedCost'], $left['rank'], $left['constraintIndex']]
+                <=> [$right['indexedEstimatedCost'], $right['rank'], $right['constraintIndex']],
+        );
+
+        $selected = $indexed[0] ?? null;
+        $sortPenalty = (int) $costOrder['sortPenalty'];
+        if (!$plan['runnable']) {
+            $indexedRows = 0;
+            $indexedCost = 1000000;
+            $effectiveCost = 1000000;
+            $scanStrategy = 'unrunnable-json-table';
+        } elseif ($selected === null) {
+            $indexedRows = (int) $plan['estimatedRows'];
+            $indexedCost = (int) $plan['estimatedCost'];
+            $effectiveCost = (int) $costOrder['effectiveEstimatedCost'];
+            $scanStrategy = 'full-json-table-scan';
+        } else {
+            $indexedRows = (int) $selected['indexedEstimatedRows'];
+            $indexedCost = (int) $selected['indexedEstimatedCost'];
+            $effectiveCost = $indexedCost + $sortPenalty;
+            $scanStrategy = 'indexed-json-table-constraint';
+        }
+
+        return [
+            'indexedConstraints' => $indexed,
+            'selected' => $selected,
+            'selectedSignature' => $selected === null ? null : self::jsonTableIndexedConstraintSignature119($selected),
+            'scanStrategy' => $scanStrategy,
+            'indexedEstimatedRows' => $indexedRows,
+            'indexedEstimatedCost' => $indexedCost,
+            'sortPenalty' => $sortPenalty,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableIndexedConstraintCostClass119($scanStrategy, $selected, $effectiveCost),
+            'rowCount' => count($plan['rows']),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $usage
+     * @return array<string,mixed>|null
+     */
+    private static function jsonTableIndexedConstraintCandidate119(array $usage, int $baseRows, int $baseCost): ?array
+    {
+        $column = self::normalizeConstraintColumn((string) $usage['column']);
+        $operator = strtoupper((string) $usage['operator']);
+        if (!in_array($column, ['id', 'fullkey', 'path', 'key'], true)) {
+            return null;
+        }
+
+        $rank = match ($column) {
+            'id' => 1,
+            'fullkey' => 2,
+            'path' => 3,
+            default => 4,
+        };
+        $selectivity = match ($operator) {
+            '=', 'IS', 'IS NOT DISTINCT FROM' => $column === 'id' || $column === 'fullkey' ? 16 : 8,
+            'IN' => is_array($usage['current'] ?? $usage['value'] ?? null)
+                ? max(4, min(12, count($usage['current'] ?? $usage['value'])))
+                : 4,
+            'BETWEEN', '<', '<=', '>', '>=' => $column === 'id' ? 6 : 3,
+            'LIKE', 'GLOB' => self::patternHasFixedPrefix($usage['current'] ?? $usage['value'] ?? null) ? 5 : 2,
+            'IS NULL', 'IS NOT NULL', 'IS DISTINCT FROM' => 2,
+            default => 1,
+        };
+
+        if ($selectivity <= 1) {
+            return null;
+        }
+
+        $rows = max(1, intdiv(max(1, $baseRows) + $selectivity - 1, $selectivity));
+        $cost = max(1, intdiv(max(1, $baseCost) + $selectivity - 1, $selectivity));
+
+        return [
+            'constraintIndex' => (int) $usage['constraintIndex'],
+            'column' => $column,
+            'operator' => $operator,
+            'argvIndex' => $usage['argvIndex'],
+            'omit' => (bool) $usage['omit'],
+            'rank' => $rank,
+            'selectivity' => $selectivity,
+            'indexedEstimatedRows' => $rows,
+            'indexedEstimatedCost' => $cost,
+            'value' => $usage['current'] ?? $usage['value'] ?? null,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $selected
+     */
+    private static function jsonTableIndexedConstraintCostClass119(string $scanStrategy, ?array $selected, int $effectiveCost): string
+    {
+        if ($scanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($selected === null) {
+            return $effectiveCost <= 10 ? 'json-table-narrow-full-scan' : 'json-table-full-scan';
+        }
+        if ($selected['column'] === 'id' && in_array($selected['operator'], ['=', 'IS', 'IS NOT DISTINCT FROM'], true)) {
+            return 'json-table-rowid-point-lookup';
+        }
+        if ($effectiveCost <= 4) {
+            return 'json-table-indexed-narrow-scan';
+        }
+
+        return 'json-table-indexed-range-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $selected
+     */
+    private static function jsonTableIndexedConstraintSignature119(array $selected): string
+    {
+        return implode(':', [
+            (string) $selected['constraintIndex'],
+            (string) $selected['column'],
+            (string) $selected['operator'],
+            json_encode($selected['value'], JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableIndexedConstraintTransitions119(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'selectedSignature',
+                'current' => $current['selectedSignature'],
+                'next' => $next['selectedSignature'],
+                'changed' => $current['selectedSignature'] !== $next['selectedSignature'],
+            ],
+            [
+                'field' => 'scanStrategy',
+                'current' => $current['scanStrategy'],
+                'next' => $next['scanStrategy'],
+                'changed' => $current['scanStrategy'] !== $next['scanStrategy'],
+            ],
+            [
+                'field' => 'indexedEstimatedCost',
+                'current' => $current['indexedEstimatedCost'],
+                'next' => $next['indexedEstimatedCost'],
+                'changed' => $current['indexedEstimatedCost'] !== $next['indexedEstimatedCost'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'rowCount',
+                'current' => $current['rowCount'],
+                'next' => $next['rowCount'],
+                'changed' => $current['rowCount'] !== $next['rowCount'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableIndexedConstraintReplanReasons119(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'selectedSignature' => 'json-table-indexed-constraint-changed',
+                'scanStrategy' => 'json-table-indexed-scan-strategy-changed',
+                'indexedEstimatedCost', 'effectiveEstimatedCost', 'costClass' => 'json-table-indexed-cost-changed',
+                'rowCount' => 'json-table-indexed-row-count-changed',
+                default => 'json-table-indexed-constraint-state-changed',
             };
         }
 
@@ -2601,6 +3003,106 @@ final class SQLiteJsonTablePlan
         }
 
         return 'stable-lateral-hidden-rowid-source';
+    }
+
+    /**
+     * @param list<array<string,mixed>> $hostRows
+     * @param list<array{column:string,sourceColumn?:string,value?:mixed,operator?:string,usable?:bool}> $constraintSources
+     * @return array{keys:list<string>,values:list<mixed>,rows:array<string,array{ordinal:int,row:array<string,mixed>,value:mixed}>}
+     */
+    private static function keyedHostRows118(
+        array $hostRows,
+        string $hostKeyColumn,
+        array $constraintSources,
+        string $side,
+    ): array {
+        $keys = [];
+        $values = [];
+        $rows = [];
+        foreach ($hostRows as $ordinal => $row) {
+            if (!array_key_exists($hostKeyColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral hidden current-source {$side} host row is missing {$hostKeyColumn}");
+            }
+            self::constraintsFromSource102($row, $constraintSources);
+
+            $value = $row[$hostKeyColumn];
+            $token = self::hostKeyToken103($value);
+            if (isset($rows[$token])) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral hidden current-source {$side} host key column {$hostKeyColumn} must be unique");
+            }
+
+            $keys[] = $token;
+            $values[] = $value;
+            $rows[$token] = [
+                'ordinal' => $ordinal,
+                'row' => $row,
+                'value' => $value,
+            ];
+        }
+
+        return ['keys' => $keys, 'values' => $values, 'rows' => $rows];
+    }
+
+    /**
+     * @param array<string,mixed> $hostRow
+     * @param array<string,mixed> $pair
+     * @return array<string,mixed>
+     */
+    private static function lateralConstraintHiddenHostPlan118(
+        int $hostIndex,
+        array $hostRow,
+        array $pair,
+        string $side,
+        string $joinType,
+    ): array {
+        $rows = $side === 'current' ? $pair['currentRows'] : $pair['nextRows'];
+        $sourcePlan = $side === 'current' ? $pair['current'] : $pair['next'];
+        $nullExtended = $joinType === 'left' && $rows === [];
+
+        return [
+            'hostIndex' => $hostIndex,
+            'hostRow' => $hostRow,
+            'runnable' => $sourcePlan['runnable'],
+            'rows' => $rows,
+            'rowCount' => count($rows),
+            'nullExtended' => $nullExtended,
+            'idxStr' => $sourcePlan['idxStr'],
+            'filterArguments' => $sourcePlan['filterArguments'],
+            'constraintUsage' => $sourcePlan['constraintUsage'],
+            'constraintSources' => $sourcePlan['constraintSources'],
+            'filterCurrentNext' => $sourcePlan['filterCurrentNext'],
+            'orderByConsumed' => $sourcePlan['orderByConsumed'],
+            'estimatedRows' => $sourcePlan['estimatedRows'],
+            'jsonInputKind' => $sourcePlan['jsonInputKind'],
+            'jsonValid' => $sourcePlan['jsonValid'],
+            'jsonError' => $sourcePlan['jsonError'],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     * @param array<string,mixed>|null $pair
+     */
+    private static function lateralConstraintHiddenTransitionReason118(?array $current, ?array $next, ?array $pair): string
+    {
+        if ($current === null) {
+            return 'next-lateral-hidden-current-source-host-row-added';
+        }
+        if ($next === null) {
+            return 'current-lateral-hidden-current-source-host-row-removed';
+        }
+        if (($pair['replanReasons'] ?? []) !== []) {
+            return 'lateral-hidden-current-source-plan-changed';
+        }
+        if (($current['rowCount'] ?? 0) !== ($next['rowCount'] ?? 0)) {
+            return 'lateral-hidden-current-source-row-count-changed';
+        }
+        if (($current['nullExtended'] ?? false) !== ($next['nullExtended'] ?? false)) {
+            return 'lateral-hidden-current-source-null-extension-changed';
+        }
+
+        return 'stable-lateral-hidden-current-source';
     }
 
     /**

@@ -17690,6 +17690,103 @@ SQL;
         $t->same(false, $headerBoundary['can_checkpoint']);
         $t->same(null, $headerBoundary['checkpoint_database_bytes']);
     },
+    'plans current-source wal reader pins across restart and truncate generations next119' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x11911911;
+        $salt2 = 0x11911922;
+        $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 119, $salt1, $salt2);
+        $seed = SQLiteWal::checksumPair($prefix, false);
+        $walBytes = $prefix . pack('N*', $seed[0], $seed[1]);
+        $append = static function (int $pageNumber, int $commit, string $image) use (&$walBytes, &$seed, $salt1, $salt2): void {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $image, false, $seed[0], $seed[1]);
+            $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $image;
+        };
+
+        $baseDatabase = $makeFirstPage($pageSize, 5)
+            . str_pad('wp119 active_plugins base', $pageSize, "\0")
+            . str_pad('wp119 autoload index base', $pageSize, "\0")
+            . str_pad('wp119 cron base', $pageSize, "\0")
+            . str_pad('wp119 transient base', $pageSize, "\0");
+        $pageTwoPinned = str_pad('wp119 active_plugins reader-pinned frame', $pageSize, "\0");
+        $pageThreePinnedCommit = str_pad('wp119 autoload reader-pinned commit', $pageSize, "\0");
+        $pageTwoLatest = str_pad('wp119 active_plugins latest checkpointed frame', $pageSize, "\0");
+        $pageFourLatest = str_pad('wp119 cron latest checkpointed frame', $pageSize, "\0");
+        $append(2, 0, $pageTwoPinned);
+        $append(3, 5, $pageThreePinnedCommit);
+        $append(2, 0, $pageTwoLatest);
+        $append(4, 5, $pageFourLatest);
+
+        $wal = SQLiteWal::parse($walBytes, null, true);
+        $plan = $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, $baseDatabase, [2, 3, 4, 5], [0, 2, 4, null]);
+
+        $t->same('reader-pin-restart-truncate-current-source-next119', $plan['status']);
+        $t->same('current-source', $plan['source_status']);
+        $t->same(2, $plan['current_reader_end_frame']);
+        $t->same(2, $plan['checkpoint_pinned_frame']);
+        $t->same(true, $plan['pinned_restart_preserves_wal']);
+        $t->same(true, $plan['pinned_truncate_preserves_wal']);
+        $t->same(true, $plan['released_restart_uses_new_header']);
+        $t->same(true, $plan['released_truncate_removes_wal']);
+        $t->same(true, $plan['restart_truncate_database_match']);
+        $t->same(false, $plan['current_restart_images_match']);
+        $t->same(false, $plan['current_truncate_images_match']);
+        $t->same(true, $plan['restart_truncate_images_match']);
+        $t->same(['wal', 'wal', 'database', 'database'], $plan['current_sources']);
+        $t->same(['wal', 'wal', 'wal', 'database'], $plan['pinned_next_sources']);
+        $t->same(['database', 'database', 'database', 'database'], $plan['restart_next_sources']);
+        $t->same(['database', 'database', 'database', 'database'], $plan['truncate_next_sources']);
+        $t->same([1, 2, null, null], $plan['current_frame_indexes']);
+        $t->same([3, 2, 4, null], $plan['pinned_next_frame_indexes']);
+        $t->same([null, null, null, null], $plan['restart_next_frame_indexes']);
+        $t->same([null, null, null, null], $plan['truncate_next_frame_indexes']);
+        $t->same('reader_blocks_checkpoint_completion', $plan['pinned_restart']['reason']);
+        $t->same('reader_blocks_checkpoint_completion', $plan['pinned_truncate']['reason']);
+        $t->same('preserve_wal', $plan['pinned_restart']['wal_action']);
+        $t->same('preserve_wal', $plan['pinned_truncate']['wal_action']);
+        $t->same(strlen($walBytes), $plan['pinned_restart']['wal_bytes_length']);
+        $t->same(strlen($walBytes), $plan['pinned_truncate']['wal_bytes_length']);
+        $t->same('restart_checkpoint_can_reset_wal', $plan['released_restart']['reason']);
+        $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $plan['released_truncate']['reason']);
+        $t->same('restart_wal', $plan['released_restart']['wal_action']);
+        $t->same('truncate_wal', $plan['released_truncate']['wal_action']);
+        $t->same(32, $plan['released_restart']['wal_bytes_length']);
+        $t->same(0, $plan['released_truncate']['wal_bytes_length']);
+        $t->same(119, $plan['source_generation']['checkpoint_sequence']);
+        $t->same(4, $plan['source_generation']['frame_count']);
+        $t->same([$salt1, $salt2], $plan['source_generation']['salt']);
+        $t->same(true, $plan['source_generation']['checksums_validated']);
+        $t->same(120, $plan['released_restart_generation']['checkpoint_sequence']);
+        $t->same(32, $plan['released_restart_generation']['wal_bytes_length']);
+        $t->same([($salt1 + 1) & 0xffffffff, $salt2], $plan['released_restart_generation']['salt']);
+        $t->same(null, $plan['released_truncate_generation']['checkpoint_sequence']);
+        $t->same(0, $plan['released_truncate_generation']['wal_bytes_length']);
+        $t->same(null, $plan['released_truncate_generation']['salt']);
+        $t->same(4, $plan['current_read_marks']['mx_frame']);
+        $t->same(4, $plan['current_read_marks']['last_commit_frame']);
+        $t->same(2, $plan['current_read_marks']['checkpoint_pinned_frame']);
+        $t->same(false, $plan['current_read_marks']['checkpoint_can_finish']);
+        $t->same(true, $plan['current_read_marks']['reset_blocked']);
+        $t->same([0, 1, 3], $plan['current_read_marks']['reusable_slots']);
+        $t->same('database_only_reader_before_wal_commit', $plan['current_read_marks']['read_marks'][0]['reason']);
+        $t->same('reader_pins_older_snapshot', $plan['current_read_marks']['read_marks'][1]['reason']);
+        $t->same('pins_latest_commit', $plan['current_read_marks']['read_marks'][2]['reason']);
+        $t->same('unused_slot', $plan['current_read_marks']['read_marks'][3]['reason']);
+        $t->same(0, $plan['released_read_marks']['mx_frame']);
+        $t->same(true, $plan['released_read_marks']['checkpoint_can_finish']);
+        $t->same(false, $plan['released_read_marks']['reset_blocked']);
+        $t->same([0, 1, 2, 3], $plan['released_read_marks']['reusable_slots']);
+        $t->same($pageTwoPinned, $plan['current_reader'][0]['image']);
+        $t->same($pageThreePinnedCommit, $plan['current_reader'][1]['image']);
+        $t->same($pageTwoLatest, $plan['pinned_next_reader'][0]['image']);
+        $t->same($pageFourLatest, $plan['pinned_next_reader'][2]['image']);
+        $t->same($pageTwoLatest, $plan['restart_next_reader'][0]['image']);
+        $t->same($pageFourLatest, $plan['truncate_next_reader'][2]['image']);
+        $t->same(true, in_array('sqlite-wal-reader-pin-restart-truncate-current-source-next119', $plan['dependencies'], true));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, $baseDatabase, [], [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119(substr($walBytes, 0, -1), $baseDatabase, [2], [0]));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->restartTruncateReaderPinCurrentSourceNext119($walBytes, substr($baseDatabase, 1), [2], [0]));
+    },
     'rejects malformed sqlite wal files' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(str_repeat("\0", 31)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(pack('N*', 0, 3007000, 512, 0, 1, 2, 3, 4)));
