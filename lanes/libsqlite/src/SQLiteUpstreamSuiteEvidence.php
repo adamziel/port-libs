@@ -7553,6 +7553,114 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function upstreamVeryquickShardCurrentSourceNext259(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('next116-full-suite-countability', 'next259-veryquick-shard', (string) $record['status']);
+        $record['counts_upstream_veryquick_shard_current_source_next259'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
+        foreach ([253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
+            $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
+        }
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = match ($record['status']) {
+            'current-source-next259-veryquick-shard-advanced' => 'publish only the current-source next259 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next259-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
+            default => 'repair current-source next259 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
+        };
+        $record['dependency_closure'] = 'no new support component needed; current-source next259 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext258(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('next116-full-suite-countability', 'next258-veryquick-shard', (string) $record['status']);
+        $record['counts_upstream_veryquick_shard_current_source_next258'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
+        foreach ([253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $prior) {
+            $record['counts_upstream_veryquick_shard_current_source_next' . $prior] = false;
+        }
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = match ($record['status']) {
+            'current-source-next258-veryquick-shard-advanced' => 'publish only the current-source next258 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next258-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
+            default => 'repair current-source next258 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
+        };
+        $record['dependency_closure'] = 'no new support component needed; current-source next258 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function upstreamVeryquickShardCurrentSourceNext252(
         array $rows,
         int $currentMapped,
@@ -7709,6 +7817,116 @@ final class SQLiteUpstreamSuiteEvidence
             default => 'repair current-source next255 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
         };
         $record['dependency_closure'] = 'no new support component needed; current-source next255 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext256(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('next116-full-suite-countability', 'next256-veryquick-shard', (string) $record['status']);
+        $record['counts_upstream_veryquick_shard_current_source_next256'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
+        foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
+            $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
+        }
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = match ($record['status']) {
+            'current-source-next256-veryquick-shard-advanced' => 'publish only the current-source next256 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next256-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
+            default => 'repair current-source next256 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
+        };
+        $record['dependency_closure'] = 'no new support component needed; current-source next256 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, integration-source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamVeryquickShardCurrentSourceNext257(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('next116-full-suite-countability', 'next257-veryquick-shard', (string) $record['status']);
+        $record['counts_upstream_veryquick_shard_current_source_next257'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
+        foreach ([250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155] as $priorShard) {
+            $record['counts_upstream_veryquick_shard_current_source_next' . $priorShard] = false;
+        }
+        $record['counts_upstream_exact_shard_runner_current_source_next148'] = false;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = false;
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = match ($record['status']) {
+            'current-source-next257-veryquick-shard-advanced' => 'publish only the current-source next257 veryquick shard blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next257-veryquick-shard-preserved' => 'preserve already-counted current-source veryquick shard rows without mapped inflation',
+            default => 'repair current-source next257 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the veryquick shard row',
+        };
+        $record['dependency_closure'] = 'no new support component needed; current-source next257 veryquick shard admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, accepted batch214 source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
 
         return $record;
     }

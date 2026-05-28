@@ -11088,3 +11088,28 @@ Non-overlap: this avoids accepted batch153 next161 veryquick evidence,
 suite155/157/159, exact-shard next148, queued runner106/jsonvt104 rebase work,
 and accepted B-tree, JSON, VFS/WAL, planner, PRAGMA, ATTACH, window, and VDBE
 behavior surfaces.
+### 2026-05-28 - WAL hot-journal savepoint checkpoint current-source next250
+
+This isolated WAL/pager micro-slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan`, a current-source guard that admits pager cache/readmark invalidation only after an admitted next247 hot-journal checkpoint cleanup plan. The behavior covers stale page-cache dirty pages, WAL readmarks, schema-cookie refresh, WAL-index refresh, reader reopen, stale hot-journal visibility, stale WAL visibility, savepoint depth, shared-lock state, duplicate receipts, and missing reader/page/frame coverage before the checkpointed current source can be served.
+
+Focused verification:
+
+```text
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Test.php
+Focused test run: 1 selected test files (root lock skipped)
+1 test files, 115 assertions, 0 failures
+```
+
+Additional verification:
+
+```text
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan.php
+php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Test.php
+php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
+php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
+git diff --check -- lanes/libsqlite
+```
+
+Expected dashboard movement: `phpPass` +115, from `128615` to `128730`; no mapped upstream coverage claim. Dependency closure: no new support component needed; this reuses next247 cleanup admission plus lane-local pager cache, readmark, schema-cookie, and WAL-index refresh receipt modeling.
+
+Non-overlap: next250 verifies stale pager cache and readmark invalidation after next247 cleanup. It does not repeat checkpoint publication, VFS durable handoff ordering, cleanup receipt admission, WAL byte truncation, rollback-journal apply/commit, VFS sync/apply, file locking, SELECT, JSON, or B-tree surfaces.
