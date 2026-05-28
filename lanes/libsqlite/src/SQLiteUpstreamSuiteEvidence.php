@@ -8608,6 +8608,154 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function suiteReleaseRunnerCountabilityRebaseCurrentSourceNext82(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextAcceptedHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if (trim($launcherBaseHead) === '') {
+            throw new \InvalidArgumentException('SQLite current-next82 release-runner countability requires the launcher base HEAD');
+        }
+
+        $rebasedRows = [];
+        $rebaseBlockers = [];
+        $sourceHeads = [];
+        foreach ($artifactRows as $label => $row) {
+            if (!is_array($row)) {
+                $rebasedRows[$label] = $row;
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : (is_string($label) ? $label : 'current-next82-artifact-' . count($rebasedRows));
+            $baseHead = is_string($row['launcher_base_head'] ?? null) ? trim($row['launcher_base_head']) : '';
+            $dashboardHead = is_string($row['dashboard_source_head'] ?? null) ? trim($row['dashboard_source_head']) : '';
+            $statusHead = is_string($row['status_source_head'] ?? null) ? trim($row['status_source_head']) : '';
+            $implementationHead = is_string($row['implementation_source_head'] ?? null) ? trim($row['implementation_source_head']) : '';
+
+            foreach ([
+                'dashboard' => $dashboardHead,
+                'status' => $statusHead,
+                'implementation' => $implementationHead,
+            ] as $source => $head) {
+                if ($head !== '') {
+                    $sourceHeads[$source][$head] = true;
+                }
+            }
+
+            if ($baseHead !== $launcherBaseHead) {
+                $rebaseBlockers[] = [
+                    'id' => 'launcher-base-head-mismatch',
+                    'unit' => $unit,
+                    'expected' => $launcherBaseHead,
+                    'actual' => $baseHead,
+                    'evidence' => 'current-next82 release-runner countability must be rebased on the launcher-printed Base accepted HEAD, not the dashboard/status/current-source heads',
+                ];
+            }
+            if ($dashboardHead !== $dashboardSourceHead) {
+                $rebaseBlockers[] = [
+                    'id' => 'dashboard-source-head-mismatch',
+                    'unit' => $unit,
+                    'expected' => $dashboardSourceHead,
+                    'actual' => $dashboardHead,
+                    'evidence' => 'current-next82 release-runner countability keeps dashboard source provenance explicit before admitting the artifact',
+                ];
+            }
+            if ($statusHead !== $statusSourceHead) {
+                $rebaseBlockers[] = [
+                    'id' => 'status-source-head-mismatch',
+                    'unit' => $unit,
+                    'expected' => $statusSourceHead,
+                    'actual' => $statusHead,
+                    'evidence' => 'current-next82 release-runner countability keeps lane-status source provenance explicit before admitting the artifact',
+                ];
+            }
+            if ($implementationHead !== $implementationSourceHead) {
+                $rebaseBlockers[] = [
+                    'id' => 'implementation-source-head-mismatch',
+                    'unit' => $unit,
+                    'expected' => $implementationSourceHead,
+                    'actual' => $implementationHead,
+                    'evidence' => 'current-next82 release-runner countability keeps latest integrated implementation source provenance explicit before admitting the artifact',
+                ];
+            }
+
+            $row['current_head'] = $launcherBaseHead;
+            $row['next_head'] = $nextAcceptedHead;
+            $rebasedRows[$label] = $row;
+        }
+
+        $record = $this->suiteReleaseRunnerAdmissionCurrentNext72(
+            $rebasedRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $nextAcceptedHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $blockers = array_merge($rebaseBlockers, is_array($record['blockers'] ?? null) ? $record['blockers'] : []);
+        $blocked = $blockers !== [];
+        $mappedDelta = $blocked ? 0 : min(1, (int) ($record['mapped_delta'] ?? 0));
+        $phpPassDelta = $blocked ? 0 : (int) ($record['php_pass_delta'] ?? 0);
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-next82-release-runner-current-source-countable';
+        } elseif (!$blocked) {
+            $status = 'current-next82-release-runner-current-source-preserved';
+        }
+
+        $normalizedSourceHeads = [];
+        foreach ($sourceHeads as $source => $heads) {
+            $normalizedSourceHeads[$source] = array_keys($heads);
+            sort($normalizedSourceHeads[$source], SORT_STRING);
+        }
+        ksort($normalizedSourceHeads, SORT_STRING);
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-next82-release-runner-current-source-countable';
+        $record['launcher_base_head'] = $launcherBaseHead;
+        $record['dashboard_source_head'] = $dashboardSourceHead;
+        $record['status_source_head'] = $statusSourceHead;
+        $record['implementation_source_head'] = $implementationSourceHead;
+        $record['current_accepted_head'] = $launcherBaseHead;
+        $record['next_accepted_head'] = $nextAcceptedHead;
+        $record['source_heads'] = $normalizedSourceHeads;
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['zero_error_artifact_count'] = $blocked ? 0 : (int) ($record['zero_error_artifact_count'] ?? 0);
+        $record['counts_release_runner_admission_current_next72'] = false;
+        $record['counts_release_runner_countability_current_source_next82'] = $status === 'current-next82-release-runner-current-source-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-next82-release-runner-current-source-countable'
+            ? 'publish only current-next82 rebased current-source release-runner countability and exact focused PASS-line movement; release/all parity remains gated on a separate broad zero-error artifact'
+            : 'keep current-next82 countability uncounted until launcher-base, dashboard/status/source provenance, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next82 release-runner countability composes lane-local artifact rows, launcher Base accepted HEAD provenance, dashboard/status/source heads, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

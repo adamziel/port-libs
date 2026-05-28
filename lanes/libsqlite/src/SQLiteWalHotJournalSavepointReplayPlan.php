@@ -8,6 +8,94 @@ final class SQLiteWalHotJournalSavepointReplayPlan
 {
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,master_journal_path:string,master_cache:array<string,mixed>,replay:array<string,mixed>,next_master_member:bool,stale_current_member:bool,operations:list<array<string,mixed>>,payloads:array<string,string>,dependencies:list<string>}
+     */
+    public static function masterJournalCurrentSourceNext82(
+        string $masterJournalPath,
+        ?string $currentMasterJournalBytes,
+        ?string $nextMasterJournalBytes,
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databasePath,
+        array $pageNumbers,
+        bool $databaseReservedLock = false,
+    ): array {
+        if ($masterJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint master-journal current-source replay requires a master-journal path');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint master-journal current-source replay requires a database path');
+        }
+
+        $journalPath = $databasePath . '-journal';
+        $cache = SQLitePagerMasterJournalCacheCurrentNextPlan::currentNext(
+            $masterJournalPath,
+            $currentMasterJournalBytes,
+            $nextMasterJournalBytes,
+            [[
+                'database_path' => $databasePath,
+                'journal_path' => $journalPath,
+                'current_journal_bytes' => $journalBytes,
+                'next_journal_bytes' => $journalBytes,
+                'current_reserved_lock' => $databaseReservedLock,
+                'next_reserved_lock' => $databaseReservedLock,
+            ]]
+        );
+
+        $recheck = $cache['journal_rechecks'][$journalPath] ?? null;
+        if (!is_array($recheck)) {
+            throw new \LogicException("SQLite WAL savepoint master-journal current-source replay did not recheck {$journalPath}");
+        }
+
+        $nextMasterMember = (bool) ($recheck['next_member'] ?? false);
+        $currentMasterMember = (bool) ($recheck['current_member'] ?? false);
+        $replay = self::replayCurrentNext(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databasePath,
+            $pageNumbers,
+            $databaseReservedLock,
+            true,
+            $nextMasterMember
+        );
+
+        $status = $replay['hot_recovered']
+            ? 'master_journal_current_source_savepoint_wal_recovered'
+            : 'master_journal_current_source_savepoint_wal_skipped';
+        $reason = $nextMasterMember
+            ? 'next_master_journal_member_allows_savepoint_wal_replay'
+            : ($currentMasterMember ? 'stale_current_master_journal_member_rechecked_before_replay' : 'next_master_journal_missing_blocks_savepoint_wal_replay');
+
+        return [
+            'status' => $status,
+            'reason' => $reason,
+            'master_journal_path' => $masterJournalPath,
+            'master_cache' => $cache,
+            'replay' => $replay,
+            'next_master_member' => $nextMasterMember,
+            'stale_current_member' => $currentMasterMember && !$nextMasterMember,
+            'operations' => array_values(array_merge($cache['operations'], $replay['operations'])),
+            'payloads' => $replay['payloads'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $cache['dependencies'],
+                $replay['dependencies'],
+                ['sqlite-wal-savepoint-master-journal-current-source-next82']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,hot_recovered:bool,journal_action:string,rollback_to_frame:int,original_frame_count:int,retained_frame_count:int,discarded_frame_count:int,current_wal_bytes:string,current_wal_bytes_length:int,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,can_checkpoint:bool,checkpoint_database_page_count:int|null,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,operations:list<array<string,mixed>>,payloads:array<string,string>,hot_journal:array<string,mixed>,savepoint_truncation:array<string,mixed>,wal_recovery:array<string,mixed>,dependencies:list<string>}
      */
     public static function replayCurrentNext(

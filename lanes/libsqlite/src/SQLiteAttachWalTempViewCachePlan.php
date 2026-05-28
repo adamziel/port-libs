@@ -196,6 +196,109 @@ final class SQLiteAttachWalTempViewCachePlan
     }
 
     /**
+     * @param list<array{name:string, source?:string, active?:bool}> $preparedViews
+     * @param array<string,list<SQLiteSchemaRecord>> $nextSchemaRecords
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext82(
+        SQLiteAttachedSchemaCatalog $catalog,
+        array $preparedViews,
+        array $nextSchemaRecords = [],
+        array $schemaStates = [],
+    ): array {
+        if ($preparedViews === []) {
+            throw new \InvalidArgumentException('SQLite attach WAL temp view-cache current-source-next82 requires prepared views');
+        }
+
+        $viewNames = [];
+        $sources = [];
+        $active = [];
+        foreach ($preparedViews as $index => $view) {
+            if (!isset($view['name']) || trim($view['name']) === '') {
+                throw new \InvalidArgumentException("SQLite prepared view {$index} requires a name");
+            }
+            $name = trim($view['name']);
+            $viewNames[] = $name;
+            $sources[$name] = self::normalizeName((string) ($view['source'] ?? 'main'));
+            $catalog->schemaCacheSnapshot($sources[$name]);
+            $active[$name] = (bool) ($view['active'] ?? false);
+        }
+
+        $primarySource = $sources[$viewNames[0]];
+        $plan = self::viewDependencyCachePlan($catalog, $viewNames, $nextSchemaRecords, $schemaStates, $primarySource);
+        $viewPlans = [];
+        $currentSnapshotReaders = [];
+        $resetSchemaReaders = [];
+        $nextStepSchemaReaders = [];
+        $stableReaders = [];
+        $sourceSchemas = [];
+
+        foreach ($viewNames as $name) {
+            $entry = $plan['views'][$name];
+            $source = $sources[$name];
+            $sourceSchemas[$name] = $source;
+            $requiresReprepare = (bool) $entry['requires_reprepare'];
+            $isActive = $active[$name];
+            if (!$requiresReprepare) {
+                $action = 'reuse_prepared_view';
+                $sqliteResult = 'SQLITE_OK';
+                $stableReaders[] = $name;
+            } elseif ($isActive) {
+                $action = 'finish_current_source_then_sqlite_schema_on_reset';
+                $sqliteResult = 'SQLITE_OK';
+                $currentSnapshotReaders[] = $name;
+                $resetSchemaReaders[] = $name;
+            } else {
+                $action = 'sqlite_schema_on_next_step';
+                $sqliteResult = 'SQLITE_SCHEMA';
+                $nextStepSchemaReaders[] = $name;
+            }
+
+            $viewPlans[$name] = $entry + [
+                'source_schema' => $source,
+                'active' => $isActive,
+                'current_step_result' => $sqliteResult,
+                'next_step_action' => $action,
+                'current_source_kept_until_reset' => $isActive && $requiresReprepare,
+            ];
+        }
+
+        $changedSchemas = array_values(array_unique(array_merge(
+            $plan['changed_schemas'],
+            $plan['schema_record_updates'],
+        )));
+        sort($changedSchemas);
+
+        return [
+            'status' => $plan['requires_reprepare'] ? 'view_cache_expired' : 'view_cache_stable',
+            'operation' => 'attach-wal-temp-schema-view-cache-current-source-next82',
+            'source_schema' => $primarySource,
+            'source_schemas' => $sourceSchemas,
+            'view_count' => count($viewNames),
+            'active_view_count' => count(array_filter($active)),
+            'views' => $viewPlans,
+            'reprepare_views' => $plan['reprepare_views'],
+            'stable_views' => $stableReaders,
+            'active_current_snapshot_views' => $currentSnapshotReaders,
+            'reset_schema_views' => $resetSchemaReaders,
+            'next_step_schema_views' => $nextStepSchemaReaders,
+            'requires_reprepare' => $plan['requires_reprepare'],
+            'changed_schemas' => $changedSchemas,
+            'schema_record_updates' => $plan['schema_record_updates'],
+            'schema_cookies_current' => $plan['schema_cookies_current'],
+            'schema_cookies_next' => $plan['schema_cookies_next'],
+            'wal_schema_cookie_sources' => $plan['wal_schema_cookie_sources'],
+            'invalidation' => $plan['invalidation'],
+            'dependencies' => array_values(array_unique(array_merge(
+                ['sqlite-attach-wal-temp-schema-view-cache-current-source-next82'],
+                $plan['dependencies'],
+                ['sqlite-prepared-view-current-source-reset']
+            ))),
+        ];
+    }
+
+    /**
      * @param array{schema: string, record: SQLiteSchemaRecord}|null $resolved
      * @return array{schema:string|null,name:string|null,rootpage:int|null,type:string|null,sql:string|null}
      */

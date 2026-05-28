@@ -1,0 +1,407 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteVfsOpenLockFileControlCurrentSource
+{
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext82(array $operations, array $options = []): array
+    {
+        if ($operations === []) {
+            throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
+        }
+
+        $state = self::normalizeCurrent($options['current'] ?? null);
+        $events = [];
+
+        foreach ($operations as $operation) {
+            $op = self::normalizeOperation($operation);
+            $before = self::snapshot($state);
+
+            if ($op['kind'] === 'open') {
+                $handle = self::openHandle($op, $options, $state);
+                $state['handles'][$handle['id']] = $handle;
+                $state['last_open'] = $handle['id'];
+                $events[] = self::event('open', $handle['status'], $before, self::snapshot($state), [
+                    'handle' => $handle['id'],
+                    'path' => $handle['path'],
+                    'source_key' => $handle['source_key'],
+                    'reused_controls' => $handle['reused_controls'],
+                    'reused_lock' => $handle['reused_lock'],
+                ]);
+                continue;
+            }
+
+            $handleId = self::targetHandle($state, $op['handle']);
+            if ($handleId === null || !isset($state['handles'][$handleId])) {
+                $events[] = self::event($op['kind'], 'missing-handle', $before, self::snapshot($state), [
+                    'handle' => $op['handle'],
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'filecontrol') {
+                $handle = &$state['handles'][$handleId];
+                $control = self::controlName((string) $op['control']);
+                $value = self::controlValue($control, $op['value']);
+                $previous = $handle['controls'][$control] ?? null;
+                $status = ($handle['readonly'] && self::writeControl($control)) ? 'ignored' : 'ok';
+                if ($status === 'ok') {
+                    $handle['controls'][$control] = $value;
+                    if ($handle['persistent']) {
+                        $state['persistent_controls'][$handle['source_key']] = self::persistentSubset($handle['controls']);
+                    }
+                }
+                unset($handle);
+
+                $events[] = self::event('filecontrol', $status, $before, self::snapshot($state), [
+                    'handle' => $handleId,
+                    'file_control' => $control,
+                    'value' => $value,
+                    'previous' => $previous,
+                    'changed' => $status === 'ok' && $previous !== $value,
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'lock') {
+                $handle = &$state['handles'][$handleId];
+                $level = self::lockLevel((string) $op['value']);
+                if ($handle['nolock']) {
+                    $events[] = self::event('lock', 'blocked', $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'lock_state' => $handle['lock_state'],
+                        'reason' => 'nolock VFS disables POSIX byte-range locking',
+                    ]);
+                    unset($handle);
+                    continue;
+                }
+
+                $handle['lock_state'] = $level;
+                if ($handle['persistent']) {
+                    $state['persistent_locks'][$handle['source_key']] = $level;
+                }
+                unset($handle);
+
+                $events[] = self::event('lock', 'ok', $before, self::snapshot($state), [
+                    'handle' => $handleId,
+                    'lock_state' => $level,
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'close') {
+                $handle = $state['handles'][$handleId];
+                unset($state['handles'][$handleId]);
+                $deleted = (bool) $handle['delete_on_close'] && $handle['persistent'];
+                if ($deleted || !$handle['persistent']) {
+                    unset($state['persistent_controls'][$handle['source_key']], $state['persistent_locks'][$handle['source_key']]);
+                } else {
+                    $state['persistent_controls'][$handle['source_key']] = self::persistentSubset($handle['controls']);
+                    $state['persistent_locks'][$handle['source_key']] = 'unlocked';
+                }
+
+                $events[] = self::event('close', 'closed', $before, self::snapshot($state), [
+                    'handle' => $handleId,
+                    'path' => $handle['path'],
+                    'deleted' => $deleted,
+                    'persisted_controls' => !$deleted && $handle['persistent'],
+                    'lock_state' => 'unlocked',
+                ]);
+                continue;
+            }
+        }
+
+        return [
+            'status' => (string) $events[array_key_last($events)]['status'],
+            'current' => self::snapshot($state),
+            'next' => self::next($state),
+            'events' => $events,
+            'dependencies' => [
+                'vfs-open-file-control-application',
+                'vfs-lock-state-application',
+                'vfs-open-lock-filecontrol-current-source-next82',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @return array<string,mixed>
+     */
+    private static function normalizeCurrent(mixed $current): array
+    {
+        if (!is_array($current)) {
+            return ['sequence' => 0, 'last_open' => null, 'handles' => [], 'persistent_controls' => [], 'persistent_locks' => []];
+        }
+
+        return [
+            'sequence' => max(0, (int) ($current['sequence'] ?? 0)),
+            'last_open' => isset($current['last_open']) ? (string) $current['last_open'] : null,
+            'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
+            'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
+            'persistent_locks' => is_array($current['persistent_locks'] ?? null) ? $current['persistent_locks'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $options
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function openHandle(array $op, array $options, array &$state): array
+    {
+        $state['sequence']++;
+        $filename = (string) ($op['filename'] ?? $options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        $path = self::canonicalPath($filename);
+        $memory = str_contains(strtolower($filename), 'mode=memory') || $path === ':memory:';
+        $sourceKey = $memory ? 'memory:db-' . $state['sequence'] : $path;
+        $controls = $memory ? [] : ($state['persistent_controls'][$sourceKey] ?? []);
+        $lock = $memory ? 'unlocked' : (string) ($state['persistent_locks'][$sourceKey] ?? 'unlocked');
+
+        if (!is_array($controls)) {
+            $controls = [];
+        }
+
+        return [
+            'id' => 'db-' . $state['sequence'],
+            'status' => $memory ? 'memory-open' : 'open',
+            'path' => $memory ? '' : $path,
+            'source_key' => $sourceKey,
+            'readonly' => (bool) ($op['readonly'] ?? str_contains(strtolower($filename), 'mode=ro')),
+            'nolock' => (bool) ($op['nolock'] ?? str_contains(strtolower($filename), 'nolock=1')),
+            'delete_on_close' => (bool) ($op['delete_on_close'] ?? false),
+            'persistent' => !$memory,
+            'controls' => $controls,
+            'lock_state' => $lock,
+            'reused_controls' => $controls !== [],
+            'reused_lock' => $lock !== 'unlocked',
+        ];
+    }
+
+    /**
+     * @param string|array<string,mixed> $operation
+     * @return array<string,mixed>
+     */
+    private static function normalizeOperation(string|array $operation): array
+    {
+        if (is_array($operation)) {
+            $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
+            return [
+                'kind' => match ($kind) {
+                    'filecontrol', 'xfilecontrol' => 'filecontrol',
+                    default => $kind,
+                },
+                'handle' => isset($operation['handle']) ? (string) $operation['handle'] : null,
+                'filename' => $operation['filename'] ?? null,
+                'readonly' => $operation['readonly'] ?? null,
+                'nolock' => $operation['nolock'] ?? null,
+                'delete_on_close' => $operation['delete_on_close'] ?? null,
+                'control' => $operation['control'] ?? null,
+                'value' => $operation['value'] ?? null,
+            ];
+        }
+
+        $trimmed = trim($operation);
+        if (preg_match('/^open\s*(?:\((?<filename>[^)]*)\))?$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'open', 'handle' => null, 'filename' => trim($matches['filename'] ?? ''), 'value' => null];
+        }
+        if (preg_match('/^close\s*(?:\((?<handle>[^)]*)\))?$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'close', 'handle' => ($matches['handle'] ?? '') !== '' ? trim($matches['handle']) : null, 'value' => null];
+        }
+        if (preg_match('/^lock\s*\(\s*(?<level>[^)]*)\)$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'lock', 'handle' => null, 'value' => trim($matches['level'])];
+        }
+        if (preg_match('/^file_control\s*\(\s*(?<control>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'filecontrol', 'handle' => null, 'control' => $matches['control'], 'value' => self::parseValue($matches['value'] ?? null)];
+        }
+
+        throw new \InvalidArgumentException('SQLite VFS open lock file-control operation is unsupported');
+    }
+
+    private static function canonicalPath(string $filename): string
+    {
+        $filename = trim($filename);
+        if ($filename === '') {
+            return '/srv/www/wp-content/database/.ht.sqlite';
+        }
+        if ($filename === ':memory:' || str_starts_with(strtolower($filename), 'file::memory:')) {
+            return ':memory:';
+        }
+        if (str_starts_with(strtolower($filename), 'file:')) {
+            $withoutScheme = substr($filename, 5);
+            $query = strpos($withoutScheme, '?');
+            return $query === false ? $withoutScheme : substr($withoutScheme, 0, $query);
+        }
+
+        return $filename;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function targetHandle(array $state, ?string $handle): ?string
+    {
+        if ($handle !== null && $handle !== '') {
+            return $handle;
+        }
+
+        return isset($state['last_open']) ? (string) $state['last_open'] : null;
+    }
+
+    private static function controlName(string $control): string
+    {
+        $control = strtolower(str_replace('-', '_', trim($control)));
+        if ($control === '') {
+            throw new \InvalidArgumentException('SQLite VFS file-control name is required');
+        }
+
+        return $control;
+    }
+
+    private static function controlValue(string $control, mixed $value): mixed
+    {
+        return match ($control) {
+            'persist_wal', 'powersafe_overwrite' => self::boolean($value),
+            'chunk_size', 'mmap_size', 'size_hint', 'reserve_bytes', 'lock_timeout' => self::nonNegativeInt($value, $control),
+            'name_hint' => self::nameHint($value),
+            default => $value,
+        };
+    }
+
+    private static function lockLevel(string $level): string
+    {
+        $level = strtolower(trim($level));
+        if (!in_array($level, ['unlocked', 'shared', 'reserved', 'pending', 'exclusive'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS lock state is unsupported');
+        }
+
+        return $level;
+    }
+
+    private static function writeControl(string $control): bool
+    {
+        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite'], true);
+    }
+
+    /**
+     * @param array<string,mixed> $controls
+     * @return array<string,mixed>
+     */
+    private static function persistentSubset(array $controls): array
+    {
+        $subset = [];
+        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout'] as $key) {
+            if (array_key_exists($key, $controls)) {
+                $subset[$key] = $controls[$key];
+            }
+        }
+
+        return $subset;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function snapshot(array $state): array
+    {
+        ksort($state['handles']);
+        ksort($state['persistent_controls']);
+        ksort($state['persistent_locks']);
+
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function next(array $state): array
+    {
+        $openPaths = [];
+        foreach ($state['handles'] as $handle) {
+            if (($handle['path'] ?? '') !== '') {
+                $openPaths[] = (string) $handle['path'];
+            }
+        }
+
+        return [
+            'open_count' => count($state['handles']),
+            'open_paths' => $openPaths,
+            'persistent_control_count' => count($state['persistent_controls']),
+            'persistent_lock_count' => count(array_filter($state['persistent_locks'], static fn (mixed $level): bool => $level !== 'unlocked')),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private static function event(string $op, string $status, array $current, array $next, array $extra): array
+    {
+        return ['op' => $op, 'status' => $status, 'current' => $current, 'next' => $next] + $extra;
+    }
+
+    private static function parseValue(mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (preg_match('/^\d+$/', $trimmed) === 1) {
+            return (int) $trimmed;
+        }
+        if ((str_starts_with($trimmed, "'") && str_ends_with($trimmed, "'")) || (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))) {
+            $quote = $trimmed[0];
+            return str_replace($quote . $quote, $quote, substr($trimmed, 1, -1));
+        }
+
+        return $trimmed;
+    }
+
+    private static function boolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value !== 0;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'on', 'yes'], true);
+    }
+
+    private static function nonNegativeInt(mixed $value, string $label): int
+    {
+        if (is_int($value) || (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1)) {
+            $int = (int) $value;
+            if ($int >= 0) {
+                return $int;
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite VFS file-control {$label} requires a non-negative integer");
+    }
+
+    private static function nameHint(mixed $value): string
+    {
+        if (!is_string($value) || trim($value) === '' || str_contains($value, "\0")) {
+            throw new \InvalidArgumentException('SQLite VFS file-control name_hint requires non-empty text without NUL bytes');
+        }
+
+        return $value;
+    }
+}

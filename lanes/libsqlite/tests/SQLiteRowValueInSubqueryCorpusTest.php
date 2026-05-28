@@ -168,7 +168,7 @@ $cases = [
     ],
     'row-value in with having subquery tuples' => [
         "SELECT option_id AS id, option_name AS name FROM wp_options WHERE (autoload, kind) IN (SELECT meta_value, 'url' FROM option_meta WHERE meta_key = 'load' GROUP BY meta_value HAVING count(*) > 1) ORDER BY id",
-        InvalidArgumentException::class,
+        ['siteurl', 'home'],
     ],
     'row-value in against cte select projection aliases' => [
         "WITH pairs AS (SELECT meta_option_id AS id, meta_value AS load_state FROM option_meta WHERE meta_key = 'load') SELECT option_id AS id, option_name AS name FROM wp_options WHERE (option_id, autoload) IN (SELECT id, load_state FROM pairs) ORDER BY id",

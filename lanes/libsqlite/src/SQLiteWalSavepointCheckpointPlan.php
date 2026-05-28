@@ -171,6 +171,7 @@ final class SQLiteWalSavepointCheckpointPlan
             throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint crash recovery requires at least one page number');
         }
 
+        self::assertCurrentWalSource($wal, $walBytes);
         $truncation = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
         $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
         $pageSize = $databasePageSize ?? $wal->header->pageSize;
