@@ -47,6 +47,108 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
+     * Choose an additive bounded range plan without changing the legacy
+     * single-term expression-index ranking path.
+     *
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array<string,string>> $orderBy
+     * @param list<string> $neededColumns
+     * @param list<array<string,string>> $neededExpressions
+     * @return null|array<string,mixed>
+     */
+    public static function chooseBoundedRangeCost(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = [], array $neededExpressions = []): ?array
+    {
+        $plans = self::boundedRangePlans($indexDefinitions, $predicate, $orderBy, $neededColumns, $neededExpressions);
+
+        return $plans[0] ?? null;
+    }
+
+    /**
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array<string,string>> $orderBy
+     * @param list<string> $neededColumns
+     * @param list<array<string,string>> $neededExpressions
+     * @return list<array<string,mixed>>
+     */
+    public static function boundedRangePlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = [], array $neededExpressions = []): array
+    {
+        $terms = self::flattenAndTerms($predicate);
+        $constraints = self::boundedRangeConstraints($terms);
+        $plans = [];
+
+        foreach ($constraints as $constraint) {
+            foreach ($indexDefinitions as $index) {
+                $sql = $index['sql'] ?? null;
+                if (!is_string($sql) || $sql === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT expression-index bounded range planner needs index SQL text');
+                }
+
+                $expression = self::expressionForType($sql, $constraint['type']);
+                if (
+                    $expression === null
+                    || strcasecmp($expression->columnName, $constraint['column']) !== 0
+                    || (
+                        $expression instanceof SQLiteJsonExtractIndexExpression
+                        && (
+                            (($constraint['path'] ?? null) !== $expression->path)
+                            || !self::jsonExpressionKindMatches($constraint['type'], $expression->functionName)
+                        )
+                    )
+                ) {
+                    continue;
+                }
+                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint, $terms)) {
+                    continue;
+                }
+                if (!self::constraintCompatibleWithType($constraint, $expression->collation)) {
+                    continue;
+                }
+
+                $estimated = self::estimatedRows($index, $constraint);
+                $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
+                $orderCompatible = self::orderCompatible($expression, $constraint['type'], $trailingColumns, $constraint, $orderBy);
+                $covering = self::covering($index, $expression, $constraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
+
+                $plans[] = [
+                    'usable' => true,
+                    'rootPage' => $index['rootPage'] ?? null,
+                    'name' => $index['name'] ?? null,
+                    'type' => $constraint['type'],
+                    'column' => $expression->columnName,
+                    'operator' => 'range-bounded',
+                    'values' => $constraint['values'],
+                    'path' => $constraint['path'] ?? null,
+                    'collation' => $expression->collation,
+                    'descending' => $expression->descending,
+                    'partial' => $expression->partial,
+                    'residualPredicateRequired' => true,
+                    'estimatedRows' => $estimated['rows'],
+                    'estimatedCost' => self::estimatedCost($constraint, $estimated['rows'], $expression->partial, $orderCompatible, $covering),
+                    'stat4Used' => $estimated['stat4Used'],
+                    'stat4Estimate' => $estimated['stat4Estimate'],
+                    'stat4MatchedSamples' => $estimated['stat4MatchedSamples'],
+                    'stat4CurrentNext' => $estimated['stat4CurrentNext'],
+                    'stat4MatchedCurrentNext' => $estimated['stat4MatchedCurrentNext'],
+                    'orderBySatisfied' => $orderCompatible,
+                    'covering' => $covering,
+                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
+                    'trailingColumns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $trailingColumns),
+                    'legacyPlansUnaffected' => true,
+                ];
+            }
+        }
+
+        usort($plans, static function (array $left, array $right): int {
+            return [$left['estimatedCost'], $left['estimatedRows'], (string) ($left['name'] ?? '')]
+                <=> [$right['estimatedCost'], $right['estimatedRows'], (string) ($right['name'] ?? '')];
+        });
+
+        return $plans;
+    }
+
+    /**
      * Build a bounded SQLite OR-clause plan where every OR arm is independently
      * usable through a partial covering expression index.
      *
@@ -324,6 +426,59 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $terms
+     * @return list<array{type:string,column:string,operator:string,values:array{lower:mixed,upper:mixed,lowerInclusive:bool,upperInclusive:bool},path?:string,residualPredicateRequired:bool}>
+     */
+    private static function boundedRangeConstraints(array $terms): array
+    {
+        $rangeConstraints = [];
+        foreach ($terms as $term) {
+            $constraint = self::constraintFromPredicate($term);
+            if ($constraint !== null && str_starts_with($constraint['operator'], 'range-')) {
+                $rangeConstraints[] = $constraint;
+            }
+        }
+
+        $bounded = [];
+        foreach ($rangeConstraints as $leftOffset => $left) {
+            if ($left['operator'] !== 'range->' && $left['operator'] !== 'range->=') {
+                continue;
+            }
+            foreach ($rangeConstraints as $rightOffset => $right) {
+                if ($leftOffset === $rightOffset || ($right['operator'] !== 'range-<' && $right['operator'] !== 'range-<=')) {
+                    continue;
+                }
+                if (
+                    $left['type'] !== $right['type']
+                    || strcasecmp($left['column'], $right['column']) !== 0
+                    || (($left['path'] ?? null) !== ($right['path'] ?? null))
+                ) {
+                    continue;
+                }
+                if (self::compareStat4Keys($left['values'], $right['values']) > 0) {
+                    continue;
+                }
+
+                $bounded[] = [
+                    'type' => $left['type'],
+                    'column' => $left['column'],
+                    'path' => $left['path'] ?? null,
+                    'operator' => 'range-bounded',
+                    'values' => [
+                        'lower' => $left['values'],
+                        'upper' => $right['values'],
+                        'lowerInclusive' => $left['operator'] === 'range->=',
+                        'upperInclusive' => $right['operator'] === 'range-<=',
+                    ],
+                    'residualPredicateRequired' => true,
+                ];
+            }
+        }
+
+        return $bounded;
+    }
+
+    /**
      * @return null|array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool}
      */
     private static function constraintFromPredicate(array $predicate): ?array
@@ -475,6 +630,20 @@ final class SQLiteSelectExpressionIndexPlan
      */
     private static function constraintCompatibleWithType(array $constraint, string $collation): bool
     {
+        if ($constraint['operator'] === 'range-bounded' && is_array($constraint['values'])) {
+            $rangeValues = [
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+            ];
+            if ($constraint['type'] === 'lower' || $constraint['type'] === 'upper') {
+                return is_string($rangeValues[0]) && is_string($rangeValues[1]);
+            }
+            if ($constraint['type'] === 'length' || $constraint['type'] === 'integer-cast') {
+                return self::valuesAreIntegersOrNull($rangeValues);
+            }
+
+            return $collation !== '';
+        }
         if ($constraint['type'] === 'lower' || $constraint['type'] === 'upper') {
             return is_string($constraint['values']) || is_array($constraint['values']);
         }
@@ -592,6 +761,14 @@ final class SQLiteSelectExpressionIndexPlan
                 $constraint['values']['lower'] ?? null,
                 $constraint['values']['upper'] ?? null,
                 true
+            );
+        }
+        if ($constraint['operator'] === 'range-bounded' && is_array($constraint['values'])) {
+            return $predicate->isImpliedByRangeLookup(
+                $lookupName,
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+                (bool) ($constraint['values']['upperInclusive'] ?? false)
             );
         }
         if (str_starts_with($constraint['operator'], 'range-')) {
@@ -1016,6 +1193,22 @@ final class SQLiteSelectExpressionIndexPlan
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
             ];
         }
+        if ($operator === 'range-bounded' && is_array($values)) {
+            $lower = $values['lower'] ?? null;
+            $upper = $values['upper'] ?? null;
+            $lowerInclusive = (bool) ($values['lowerInclusive'] ?? false);
+            $upperInclusive = (bool) ($values['upperInclusive'] ?? false);
+            $rows = self::stat4LessThanRows($normalized, $upper, $upperInclusive, $baseRows)
+                - self::stat4LessThanRows($normalized, $lower, !$lowerInclusive, $baseRows);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+
+            return [
+                'rows' => max(1, min($baseRows, $rows)),
+                'matchedSamples' => count($matched),
+                'currentNext' => $currentNext,
+                'matchedCurrentNext' => self::stat4CurrentNext($matched),
+            ];
+        }
         if (str_starts_with($operator, 'range-')) {
             $rows = match ($operator) {
                 'range-<' => self::stat4LessThanRows($normalized, $values, false, $baseRows),
@@ -1083,6 +1276,14 @@ final class SQLiteSelectExpressionIndexPlan
         if ($operator === 'BETWEEN' && is_array($values)) {
             return self::compareStat4Keys($key, $values['lower'] ?? null) >= 0
                 && self::compareStat4Keys($key, $values['upper'] ?? null) <= 0;
+        }
+        if ($operator === 'range-bounded' && is_array($values)) {
+            $lowerComparison = self::compareStat4Keys($key, $values['lower'] ?? null);
+            $upperComparison = self::compareStat4Keys($key, $values['upper'] ?? null);
+            $lowerMatches = (bool) ($values['lowerInclusive'] ?? false) ? $lowerComparison >= 0 : $lowerComparison > 0;
+            $upperMatches = (bool) ($values['upperInclusive'] ?? false) ? $upperComparison <= 0 : $upperComparison < 0;
+
+            return $lowerMatches && $upperMatches;
         }
         if ($operator === 'range-<') {
             return self::compareStat4Keys($key, $values) < 0;
@@ -1190,6 +1391,9 @@ final class SQLiteSelectExpressionIndexPlan
         }
         if ($constraint['operator'] === 'BETWEEN') {
             return 0.1;
+        }
+        if ($constraint['operator'] === 'range-bounded') {
+            return 0.08;
         }
         if (str_starts_with($constraint['operator'], 'range-')) {
             return 0.25;
@@ -1457,6 +1661,7 @@ final class SQLiteSelectExpressionIndexPlan
             'point' => 5,
             'IN' => 12,
             'BETWEEN' => 18,
+            'range-bounded' => 16,
             default => str_starts_with($constraint['operator'], 'range-') ? 25 : 100,
         };
         $cost += $estimatedRows;

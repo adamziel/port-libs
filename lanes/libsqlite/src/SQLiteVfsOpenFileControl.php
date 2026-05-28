@@ -125,6 +125,90 @@ final class SQLiteVfsOpenFileControl
     }
 
     /**
+     * @param list<string|array<string, mixed>> $operations
+     * @param array<string, mixed> $options
+     * @return array{status:string,count:int,current:array<string, mixed>,next:array<string, mixed>,events:list<array<string, mixed>>,dependencies:list<string>}
+     */
+    public static function currentNext74(array $operations, array $options = []): array
+    {
+        if ($operations === []) {
+            throw new \InvalidArgumentException('SQLite VFS open file-control current/next74 requires operations');
+        }
+
+        $root = self::stringOption($options, 'root', sys_get_temp_dir() . '/port-libsqlite-vfs-open-filecontrol-74-' . bin2hex(random_bytes(4)));
+        $filename = self::stringOption($options, 'filename', '/srv/www/wp-content/database/.ht.sqlite');
+        $fileExists = (bool) ($options['file_exists'] ?? true);
+        $directoryWritable = (bool) ($options['directory_writable'] ?? true);
+        $sectorSize = (int) ($options['sector_size'] ?? 512);
+        $deviceFlags = is_array($options['device_flags'] ?? null) ? array_values($options['device_flags']) : ['powersafe_overwrite'];
+        $syncMode = self::stringOption($options, 'sync_mode', 'normal');
+        $persistWal = (bool) ($options['persist_wal'] ?? false);
+        $chunkSize = array_key_exists('chunk_size', $options) ? self::nullableInt($options['chunk_size'], 'SQLite VFS current/next74 chunk size') : null;
+        $mmapSize = array_key_exists('mmap_size', $options) ? self::nullableInt($options['mmap_size'], 'SQLite VFS current/next74 mmap size') : null;
+
+        $plan = self::forFilename($root, $filename, $fileExists, $directoryWritable, $sectorSize, $deviceFlags, $syncMode, $persistWal, $chunkSize, $mmapSize);
+        $locks = new SQLiteVfsLockState();
+        $events = [];
+
+        foreach ($operations as $ordinal => $operation) {
+            $current = self::currentNextSnapshot($plan, $locks);
+            $normalized = self::normalizeCurrentNext74Operation($operation);
+            if ($normalized['kind'] === 'file_control') {
+                $applied = $plan->applyMany([$normalized['op'] => $normalized['value']]);
+                $event = [
+                    'ordinal' => $ordinal,
+                    'kind' => 'file_control',
+                    'op' => $normalized['op'],
+                    'current' => $current,
+                    'result' => $applied,
+                    'next' => self::currentNextSnapshot($plan, $locks),
+                ];
+            } elseif ($normalized['kind'] === 'lock') {
+                $lockPlan = SQLiteLockByteRangePlan::forOpenPlan(
+                    $plan->capability['open'],
+                    $normalized['level'],
+                    $normalized['connection'],
+                    $normalized['shared_index'] ?? 0,
+                );
+                $lock = $locks->acquire($lockPlan);
+                $event = [
+                    'ordinal' => $ordinal,
+                    'kind' => 'lock',
+                    'level' => $normalized['level'],
+                    'connection' => $normalized['connection'],
+                    'current' => $current,
+                    'plan' => $lockPlan,
+                    'result' => $lock,
+                    'next' => self::currentNextSnapshot($plan, $locks),
+                ];
+            } else {
+                $release = $locks->release((string) $plan->capability['open']['path'], $normalized['connection']);
+                $event = [
+                    'ordinal' => $ordinal,
+                    'kind' => 'unlock',
+                    'connection' => $normalized['connection'],
+                    'current' => $current,
+                    'result' => $release,
+                    'next' => self::currentNextSnapshot($plan, $locks),
+                ];
+            }
+
+            $events[] = $event;
+        }
+
+        $next = self::currentNextSnapshot($plan, $locks);
+
+        return [
+            'status' => $events === [] ? 'empty' : (string) ($events[array_key_last($events)]['result']['status'] ?? 'ok'),
+            'count' => count($events),
+            'current' => $events === [] ? $next : $events[0]['current'],
+            'next' => $next,
+            'events' => $events,
+            'dependencies' => $plan->dependencies($next['dependencies'], ['vfs-open-file-control-locking-current-next74']),
+        ];
+    }
+
+    /**
      * @return array{status:string,path:string,requested_size:int,target_size:int,previous_size:int,bytes_added:int,chunk_size:int|null,operation:array<string, mixed>|null,reason:string|null,dependencies:list<string>}
      */
     private function applySizeHint(int $requestedSize): array
@@ -189,5 +273,163 @@ final class SQLiteVfsOpenFileControl
     private function dependencies(array $left, array $right): array
     {
         return array_values(array_unique(array_merge($left, $right, ['vfs-file-handle-primitive'])));
+    }
+
+    /**
+     * @return array{stat:array<string, mixed>,controls:array<string, mixed>,holders:array<string, string>,dependencies:list<string>}
+     */
+    private static function currentNextSnapshot(self $plan, SQLiteVfsLockState $locks): array
+    {
+        $snapshot = $plan->state->snapshot();
+        $stat = $plan->handle->stat();
+        $path = (string) $plan->capability['open']['path'];
+
+        return [
+            'stat' => $stat,
+            'controls' => $snapshot['controls'],
+            'holders' => $locks->holders($path),
+            'dependencies' => $plan->dependencies($snapshot['dependencies'], $stat['dependencies']),
+        ];
+    }
+
+    /**
+     * @param string|array<string, mixed> $operation
+     * @return array{kind:string,op?:string,value?:mixed,level?:string,connection?:string|null,shared_index?:int|null}
+     */
+    private static function normalizeCurrentNext74Operation(string|array $operation): array
+    {
+        if (is_array($operation)) {
+            $kind = strtolower((string) ($operation['kind'] ?? $operation['op'] ?? 'file_control'));
+            if ($kind === 'lock') {
+                return [
+                    'kind' => 'lock',
+                    'level' => strtolower((string) ($operation['level'] ?? 'shared')),
+                    'connection' => self::connection($operation['connection'] ?? null, true),
+                    'shared_index' => array_key_exists('shared_index', $operation) ? self::nullableInt($operation['shared_index'], 'SQLite VFS shared lock index') : null,
+                ];
+            }
+            if ($kind === 'unlock' || $kind === 'release') {
+                return [
+                    'kind' => 'unlock',
+                    'connection' => self::connection($operation['connection'] ?? null, false),
+                ];
+            }
+
+            return [
+                'kind' => 'file_control',
+                'op' => (string) ($operation['op'] ?? $operation['control'] ?? $kind),
+                'value' => $operation['value'] ?? null,
+            ];
+        }
+
+        $trimmed = trim(rtrim($operation, ';'));
+        if ($trimmed === '') {
+            throw new \InvalidArgumentException('SQLite VFS current/next74 operation is empty');
+        }
+
+        if (preg_match('/^lock\s+(?<level>shared|reserved|pending|exclusive|none)(?:\s+by\s+|\s+)(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<shared>\d+))?$/i', $trimmed, $matches)) {
+            return [
+                'kind' => 'lock',
+                'level' => strtolower($matches['level']),
+                'connection' => $matches['connection'],
+                'shared_index' => isset($matches['shared']) && $matches['shared'] !== '' ? (int) $matches['shared'] : null,
+            ];
+        }
+
+        if (preg_match('/^(?:unlock|release)(?:\s+(?<connection>[A-Za-z0-9_.:-]+))?$/i', $trimmed, $matches)) {
+            return [
+                'kind' => 'unlock',
+                'connection' => ($matches['connection'] ?? '') !== '' ? $matches['connection'] : null,
+            ];
+        }
+
+        if (preg_match('/^file_control\s*\(\s*(?<op>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/i', $trimmed, $matches)) {
+            return [
+                'kind' => 'file_control',
+                'op' => strtolower(str_replace('-', '_', $matches['op'])),
+                'value' => self::parseCurrentNext74Value($matches['value'] ?? null),
+            ];
+        }
+
+        if (preg_match('/^pragma\s+(?:(?:main|temp)\s*\.\s*)?(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(?<value>.+)|\(\s*(?<paren>[^)]*)\s*\))?$/i', $trimmed, $matches)) {
+            $name = strtolower($matches['name']);
+            $raw = ($matches['value'] ?? '') !== '' ? $matches['value'] : (($matches['paren'] ?? '') !== '' ? $matches['paren'] : null);
+
+            return [
+                'kind' => 'file_control',
+                'op' => match ($name) {
+                    'journal_size_limit', 'max_page_count' => 'size_limit',
+                    'busy_timeout' => 'lock_timeout',
+                    default => $name,
+                },
+                'value' => self::parseCurrentNext74Value($raw),
+            ];
+        }
+
+        throw new \InvalidArgumentException('SQLite VFS current/next74 operation is unsupported');
+    }
+
+    private static function parseCurrentNext74Value(mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (preg_match('/^[-+]?\d+$/', $trimmed)) {
+            return (int) $trimmed;
+        }
+        if (strcasecmp($trimmed, 'on') === 0 || strcasecmp($trimmed, 'true') === 0) {
+            return true;
+        }
+        if (strcasecmp($trimmed, 'off') === 0 || strcasecmp($trimmed, 'false') === 0) {
+            return false;
+        }
+        if (
+            (str_starts_with($trimmed, "'") && str_ends_with($trimmed, "'"))
+            || (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))
+        ) {
+            $quote = $trimmed[0];
+
+            return str_replace($quote . $quote, $quote, substr($trimmed, 1, -1));
+        }
+
+        return $trimmed;
+    }
+
+    private static function stringOption(array $options, string $key, string $default): string
+    {
+        $value = (string) ($options[$key] ?? $default);
+        if ($value === '') {
+            throw new \InvalidArgumentException("SQLite VFS current/next74 {$key} must not be empty");
+        }
+
+        return $value;
+    }
+
+    private static function nullableInt(mixed $value, string $label): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_int($value)) {
+            throw new \InvalidArgumentException("{$label} must be an integer");
+        }
+
+        return $value;
+    }
+
+    private static function connection(mixed $value, bool $required): ?string
+    {
+        if ($value === null && !$required) {
+            return null;
+        }
+        if (!is_string($value) || trim($value) === '') {
+            throw new \InvalidArgumentException('SQLite VFS current/next74 lock connection is required');
+        }
+
+        return $value;
     }
 }

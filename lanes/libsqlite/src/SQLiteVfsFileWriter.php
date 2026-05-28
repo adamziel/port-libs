@@ -400,6 +400,44 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,database_bytes:string,journal:SQLiteRollbackJournal,journal_bytes:string,wal_bytes:string,page_numbers:list<int>,database_page_size?:int,reserved_lock?:bool}> $databases
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
+     */
+    public function applyMasterSuperJournalHotRecovery74(
+        string $superJournalPath,
+        string $superJournalBytes,
+        array $databases,
+    ): array {
+        $plan = SQLitePagerHotJournalWalRecoveryPlan::masterSuperJournalCurrentNext73(
+            $superJournalPath,
+            $superJournalBytes,
+            $databases
+        );
+
+        $payloads = [];
+        foreach ($plan['databases'] as $databasePlan) {
+            foreach (($databasePlan['recovery']['payloads'] ?? []) as $path => $bytes) {
+                if (is_string($path) && is_string($bytes)) {
+                    $payloads[$path] = $bytes;
+                }
+            }
+        }
+
+        $applied = $this->applyAtomicOperations(
+            $plan['operations'],
+            $payloads,
+            array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['sqlite-pager-hot-journal-master-super-vfs-apply74']
+            )))
+        );
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param array<int, string> $databasePages 1-indexed page numbers to page images.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
      */
@@ -707,6 +745,138 @@ final class SQLiteVfsFileWriter
         );
         $applied['savepoint_checkpoint'] = $checkpoint;
         $applied['reader_boundary'] = $boundary;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $visiblePages
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint_append:array<string, mixed>,atomic:bool}
+     */
+    public function applySavepointRestartCheckpointAppend(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $visiblePages,
+        string $mode = 'restart',
+        ?int $readerEndFrame = null,
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart checkpoint VFS apply requires a database path');
+        }
+
+        $plan = SQLiteWalAppendPlan::savepointRestartCheckpointCurrentNext(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $databasePath,
+            $transactions,
+            $visiblePages,
+            $mode,
+            $readerEndFrame,
+            $syncWal,
+            $syncDirectory
+        );
+        if ($plan['status'] === 'busy') {
+            return [
+                'status' => 'busy',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge(
+                    $plan['dependencies'],
+                    ['sqlite-wal-savepoint-restart-checkpoint-vfs-apply74']
+                ))),
+                'savepoint_checkpoint_append' => $plan,
+                'atomic' => true,
+            ];
+        }
+
+        $databaseImage = (string) $plan['checkpoint']['database_bytes'];
+        $walImage = (string) $plan['append']['wal_bytes'];
+        $walPath = $databasePath . '-wal';
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'apply_savepoint_restart_checkpoint_database_image',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'trim_savepoint_restart_checkpoint_database_image',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_restart_checkpoint_database',
+            ],
+            [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'apply_savepoint_restart_checkpoint_appended_wal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'trim_savepoint_restart_checkpoint_appended_wal',
+            ],
+        ];
+        if ($syncWal) {
+            $operations[] = [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_restart_checkpoint_appended_wal',
+            ];
+        }
+        if ($syncDirectory) {
+            $operations[] = [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_savepoint_restart_checkpoint_append_sidecars',
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            [
+                $databasePath => $databaseImage,
+                $walPath => $walImage,
+            ],
+            array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['sqlite-wal-savepoint-restart-checkpoint-vfs-apply74']
+            )))
+        );
+        $applied['savepoint_checkpoint_append'] = $plan;
         $applied['atomic'] = true;
 
         return $applied;

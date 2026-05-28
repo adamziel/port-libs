@@ -8012,6 +8012,105 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function suiteReleaseRunnerAdmissionCurrentNext74(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $nextAcceptedHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if (trim($launcherBaseHead) === '') {
+            throw new \InvalidArgumentException('SQLite current-next74 release-runner admission requires the launcher base HEAD');
+        }
+
+        $rebasedRows = [];
+        $rebaseBlockers = [];
+        $sharedSourceHeads = [];
+        foreach ($artifactRows as $label => $row) {
+            if (!is_array($row)) {
+                $rebasedRows[$label] = $row;
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : (is_string($label) ? $label : 'current-next74-artifact-' . count($rebasedRows));
+            $baseHead = is_string($row['launcher_base_head'] ?? null) ? trim($row['launcher_base_head']) : '';
+            $sharedHead = is_string($row['shared_source_head'] ?? null) ? trim($row['shared_source_head']) : '';
+            if ($sharedHead !== '') {
+                $sharedSourceHeads[$sharedHead] = true;
+            }
+            if ($baseHead !== $launcherBaseHead) {
+                $rebaseBlockers[] = [
+                    'id' => 'launcher-base-head-mismatch',
+                    'unit' => $unit,
+                    'expected' => $launcherBaseHead,
+                    'actual' => $baseHead,
+                    'evidence' => 'current-next74 release-runner admission must be rebased on the launcher-printed Base accepted HEAD, not mutable shared main/dashboard source',
+                ];
+            }
+
+            $row['current_head'] = $launcherBaseHead;
+            $row['next_head'] = $nextAcceptedHead;
+            $rebasedRows[$label] = $row;
+        }
+
+        $record = $this->suiteReleaseRunnerAdmissionCurrentNext72(
+            $rebasedRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $nextAcceptedHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $blockers = array_merge($rebaseBlockers, is_array($record['blockers'] ?? null) ? $record['blockers'] : []);
+        $blocked = $blockers !== [];
+        $mappedDelta = $blocked ? 0 : (int) ($record['mapped_delta'] ?? 0);
+        $phpPassDelta = $blocked ? 0 : (int) ($record['php_pass_delta'] ?? 0);
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-next74-release-runner-rebased-admitted';
+        } elseif (!$blocked) {
+            $status = 'current-next74-release-runner-rebased-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-next74-release-runner-rebased-admitted';
+        $record['launcher_base_head'] = $launcherBaseHead;
+        $record['current_accepted_head'] = $launcherBaseHead;
+        $record['next_accepted_head'] = $nextAcceptedHead;
+        $record['shared_source_heads'] = array_keys($sharedSourceHeads);
+        sort($record['shared_source_heads'], SORT_STRING);
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['zero_error_artifact_count'] = $blocked ? 0 : (int) ($record['zero_error_artifact_count'] ?? 0);
+        $record['counts_release_runner_admission_current_next72'] = false;
+        $record['counts_release_runner_admission_current_next74'] = $status === 'current-next74-release-runner-rebased-admitted';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-next74-release-runner-rebased-admitted'
+            ? 'publish only current-next74 rebased release-runner artifact admission and exact focused PASS-line movement; release/all parity remains gated on a separate broad zero-error artifact'
+            : 'keep current-next74 admission uncounted until launcher-base, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next74 release-runner rebase admission composes lane-local artifact rows, launcher Base accepted HEAD provenance, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

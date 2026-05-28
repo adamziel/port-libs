@@ -82,6 +82,9 @@ final class SQLiteGlobCurrentNextCursor
      *   residualMatch:?bool,
      *   nextInRange:?bool,
      *   nextResidualMatch:?bool,
+     *   patternMalformedUtf8:bool,
+     *   currentMalformedUtf8:?bool,
+     *   nextMalformedUtf8:?bool,
      *   comparisonToLower:?int,
      *   comparisonToUpper:?int,
      *   nextComparisonToLower:?int,
@@ -106,6 +109,9 @@ final class SQLiteGlobCurrentNextCursor
             'residualMatch' => $current === null ? null : SQLiteDatabase::globMatches($current['key'], $this->pattern),
             'nextInRange' => $next === null ? null : $this->inUsableRange($next['key']),
             'nextResidualMatch' => $next === null ? null : SQLiteDatabase::globMatches($next['key'], $this->pattern),
+            'patternMalformedUtf8' => self::isMalformedUtf8($this->pattern),
+            'currentMalformedUtf8' => $current === null ? null : self::isMalformedUtf8($current['key']),
+            'nextMalformedUtf8' => $next === null ? null : self::isMalformedUtf8($next['key']),
             'comparisonToLower' => $current === null || $this->range === null ? null : $this->compareText($current['key'], $this->range['lowerInclusive']),
             'comparisonToUpper' => $current === null || $this->range === null || $this->range['upperBound'] === null ? null : $this->compareText($current['key'], $this->range['upperBound']),
             'nextComparisonToLower' => $next === null || $this->range === null ? null : $this->compareText($next['key'], $this->range['lowerInclusive']),
@@ -116,7 +122,7 @@ final class SQLiteGlobCurrentNextCursor
     }
 
     /**
-     * @return list<array{rowid:int,key:string,payload:array<string,mixed>,position:int}>
+     * @return list<array{rowid:int,key:string,payload:array<string,mixed>,position:int,malformedUtf8:bool}>
      */
     public function matchedRows(): array
     {
@@ -133,6 +139,7 @@ final class SQLiteGlobCurrentNextCursor
                 'key' => $entry['key'],
                 'payload' => $entry['payload'],
                 'position' => $position,
+                'malformedUtf8' => self::isMalformedUtf8($entry['key']),
             ];
         }
 
@@ -173,5 +180,10 @@ final class SQLiteGlobCurrentNextCursor
     private static function asciiLower(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    private static function isMalformedUtf8(string $value): bool
+    {
+        return preg_match('//u', $value) !== 1;
     }
 }
