@@ -2615,6 +2615,76 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $xColumnProjection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext187(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        array $xColumnProjection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        ?int $yieldedRowid = null,
+        ?string $observedSourceGeneration = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext184(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $xColumnProjection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidYieldGuardProfile187(
+            $plan['currentGeneratedPathRowidFinalCost184'],
+            $yieldedRowid,
+            $observedSourceGeneration,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidYieldGuardProfile187(
+            $plan['nextGeneratedPathRowidFinalCost184'],
+            $yieldedRowid,
+            $currentProfile['observedSourceGeneration'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidYieldGuardTransitions187($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidYieldGuardReplanReasons187($transitions);
+
+        $plan['currentGeneratedPathRowidYieldGuard187'] = $currentProfile;
+        $plan['nextGeneratedPathRowidYieldGuard187'] = $nextProfile;
+        $plan['generatedPathRowidYieldGuard187Transitions'] = $transitions;
+        $plan['next187ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next184ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next187ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'yield-current-json-table-generated-path-rowid-cost-next187-with-source-guard';
+        $plan['nextReaderPolicy'] = $plan['next187ReplanReasons'] === []
+            ? 'continue-current-json-table-generated-path-rowid-cost-next187-yield'
+            : 'reprepare-next-json-table-generated-path-rowid-cost-next187-after-source-guard';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next187'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $projection
      * @return array<string,mixed>
      */
@@ -17412,6 +17482,193 @@ final class SQLiteJsonTablePlan
                 'coveringSnapshot', 'cursorDisposition' => 'json-table-generated-path-rowid-final-cost-admission-changed-next184',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-final-cost-cost-changed-next184',
                 default => 'json-table-generated-path-rowid-final-cost-state-changed-next184',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $finalCost184
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidYieldGuardProfile187(
+        array $finalCost184,
+        ?int $yieldedRowid,
+        ?string $observedSourceGeneration,
+    ): array {
+        $expectedGeneration = (string) ($finalCost184['sourceGeneration'] ?? '');
+        $observedGeneration = $observedSourceGeneration ?? $expectedGeneration;
+        $selectedRowids = array_values(array_map('intval', $finalCost184['selectedRowids'] ?? []));
+        $fingerprint = (string) ($finalCost184['finalCostFingerprint'] ?? '');
+        $sourceMatches = $expectedGeneration === $observedGeneration;
+        $rowidKnown = $yieldedRowid === null || in_array($yieldedRowid, $selectedRowids, true);
+        $snapshotCovering = (bool) ($finalCost184['coveringSnapshot'] ?? false);
+        $yieldAccepted = $sourceMatches && $rowidKnown && $snapshotCovering;
+        $estimatedRows = $yieldAccepted ? max(0, count($selectedRowids) - ($yieldedRowid === null ? 0 : 1)) : 0;
+        $estimatedCost = $yieldAccepted ? max(1, min((int) ($finalCost184['estimatedCost'] ?? 1), max(1, $estimatedRows + 1))) : 1000000;
+
+        return [
+            'expectedSourceGeneration' => $expectedGeneration,
+            'observedSourceGeneration' => $observedGeneration,
+            'sourceGenerationMatches' => $sourceMatches,
+            'yieldedRowid' => $yieldedRowid,
+            'selectedRowids' => $selectedRowids,
+            'yieldedRowidInSnapshot' => $rowidKnown,
+            'coveringSnapshot' => $snapshotCovering,
+            'finalCostFingerprint' => $fingerprint,
+            'yieldAccepted' => $yieldAccepted,
+            'remainingRowids' => self::jsonTableGeneratedPathRowidRemainingRowids187($selectedRowids, $yieldedRowid, $yieldAccepted),
+            'yieldDisposition' => self::jsonTableGeneratedPathRowidYieldDisposition187($yieldAccepted, $sourceMatches, $rowidKnown, $snapshotCovering),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidYieldCostClass187($yieldAccepted, $estimatedRows, $sourceMatches, $rowidKnown, $snapshotCovering),
+            'yieldGuardFingerprint' => hash('sha256', json_encode([
+                $expectedGeneration,
+                $observedGeneration,
+                $sourceMatches,
+                $yieldedRowid,
+                $selectedRowids,
+                $rowidKnown,
+                $snapshotCovering,
+                $fingerprint,
+                $yieldAccepted,
+                $estimatedRows,
+                $estimatedCost,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<int> $selectedRowids
+     * @return list<int>
+     */
+    private static function jsonTableGeneratedPathRowidRemainingRowids187(array $selectedRowids, ?int $yieldedRowid, bool $yieldAccepted): array
+    {
+        if (!$yieldAccepted) {
+            return [];
+        }
+        if ($yieldedRowid === null) {
+            return $selectedRowids;
+        }
+
+        $remaining = [];
+        $seenYielded = false;
+        foreach ($selectedRowids as $rowid) {
+            if (!$seenYielded) {
+                if ($rowid === $yieldedRowid) {
+                    $seenYielded = true;
+                }
+                continue;
+            }
+            $remaining[] = $rowid;
+        }
+
+        return $remaining;
+    }
+
+    private static function jsonTableGeneratedPathRowidYieldDisposition187(
+        bool $yieldAccepted,
+        bool $sourceMatches,
+        bool $rowidKnown,
+        bool $snapshotCovering,
+    ): string {
+        if ($yieldAccepted) {
+            return 'continue-current-source-generated-path-rowid-yield-next187';
+        }
+        if (!$sourceMatches) {
+            return 'abort-stale-current-source-generated-path-rowid-yield-next187';
+        }
+        if (!$rowidKnown) {
+            return 'reseek-missing-generated-path-rowid-yield-next187';
+        }
+        if (!$snapshotCovering) {
+            return 'reprepare-noncovering-generated-path-rowid-yield-next187';
+        }
+
+        return 'reprepare-generated-path-rowid-yield-next187';
+    }
+
+    private static function jsonTableGeneratedPathRowidYieldCostClass187(
+        bool $yieldAccepted,
+        int $estimatedRows,
+        bool $sourceMatches,
+        bool $rowidKnown,
+        bool $snapshotCovering,
+    ): string {
+        if ($yieldAccepted && $estimatedRows > 0) {
+            return 'json-table-generated-path-rowid-yield-continue-next187';
+        }
+        if ($yieldAccepted) {
+            return 'json-table-generated-path-rowid-yield-exhausted-next187';
+        }
+        if (!$sourceMatches) {
+            return 'json-table-generated-path-rowid-yield-stale-source-next187';
+        }
+        if (!$rowidKnown) {
+            return 'json-table-generated-path-rowid-yield-missing-rowid-next187';
+        }
+        if (!$snapshotCovering) {
+            return 'json-table-generated-path-rowid-yield-noncovering-next187';
+        }
+
+        return 'json-table-generated-path-rowid-yield-blocked-next187';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidYieldGuardTransitions187(array $current, array $next): array
+    {
+        $fields = [
+            'expectedSourceGeneration',
+            'observedSourceGeneration',
+            'sourceGenerationMatches',
+            'yieldedRowid',
+            'selectedRowids',
+            'yieldedRowidInSnapshot',
+            'coveringSnapshot',
+            'finalCostFingerprint',
+            'yieldAccepted',
+            'remainingRowids',
+            'yieldDisposition',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'yieldGuardFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidYieldGuardReplanReasons187(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'expectedSourceGeneration', 'observedSourceGeneration', 'sourceGenerationMatches', 'finalCostFingerprint', 'yieldGuardFingerprint' => 'json-table-generated-path-rowid-yield-guard-source-changed-next187',
+                'yieldedRowid', 'selectedRowids', 'yieldedRowidInSnapshot', 'remainingRowids' => 'json-table-generated-path-rowid-yield-guard-rowset-changed-next187',
+                'coveringSnapshot', 'yieldAccepted', 'yieldDisposition' => 'json-table-generated-path-rowid-yield-guard-admission-changed-next187',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-yield-guard-cost-changed-next187',
+                default => 'json-table-generated-path-rowid-yield-guard-state-changed-next187',
             };
         }
 
