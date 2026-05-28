@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 01:00 UTC):
+  Batch68/69 clean subset is integrated and verified in the rolling clean
+  integration worktree. Implementation source advanced to
+  `c9ad1444f0acb6c91032901bbd6e6ea4dc9d4c0f` (`Integrate libsqlite batch 68
+  69 clean subset`). The accepted subset applied btree68, pragma68, trigger68,
+  attach69, json69, and wal69, while leaving the conflict-prone pager69,
+  select69, suite69, and vfs69 patches queued for a separate resolve pass.
+  Coverage added ATTACH WAL/temp transaction schema-cookie visibility, B-tree
+  pointer-map vacuum append allocation across pointer-map gaps, JSONB CHECK
+  NOT IN/NOT BETWEEN admission, PRAGMA integrity b-tree page ordering, nested
+  trigger RETURNING savepoint rollback/release behavior, and WAL reader-pin
+  database/WAL snapshot handoff. Verification passed: focused subset plus
+  adjacent regressions `12 test files / 1377 assertions / 0 failures`; full
+  libsqlite lane `484 test files / 56403 assertions / 0 failures / 26354 PASS
+  lines`; root `697 test files / 80871 assertions / 0 failures / 29382 PASS
+  lines`, with zero stderr warnings in both full runs. This is `+340`
+  libsqlite PASS lines over the published batch68 remainder (`26014 -> 26354`);
+  mapped upstream coverage remains `464 / 1589` because no new accepted
+  upstream denominator row was included in this subset. The batch70 worker pool
+  remains active at the 10-11 lane target; next decision is to resolve and
+  integrate queued pager69/select69/suite69/vfs69 by expected PASS-line
+  movement without forced cleanup of dirty worktrees.
+
 - 2026-05-28 supervisor continuation (shell samples 00:52 UTC):
   Batch68 remainder is integrated and verified in the rolling clean integration
   worktree `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`
