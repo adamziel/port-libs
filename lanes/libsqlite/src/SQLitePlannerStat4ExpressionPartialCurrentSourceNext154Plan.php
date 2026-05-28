@@ -170,6 +170,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan
                     'upperInclusive' => true,
                 ];
             }
+            if (in_array($operator, ['>', '>=', '<', '<='], true)) {
+                $right = self::literal($term['right'] ?? null);
+
+                return match ($operator) {
+                    '>' => ['operator' => 'RANGE', 'values' => [], 'lower' => $right, 'lowerInclusive' => false],
+                    '>=' => ['operator' => 'RANGE', 'values' => [], 'lower' => $right, 'lowerInclusive' => true],
+                    '<' => ['operator' => 'RANGE', 'values' => [], 'upper' => $right, 'upperInclusive' => false],
+                    '<=' => ['operator' => 'RANGE', 'values' => [], 'upper' => $right, 'upperInclusive' => true],
+                };
+            }
         }
 
         return null;
@@ -193,9 +203,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan
 
                 return false;
             }
-            if ($operator === 'BETWEEN') {
-                return self::compare($sample['key'], $constraint['lower'] ?? null, $collation) >= 0
-                    && self::compare($sample['key'], $constraint['upper'] ?? null, $collation) <= 0;
+            if ($operator === 'BETWEEN' || $operator === 'RANGE') {
+                if (array_key_exists('lower', $constraint)) {
+                    $comparison = self::compare($sample['key'], $constraint['lower'], $collation);
+                    if (($constraint['lowerInclusive'] ?? true) ? $comparison < 0 : $comparison <= 0) {
+                        return false;
+                    }
+                }
+                if (array_key_exists('upper', $constraint)) {
+                    $comparison = self::compare($sample['key'], $constraint['upper'], $collation);
+                    if (($constraint['upperInclusive'] ?? true) ? $comparison > 0 : $comparison >= 0) {
+                        return false;
+                    }
+                }
+
+                return true;
             }
 
             return false;
@@ -265,6 +287,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan
                 if ($operator === 'BETWEEN' && (self::compare($value, self::literal($term['lower'] ?? null), 'BINARY') < 0 || self::compare($value, self::literal($term['upper'] ?? null), 'BINARY') > 0)) {
                     return false;
                 }
+                if (!self::rangeTermMatches($value, $operator, self::literal($term['right'] ?? null))) {
+                    return false;
+                }
                 continue;
             }
 
@@ -283,9 +308,27 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan
             if ($operator === 'IS NOT NULL' && $value === null) {
                 return false;
             }
+            if (!self::rangeTermMatches($value, $operator, $right)) {
+                return false;
+            }
         }
 
         return true;
+    }
+
+    private static function rangeTermMatches(mixed $value, string $operator, mixed $right): bool
+    {
+        if (!in_array($operator, ['>', '>=', '<', '<='], true)) {
+            return true;
+        }
+        $comparison = self::compare($value, $right, 'BINARY');
+
+        return match ($operator) {
+            '>' => $comparison > 0,
+            '>=' => $comparison >= 0,
+            '<' => $comparison < 0,
+            '<=' => $comparison <= 0,
+        };
     }
 
     private static function expressionValue(string $expression, array $row): mixed
@@ -342,9 +385,50 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext154Plan
         if ($partialOperator === 'IS NOT NULL') {
             return in_array($queryOperator, ['=', '!=', '<>', 'IS NOT NULL'], true);
         }
+        if (self::rangeTermImplies($query, $partial)) {
+            return true;
+        }
 
         return $queryOperator === $partialOperator
             && self::literal($query['right'] ?? null) === self::literal($partial['right'] ?? null);
+    }
+
+    private static function rangeTermImplies(array $query, array $partial): bool
+    {
+        $queryOperator = strtoupper((string) ($query['operator'] ?? ''));
+        $partialOperator = strtoupper((string) ($partial['operator'] ?? ''));
+        if (!in_array($partialOperator, ['>', '>=', '<', '<='], true)) {
+            return false;
+        }
+
+        if ($queryOperator === '=') {
+            return self::rangeTermMatches(self::literal($query['right'] ?? null), $partialOperator, self::literal($partial['right'] ?? null));
+        }
+        if ($queryOperator === 'BETWEEN') {
+            $lower = self::literal($query['lower'] ?? null);
+            $upper = self::literal($query['upper'] ?? null);
+
+            return match ($partialOperator) {
+                '>' => self::compare($lower, self::literal($partial['right'] ?? null), 'BINARY') > 0,
+                '>=' => self::compare($lower, self::literal($partial['right'] ?? null), 'BINARY') >= 0,
+                '<' => self::compare($upper, self::literal($partial['right'] ?? null), 'BINARY') < 0,
+                '<=' => self::compare($upper, self::literal($partial['right'] ?? null), 'BINARY') <= 0,
+            };
+        }
+        if (!in_array($queryOperator, ['>', '>=', '<', '<='], true)) {
+            return false;
+        }
+
+        $queryRight = self::literal($query['right'] ?? null);
+        $partialRight = self::literal($partial['right'] ?? null);
+        $comparison = self::compare($queryRight, $partialRight, 'BINARY');
+
+        return match ($partialOperator) {
+            '>' => in_array($queryOperator, ['>', '>='], true) && ($comparison > 0 || ($comparison === 0 && $queryOperator === '>')),
+            '>=' => in_array($queryOperator, ['>', '>='], true) && $comparison >= 0,
+            '<' => in_array($queryOperator, ['<', '<='], true) && ($comparison < 0 || ($comparison === 0 && $queryOperator === '<')),
+            '<=' => in_array($queryOperator, ['<', '<='], true) && $comparison <= 0,
+        };
     }
 
     /**

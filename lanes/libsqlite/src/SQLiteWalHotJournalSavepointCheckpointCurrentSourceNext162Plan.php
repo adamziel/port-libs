@@ -177,6 +177,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext162Plan
             'retained_wal_sha256' => hash('sha256', $retainedWalBytes),
             'current_checkpoint_database_sha256' => hash('sha256', (string) $currentCheckpoint['database_bytes']),
             'released_checkpoint_database_sha256' => hash('sha256', (string) $releasedCheckpoint['database_bytes']),
+            'current_checkpoint_database_bytes' => (string) $currentCheckpoint['database_bytes'],
+            'released_checkpoint_database_bytes' => (string) $releasedCheckpoint['database_bytes'],
             'current_checkpoint_wal_bytes_length' => strlen((string) $currentCheckpoint['wal_bytes']),
             'released_checkpoint_wal_bytes_length' => strlen((string) $releasedCheckpoint['wal_bytes']),
             'rows' => $rows,
