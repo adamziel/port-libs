@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 02:31 UTC):
+  Batch76/77/79 verified subset plus attach/encoding78 overlap is integrated
+  and root-verified in the rolling clean integration worktree. Implementation
+  source advanced to `06099b8f45593ee4ccdecedfb5cb3ee6a7a06674`
+  (`Integrate libsqlite batch 76 77 79 subset`). Verification passed:
+  `php -l` for 52 changed PHP files, 17 changed WordPress examples with valid
+  JSON, conflict-marker scan, `git diff --check`, focused changed tests
+  `18 test files / 978 assertions / 0 failures / 915 PASS lines`, full
+  libsqlite `561 test files / 65717 assertions / 0 failures / 31014 PASS
+  lines`, and root `774 test files / 90185 assertions / 0 failures / 34042
+  PASS lines`. This is `+1030` libsqlite PASS lines over the published
+  batch75 subset (`29984 -> 31014`); mapped upstream coverage remains
+  `465 / 1589`. The accepted subset covers B-tree rebalance/freeblock
+  overflow, UTF-16 collation/LIKE/GLOB, JSON aggregate DISTINCT and JSON table
+  left-join rowid current-source behavior, pager savepoint/master-journal
+  file-handle recovery, PRAGMA integrity/FK pagination, SQL join-order
+  planning, ATTACH WAL/temp schema/view cache routing, VFS temp
+  lock/file-control persistence, and WAL checkpoint/savepoint reader-pin
+  visibility. Next decision: publish status/dashboard, consume accepted
+  markers/worktrees, record rework for suite76 and the unaccepted batch78
+  JSON aggregate/select overlap remainder, then refill to 10-11 active
+  libsqlite workers from current source.
+
 - 2026-05-28 supervisor continuation (shell samples 02:09 UTC):
   Batch75 clean subset is integrated and root-verified in the rolling clean
   integration worktree. Implementation source advanced to
