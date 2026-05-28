@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 03:48 UTC):
+  Batch90 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `d2c849766e4d389df9fde2c8835c870df09a6dcb` (`Integrate libsqlite batch
+  90 subset`) accepted 10 current-source libsqlite handoffs after excluding
+  stale generated lane-status/manifest context and regenerating status from
+  current batch89 source. Verification passed: php -l `31` changed/untracked
+  PHP files, 10 changed WordPress examples/self-tests, conflict-marker scan,
+  git diff --check, focused changed tests `10 test files / 815 assertions /
+  0 failures / 588 PASS lines`, focused regression `7 test files / 414
+  assertions / 0 failures / 374 PASS lines`, full libsqlite `647 test files /
+  74315 assertions / 0 failures / 36393 PASS lines`, and root `860 test
+  files / 98783 assertions / 0 failures / 39421 PASS lines` with
+  `memory_limit=512M` after the known unrelated Syncthing scrypt default-memory
+  fatal at 128M. This is `+477` libsqlite PASS lines over batch89
+  (`35916 -> 36393`); mapped coverage is being advanced from `524 / 1589` to
+  `534 / 1589`. The worker pool was refilled during verification and remains
+  within the 10-11 active target with no long sleepers.
+
 - 2026-05-28 supervisor continuation (shell/live samples 03:34 UTC):
   Batch89 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
