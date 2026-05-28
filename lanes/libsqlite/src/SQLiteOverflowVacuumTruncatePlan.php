@@ -169,6 +169,62 @@ final class SQLiteOverflowVacuumTruncatePlan
     }
 
     /**
+     * @return list<array{page_number:int,source:string|null,current_status:string,next_status:string,released_overflow:bool,pointer_map_page:bool,current_next_page:int|null,freelist_role:string|null,current_pointer_map_type:string|null,truncated_pointer_map_type:string|null,materialized:bool,truncated:bool}>
+     */
+    public function overflowVacuumTruncateCurrentSourceNext92(): array
+    {
+        $sourceByPage = [];
+        foreach ($this->releasePlan->sources as $source) {
+            foreach ($source['pages'] as $pageNumber) {
+                $sourceByPage[(int) $pageNumber] = $source['source'];
+            }
+        }
+
+        $freelistRoles = [];
+        foreach ($this->currentDatabase->freelistTrunkPages() as $trunkPage) {
+            $freelistRoles[$trunkPage->pageNumber] = 'trunk';
+            foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
+                $freelistRoles[$leafPageNumber] = 'leaf';
+            }
+        }
+
+        $truncatedEntries = [];
+        foreach ($this->truncatePlan->truncatedPointerMapEntries as $entry) {
+            $truncatedEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $rows = [];
+        foreach ($this->truncatePlan->truncatedPageNumbers as $pageNumber) {
+            $releasedOverflow = array_key_exists($pageNumber, $sourceByPage);
+            $pointerMapPage = $this->sourceDatabase->isAutoVacuum() && $this->sourceDatabase->isPointerMapPage($pageNumber);
+            $currentEntry = null;
+            if ($this->sourceDatabase->isAutoVacuum() && !$pointerMapPage) {
+                $currentEntry = $this->sourceDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+            $truncatedEntry = $truncatedEntries[$pageNumber] ?? null;
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'source' => $sourceByPage[$pageNumber] ?? null,
+                'current_status' => $pointerMapPage
+                    ? 'auto-vacuum-pointer-map-page'
+                    : ($releasedOverflow ? 'obsolete-overflow-free-page' : 'tail-free-page'),
+                'next_status' => 'truncated-from-database',
+                'released_overflow' => $releasedOverflow,
+                'pointer_map_page' => $pointerMapPage,
+                'current_next_page' => $pointerMapPage ? null : self::overflowNextPage($this->sourceDatabase, $pageNumber),
+                'freelist_role' => $freelistRoles[$pageNumber] ?? null,
+                'current_pointer_map_type' => $currentEntry['type_name'] ?? null,
+                'truncated_pointer_map_type' => $truncatedEntry['type_name'] ?? null,
+                'materialized' => false,
+                'truncated' => true,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<int>
      */
     public function currentFreelistPageNumbers(): array
@@ -290,6 +346,7 @@ final class SQLiteOverflowVacuumTruncatePlan
             'truncated_freed_pointer_map_pages' => $this->truncatedFreedPointerMapPages(),
             'materialized_apply' => $this->materializedApplySummary(),
             'overflow_freeblock_truncate_current_source_next87' => $this->overflowFreeblockTruncateCurrentSourceNext87(),
+            'overflow_vacuum_truncate_current_source_next92' => $this->overflowVacuumTruncateCurrentSourceNext92(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),

@@ -61,6 +61,78 @@ final class SQLiteMultiColumnRangePlan
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function stat4RangeOrderCurrentSourceNext92(array $indexDefinitions, array $predicate, array $orderBy, array $neededColumns = []): array
+    {
+        self::validateOrderBy($orderBy);
+
+        $plans = self::rankedPlans($indexDefinitions, $predicate, $orderBy, $neededColumns);
+        $selected = $plans[0] ?? null;
+        if ($selected === null) {
+            return [
+                'status' => 'no-usable-plan',
+                'selected' => null,
+                'rankedPlanCount' => 0,
+                'orderBy' => self::orderByDiagnostics($orderBy),
+                'orderBySatisfied' => false,
+                'blockSortRequired' => $orderBy !== [],
+                'rangeOrderMode' => $orderBy === [] ? 'unordered' : 'no-current-source',
+                'detail' => $orderBy === [] ? 'SCAN wp_options' : 'SCAN wp_options USE TEMP B-TREE FOR ORDER BY',
+                'dependency_closure' => 'no new support component needed; current-next92 composes native multicolumn planner STAT4 samples and ORDER BY diagnostics only',
+            ];
+        }
+
+        $orderBySatisfied = (bool) ($selected['orderBySatisfied'] ?? false);
+        $blockSort = $orderBy !== [] && !$orderBySatisfied;
+        $rangeBoundary = is_array($selected['stat4RangeCurrentNext'] ?? null) ? $selected['stat4RangeCurrentNext'] : null;
+
+        return [
+            'status' => 'usable',
+            'selected' => $selected['name'],
+            'rootPage' => $selected['rootPage'],
+            'rankedPlanCount' => count($plans),
+            'rankedPlanNames' => array_map(static fn (array $plan): string => (string) $plan['name'], $plans),
+            'orderBy' => self::orderByDiagnostics($orderBy),
+            'orderBySatisfied' => $orderBySatisfied,
+            'blockSortRequired' => $blockSort,
+            'rangeOrderMode' => self::rangeOrderMode92($selected, $orderBy, $orderBySatisfied),
+            'currentSourceColumn' => $selected['stat4CurrentSourceColumn'],
+            'currentSourceOffset' => $selected['stat4CurrentSourceOffset'],
+            'rangeColumn' => $selected['rangeColumn'],
+            'rangeConstraint' => $selected['rangeConstraint'],
+            'stat4Used' => $selected['stat4Used'],
+            'stat4Estimate' => $selected['stat4Estimate'],
+            'stat4MatchedSamples' => $selected['stat4MatchedSamples'],
+            'stat4RangeCurrentNext' => $rangeBoundary,
+            'stat4MatchedCurrentNext' => $selected['stat4MatchedCurrentNext'],
+            'rangeCurrentSourceKeys' => self::rangeCurrentSourceKeys92($rangeBoundary),
+            'matchedCurrentSourceKeys' => array_map(
+                static fn (array $pair): mixed => $pair['current']['key'] ?? null,
+                is_array($selected['stat4MatchedCurrentNext']) ? $selected['stat4MatchedCurrentNext'] : [],
+            ),
+            'estimatedRows' => $selected['estimatedRows'],
+            'estimatedCost' => $selected['estimatedCost'],
+            'covering' => $selected['covering'],
+            'partial' => $selected['partial'],
+            'residualPredicateRequired' => $selected['residualPredicateRequired'],
+            'usesSkipScan' => $selected['usesSkipScan'],
+            'detail' => self::rangeOrderDetail92($selected, $orderBySatisfied, $blockSort),
+            'nextAlternative' => isset($plans[1]) ? [
+                'name' => $plans[1]['name'],
+                'estimatedRows' => $plans[1]['estimatedRows'],
+                'estimatedCost' => $plans[1]['estimatedCost'],
+                'orderBySatisfied' => $plans[1]['orderBySatisfied'],
+            ] : null,
+            'dependency_closure' => 'no new support component needed; current-next92 composes native multicolumn planner STAT4 samples and ORDER BY diagnostics only',
+        ];
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
     public static function rankedPlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): array
@@ -1109,6 +1181,81 @@ final class SQLiteMultiColumnRangePlan
             self::orderColumn($order);
             self::orderDirection($order);
         }
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array{column:string,direction:string,position:int}>
+     */
+    private static function orderByDiagnostics(array $orderBy): array
+    {
+        $diagnostics = [];
+        foreach ($orderBy as $offset => $order) {
+            $diagnostics[] = [
+                'column' => self::orderColumn($order),
+                'direction' => self::orderDirection($order),
+                'position' => $offset + 1,
+            ];
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string,mixed> $selected
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function rangeOrderMode92(array $selected, array $orderBy, bool $orderBySatisfied): string
+    {
+        if ($orderBy === []) {
+            return 'unordered-range';
+        }
+        if ($orderBySatisfied && ($selected['usesSkipScan'] ?? false) === true) {
+            return 'skip-scan-current-source-order';
+        }
+        if ($orderBySatisfied) {
+            return 'range-current-source-order';
+        }
+
+        return 'temp-btree-order';
+    }
+
+    /**
+     * @param array<string,mixed>|null $rangeBoundary
+     * @return array{lower:mixed,lowerNext:mixed,upper:mixed,upperNext:mixed}
+     */
+    private static function rangeCurrentSourceKeys92(?array $rangeBoundary): array
+    {
+        $lower = is_array($rangeBoundary['lower'] ?? null) ? $rangeBoundary['lower'] : null;
+        $upper = is_array($rangeBoundary['upper'] ?? null) ? $rangeBoundary['upper'] : null;
+
+        return [
+            'lower' => is_array($lower['current'] ?? null) ? ($lower['current']['key'] ?? null) : null,
+            'lowerNext' => is_array($lower['next'] ?? null) ? ($lower['next']['key'] ?? null) : null,
+            'upper' => is_array($upper['current'] ?? null) ? ($upper['current']['key'] ?? null) : null,
+            'upperNext' => is_array($upper['next'] ?? null) ? ($upper['next']['key'] ?? null) : null,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $selected
+     */
+    private static function rangeOrderDetail92(array $selected, bool $orderBySatisfied, bool $blockSort): string
+    {
+        $detail = 'SEARCH ' . (string) $selected['name'] . ' (' . (string) $selected['rangeColumn'] . ' RANGE)';
+        if (($selected['stat4Used'] ?? false) === true) {
+            $detail .= ' USING STAT4';
+        }
+        if ($orderBySatisfied) {
+            $detail .= ' ORDER BY CURRENT SOURCE';
+        } elseif ($blockSort) {
+            $detail .= ' USE TEMP B-TREE FOR ORDER BY';
+        }
+        if (($selected['covering'] ?? false) === true) {
+            $detail .= ' COVERING';
+        }
+
+        return $detail;
     }
 
     /**

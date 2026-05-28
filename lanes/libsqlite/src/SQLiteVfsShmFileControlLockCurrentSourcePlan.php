@@ -13,8 +13,28 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      */
     public static function currentSourceNext87(array $operations, array $options = []): array
     {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-filecontrol-lock-current-source-next87');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext92(array $operations, array $options = []): array
+    {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next92');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker): array
+    {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source next87 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source requires operations');
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null);
@@ -132,7 +152,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 'vfs-shm-current-source-routing',
                 'vfs-file-control-application',
                 'vfs-shm-lock-state',
-                'vfs-shm-filecontrol-lock-current-source-next87',
+                $dependencyMarker,
             ],
         ];
     }
@@ -174,8 +194,12 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     {
         $state['sequence']++;
         $source = self::sourceName((string) ($op['source'] ?? 'main'));
-        $filename = (string) ($op['filename'] ?? $options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        $filename = trim((string) ($op['filename'] ?? ''));
+        if ($filename === '') {
+            $filename = (string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        }
         $owner = self::ownerPath($filename);
+        $uri = str_starts_with(strtolower(trim($filename)), 'file:') ? SQLiteFileUri::parse(trim($filename)) : null;
         $path = match ($source) {
             'wal' => $owner . '-wal',
             'shm' => $owner . '-shm',
@@ -190,8 +214,8 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'source' => $source,
             'owner' => $owner,
             'path' => $path,
-            'readonly' => (bool) ($op['readonly'] ?? str_contains(strtolower($filename), 'mode=ro')),
-            'nolock' => (bool) ($op['nolock'] ?? str_contains(strtolower($filename), 'nolock=1')),
+            'readonly' => (bool) ($op['readonly'] ?? (is_array($uri) && ($uri['mode'] ?? null) === 'ro')),
+            'nolock' => (bool) ($op['nolock'] ?? (is_array($uri) && ($uri['nolock'] ?? null) === true)),
             'controls' => $source === 'main' ? $controls : [],
             'shm_locks' => $source === 'shm' ? $shmLocks : [],
             'reused_controls' => $source === 'main' && $controls !== [],
@@ -276,12 +300,16 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             return '/srv/www/wp-content/database/.ht.sqlite';
         }
         if (str_starts_with(strtolower($filename), 'file:')) {
-            $withoutScheme = substr($filename, 5);
-            $query = strpos($withoutScheme, '?');
-            return $query === false ? $withoutScheme : substr($withoutScheme, 0, $query);
+            $uri = SQLiteFileUri::parse($filename);
+            return self::stripSidecarSuffix((string) $uri['path']);
         }
 
-        return preg_replace('/-(?:wal|shm)$/', '', $filename) ?? $filename;
+        return self::stripSidecarSuffix($filename);
+    }
+
+    private static function stripSidecarSuffix(string $path): string
+    {
+        return preg_replace('/-(?:wal|shm)$/', '', $path) ?? $path;
     }
 
     /**

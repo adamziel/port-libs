@@ -9,6 +9,79 @@ use InvalidArgumentException;
 final class SQLitePragmaAutoindexForeignKeyPreflight
 {
     /**
+     * @param array<string,list<SQLiteSchemaRecord>> $recordsBySchema
+     * @param array<string,list<array<string,mixed>>> $foreignKeysBySchema
+     * @return array{
+     *   status:string,
+     *   schemas:list<string>,
+     *   autoindexes:list<array{schema:string,table:string,name:string,expected:int,actual:int,rootpage:int|null,columns:list<string>,collations:list<string>,origin:string,unique:int,status:string}>,
+     *   foreign_keys:list<array{schema:string,table:string,parent:string,columns:list<string>,parent_columns:list<string>,required_autoindex:string|null,status:string}>,
+     *   current:array{source:string,autoindex_errors:int,foreign_key_parent_errors:int},
+     *   next:array{source:string,ready:bool,blocking:list<string>}
+     * }
+     */
+    public static function planCurrentSource(
+        array $recordsBySchema,
+        array $foreignKeysBySchema,
+        string $currentSource,
+        string $nextSource,
+    ): array {
+        if (trim($currentSource) === '' || trim($nextSource) === '') {
+            throw new InvalidArgumentException('SQLite autoindex foreign-key current-source preflight requires current and next source identifiers');
+        }
+
+        $schemas = [];
+        $autoindexes = [];
+        $foreignKeys = [];
+        $autoindexErrors = 0;
+        $foreignKeyErrors = 0;
+
+        foreach (array_values(array_unique(array_merge(['temp', 'main'], array_keys($recordsBySchema), array_keys($foreignKeysBySchema)))) as $schema) {
+            $records = $recordsBySchema[$schema] ?? [];
+            $foreignKeysForSchema = $foreignKeysBySchema[$schema] ?? [];
+            if (!is_string($schema) || ($records === [] && $foreignKeysForSchema === [])) {
+                continue;
+            }
+            $schemas[] = $schema;
+            $plan = self::plan($records, $foreignKeysForSchema);
+            $autoindexErrors += $plan['current']['autoindex_errors'];
+            $foreignKeyErrors += $plan['current']['foreign_key_parent_errors'];
+
+            foreach ($plan['autoindexes'] as $row) {
+                $autoindexes[] = ['schema' => $schema] + $row;
+            }
+            foreach ($plan['foreign_keys'] as $row) {
+                $foreignKeys[] = ['schema' => $schema] + $row;
+            }
+        }
+
+        $blocking = [];
+        if ($autoindexErrors > 0) {
+            $blocking[] = 'autoindex_catalog_current_source';
+        }
+        if ($foreignKeyErrors > 0) {
+            $blocking[] = 'foreign_key_parent_autoindex_current_source';
+        }
+
+        return [
+            'status' => $blocking === [] ? 'ready' : 'blocked',
+            'schemas' => $schemas,
+            'autoindexes' => $autoindexes,
+            'foreign_keys' => $foreignKeys,
+            'current' => [
+                'source' => $currentSource,
+                'autoindex_errors' => $autoindexErrors,
+                'foreign_key_parent_errors' => $foreignKeyErrors,
+            ],
+            'next' => [
+                'source' => $nextSource,
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+        ];
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @param list<array<string,mixed>> $foreignKeys
      * @return array{

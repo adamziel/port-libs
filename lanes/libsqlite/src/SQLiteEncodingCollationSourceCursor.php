@@ -255,7 +255,7 @@ final class SQLiteEncodingCollationSourceCursor
         };
     }
 
-    private static function decodeText(string $bytes, int $encoding): string
+    public static function decodeText(string $bytes, int $encoding): string
     {
         $encoding = self::normalizeEncoding($encoding);
         if ($encoding === 1) {
