@@ -152,6 +152,103 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderByExpressions
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function partialExpressionSkipScanCurrentSourceNext129(
+        array $preparedSource,
+        array $currentSource,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $orderByExpressions,
+        array $neededColumns,
+    ): array {
+        $preparedExpression = self::sourceString($preparedSource, 'rangeExpression');
+        $currentExpression = self::sourceString($currentSource, 'rangeExpression');
+        $preparedRangeColumn = self::sourceString($preparedSource, 'rangeExpressionColumn', '__sqlite_expr_range');
+        $currentRangeColumn = self::sourceString($currentSource, 'rangeExpressionColumn', '__sqlite_expr_range');
+
+        $preparedMaterialized = self::materializedExpressionSource($preparedSource, $preparedExpression, $preparedRangeColumn);
+        $currentMaterialized = self::materializedExpressionSource($currentSource, $currentExpression, $currentRangeColumn);
+        $preparedQuery = self::materializedExpressionTerms($queryTerms, $preparedExpression, $preparedRangeColumn);
+        $currentQuery = self::materializedExpressionTerms($queryTerms, $currentExpression, $currentRangeColumn);
+        $preparedOrder = self::materializedExpressionOrder($orderByExpressions, $preparedExpression, $preparedRangeColumn);
+        $currentOrder = self::materializedExpressionOrder($orderByExpressions, $currentExpression, $currentRangeColumn);
+
+        $prepared = self::partialCoveringSkipScanCurrentSourceNext127(
+            $preparedMaterialized,
+            $preparedMaterialized,
+            $partialPredicate,
+            $preparedQuery,
+            $preparedOrder,
+            $neededColumns,
+        );
+        $current = self::partialCoveringSkipScanCurrentSourceNext127(
+            $currentMaterialized,
+            $currentMaterialized,
+            $partialPredicate,
+            $currentQuery,
+            $currentOrder,
+            $neededColumns,
+        );
+
+        $preparedSignature = self::sourceSignature($preparedMaterialized)
+            . '|' . self::expressionSourceSignature($preparedExpression, $preparedRangeColumn, $preparedOrder, $preparedQuery);
+        $currentSignature = self::sourceSignature($currentMaterialized)
+            . '|' . self::expressionSourceSignature($currentExpression, $currentRangeColumn, $currentOrder, $currentQuery);
+        $stale = $preparedSignature !== $currentSignature;
+        $selected = $stale ? $current : $prepared;
+        $selectedSource = $stale ? $currentMaterialized : $preparedMaterialized;
+        $selectedExpression = $stale ? $currentExpression : $preparedExpression;
+        $selectedRangeColumn = $stale ? $currentRangeColumn : $preparedRangeColumn;
+        $selectedPlan = is_array($selected['selectedPlan'] ?? null) ? $selected['selectedPlan'] : null;
+
+        if ($selectedPlan !== null) {
+            $selectedPlan = array_replace($selectedPlan, [
+                'rangeExpression' => $selectedExpression,
+                'rangeExpressionColumn' => $selectedRangeColumn,
+                'expressionSkipScan' => true,
+                'coveringMode' => ($selectedPlan['coveringMode'] ?? 'covering-skipscan') . '-expression',
+                'detail' => ($selectedPlan['detail'] ?? 'SEARCH USING SKIP-SCAN') . ' EXPRESSION RANGE ' . $selectedExpression,
+            ]);
+        }
+
+        return [
+            'status' => $selected['status'] ?? 'unusable',
+            'selectedSource' => $stale ? 'current' : 'prepared',
+            'stalePreparedStatement' => $stale,
+            'reprepareRequired' => $stale,
+            'schemaCookieChanged' => self::nonNegativeSourceInt($preparedSource, 'schemaCookie') !== self::nonNegativeSourceInt($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::nonNegativeSourceInt($preparedSource, 'stat4Generation') !== self::nonNegativeSourceInt($currentSource, 'stat4Generation'),
+            'rangeExpressionChanged' => self::normalizeExpression($preparedExpression) !== self::normalizeExpression($currentExpression),
+            'expressionColumnChanged' => $preparedRangeColumn !== $currentRangeColumn,
+            'expressionSignatureChanged' => self::expressionSourceSignature($preparedExpression, $preparedRangeColumn, $preparedOrder, $preparedQuery)
+                !== self::expressionSourceSignature($currentExpression, $currentRangeColumn, $currentOrder, $currentQuery),
+            'preparedExpression' => self::expressionSummary($preparedExpression, $preparedRangeColumn, $preparedMaterialized, $prepared),
+            'currentExpression' => self::expressionSummary($currentExpression, $currentRangeColumn, $currentMaterialized, $current),
+            'selectedPlan' => $selectedPlan,
+            'currentSourceFence' => [
+                'name' => self::sourceString($selectedSource, 'name'),
+                'schemaCookie' => self::nonNegativeSourceInt($selectedSource, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeSourceInt($selectedSource, 'stat4Generation'),
+                'rangeExpression' => $selectedExpression,
+                'rangeExpressionColumn' => $selectedRangeColumn,
+                'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
+            ],
+            'detail' => ($stale ? 'REPREPARE ' : 'REUSE PREPARED ')
+                . 'PARTIAL EXPRESSION SKIP-SCAN '
+                . self::sourceString($selectedSource, 'name')
+                . ' expr=' . $selectedExpression,
+            'dependencies' => ['sqlite-sqlplanner-partial-expression-skipscan-current-source-next129'],
+            'dependency_closure' => 'no new support component needed; next129 reuses native PHP skip-scan, partial predicate proof, current-source fences, and bounded SQL expression-key materialization',
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
@@ -618,6 +715,186 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             self::sourceBool($source, 'upperInclusive', true),
             self::sourceString($source, 'collation', 'BINARY'),
         );
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return array<string,mixed>
+     */
+    private static function materializedExpressionSource(array $source, string $expression, string $rangeColumn): array
+    {
+        $rows = [];
+        foreach (self::sourceRows($source) as $row) {
+            $row[$rangeColumn] = self::evaluateExpression($expression, $row);
+            $rows[] = $row;
+        }
+
+        $covering = self::sourceStringList($source, 'coveringColumns');
+        foreach ([$rangeColumn, $expression] as $column) {
+            if (!in_array($column, $covering, true)) {
+                $covering[] = $column;
+            }
+        }
+
+        return array_replace($source, [
+            'rangeColumn' => $rangeColumn,
+            'rows' => $rows,
+            'coveringColumns' => $covering,
+        ]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $terms
+     * @return list<array<string,mixed>>
+     */
+    private static function materializedExpressionTerms(array $terms, string $expression, string $rangeColumn): array
+    {
+        $normalized = self::normalizeExpression($expression);
+        $mapped = [];
+        foreach ($terms as $term) {
+            if (!is_array($term)) {
+                throw new \InvalidArgumentException('SQLite partial expression skip-scan query terms must be arrays');
+            }
+            $left = $term['left'] ?? null;
+            if (is_array($left) && isset($left['expression']) && is_string($left['expression']) && self::normalizeExpression($left['expression']) === $normalized) {
+                $term['left'] = ['column' => $rangeColumn];
+            }
+            $mapped[] = $term;
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderBy
+     * @return list<array{expression:string,column?:string,direction?:string}>
+     */
+    private static function materializedExpressionOrder(array $orderBy, string $expression, string $rangeColumn): array
+    {
+        $normalized = self::normalizeExpression($expression);
+        $mapped = [];
+        foreach ($orderBy as $term) {
+            $termExpression = $term['expression'] ?? null;
+            if (!is_string($termExpression) || trim($termExpression) === '') {
+                throw new \InvalidArgumentException('SQLite partial expression skip-scan ORDER BY expressions need SQL text');
+            }
+            if (self::normalizeExpression($termExpression) === $normalized) {
+                $term['expression'] = $rangeColumn;
+                $term['column'] = $rangeColumn;
+            }
+            $mapped[] = $term;
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function evaluateExpression(string $expression, array $row): mixed
+    {
+        $normalized = self::normalizeExpression($expression);
+        if (preg_match('/^lower\((.+)\)$/', $normalized, $matches) === 1) {
+            $value = self::rowExpressionValue($matches[1], $row);
+            return $value === null ? null : strtolower((string) $value);
+        }
+        if (preg_match('/^upper\((.+)\)$/', $normalized, $matches) === 1) {
+            $value = self::rowExpressionValue($matches[1], $row);
+            return $value === null ? null : strtoupper((string) $value);
+        }
+        if (preg_match('/^trim\((.+)\)$/', $normalized, $matches) === 1) {
+            $value = self::rowExpressionValue($matches[1], $row);
+            return $value === null ? null : trim((string) $value);
+        }
+        if (preg_match('/^length\((.+)\)$/', $normalized, $matches) === 1) {
+            $value = self::rowExpressionValue($matches[1], $row);
+            return $value === null ? null : strlen((string) $value);
+        }
+        if (preg_match('/^cast\((.+) as integer\)$/', $normalized, $matches) === 1) {
+            $value = self::rowExpressionValue($matches[1], $row);
+            return $value === null ? null : (int) $value;
+        }
+        $simple = self::simpleColumnExpression($expression);
+        if ($simple !== null) {
+            return $row[$simple] ?? null;
+        }
+
+        throw new \InvalidArgumentException('SQLite partial expression skip-scan supports bounded lower/upper/trim/length/cast integer expressions');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowExpressionValue(string $expression, array $row): mixed
+    {
+        $column = self::simpleColumnExpression($expression);
+        if ($column === null) {
+            throw new \InvalidArgumentException('SQLite partial expression skip-scan expression argument must be a column');
+        }
+
+        return $row[$column] ?? null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array<string,mixed>> $orderBy
+     */
+    private static function expressionSourceSignature(string $expression, string $rangeColumn, array $orderBy, array $queryTerms): string
+    {
+        return hash('sha256', serialize([
+            self::normalizeExpression($expression),
+            $rangeColumn,
+            $orderBy,
+            $queryTerms,
+        ]));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $plan
+     * @return array<string,mixed>
+     */
+    private static function expressionSummary(string $expression, string $rangeColumn, array $source, array $plan): array
+    {
+        $selectedPlan = is_array($plan['selectedPlan'] ?? null) ? $plan['selectedPlan'] : [];
+
+        return [
+            'name' => self::sourceString($source, 'name'),
+            'rangeExpression' => $expression,
+            'rangeExpressionColumn' => $rangeColumn,
+            'schemaCookie' => self::nonNegativeSourceInt($source, 'schemaCookie'),
+            'stat4Generation' => self::nonNegativeSourceInt($source, 'stat4Generation'),
+            'rowids' => $selectedPlan['rowids'] ?? [],
+            'estimatedRows' => (int) ($selectedPlan['estimatedRows'] ?? 0),
+            'estimatedCost' => (int) ($selectedPlan['estimatedCost'] ?? 0),
+            'coveredRowCount' => (int) ($selectedPlan['coveredRowCount'] ?? 0),
+            'expressionKeys' => self::expressionKeys($source, $rangeColumn),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return list<mixed>
+     */
+    private static function expressionKeys(array $source, string $rangeColumn): array
+    {
+        $keys = [];
+        foreach (self::sourceRows($source) as $row) {
+            $keys[] = $row[$rangeColumn] ?? null;
+        }
+
+        return $keys;
+    }
+
+    private static function normalizeExpression(string $expression): string
+    {
+        $trimmed = trim($expression);
+        if ($trimmed === '') {
+            throw new \InvalidArgumentException('SQLite partial expression skip-scan expression must be non-empty');
+        }
+        $trimmed = preg_replace('/\s+/', ' ', $trimmed) ?? $trimmed;
+
+        return strtolower($trimmed);
     }
 
     /**

@@ -1281,6 +1281,74 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceNestedHiddenCostNext129(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested hidden cost planner requires a JSON source column');
+        }
+        if ($baseRootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested hidden cost planner requires a base root column');
+        }
+        if ($nestedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested hidden cost planner requires a nested path column');
+        }
+
+        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $rootColumn = '__sqlite_json_table_nested_hidden_root_next129';
+        $current = $currentSource + [$rootColumn => $currentRoot['root']];
+        $next = $nextSource + [$rootColumn => $nextRoot['root']];
+
+        $plan = self::currentSourcePathHiddenRowidCostNext126(
+            $function,
+            $current,
+            $next,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::nestedHiddenCostProfile129($currentRoot, $plan['current'], $plan['currentPathHiddenRowidCost']);
+        $nextProfile = self::nestedHiddenCostProfile129($nextRoot, $plan['next'], $plan['nextPathHiddenRowidCost']);
+        $transitions = self::nestedHiddenCostTransitions129($currentProfile, $nextProfile);
+        $reasons = self::nestedHiddenCostReplanReasons129($transitions);
+
+        $plan['currentNestedHiddenCost'] = $currentProfile;
+        $plan['nextNestedHiddenCost'] = $nextProfile;
+        $plan['nestedHiddenCostTransitions'] = $transitions;
+        $plan['next129ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next126ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next129ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-hidden-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next129ReplanReasons'] === []
+            ? 'reuse-current-json-table-nested-hidden-cost-source-plan'
+            : 'prepare-next-json-table-nested-hidden-cost-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-nested-hidden-cost-current-source-next129'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceHiddenPathOrderByNext128(
         string $function,
         array $currentSource,
@@ -5385,6 +5453,183 @@ final class SQLiteJsonTablePlan
             'firstSuffixKey' => $partialOrder['firstSuffixKey'],
             'lastSuffixKey' => $partialOrder['lastSuffixKey'],
         ];
+    }
+
+    /**
+     * @param array{baseRoot:string,nestedPath:string,root:string,mode:string} $nestedRoot
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $hiddenCost
+     * @return array{baseRoot:string,nestedPath:string,root:string,mode:string,hiddenArguments:list<mixed>,hiddenArgumentCount:int,hiddenRootDepth:int,scanStrategy:string,compositeSignature:string|null,effectiveEstimatedCost:int,hiddenEstimatedCost:int,rowCount:int,rowids:list<int>,rootRowidTape:list<array{root:string,rowid:int|null,fullkey:string|null}>,firstRootRowid:array{root:string,rowid:int|null,fullkey:string|null}|null,lastRootRowid:array{root:string,rowid:int|null,fullkey:string|null}|null,costClass:string}
+     */
+    private static function nestedHiddenCostProfile129(array $nestedRoot, array $plan, array $hiddenCost): array
+    {
+        $hiddenArguments = array_slice($plan['filterArguments'] ?? [], 0, 2);
+        $rowCount = count($plan['rows'] ?? []);
+        $rootDepth = self::jsonPathDepth129((string) $nestedRoot['root']);
+        $effectiveCost = (int) $hiddenCost['effectiveEstimatedCost'];
+        $hiddenEstimatedCost = $effectiveCost >= 1000000
+            ? 1000000
+            : $effectiveCost + $rootDepth + self::nestedPathModePenalty129((string) $nestedRoot['mode']);
+        $rootRowidTape = self::nestedRootRowidTape129((string) $nestedRoot['root'], $plan['rows'] ?? []);
+
+        return [
+            'baseRoot' => (string) $nestedRoot['baseRoot'],
+            'nestedPath' => (string) $nestedRoot['nestedPath'],
+            'root' => (string) $nestedRoot['root'],
+            'mode' => (string) $nestedRoot['mode'],
+            'hiddenArguments' => $hiddenArguments,
+            'hiddenArgumentCount' => count($hiddenArguments),
+            'hiddenRootDepth' => $rootDepth,
+            'scanStrategy' => (string) $hiddenCost['scanStrategy'],
+            'compositeSignature' => $hiddenCost['compositeSignature'],
+            'effectiveEstimatedCost' => $effectiveCost,
+            'hiddenEstimatedCost' => $hiddenEstimatedCost,
+            'rowCount' => $rowCount,
+            'rowids' => $hiddenCost['rowids'],
+            'rootRowidTape' => $rootRowidTape,
+            'firstRootRowid' => $rootRowidTape[0] ?? null,
+            'lastRootRowid' => $rootRowidTape === [] ? null : $rootRowidTape[array_key_last($rootRowidTape)],
+            'costClass' => self::nestedHiddenCostClass129((bool) $plan['runnable'], (string) $hiddenCost['scanStrategy'], $hiddenEstimatedCost, $rowCount),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{root:string,rowid:int|null,fullkey:string|null}>
+     */
+    private static function nestedRootRowidTape129(string $root, array $rows): array
+    {
+        $tape = [];
+        foreach ($rows as $row) {
+            $tape[] = [
+                'root' => $root,
+                'rowid' => isset($row['id']) ? (int) $row['id'] : null,
+                'fullkey' => isset($row['fullkey']) && is_string($row['fullkey']) ? $row['fullkey'] : null,
+            ];
+        }
+
+        return $tape;
+    }
+
+    private static function jsonPathDepth129(string $path): int
+    {
+        if ($path === '$') {
+            return 0;
+        }
+
+        preg_match_all('/(?:\\.[A-Za-z_][A-Za-z0-9_]*|\\[[^\\]]+\\])/', $path, $matches);
+
+        return count($matches[0]);
+    }
+
+    private static function nestedPathModePenalty129(string $mode): int
+    {
+        return match ($mode) {
+            'absolute-path' => 0,
+            'array-fragment', 'object-fragment' => 1,
+            'bare-label-fragment' => 2,
+            default => 3,
+        };
+    }
+
+    private static function nestedHiddenCostClass129(bool $runnable, string $scanStrategy, int $hiddenEstimatedCost, int $rowCount): string
+    {
+        if (!$runnable || $scanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($scanStrategy === 'path-rowid-intersection') {
+            return 'json-table-nested-hidden-path-rowid-intersection';
+        }
+        if ($scanStrategy === 'rowid-only-lookup') {
+            return 'json-table-nested-hidden-rowid-lookup';
+        }
+        if ($scanStrategy === 'path-only-lookup') {
+            return 'json-table-nested-hidden-path-lookup';
+        }
+        if ($rowCount <= 1 || $hiddenEstimatedCost <= 10) {
+            return 'json-table-nested-hidden-narrow-scan';
+        }
+
+        return 'json-table-nested-hidden-full-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function nestedHiddenCostTransitions129(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'root',
+                'current' => $current['root'],
+                'next' => $next['root'],
+                'changed' => $current['root'] !== $next['root'],
+            ],
+            [
+                'field' => 'mode',
+                'current' => $current['mode'],
+                'next' => $next['mode'],
+                'changed' => $current['mode'] !== $next['mode'],
+            ],
+            [
+                'field' => 'hiddenArguments',
+                'current' => $current['hiddenArguments'],
+                'next' => $next['hiddenArguments'],
+                'changed' => $current['hiddenArguments'] !== $next['hiddenArguments'],
+            ],
+            [
+                'field' => 'scanStrategy',
+                'current' => $current['scanStrategy'],
+                'next' => $next['scanStrategy'],
+                'changed' => $current['scanStrategy'] !== $next['scanStrategy'],
+            ],
+            [
+                'field' => 'hiddenEstimatedCost',
+                'current' => $current['hiddenEstimatedCost'],
+                'next' => $next['hiddenEstimatedCost'],
+                'changed' => $current['hiddenEstimatedCost'] !== $next['hiddenEstimatedCost'],
+            ],
+            [
+                'field' => 'rowCount',
+                'current' => $current['rowCount'],
+                'next' => $next['rowCount'],
+                'changed' => $current['rowCount'] !== $next['rowCount'],
+            ],
+            [
+                'field' => 'rootRowidTape',
+                'current' => $current['rootRowidTape'],
+                'next' => $next['rootRowidTape'],
+                'changed' => $current['rootRowidTape'] !== $next['rootRowidTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function nestedHiddenCostReplanReasons129(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'hiddenArguments' => 'json-table-nested-hidden-root-changed',
+                'mode' => 'json-table-nested-hidden-mode-changed',
+                'scanStrategy' => 'json-table-nested-hidden-scan-strategy-changed',
+                'hiddenEstimatedCost' => 'json-table-nested-hidden-cost-changed',
+                'rowCount' => 'json-table-nested-hidden-row-count-changed',
+                'rootRowidTape' => 'json-table-nested-hidden-output-changed',
+                default => 'json-table-nested-hidden-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
     }
 
     /**

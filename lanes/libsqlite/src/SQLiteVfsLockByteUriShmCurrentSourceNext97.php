@@ -41,7 +41,17 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function run(array $operations, array $options, bool $trackFileControls, string $dependency): array
+    public static function currentSourceNext128(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-open-shm-filecontrol-uri-current-source-next128', true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(array $operations, array $options, bool $trackFileControls, string $dependency, bool $trackUriFileControls = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 requires operations');
@@ -89,7 +99,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             }
 
             if ($op['kind'] === 'filecontrol') {
-                $events[] = self::event('filecontrol', ...self::applyFileControl($state, $op, $before, $trackFileControls));
+                $events[] = self::event('filecontrol', ...self::applyFileControl($state, $op, $before, $trackFileControls, $trackUriFileControls));
                 continue;
             }
 
@@ -149,7 +159,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'sqlite-lock-byte-range-current-next',
                 'sqlite-wal-shm-locks',
                 $dependency,
-            ], $trackFileControls ? ['vfs-current-source-file-control-data-version'] : []))),
+            ], $trackFileControls ? ['vfs-current-source-file-control-data-version'] : [], $trackUriFileControls ? ['vfs-current-source-uri-file-control'] : []))),
         ];
     }
 
@@ -159,17 +169,47 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      * @param array<string,mixed> $before
      * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>,3:array<string,mixed>}
      */
-    private static function applyFileControl(array &$state, array $op, array $before, bool $trackFileControls): array
+    private static function applyFileControl(array &$state, array $op, array $before, bool $trackFileControls, bool $trackUriFileControls): array
     {
         $source = self::sourceFor($state, $op['source'] ?? null);
         $handle = self::handle($state, $source);
         $owner = (string) $handle['owner'];
         $control = self::controlName((string) ($op['control'] ?? ''));
+        $generation = self::ownerGeneration($state, $owner);
+        $openedGeneration = (int) ($handle['source_generation'] ?? $generation);
+        if ($trackFileControls && $trackUriFileControls && in_array($control, ['uri_parameter', 'uri_boolean', 'uri_int'], true)) {
+            $parameter = self::uriFileControlParameter($op['value'] ?? null);
+            $default = self::uriFileControlDefault($op['value'] ?? null, $control);
+            $uriValues = self::uriParameterValues($handle, $parameter);
+            $value = match ($control) {
+                'uri_boolean' => self::sqliteUriBooleanValue($uriValues, $default),
+                'uri_int' => self::sqliteUriIntValue($uriValues, $default),
+                default => $uriValues[array_key_last($uriValues)] ?? $default,
+            };
+
+            return ['ok', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'file_control' => $control,
+                'parameter' => $parameter,
+                'value' => $value,
+                'values' => $uriValues,
+                'default' => $default,
+                'previous' => null,
+                'changed' => false,
+                'reason' => $uriValues === [] ? 'missing_uri_parameter' : null,
+                'routed_to' => 'current-source-uri',
+                'source_generation' => $generation,
+                'opened_generation' => $openedGeneration,
+                'stale_current_source' => $openedGeneration !== $generation,
+                'stale_handles' => self::staleHandles($state, $owner),
+            ]];
+        }
+
         $value = self::controlValue($control, $op['value'] ?? null);
         $controls = is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : [];
         $previous = $controls[$control] ?? null;
-        $generation = self::ownerGeneration($state, $owner);
-        $openedGeneration = (int) ($handle['source_generation'] ?? $generation);
 
         if (!$trackFileControls) {
             return ['unsupported', $before, self::snapshot($state), [
@@ -447,6 +487,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'nolock' => $uri['nolock'],
                 'vfs' => $uri['vfs'],
                 'authority' => $uri['authority'],
+                'known_parameters' => $uri['known_parameters'] ?? [],
+                'unknown_parameters' => $uri['unknown_parameters'] ?? [],
+                'all_query_parameters' => $uri['all_query_parameters'] ?? [],
             ],
         ];
     }
@@ -912,6 +955,82 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'chunk_size', 'mmap_size', 'size_hint', 'reserve_bytes', 'lock_timeout' => self::nonNegativeInt($value, $control),
             default => $value,
         };
+    }
+
+    private static function uriFileControlParameter(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = $value['parameter'] ?? $value['name'] ?? null;
+        }
+        if (!is_string($value) || trim($value) === '' || str_contains($value, "\0")) {
+            throw new \InvalidArgumentException('SQLite VFS URI file-control requires a non-empty parameter name');
+        }
+
+        return trim($value);
+    }
+
+    private static function uriFileControlDefault(mixed $value, string $control): mixed
+    {
+        if (!is_array($value) || !array_key_exists('default', $value)) {
+            return $control === 'uri_boolean' ? false : ($control === 'uri_int' ? 0 : null);
+        }
+
+        return match ($control) {
+            'uri_boolean' => self::boolean($value['default']),
+            'uri_int' => is_int($value['default']) || (is_string($value['default']) && preg_match('/^-?\d+$/', trim($value['default'])) === 1)
+                ? (int) $value['default']
+                : throw new \InvalidArgumentException('SQLite VFS URI integer default expects an integer'),
+            default => $value['default'],
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $handle
+     * @return list<string>
+     */
+    private static function uriParameterValues(array $handle, string $parameter): array
+    {
+        $parameters = $handle['uri']['all_query_parameters'] ?? [];
+        if (!is_array($parameters) || !isset($parameters[$parameter]) || !is_array($parameters[$parameter])) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $value): string => (string) $value, $parameters[$parameter]));
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function sqliteUriBooleanValue(array $values, mixed $default): bool
+    {
+        if ($values === []) {
+            return (bool) $default;
+        }
+        $value = strtolower($values[array_key_last($values)]);
+        if (in_array($value, ['yes', 'true', 'on'], true) || preg_match('/^[+-]?[1-9][0-9]*/', $value) === 1) {
+            return true;
+        }
+        if (in_array($value, ['no', 'false', 'off'], true) || preg_match('/^[+-]?0(?:\D|$)/', $value) === 1) {
+            return false;
+        }
+
+        return (bool) $default;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function sqliteUriIntValue(array $values, mixed $default): int
+    {
+        if ($values === []) {
+            return (int) $default;
+        }
+        $value = trim($values[array_key_last($values)]);
+        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+            return 0;
+        }
+
+        return (int) $value;
     }
 
     private static function writeControl(string $control): bool
