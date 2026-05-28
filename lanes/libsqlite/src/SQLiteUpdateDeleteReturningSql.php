@@ -1009,6 +1009,9 @@ final class SQLiteUpdateDeleteReturningSql
                 throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value VALUES list must contain row tuples');
             }
         }
+        if ($sql === '') {
+            return [];
+        }
 
         $tuples = [];
         foreach (self::splitComma($sql) as $tuple) {

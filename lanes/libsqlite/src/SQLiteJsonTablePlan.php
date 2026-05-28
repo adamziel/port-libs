@@ -2615,6 +2615,72 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext188(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext185(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $profile = self::jsonTableGeneratedPathRowidDeletedResumeProfile188(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            $plan['next185ReplanReasons'] !== [],
+        );
+
+        $plan['generatedPathRowidDeletedResume188'] = $profile;
+        $plan['next188ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next185ReplanReasons'],
+            $profile['replanReasons'],
+        )));
+        $plan['replanRequired'] = $plan['next188ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'preserve-current-json-table-generated-path-rowid-deleted-resume-next188';
+        $plan['nextReaderPolicy'] = $profile['restartRequired']
+            ? 'restart-next-json-table-generated-path-rowid-deleted-resume-next188'
+            : 'resume-current-json-table-generated-path-rowid-deleted-resume-next188';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next188'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
@@ -13025,6 +13091,185 @@ final class SQLiteJsonTablePlan
         }
 
         return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param array<string,mixed> $resume
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidDeletedResumeProfile188(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        ?string $rootColumn,
+        array $resume,
+        bool $nextSourceChanged,
+    ): array {
+        $function = self::normalizeFunction($function);
+        $currentRowids = array_values(array_unique(array_merge(
+            array_map('intval', $resume['deliveredRowids'] ?? []),
+            array_map('intval', $resume['blockedRowids'] ?? []),
+        )));
+        sort($currentRowids);
+
+        $nextRowids = self::jsonTableSourceRowids188($function, $nextSource, $jsonColumn, $rootColumn);
+        $deleted = array_values(array_diff($currentRowids, $nextRowids));
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $inserted = array_values(array_diff($nextRowids, $currentRowids));
+
+        $currentFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint188(
+            $currentSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+        );
+        $nextFingerprint = self::jsonTableGeneratedPathRowidSourceFingerprint188(
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+        );
+        $fingerprintChanged = $currentFingerprint !== $nextFingerprint;
+        $restartRequired = $nextSourceChanged || $fingerprintChanged || $deleted !== [];
+        $resumeToken = is_string($resume['resumeToken'] ?? null) ? $resume['resumeToken'] : null;
+        $lastDelivered = is_int($resume['lastDeliveredRowid'] ?? null) ? $resume['lastDeliveredRowid'] : null;
+        $nextResumeOrdinal = (int) ($resume['nextResumeOrdinal'] ?? 0);
+        $checkpointReusable = (bool) ($resume['checkpointReusable'] ?? false) && !$restartRequired;
+        $reasons = [];
+
+        if ($deleted !== []) {
+            $reasons[] = 'json-table-generated-path-rowid-deleted-rowid-next188';
+        }
+        if ($inserted !== []) {
+            $reasons[] = 'json-table-generated-path-rowid-inserted-rowid-next188';
+        }
+        if ($fingerprintChanged) {
+            $reasons[] = 'json-table-generated-path-rowid-source-fingerprint-next188';
+        }
+        if ($nextSourceChanged) {
+            $reasons[] = 'json-table-generated-path-rowid-next-source-stale-next188';
+        }
+        if (!$checkpointReusable) {
+            $reasons[] = 'json-table-generated-path-rowid-checkpoint-restart-next188';
+        }
+
+        return [
+            'function' => $function,
+            'currentSourceFingerprint' => $currentFingerprint,
+            'nextSourceFingerprint' => $nextFingerprint,
+            'resumeToken' => $resumeToken,
+            'lastDeliveredRowid' => $lastDelivered,
+            'nextResumeOrdinal' => $nextResumeOrdinal,
+            'currentCandidateRowids' => $currentRowids,
+            'nextSourceRowids' => $nextRowids,
+            'deletedRowids' => $deleted,
+            'retainedRowids' => $retained,
+            'insertedRowids' => $inserted,
+            'restartRequired' => $restartRequired,
+            'checkpointReusable' => $checkpointReusable,
+            'deletedRowidCount' => count($deleted),
+            'retainedRowidCount' => count($retained),
+            'insertedRowidCount' => count($inserted),
+            'estimatedRows' => $checkpointReusable ? count($retained) : 0,
+            'estimatedCost' => $checkpointReusable ? max(1, count($retained)) : 1000000,
+            'costClass' => self::jsonTableGeneratedPathRowidDeletedResumeCostClass188(
+                $checkpointReusable,
+                $deleted,
+                $inserted,
+                $fingerprintChanged,
+                $nextSourceChanged,
+            ),
+            'replanReasons' => array_values(array_unique($reasons)),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return list<int>
+     */
+    private static function jsonTableSourceRowids188(
+        string $function,
+        array $source,
+        string $jsonColumn,
+        ?string $rootColumn,
+    ): array {
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid next188 is missing {$jsonColumn}");
+        }
+
+        $root = '$';
+        if ($rootColumn !== null && array_key_exists($rootColumn, $source)) {
+            if (!is_string($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid next188 root must be text');
+            }
+            if (!SQLiteJsonPath::isWellFormed($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid next188 root is not a well-formed path');
+            }
+            $root = $source[$rootColumn];
+        }
+
+        $rows = $function === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$source[$jsonColumn], $root])
+            : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$source[$jsonColumn], $root]);
+        $rowids = [];
+        foreach ($rows as $row) {
+            $rowid = self::jsonTableRowid181($row);
+            if ($rowid !== null) {
+                $rowids[] = $rowid;
+            }
+        }
+
+        sort($rowids);
+
+        return array_values(array_unique($rowids));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function jsonTableGeneratedPathRowidSourceFingerprint188(
+        array $source,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        ?string $rootColumn,
+    ): string {
+        return hash('sha256', json_encode([
+            'json' => $source[$jsonColumn] ?? null,
+            'generatedPath' => $source[$generatedPathColumn] ?? null,
+            'root' => $rootColumn === null ? '$' : ($source[$rootColumn] ?? '$'),
+            'sourceGeneration' => $source['source_generation'] ?? $source['sourceGeneration'] ?? null,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param list<int> $deleted
+     * @param list<int> $inserted
+     */
+    private static function jsonTableGeneratedPathRowidDeletedResumeCostClass188(
+        bool $checkpointReusable,
+        array $deleted,
+        array $inserted,
+        bool $fingerprintChanged,
+        bool $nextSourceChanged,
+    ): string {
+        if ($checkpointReusable) {
+            return 'json-table-generated-path-rowid-deleted-resume-reusable-next188';
+        }
+        if ($deleted !== []) {
+            return 'json-table-generated-path-rowid-deleted-resume-restart-next188';
+        }
+        if ($inserted !== []) {
+            return 'json-table-generated-path-rowid-inserted-resume-restart-next188';
+        }
+        if ($fingerprintChanged || $nextSourceChanged) {
+            return 'json-table-generated-path-rowid-source-resume-restart-next188';
+        }
+
+        return 'json-table-generated-path-rowid-resume-blocked-next188';
     }
 
     /**
