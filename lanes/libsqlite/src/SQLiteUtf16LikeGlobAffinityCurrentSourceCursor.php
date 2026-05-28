@@ -238,7 +238,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
             return (string) $value;
         }
         if (is_float($value)) {
-            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+            return $this->coerceFloatTextLikeOperand($value);
         }
         if (is_bool($value)) {
             return $value ? '1' : '0';
@@ -277,6 +277,16 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceCursor
     private function asciiLower(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    private function coerceFloatTextLikeOperand(float $value): string
+    {
+        $text = sprintf('%.15G', $value);
+        if (str_contains($text, '.')) {
+            $text = rtrim(rtrim($text, '0'), '.');
+        }
+
+        return $text;
     }
 
     private function sign(int $comparison): int
