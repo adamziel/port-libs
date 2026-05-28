@@ -1028,6 +1028,175 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param array<string,string> $statementJournalPaths statement journal name to VFS path.
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null,current_source:array<string, mixed>,statement_journals:array<string, mixed>,atomic:bool}
+     */
+    public function applySavepointRollbackFromCurrentSourceNext94(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databasePath,
+        int $pageSize,
+        array $statementJournalPaths = [],
+        ?string $walPath = null,
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite savepoint current-source rollback requires a savepoint name');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite savepoint current-source rollback requires a database path');
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite savepoint current-source rollback requires a positive page size');
+        }
+
+        $databaseLocalPath = $this->localPath($databasePath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite savepoint current-source database is missing: {$databasePath}");
+        }
+
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite savepoint current-source database bytes must be aligned to the page size');
+        }
+
+        $beforeStatementNames = array_column($savepoints->statementJournalState(), 'name');
+        $after = clone $savepoints;
+        $rollbackTransition = $after->rollbackToWithPlan($savepoint);
+        $afterStatementNames = array_column($after->statementJournalState(), 'name');
+        $discardedStatementNames = array_values(array_diff($beforeStatementNames, $afterStatementNames));
+        sort($discardedStatementNames, SORT_STRING);
+
+        $wal = null;
+        $walBytes = null;
+        $walPath = $walPath !== null && $walPath !== '' ? $walPath : $databasePath . '-wal';
+        $walLocalPath = $this->localPath($walPath);
+        if (is_file($walLocalPath)) {
+            $walBytes = (string) file_get_contents($walLocalPath);
+            $wal = SQLiteWal::parse($walBytes, null, true);
+        }
+
+        $databaseImage = $savepoints->rollbackToDatabaseImage($savepoint, $databaseBytes, $pageSize);
+        $imagePlan = $savepoints->rollbackToImagePlan($savepoint, $pageSize);
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'restore_current_source_savepoint_database_page_images',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'trim_current_source_savepoint_database_image',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_current_source_savepoint_database_rollback',
+            ],
+        ];
+        $payloads = [$databasePath => $databaseImage];
+        $walPlan = null;
+        $walImage = null;
+
+        if ($wal !== null && $walBytes !== null) {
+            $walImage = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+            $walPlan = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+            $operations[] = [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'restore_current_source_savepoint_wal_prefix',
+            ];
+            $operations[] = [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'truncate_current_source_savepoint_wal_frames',
+            ];
+            $operations[] = [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_current_source_savepoint_wal_rollback',
+            ];
+            $payloads[$walPath] = $walImage;
+        }
+
+        $discardedJournalPaths = [];
+        $preservedJournalPaths = [];
+        foreach ($statementJournalPaths as $statementName => $statementPath) {
+            $statementName = (string) $statementName;
+            $statementPath = (string) $statementPath;
+            if ($statementName === '' || $statementPath === '') {
+                throw new \InvalidArgumentException('SQLite savepoint current-source statement journal paths require non-empty names and paths');
+            }
+            if (in_array($statementName, $discardedStatementNames, true)) {
+                $discardedJournalPaths[$statementName] = $statementPath;
+                $operations[] = [
+                    'op' => 'delete',
+                    'path' => $statementPath,
+                    'durable' => false,
+                    'reason' => 'delete_discarded_statement_journal_after_savepoint_rollback',
+                    'statement_journal' => $statementName,
+                ];
+            } else {
+                $preservedJournalPaths[$statementName] = $statementPath;
+            }
+        }
+
+        $operations[] = [
+            'op' => 'sync_directory',
+            'path' => dirname($databasePath),
+            'durable' => true,
+            'reason' => 'persist_current_source_savepoint_rollback_sidecars',
+        ];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            $payloads,
+            [
+                'sqlite-savepoint-page-image-rollback',
+                'sqlite-savepoint-journal-filehandle-current-source-next94',
+                'sqlite-savepoint-wal-rollback',
+                'vfs-file-write-coordination',
+            ]
+        );
+        $applied['savepoint'] = $savepoint;
+        $applied['database_image'] = $imagePlan;
+        $applied['wal_truncation'] = $walPlan;
+        $applied['current_source'] = [
+            'database_path' => $databasePath,
+            'database_bytes_before' => strlen($databaseBytes),
+            'database_bytes_after' => strlen($databaseImage),
+            'database_page_count_before' => intdiv(strlen($databaseBytes), $pageSize),
+            'wal_path' => $walPath,
+            'wal_exists' => $walBytes !== null,
+            'wal_bytes_before' => $walBytes !== null ? strlen($walBytes) : 0,
+            'wal_bytes_after' => $walImage !== null ? strlen($walImage) : 0,
+            'rollback_transition' => $rollbackTransition,
+        ];
+        $applied['statement_journals'] = [
+            'before' => $beforeStatementNames,
+            'after' => $afterStatementNames,
+            'discarded' => $discardedStatementNames,
+            'discarded_paths' => $discardedJournalPaths,
+            'preserved_paths' => $preservedJournalPaths,
+        ];
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<int> $visiblePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint:array<string, mixed>,reader_boundary:array<string, mixed>,atomic:bool}
      */

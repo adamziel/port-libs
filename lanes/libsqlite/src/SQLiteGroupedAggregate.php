@@ -131,25 +131,26 @@ final class SQLiteGroupedAggregate
             $filtered[] = ['row' => $row, 'position' => $position];
         }
 
-        if (isset($aggregate['orderBy'])) {
-            $orderColumn = $aggregate['orderBy'];
-            if (!is_string($orderColumn)) {
-                throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY column is malformed');
-            }
-            $direction = strtoupper((string) ($aggregate['orderDirection'] ?? 'ASC'));
-            if ($direction !== 'ASC' && $direction !== 'DESC') {
-                throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY direction must be ASC or DESC');
-            }
-            usort($filtered, static function (array $left, array $right) use ($orderColumn, $direction): int {
-                if (!array_key_exists($orderColumn, $left['row']) || !array_key_exists($orderColumn, $right['row'])) {
-                    throw new \InvalidArgumentException("SQLite JSON aggregate ORDER BY row is missing column {$orderColumn}");
-                }
-                $comparison = self::compareSqlValues($left['row'][$orderColumn], $right['row'][$orderColumn]);
-                if ($direction === 'DESC') {
-                    $comparison = -$comparison;
+        $orderTerms = self::jsonAggregateOrderTerms($aggregate);
+        if ($orderTerms !== []) {
+            usort($filtered, static function (array $left, array $right) use ($orderTerms): int {
+                foreach ($orderTerms as $orderTerm) {
+                    $orderColumn = $orderTerm['column'];
+                    if (!array_key_exists($orderColumn, $left['row']) || !array_key_exists($orderColumn, $right['row'])) {
+                        throw new \InvalidArgumentException("SQLite JSON aggregate ORDER BY row is missing column {$orderColumn}");
+                    }
+                    $comparison = self::compareSqlValues($left['row'][$orderColumn], $right['row'][$orderColumn]);
+                    if ($comparison === 0) {
+                        continue;
+                    }
+                    if ($orderTerm['direction'] === 'DESC') {
+                        $comparison = -$comparison;
+                    }
+
+                    return $comparison;
                 }
 
-                return $comparison === 0 ? $left['position'] <=> $right['position'] : $comparison;
+                return $left['position'] <=> $right['position'];
             });
         }
 
@@ -168,6 +169,46 @@ final class SQLiteGroupedAggregate
             $values[] = $value;
         }
         $summary[$summaryColumn] = SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $values);
+    }
+
+    /**
+     * @param array<string,mixed> $aggregate
+     * @return list<array{column:string,direction:string}>
+     */
+    private static function jsonAggregateOrderTerms(array $aggregate): array
+    {
+        if (isset($aggregate['orderByTerms'])) {
+            if (!is_array($aggregate['orderByTerms']) || !array_is_list($aggregate['orderByTerms'])) {
+                throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY terms are malformed');
+            }
+            $terms = [];
+            foreach ($aggregate['orderByTerms'] as $term) {
+                if (!is_array($term) || !isset($term['column']) || !is_string($term['column'])) {
+                    throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY column is malformed');
+                }
+                $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+                if ($direction !== 'ASC' && $direction !== 'DESC') {
+                    throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY direction must be ASC or DESC');
+                }
+                $terms[] = ['column' => $term['column'], 'direction' => $direction];
+            }
+
+            return $terms;
+        }
+
+        if (!isset($aggregate['orderBy'])) {
+            return [];
+        }
+        $orderColumn = $aggregate['orderBy'];
+        if (!is_string($orderColumn)) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY column is malformed');
+        }
+        $direction = strtoupper((string) ($aggregate['orderDirection'] ?? 'ASC'));
+        if ($direction !== 'ASC' && $direction !== 'DESC') {
+            throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY direction must be ASC or DESC');
+        }
+
+        return [['column' => $orderColumn, 'direction' => $direction]];
     }
 
     private static function distinctJsonAggregateKey(mixed $value): string

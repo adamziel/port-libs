@@ -929,6 +929,81 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenRowidPlannerNext94(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceHiddenConstraintPlannerNext88(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $sourceRowidResiduals = self::sourceRowidResidualConstraints94($constraints);
+        $currentRowidResiduals = $sourceRowidResiduals !== []
+            ? $sourceRowidResiduals
+            : self::hiddenRowidResidualConstraints94($plan['current']['constraintUsage']);
+        $nextRowidResiduals = $sourceRowidResiduals !== []
+            ? $sourceRowidResiduals
+            : self::hiddenRowidResidualConstraints94($plan['next']['constraintUsage']);
+        $rowidTransition = [
+            'current' => self::rowidsFromRows94($plan['currentRows']),
+            'next' => self::rowidsFromRows94($plan['nextRows']),
+        ];
+        $rowidTransition['changed'] = $rowidTransition['current'] !== $rowidTransition['next'];
+
+        $rowTransitions = self::sourceRowTransitions94($plan['currentRows'], $plan['nextRows']);
+        $rowidReasons = [];
+        if ($currentRowidResiduals !== [] || $nextRowidResiduals !== []) {
+            $rowidReasons[] = 'hidden-rowid-residual-constraint-present';
+        }
+        if ($currentRowidResiduals !== $nextRowidResiduals) {
+            $rowidReasons[] = 'hidden-rowid-residual-usage-changed';
+        }
+        if ($rowidTransition['changed']) {
+            $rowidReasons[] = 'hidden-rowid-rowset-changed';
+        }
+        foreach ($rowTransitions as $transition) {
+            if ($transition['reason'] !== 'stable-hidden-rowid-source-row') {
+                $rowidReasons[] = $transition['reason'];
+            }
+        }
+
+        $plan['currentRowidResiduals'] = $currentRowidResiduals;
+        $plan['nextRowidResiduals'] = $nextRowidResiduals;
+        $plan['rowidTransition'] = $rowidTransition;
+        $plan['rowTransitions'] = $rowTransitions;
+        $plan['currentRowidSummary'] = self::sourceRowidSummary94($plan['current']);
+        $plan['nextRowidSummary'] = self::sourceRowidSummary94($plan['next']);
+        $plan['next94ReplanReasons'] = array_values(array_unique(array_merge($plan['next88ReplanReasons'], $rowidReasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next94ReplanReasons'] === ['hidden-rowid-residual-constraint-present']
+            ? 'reuse-current-json-table-hidden-rowid-source'
+            : 'prepare-next-json-table-hidden-rowid-source';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-rowid-source-current-next94'],
+        )));
+
+        return $plan;
+    }
+
+    /**
      * @param list<array<string,mixed>> $currentHostRows
      * @param list<array<string,mixed>> $nextHostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
@@ -1697,6 +1772,53 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
+     */
+    private static function hiddenRowidResidualConstraints94(array $usage): array
+    {
+        $hidden = [];
+        foreach ($usage as $entry) {
+            if ($entry['kind'] !== 'residual' || !self::isRowIdAlias($entry['column'])) {
+                continue;
+            }
+
+            $hidden[] = [
+                'constraintIndex' => $entry['constraintIndex'],
+                'column' => $entry['column'],
+                'operator' => $entry['operator'],
+                'usable' => $entry['usable'],
+            ];
+        }
+
+        return $hidden;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
+     */
+    private static function sourceRowidResidualConstraints94(array $constraints): array
+    {
+        $rowid = [];
+        foreach ($constraints as $index => $constraint) {
+            $column = strtolower((string) $constraint['column']);
+            if (!self::isRowIdAlias($column)) {
+                continue;
+            }
+
+            $rowid[] = [
+                'constraintIndex' => $index,
+                'column' => $column,
+                'operator' => strtoupper((string) $constraint['operator']),
+                'usable' => (bool) ($constraint['usable'] ?? true),
+            ];
+        }
+
+        return $rowid;
+    }
+
+    /**
      * @param list<array<string,mixed>> $used
      * @return list<mixed>
      */
@@ -2354,6 +2476,88 @@ final class SQLiteJsonTablePlan
             $row['id'] ?? null,
             $row['fullkey'] ?? null,
         ], JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<int>
+     */
+    private static function rowidsFromRows94(array $rows): array
+    {
+        return array_map(static fn (array $row): int => (int) $row['id'], $rows);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return array{rowids:list<int>,firstRowid:int|null,lastRowid:int|null,rowCount:int,rowidResidualColumns:list<string>,sourceKind:string,root:mixed}
+     */
+    private static function sourceRowidSummary94(array $plan): array
+    {
+        $rowids = self::rowidsFromRows94($plan['rows']);
+
+        return [
+            'rowids' => $rowids,
+            'firstRowid' => $rowids[0] ?? null,
+            'lastRowid' => $rowids === [] ? null : $rowids[count($rowids) - 1],
+            'rowCount' => count($rowids),
+            'rowidResidualColumns' => array_column(self::hiddenRowidResidualConstraints94($plan['constraintUsage']), 'column'),
+            'sourceKind' => (string) $plan['jsonInputKind'],
+            'root' => $plan['rootValue'],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,currentRowid:int|null,nextRowid:int|null,changed:bool,reason:string}>
+     */
+    private static function sourceRowTransitions94(array $currentRows, array $nextRows): array
+    {
+        $count = max(count($currentRows), count($nextRows));
+        $transitions = [];
+        for ($index = 0; $index < $count; $index++) {
+            $current = $currentRows[$index] ?? null;
+            $next = $nextRows[$index] ?? null;
+            $currentRowid = $current === null ? null : (int) $current['id'];
+            $nextRowid = $next === null ? null : (int) $next['id'];
+            $reason = self::sourceRowTransitionReason94($current, $next);
+            $transitions[] = [
+                'index' => $index,
+                'current' => $current,
+                'next' => $next,
+                'currentRowid' => $currentRowid,
+                'nextRowid' => $nextRowid,
+                'changed' => $reason !== 'stable-hidden-rowid-source-row',
+                'reason' => $reason,
+            ];
+        }
+
+        return $transitions;
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     */
+    private static function sourceRowTransitionReason94(?array $current, ?array $next): string
+    {
+        if ($current === null) {
+            return 'next-hidden-rowid-source-row-added';
+        }
+        if ($next === null) {
+            return 'current-hidden-rowid-source-row-removed';
+        }
+        if (($current['id'] ?? null) !== ($next['id'] ?? null)) {
+            return 'hidden-rowid-source-rowid-changed';
+        }
+        if (($current['fullkey'] ?? null) !== ($next['fullkey'] ?? null)) {
+            return 'hidden-rowid-source-fullkey-changed';
+        }
+        if (($current['atom'] ?? null) !== ($next['atom'] ?? null) || ($current['type'] ?? null) !== ($next['type'] ?? null)) {
+            return 'hidden-rowid-source-payload-changed';
+        }
+
+        return 'stable-hidden-rowid-source-row';
     }
 
     private static function isRowIdAlias(string $column): bool

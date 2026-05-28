@@ -3098,8 +3098,9 @@ final class SQLiteSelectSql
                 if ($argumentSql === '' || $orderSql === '') {
                     throw new \InvalidArgumentException('SQLite SELECT SQL aggregate ORDER BY needs value and order expression');
                 }
-                [$orderExpression, $orderDirection] = self::aggregateOrderTerm($orderSql, $tables);
-                $orderBy = $orderExpression;
+                $orderTerms = self::aggregateOrderTerms($orderSql, $tables);
+                $orderBy = $orderTerms[0]['expression'];
+                $orderDirection = $orderTerms[0]['direction'];
             }
 
             if ($argumentSql === '*') {
@@ -3115,6 +3116,7 @@ final class SQLiteSelectSql
             if ($orderBy !== null) {
                 $function['orderBy'] = $orderBy;
                 $function['orderDirection'] = $orderDirection;
+                $function['orderByTerms'] = $orderTerms;
             }
             if ($filter !== null) {
                 $function['filter'] = $filter;
@@ -3879,11 +3881,13 @@ final class SQLiteSelectSql
             if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) !== 'column') || !isset($arguments[0]['name']) || !is_string($arguments[0]['name'])) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs one column argument");
             }
-            if (isset($term['orderBy']) && ((!is_array($term['orderBy'])) || (($term['orderBy']['type'] ?? null) !== 'column') || !isset($term['orderBy']['name']) || !is_string($term['orderBy']['name']))) {
-                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY needs one column expression");
-            }
-            if (isset($term['orderDirection']) && !in_array(strtoupper((string) $term['orderDirection']), ['ASC', 'DESC'], true)) {
-                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY direction must be ASC or DESC");
+            foreach (self::jsonAggregateOrderTerms($term, $name) as $orderTerm) {
+                if (($orderTerm['expression']['type'] ?? null) !== 'column' || !isset($orderTerm['expression']['name']) || !is_string($orderTerm['expression']['name'])) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY needs column expressions");
+                }
+                if (!in_array($orderTerm['direction'], ['ASC', 'DESC'], true)) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY direction must be ASC or DESC");
+                }
             }
 
             return [
@@ -3949,6 +3953,13 @@ final class SQLiteSelectSql
             if (isset($term['orderBy'])) {
                 $spec['orderBy'] = $term['orderBy']['name'];
                 $spec['orderDirection'] = strtoupper((string) ($term['orderDirection'] ?? 'ASC'));
+                $spec['orderByTerms'] = array_map(
+                    static fn (array $orderTerm): array => [
+                        'column' => $orderTerm['expression']['name'],
+                        'direction' => $orderTerm['direction'],
+                    ],
+                    self::jsonAggregateOrderTerms($term, strtolower($term['name'])),
+                );
             }
             if (($term['distinct'] ?? false) === true) {
                 $spec['distinct'] = true;
@@ -3964,6 +3975,43 @@ final class SQLiteSelectSql
 
     /**
      * @param array<string,mixed> $term
+     * @return list<array{expression:array<string,mixed>,direction:string}>
+     */
+    private static function jsonAggregateOrderTerms(array $term, string $name): array
+    {
+        if (isset($term['orderByTerms'])) {
+            if (!is_array($term['orderByTerms']) || !array_is_list($term['orderByTerms']) || $term['orderByTerms'] === []) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY terms are malformed");
+            }
+            $terms = [];
+            foreach ($term['orderByTerms'] as $orderTerm) {
+                if (!is_array($orderTerm) || !isset($orderTerm['expression']) || !is_array($orderTerm['expression'])) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY term is malformed");
+                }
+                $terms[] = [
+                    'expression' => $orderTerm['expression'],
+                    'direction' => strtoupper((string) ($orderTerm['direction'] ?? 'ASC')),
+                ];
+            }
+
+            return $terms;
+        }
+
+        if (!isset($term['orderBy'])) {
+            return [];
+        }
+        if (!is_array($term['orderBy'])) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY term is malformed");
+        }
+
+        return [[
+            'expression' => $term['orderBy'],
+            'direction' => strtoupper((string) ($term['orderDirection'] ?? 'ASC')),
+        ]];
+    }
+
+    /**
+     * @param array<string,mixed> $term
      */
     private static function jsonAggregateSummaryColumn(array $term): string
     {
@@ -3974,10 +4022,12 @@ final class SQLiteSelectSql
             $name .= 'Distinct';
         }
         if (isset($term['orderBy'])) {
-            $name .= 'OrderBy' . str_replace(['.', '-'], '_', $term['orderBy']['name']);
-            if (strtoupper((string) ($term['orderDirection'] ?? 'ASC')) === 'DESC') {
-                $name .= 'Desc';
+            $orderParts = [];
+            foreach (self::jsonAggregateOrderTerms($term, strtolower((string) $term['name'])) as $orderTerm) {
+                $orderParts[] = str_replace(['.', '-'], '_', $orderTerm['expression']['name'])
+                    . ($orderTerm['direction'] === 'DESC' ? 'Desc' : 'Asc');
             }
+            $name .= 'OrderBy' . implode('_', $orderParts);
         }
         if (isset($term['filter'])) {
             $name .= 'Filter';

@@ -153,6 +153,22 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
     }
 
     /**
+     * @param array<string,array{schema_cookie:int,wal_schema_cookie?:int|null,temp_schema_cookie?:int|null,wal_frames?:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables?:list<string>,next_tables?:list<string>|null,file?:string|null,temp?:bool}> $schemas
+     * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool}> $statements
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext94(array $schemas, array $statements, string $sourceSchema = 'main'): array
+    {
+        $plan = self::plan($schemas, $statements, $sourceSchema);
+        $plan['operation'] = 'attach-temp-wal-schema-cookie-current-source-next94';
+        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-current-source-next94';
+        $plan['dependencies'][] = 'sqlite-bracket-quoted-attach-schema-cookie-source';
+        $plan['dependencies'][] = 'sqlite-schema-table-alias-cookie-source';
+
+        return $plan;
+    }
+
+    /**
      * @param array<string,array<string,mixed>> $schemas
      * @return array<string,array{schema_cookie:int,wal_schema_cookie:int|null,temp_schema_cookie:int|null,wal_frames:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables:list<string>,next_tables:list<string>|null,file:string|null,temp:bool}>
      */
@@ -331,8 +347,8 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
 
         $tables = [];
         $patterns = [
-            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
-            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)/i',
         ];
         foreach ($patterns as $pattern) {
             if (!preg_match_all($pattern, $normalized, $matches)) {
@@ -400,12 +416,17 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
 
     private static function normalizeName(string $name, string $label): string
     {
-        $trimmed = trim($name, " \t\r\n`'\"");
+        $trimmed = trim($name, " \t\r\n`'\"[]");
         if ($trimmed === '') {
             throw new \InvalidArgumentException("{$label} cannot be empty");
         }
 
-        return strtolower($trimmed);
+        $lower = strtolower($trimmed);
+        if ($lower === 'sqlite_master') {
+            return 'sqlite_schema';
+        }
+
+        return $lower;
     }
 
     /**

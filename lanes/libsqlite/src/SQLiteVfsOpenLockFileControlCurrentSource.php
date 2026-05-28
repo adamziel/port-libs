@@ -41,8 +41,24 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function run(array $operations, array $options, bool $uriAware, string $dependency, bool $lockRequiredForWriteControl = false): array
+    public static function currentSourceNext94(array $operations, array $options = []): array
     {
+        return self::run($operations, $options, true, 'vfs-filecontrol-persistwal-lock-current-source-next94', true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(
+        array $operations,
+        array $options,
+        bool $uriAware,
+        string $dependency,
+        bool $lockRequiredForWriteControl = false,
+        bool $persistWalRequiresWriteLock = false
+    ): array {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
         }
@@ -82,7 +98,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 $control = self::controlName((string) $op['control']);
                 $value = self::controlValue($control, $op['value']);
                 $previous = $handle['controls'][$control] ?? null;
-                $requiresWrite = self::writeControl($control);
+                $requiresWrite = self::writeControl($control, $persistWalRequiresWriteLock);
                 $lockState = (string) $handle['lock_state'];
                 $reason = null;
                 $status = 'ok';
@@ -374,9 +390,10 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         return $level;
     }
 
-    private static function writeControl(string $control): bool
+    private static function writeControl(string $control, bool $persistWalRequiresWriteLock = false): bool
     {
-        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite'], true);
+        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite'], true)
+            || ($persistWalRequiresWriteLock && $control === 'persist_wal');
     }
 
     private static function writeLockHeld(string $lockState): bool

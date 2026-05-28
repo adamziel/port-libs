@@ -160,7 +160,8 @@ final class SQLitePragmaIntegritySourceCursor
         if (($cursor['source_id'] ?? null) !== $sourceId) {
             throw new InvalidArgumentException('SQLite PRAGMA integrity source cursor does not match the current database/schema source');
         }
-        if (array_key_exists('next_offset', $cursor) && $cursor['next_offset'] !== null && $cursor['next_offset'] !== $offset) {
+        $cursorOffset = $cursor['next_offset'] ?? $cursor['offset'] ?? null;
+        if ($cursorOffset !== null && $cursorOffset !== $offset) {
             throw new InvalidArgumentException('SQLite PRAGMA integrity source cursor offset does not match the requested page offset');
         }
     }
