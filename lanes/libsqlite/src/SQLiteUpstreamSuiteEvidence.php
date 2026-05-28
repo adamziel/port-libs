@@ -7412,6 +7412,132 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $denominatorRows
+     * @return array<string, mixed>
+     */
+    public function suiteDenominatorCurrentNext69(
+        array $denominatorRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $evidenceRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteDenominatorCurrentNext65(
+            $denominatorRows,
+            $currentMapped,
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $evidenceRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $units = [];
+        $freshRows = 0;
+        $commandRows = 0;
+        $artifactRows = 0;
+        $blockedRows = [];
+        $freshnessBlockers = [];
+
+        foreach ($denominatorRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'current-next69-' . count($units);
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            if (isset($units[$unit])) {
+                $blockedRows[] = $unit;
+                $freshnessBlockers[] = [
+                    'id' => 'duplicate-current-next69-unit',
+                    'unit' => $unit,
+                    'evidence' => 'current-next69 denominator rows must have unique unit IDs before countability movement is published',
+                ];
+            }
+            $units[$unit] = true;
+
+            $rowBlockers = [];
+            $sourceHead = is_string($row['source_head'] ?? null) ? $row['source_head'] : '';
+            if ($sourceHead !== $acceptedRepositoryHead) {
+                $rowBlockers[] = 'source-head-mismatch';
+            } else {
+                $freshRows++;
+            }
+
+            $command = is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            if ($command === '' || !str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl')) {
+                $rowBlockers[] = 'runner-command-missing';
+            } else {
+                $commandRows++;
+            }
+
+            $artifactStatus = is_string($row['artifact_status'] ?? null) ? $row['artifact_status'] : '';
+            if (!in_array($artifactStatus, ['focused-pass', 'current-head-admitted', 'preserved-current-head'], true)) {
+                $rowBlockers[] = 'artifact-status-not-countable';
+            } else {
+                $artifactRows++;
+            }
+
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+
+            if ($rowBlockers !== []) {
+                $blockedRows[] = $unit;
+                $freshnessBlockers[] = [
+                    'id' => 'current-next69-row-freshness-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', array_values(array_unique($rowBlockers))),
+                ];
+            }
+        }
+
+        $blockedRows = array_values(array_unique($blockedRows));
+        sort($blockedRows, SORT_STRING);
+
+        $baseBlockers = is_array($record['blockers'] ?? null) ? $record['blockers'] : [];
+        $blockers = array_merge($baseBlockers, $freshnessBlockers);
+        $blocked = $blockers !== [];
+        $baseStatus = is_string($record['status'] ?? null) ? $record['status'] : 'blocked';
+        $status = 'blocked';
+        if (!$blocked && $baseStatus === 'current-next65-denominator-countable') {
+            $status = 'current-next69-denominator-current-source-countable';
+        } elseif (!$blocked && $baseStatus === 'current-next65-denominator-preserved') {
+            $status = 'current-next69-denominator-current-source-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-next69-denominator-current-source-countable';
+        $record['current_next69_fresh_row_count'] = $freshRows;
+        $record['current_next69_command_row_count'] = $commandRows;
+        $record['current_next69_artifact_row_count'] = $artifactRows;
+        $record['current_next69_blocked_units'] = $blockedRows;
+        $record['current_next69_blocker_count'] = count($freshnessBlockers);
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $blocked ? 0 : (int) ($record['mapped_delta'] ?? 0);
+        $record['next_mapped'] = $blocked ? $currentMapped : (int) ($record['next_mapped'] ?? $currentMapped);
+        $record['countable_script_delta'] = $blocked ? 0 : (int) ($record['countable_script_delta'] ?? 0);
+        $record['php_pass_delta'] = $blocked ? 0 : (int) ($record['php_pass_delta'] ?? 0);
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : (int) ($record['next_php_pass'] ?? $currentPhpPass);
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-next69-denominator-current-source-countable'
+            ? 'publish current-next69 focused PASS-line movement only after source-head, runner-command, artifact-status, and duplicate-unit gates stay clean; release/all parity remains unclaimed'
+            : 'keep current-next69 denominator movement uncounted until current-source freshness, runner-command, artifact-status, duplicate-unit, active-runner, and focused PASS-line blockers are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-next69 denominator freshness reuses lane-local rows, accepted-source heads, guarded runner command strings, artifact status tags, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

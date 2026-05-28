@@ -201,6 +201,63 @@ final class SQLiteSelectRecursiveJsonMaterialization
     }
 
     /**
+     * @param array<string,mixed> $plan
+     * @param list<string> $keyColumns
+     * @param list<string> $jsonColumns
+     * @return list<array{iteration:int,currentKey:array<string,mixed>,nextKey:?array<string,mixed>,currentJson:list<array<string,mixed>>,nextJson:list<array<string,mixed>>,acceptedNextKeys:list<array<string,mixed>>,skippedDuplicateKeys:list<array<string,mixed>>,transition:string,emitted:bool,generatedCount:int,acceptedNextCount:int,queueAfterCount:int}>
+     */
+    public static function recursiveJsonYieldTape(array $plan, array $keyColumns, array $jsonColumns): array
+    {
+        if ($keyColumns === [] || $jsonColumns === []) {
+            throw new \InvalidArgumentException('SQLite recursive JSON yield tape needs key and JSON columns');
+        }
+
+        $pairs = $plan['recursiveCurrentNext'] ?? null;
+        if (!is_array($pairs)) {
+            throw new \InvalidArgumentException('SQLite recursive JSON yield tape needs recursive current-next pairs');
+        }
+
+        $tape = [];
+        foreach ($pairs as $pair) {
+            if (!is_array($pair) || !is_array($pair['current'] ?? null)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON yield tape pair is malformed');
+            }
+
+            $current = $pair['current'];
+            self::assertColumns($current, $keyColumns);
+            $next = $pair['next'] ?? null;
+            if ($next !== null) {
+                if (!is_array($next)) {
+                    throw new \InvalidArgumentException('SQLite recursive JSON yield tape next row is malformed');
+                }
+                self::assertColumns($next, $keyColumns);
+            }
+
+            $currentJson = self::projectJsonRows($pair['currentJsonRows'] ?? [], $jsonColumns);
+            $nextJson = self::projectJsonRows($pair['nextJsonRows'] ?? [], $jsonColumns);
+            $acceptedNext = self::projectRecursiveRows($pair['acceptedNext'] ?? [], $keyColumns);
+            $skipped = self::projectRecursiveRows($pair['skippedDuplicates'] ?? [], $keyColumns);
+
+            $tape[] = [
+                'iteration' => (int) ($pair['iteration'] ?? count($tape)),
+                'currentKey' => self::projectColumns($current, $keyColumns),
+                'nextKey' => $next === null ? null : self::projectColumns($next, $keyColumns),
+                'currentJson' => $currentJson,
+                'nextJson' => $nextJson,
+                'acceptedNextKeys' => $acceptedNext,
+                'skippedDuplicateKeys' => $skipped,
+                'transition' => self::yieldTransition($currentJson, $nextJson, $acceptedNext, $skipped),
+                'emitted' => (bool) ($pair['emitted'] ?? false),
+                'generatedCount' => (int) ($pair['generatedCount'] ?? 0),
+                'acceptedNextCount' => (int) ($pair['acceptedNextCount'] ?? 0),
+                'queueAfterCount' => (int) ($pair['queueAfterCount'] ?? 0),
+            ];
+        }
+
+        return $tape;
+    }
+
+    /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>}
      */
@@ -372,6 +429,76 @@ final class SQLiteSelectRecursiveJsonMaterialization
         }
 
         return $projected;
+    }
+
+    /**
+     * @param mixed $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function projectJsonRows(mixed $rows, array $columns): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $projected = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            self::assertColumns($row, $columns);
+            $projected[] = self::projectColumns($row, $columns);
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param mixed $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function projectRecursiveRows(mixed $rows, array $columns): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $projected = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            self::assertColumns($row, $columns);
+            $projected[] = self::projectColumns($row, $columns);
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentJson
+     * @param list<array<string,mixed>> $nextJson
+     * @param list<array<string,mixed>> $acceptedNext
+     * @param list<array<string,mixed>> $skipped
+     */
+    private static function yieldTransition(array $currentJson, array $nextJson, array $acceptedNext, array $skipped): string
+    {
+        if ($nextJson === []) {
+            return $skipped === [] ? 'terminal' : 'terminal-with-duplicate-skip';
+        }
+        if ($currentJson === []) {
+            return 'trace-only';
+        }
+        if ($acceptedNext === [] && $skipped !== []) {
+            return 'duplicate-skip';
+        }
+        if ($acceptedNext !== [] && $skipped !== []) {
+            return 'yield-and-skip';
+        }
+
+        return 'yield';
     }
 
     /**

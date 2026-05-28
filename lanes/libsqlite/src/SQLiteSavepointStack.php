@@ -446,6 +446,103 @@ final class SQLiteSavepointStack
         ];
     }
 
+    /**
+     * @return array{savepoint:string,next_savepoint:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int|null,next_page_number:int|null,next_commit_frame:bool,discarded_statement_journals:list<string>,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,names_after_rollback:list<string>,names_after_next:list<string>,current_depth_after:int,next_depth_after:int,current_savepoint_active_after:bool,next_savepoint_active_after:bool,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,next_frame_wal_start:int|null,dependencies:list<string>}
+     */
+    public function rollbackToCurrentAndOpenNextSavepoint69(
+        string $name,
+        string $nextName,
+        ?int $nextPageNumber = null,
+        ?string $beforeImage = null,
+        ?int $pageSize = null,
+        bool $commitFrame = false,
+    ): array {
+        if ($nextName === '') {
+            throw new \InvalidArgumentException('SQLite next savepoint name must not be empty');
+        }
+        if ($nextPageNumber !== null && $nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+        if ($beforeImage !== null && $beforeImage === '') {
+            throw new \InvalidArgumentException('SQLite savepoint page images must not be empty');
+        }
+        if ($beforeImage !== null && $nextPageNumber === null) {
+            throw new \InvalidArgumentException('SQLite savepoint page image requires a page number');
+        }
+        if ($pageSize !== null && $pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if ($beforeImage !== null && $pageSize !== null && strlen($beforeImage) !== $pageSize) {
+            throw new \InvalidArgumentException("SQLite savepoint image for page {$nextPageNumber} does not match the page size");
+        }
+        if ($commitFrame && $nextPageNumber === null) {
+            throw new \InvalidArgumentException('SQLite WAL commit marker requires a next page number');
+        }
+
+        $index = $this->findFrame($name);
+        $walPlan = $this->walRollbackToPlan($name);
+        $rollbackToFrame = $walPlan['rollback_to_frame'];
+        $retainedFrameNames = array_map(
+            static fn (array $frame): string => $frame['name'],
+            array_slice($this->frames, 0, $index + 1)
+        );
+        $discardedStatementJournals = [];
+        foreach ($this->statementJournals as $journal) {
+            if ($journal['frame_index'] >= $index) {
+                $discardedStatementJournals[] = $journal['name'];
+            }
+        }
+        sort($discardedStatementJournals, SORT_STRING);
+
+        $this->rollbackTo($name);
+        $namesAfterRollback = $this->names();
+        $currentDepthAfter = $this->depth();
+        $this->savepoint($nextName);
+
+        $nextFrameIndex = null;
+        if ($nextPageNumber !== null) {
+            if ($beforeImage !== null) {
+                $this->recordPageImageWrite($nextPageNumber, $beforeImage);
+            } else {
+                $this->recordPageWrite($nextPageNumber);
+            }
+
+            $nextFrameIndex = $rollbackToFrame + 1;
+            $this->recordWalFrameWrite($nextFrameIndex, $nextPageNumber, $commitFrame);
+        }
+
+        $walState = $this->walFrameState();
+        $nextFrameState = $walState[array_key_last($walState)] ?? null;
+
+        return [
+            'savepoint' => $name,
+            'next_savepoint' => $nextName,
+            'found_index' => $index,
+            'rollback_to_frame' => $rollbackToFrame,
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'discarded_statement_journals' => $discardedStatementJournals,
+            'discarded_wal_frames' => $walPlan['discarded_wal_frames'],
+            'discarded_page_numbers' => $walPlan['discarded_page_numbers'],
+            'retained_frame_names' => $retainedFrameNames,
+            'names_after_rollback' => $namesAfterRollback,
+            'names_after_next' => $this->names(),
+            'current_depth_after' => $currentDepthAfter,
+            'next_depth_after' => $this->depth(),
+            'current_savepoint_active_after' => $this->hasOpenFrame($name),
+            'next_savepoint_active_after' => $this->hasOpenFrame($nextName),
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'next_frame_wal_start' => $nextFrameState['wal_start_frame'] ?? null,
+            'dependencies' => [
+                'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                'sqlite-pager-savepoint-current-next69',
+                'sqlite-next-savepoint-after-rollback-to-current',
+            ],
+        ];
+    }
+
     public function release(string $name): void
     {
         $index = $this->findFrame($name);
