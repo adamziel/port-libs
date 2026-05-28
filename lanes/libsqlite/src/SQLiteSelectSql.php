@@ -1230,14 +1230,33 @@ final class SQLiteSelectSql
 
     private static function compareRecursiveQueueValues(mixed $left, mixed $right): int
     {
-        if ($left === null || $right === null) {
-            return $left === $right ? 0 : ($left === null ? -1 : 1);
+        $leftRank = self::recursiveQueueSortRank($left);
+        $rightRank = self::recursiveQueueSortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
         }
-        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+        if ($left === null || $right === null) {
+            return 0;
+        }
+        if ((is_int($left) || is_float($left) || is_bool($left)) && (is_int($right) || is_float($right) || is_bool($right))) {
             return $left <=> $right;
+        }
+        if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
+            return strcmp($left->bytes, $right->bytes);
         }
 
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function recursiveQueueSortRank(mixed $value): int
+    {
+        return match (true) {
+            $value === null => 0,
+            is_int($value) || is_float($value) || is_bool($value) => 1,
+            is_string($value) => 2,
+            $value instanceof SQLiteBlobValue => 3,
+            default => throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE ORDER BY values must be scalar, BLOB, or NULL'),
+        };
     }
 
     /**

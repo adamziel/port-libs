@@ -1856,6 +1856,60 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceHiddenPathRowidNext140(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourcePathHiddenRowidCostNext126(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile140(
+            $plan['current'],
+            $plan['currentPathHiddenRowidCost'],
+        );
+        $nextProfile = self::jsonTableHiddenPathRowidCurrentSourceProfile140(
+            $plan['next'],
+            $plan['nextPathHiddenRowidCost'],
+        );
+        $transitions = self::jsonTableHiddenPathRowidCurrentSourceTransitions140($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathRowidCurrentSourceReplanReasons140($transitions);
+
+        $plan['currentHiddenPathRowidSource'] = $currentProfile;
+        $plan['nextHiddenPathRowidSource'] = $nextProfile;
+        $plan['hiddenPathRowidSourceTransitions'] = $transitions;
+        $plan['next140ReplanReasons'] = array_values(array_unique(array_merge($plan['next126ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next140ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-path-rowid-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next140ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-path-rowid-source'
+            : 'prepare-next-json-table-hidden-path-rowid-source';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-path-rowid-current-source-next140'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceHiddenPathOrderByNext128(
         string $function,
         array $currentSource,
@@ -6954,6 +7008,204 @@ final class SQLiteJsonTablePlan
                 'rowids' => 'json-table-path-rowid-rowset-changed',
                 'pathRowidTape' => 'json-table-path-rowid-tape-changed',
                 default => 'json-table-path-rowid-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $pathRowid
+     * @return array{seekSignature:string|null,pathValue:mixed,rowidValue:mixed,pointSeekable:bool,matched:bool,missingRowid:bool,sourceKind:string,rowCount:int,matchedRowid:int|null,matchedPath:string|null,matchedFullkey:string|null,matchedKey:mixed,matchedType:string|null,matchedAtom:mixed,matchedValue:mixed,matchedValueFingerprint:string|null,seekTape:list<array{path:string|null,rowid:int|null,fullkey:string|null,type:string|null,key:mixed,matched:bool}>,effectiveEstimatedCost:int,costClass:string}
+     */
+    private static function jsonTableHiddenPathRowidCurrentSourceProfile140(array $plan, array $pathRowid): array
+    {
+        $pathConstraint = self::pointConstraintValue140($plan['used'] ?? [], 'path');
+        $rowidConstraint = self::pointConstraintValue140($plan['used'] ?? [], 'id');
+        $pointSeekable = $pathConstraint['usable'] && $rowidConstraint['usable'];
+        $rowidValue = $rowidConstraint['value'];
+        $pathValue = $pathConstraint['value'];
+        $seekTape = [];
+        $matchedRow = null;
+
+        foreach ($plan['rows'] ?? [] as $row) {
+            $rowPath = isset($row['path']) && is_string($row['path']) ? $row['path'] : null;
+            $rowid = isset($row['id']) ? (int) $row['id'] : null;
+            $matched = $pointSeekable && $rowPath === $pathValue && $rowid === $rowidValue;
+            if ($matched && $matchedRow === null) {
+                $matchedRow = $row;
+            }
+            $seekTape[] = [
+                'path' => $rowPath,
+                'rowid' => $rowid,
+                'fullkey' => isset($row['fullkey']) && is_string($row['fullkey']) ? $row['fullkey'] : null,
+                'type' => isset($row['type']) && is_string($row['type']) ? $row['type'] : null,
+                'key' => $row['key'] ?? null,
+                'matched' => $matched,
+            ];
+        }
+
+        $matched = $matchedRow !== null;
+        $effectiveCost = $pointSeekable
+            ? ($matched ? max(1, min(2, (int) ($pathRowid['effectiveEstimatedCost'] ?? 1000000))) : 3)
+            : (int) ($pathRowid['effectiveEstimatedCost'] ?? 1000000);
+
+        return [
+            'seekSignature' => $pointSeekable ? (string) ($pathRowid['compositeSignature'] ?? null) : null,
+            'pathValue' => $pathValue,
+            'rowidValue' => $rowidValue,
+            'pointSeekable' => $pointSeekable,
+            'matched' => $matched,
+            'missingRowid' => $pointSeekable && !$matched,
+            'sourceKind' => (string) ($plan['jsonInputKind'] ?? 'missing'),
+            'rowCount' => count($seekTape),
+            'matchedRowid' => $matchedRow !== null && isset($matchedRow['id']) ? (int) $matchedRow['id'] : null,
+            'matchedPath' => $matchedRow !== null && isset($matchedRow['path']) && is_string($matchedRow['path']) ? $matchedRow['path'] : null,
+            'matchedFullkey' => $matchedRow !== null && isset($matchedRow['fullkey']) && is_string($matchedRow['fullkey']) ? $matchedRow['fullkey'] : null,
+            'matchedKey' => $matchedRow['key'] ?? null,
+            'matchedType' => $matchedRow !== null && isset($matchedRow['type']) && is_string($matchedRow['type']) ? $matchedRow['type'] : null,
+            'matchedAtom' => $matchedRow['atom'] ?? null,
+            'matchedValue' => $matchedRow['value'] ?? null,
+            'matchedValueFingerprint' => $matchedRow === null ? null : self::jsonTableStableValueToken140($matchedRow['value'] ?? null),
+            'seekTape' => $seekTape,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableHiddenPathRowidCurrentSourceCostClass140(
+                (bool) ($plan['runnable'] ?? false),
+                $pointSeekable,
+                $matched,
+                (string) ($pathRowid['scanStrategy'] ?? 'full-json-table-scan'),
+            ),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $constraints
+     * @return array{usable:bool,value:mixed}
+     */
+    private static function pointConstraintValue140(array $constraints, string $column): array
+    {
+        foreach ($constraints as $constraint) {
+            if (($constraint['column'] ?? null) !== $column) {
+                continue;
+            }
+            if (($constraint['usable'] ?? true) !== true || strtoupper((string) ($constraint['operator'] ?? '')) !== '=') {
+                return ['usable' => false, 'value' => $constraint['value'] ?? null];
+            }
+
+            return [
+                'usable' => true,
+                'value' => $column === 'id' ? self::rowidConstraintIntValue133($constraint['value'] ?? null) : ($constraint['value'] ?? null),
+            ];
+        }
+
+        return ['usable' => false, 'value' => null];
+    }
+
+    private static function jsonTableStableValueToken140(mixed $value): string
+    {
+        if (is_scalar($value) || $value === null) {
+            return get_debug_type($value) . ':' . json_encode($value, JSON_THROW_ON_ERROR);
+        }
+
+        return get_debug_type($value) . ':' . json_encode($value, JSON_THROW_ON_ERROR);
+    }
+
+    private static function jsonTableHiddenPathRowidCurrentSourceCostClass140(
+        bool $runnable,
+        bool $pointSeekable,
+        bool $matched,
+        string $scanStrategy,
+    ): string {
+        if (!$runnable || $scanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($pointSeekable && $matched) {
+            return 'json-table-hidden-path-rowid-current-source-point';
+        }
+        if ($pointSeekable) {
+            return 'json-table-hidden-path-rowid-current-source-miss';
+        }
+        if ($scanStrategy === 'path-rowid-intersection') {
+            return 'json-table-hidden-path-rowid-current-source-intersection';
+        }
+
+        return 'json-table-hidden-path-rowid-current-source-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenPathRowidCurrentSourceTransitions140(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'seekSignature',
+                'current' => $current['seekSignature'],
+                'next' => $next['seekSignature'],
+                'changed' => $current['seekSignature'] !== $next['seekSignature'],
+            ],
+            [
+                'field' => 'sourceKind',
+                'current' => $current['sourceKind'],
+                'next' => $next['sourceKind'],
+                'changed' => $current['sourceKind'] !== $next['sourceKind'],
+            ],
+            [
+                'field' => 'matched',
+                'current' => $current['matched'],
+                'next' => $next['matched'],
+                'changed' => $current['matched'] !== $next['matched'],
+            ],
+            [
+                'field' => 'matchedFullkey',
+                'current' => $current['matchedFullkey'],
+                'next' => $next['matchedFullkey'],
+                'changed' => $current['matchedFullkey'] !== $next['matchedFullkey'],
+            ],
+            [
+                'field' => 'matchedValueFingerprint',
+                'current' => $current['matchedValueFingerprint'],
+                'next' => $next['matchedValueFingerprint'],
+                'changed' => $current['matchedValueFingerprint'] !== $next['matchedValueFingerprint'],
+            ],
+            [
+                'field' => 'seekTape',
+                'current' => $current['seekTape'],
+                'next' => $next['seekTape'],
+                'changed' => $current['seekTape'] !== $next['seekTape'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenPathRowidCurrentSourceReplanReasons140(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'seekSignature' => 'json-table-hidden-path-rowid-seek-signature-changed',
+                'sourceKind' => 'json-table-hidden-path-rowid-source-kind-changed',
+                'matched', 'matchedFullkey' => 'json-table-hidden-path-rowid-current-source-match-changed',
+                'matchedValueFingerprint' => 'json-table-hidden-path-rowid-current-source-value-changed',
+                'seekTape' => 'json-table-hidden-path-rowid-current-source-tape-changed',
+                'costClass' => 'json-table-hidden-path-rowid-current-source-cost-changed',
+                default => 'json-table-hidden-path-rowid-current-source-state-changed',
             };
         }
 

@@ -17,6 +17,7 @@ final class SQLiteTriggerReturningUpsertViewCurrentNextPlan
      * @param array{parent_key:string,child_key:string,deferred?:bool} $foreignKey
      * @param list<array<string,mixed>> $triggers
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string):mixed>|null $returning
+     * @param list<list<string>>|null $uniqueConstraints
      * @return array{savepoint:string,view:string,trigger:string,targetType:string,parent:list<array<string,mixed>>,child:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,changes:int,statement_rows:int,rolled_back:bool,rollback_reason:?string,rolled_back_at_ordinal:?int,dependencies:list<string>}
      */
     public static function execute(
@@ -33,6 +34,7 @@ final class SQLiteTriggerReturningUpsertViewCurrentNextPlan
         ?callable $where = null,
         ?array $returning = null,
         string $savepoint = 'current',
+        ?array $uniqueConstraints = null,
     ): array {
         if (trim($savepoint) === '') {
             throw new \InvalidArgumentException('SQLite trigger RETURNING view current/next savepoint name must not be empty');
@@ -43,6 +45,7 @@ final class SQLiteTriggerReturningUpsertViewCurrentNextPlan
             throw new \InvalidArgumentException('SQLite trigger RETURNING view current/next requires a resolved INSTEAD OF trigger on a view');
         }
         self::validateMapping($viewToTable, $resolution['columns']);
+        self::validateUniqueConstraints($uniqueConstraints);
 
         $startParent = array_values($parentRows);
         $startChild = array_values($childRows);
@@ -69,6 +72,7 @@ final class SQLiteTriggerReturningUpsertViewCurrentNextPlan
                     $triggers,
                     $where,
                     $returning,
+                    $uniqueConstraints,
                 );
             } catch (\Throwable $throwable) {
                 return [
@@ -168,6 +172,27 @@ final class SQLiteTriggerReturningUpsertViewCurrentNextPlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<list<string>>|null $uniqueConstraints
+     */
+    private static function validateUniqueConstraints(?array $uniqueConstraints): void
+    {
+        if ($uniqueConstraints === null) {
+            return;
+        }
+        if ($uniqueConstraints === [] || !array_is_list($uniqueConstraints)) {
+            throw new \InvalidArgumentException('SQLite trigger RETURNING view current/next unique constraints must be a non-empty list');
+        }
+        foreach ($uniqueConstraints as $columns) {
+            if ($columns === [] || !array_is_list($columns)) {
+                throw new \InvalidArgumentException('SQLite trigger RETURNING view current/next unique constraint must be a non-empty column list');
+            }
+            foreach ($columns as $column) {
+                self::identifier((string) $column, 'unique constraint column');
+            }
+        }
     }
 
     /**
