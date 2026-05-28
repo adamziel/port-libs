@@ -181,6 +181,7 @@ final class SQLiteSchemaDdlReparsePlan
                 throw new InvalidArgumentException("SQLite schema DDL reparse cannot create trigger {$name} on missing table or view {$table}");
             }
 
+            $metadata = self::triggerReparseMetadata($records, $trimmed, $table);
             $record = new SQLiteSchemaRecord('trigger', $name, $table, 0, self::normalizeCreateSql($trimmed), $nextRowId++);
             $records[] = $record;
 
@@ -190,6 +191,15 @@ final class SQLiteSchemaDdlReparsePlan
                 'table' => $table,
                 'rootpage' => 0,
                 'rowid' => $record->rowId,
+                'body_source_tables' => $metadata['body_source_tables'],
+                'body_source_views' => $metadata['body_source_views'],
+                'body_indexed_by' => $metadata['body_indexed_by'],
+                'generated_column_references' => $metadata['generated_column_references'],
+                'generated_column_reference_count' => count($metadata['generated_column_references']),
+                'generated_index_references' => $metadata['generated_index_references'],
+                'generated_index_reference_count' => count($metadata['generated_index_references']),
+                'view_references' => $metadata['view_references'],
+                'current_source_reparse' => $metadata['current_source_reparse'],
                 'changed' => true,
             ];
         }
@@ -750,6 +760,88 @@ final class SQLiteSchemaDdlReparsePlan
     private static function viewUsesStarProjection(string $sql): bool
     {
         return preg_match('/\bas\s+select\s+(?:distinct\s+)?(?:\*|(?:[^;]*?,\s*)?[A-Za-z_][A-Za-z0-9_]*\.\*)(?=\s|,|$)/i', $sql) === 1;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return array{body_source_tables:list<string>, body_source_views:list<string>, body_indexed_by:list<string>, generated_column_references:list<string>, generated_index_references:list<string>, view_references:list<string>, current_source_reparse:bool}
+     */
+    private static function triggerReparseMetadata(array $records, string $createTriggerSql, string $targetTable): array
+    {
+        $sources = self::triggerBodySources($createTriggerSql);
+        $tables = [];
+        $views = [];
+        $viewReferences = [];
+        $generatedColumnReferences = [];
+        $generatedIndexReferences = [];
+
+        foreach ($sources as $source) {
+            $table = self::findRecord($records, 'table', $source);
+            if ($table !== null) {
+                $tables[] = $source;
+                foreach (self::generatedColumnNames($records, $source) as $column) {
+                    if (self::sqlReferencesIdentifier($createTriggerSql, $column) && !in_array($column, $generatedColumnReferences, true)) {
+                        $generatedColumnReferences[] = $column;
+                    }
+                }
+                continue;
+            }
+
+            $view = self::findRecord($records, 'view', $source);
+            if ($view !== null) {
+                $views[] = $source;
+                $viewReferences[] = 'view:' . $source;
+            }
+        }
+
+        foreach (self::generatedColumnNames($records, $targetTable) as $column) {
+            if (self::sqlReferencesIdentifier($createTriggerSql, $column) && !in_array($column, $generatedColumnReferences, true)) {
+                $generatedColumnReferences[] = $column;
+            }
+        }
+
+        $indexedBy = self::viewIndexedByNames($createTriggerSql);
+        foreach ($indexedBy as $indexName) {
+            $index = self::findRecord($records, 'index', $indexName);
+            if ($index === null || $index->sql === null) {
+                continue;
+            }
+
+            $terms = self::indexTerms($index->sql);
+            if (self::generatedColumnReferences($records, $index->tableName, $terms) !== [] && !in_array($indexName, $generatedIndexReferences, true)) {
+                $generatedIndexReferences[] = $indexName;
+            }
+        }
+
+        return [
+            'body_source_tables' => $tables,
+            'body_source_views' => $views,
+            'body_indexed_by' => $indexedBy,
+            'generated_column_references' => $generatedColumnReferences,
+            'generated_index_references' => $generatedIndexReferences,
+            'view_references' => $viewReferences,
+            'current_source_reparse' => $generatedColumnReferences !== [] || $generatedIndexReferences !== [] || $viewReferences !== [],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function triggerBodySources(string $sql): array
+    {
+        $begin = stripos($sql, ' begin ');
+        $body = $begin === false ? $sql : substr($sql, $begin);
+        $sources = [];
+        if (preg_match_all('/\b(?:from|join|into|update)\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?!\s*\(\s*select\b)/i', $body, $matches) !== false) {
+            foreach ($matches['table'] as $table) {
+                $name = self::unquoteIdentifier($table);
+                if (!in_array($name, $sources, true)) {
+                    $sources[] = $name;
+                }
+            }
+        }
+
+        return $sources;
     }
 
     /**

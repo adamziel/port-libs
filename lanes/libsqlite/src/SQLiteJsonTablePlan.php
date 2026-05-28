@@ -1448,6 +1448,113 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedHiddenCostNext136(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        if ($generatedConstraints === []) {
+            throw new \InvalidArgumentException('SQLite JSON table generated hidden cost planner requires generated constraints');
+        }
+
+        $plan = self::currentSourceNestedHiddenCostNext129(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedHiddenCostProfile136($plan['currentNestedHiddenCost'], $plan['current'], $generatedConstraints);
+        $nextProfile = self::jsonTableGeneratedHiddenCostProfile136($plan['nextNestedHiddenCost'], $plan['next'], $generatedConstraints);
+        $transitions = self::jsonTableGeneratedHiddenCostTransitions136($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenCostReplanReasons136($transitions);
+
+        $plan['currentGeneratedHiddenCost'] = $currentProfile;
+        $plan['nextGeneratedHiddenCost'] = $nextProfile;
+        $plan['generatedHiddenCostTransitions'] = $transitions;
+        $plan['next136ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next129ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next136ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-hidden-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next136ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-hidden-cost-plan'
+            : 'prepare-next-json-table-generated-hidden-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-hidden-cost-current-source-next136'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenRowidOrderNext135(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceHiddenRowidPlannerNext94(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableHiddenRowidOrderProfile135($plan['current'], $orderBy);
+        $nextProfile = self::jsonTableHiddenRowidOrderProfile135($plan['next'], $orderBy);
+        $transitions = self::jsonTableHiddenRowidOrderTransitions135($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenRowidOrderReplanReasons135($transitions);
+
+        $plan['currentHiddenRowidOrder'] = $currentProfile;
+        $plan['nextHiddenRowidOrder'] = $nextProfile;
+        $plan['hiddenRowidOrderTransitions'] = $transitions;
+        $plan['next135ReplanReasons'] = array_values(array_unique(array_merge($plan['next94ReplanReasons'], $reasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-order-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next135ReplanReasons'] === []
+            || $plan['next135ReplanReasons'] === ['hidden-rowid-residual-constraint-present']
+            ? 'reuse-current-json-table-hidden-rowid-order-source'
+            : 'prepare-next-json-table-hidden-rowid-order-source';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-rowid-order-current-source-next135'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
      */
@@ -3842,6 +3949,271 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $nestedHidden
+     * @param array<string,mixed> $plan
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array{root:string,baseRoot:string,nestedPath:string,mode:string,generatedConstraints:list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>,generatedConstraintSignatures:list<string>,hiddenEstimatedCost:int,generatedEstimatedCost:int,effectiveEstimatedCost:int,rowCount:int,matchedRowCount:int,filteredRowids:list<int|null>,filteredFullkeys:list<mixed>,generatedValueTape:list<array{rowid:int|null,fullkey:mixed,values:array<string,mixed>,matched:bool}>,firstFilteredRowid:int|null,lastFilteredRowid:int|null,costClass:string,scanStrategy:string}
+     */
+    private static function jsonTableGeneratedHiddenCostProfile136(array $nestedHidden, array $plan, array $generatedConstraints): array
+    {
+        $constraints = self::normalizeGeneratedHiddenConstraints136($generatedConstraints);
+        $rows = $plan['rows'];
+        $tape = [];
+        $filteredRowids = [];
+        $filteredFullkeys = [];
+        foreach ($rows as $row) {
+            $values = [];
+            foreach ($constraints as $constraint) {
+                $values[$constraint['name']] = self::generatedOrderValue132($row, $constraint);
+            }
+
+            $matched = self::generatedHiddenValuesMatch136($values, $constraints);
+            $rowid = isset($row['id']) ? (int) $row['id'] : null;
+            $fullkey = $row['fullkey'] ?? null;
+            if ($matched) {
+                $filteredRowids[] = $rowid;
+                $filteredFullkeys[] = $fullkey;
+            }
+
+            $tape[] = [
+                'rowid' => $rowid,
+                'fullkey' => $fullkey,
+                'values' => $values,
+                'matched' => $matched,
+            ];
+        }
+
+        $hiddenCost = (int) $nestedHidden['hiddenEstimatedCost'];
+        $rowCount = count($rows);
+        $matchedCount = count($filteredRowids);
+        if (!(bool) $plan['runnable']) {
+            $generatedCost = 1000000;
+            $effectiveCost = 1000000;
+        } elseif ($matchedCount === 0) {
+            $generatedCost = 1;
+            $effectiveCost = 1;
+        } else {
+            $selectivity = max(1, $rowCount === 0 ? 1 : (int) ceil($rowCount / $matchedCount));
+            $generatedCost = max(1, intdiv($hiddenCost + $selectivity - 1, $selectivity));
+            $effectiveCost = min($hiddenCost, $generatedCost + count($constraints));
+        }
+
+        return [
+            'root' => (string) $nestedHidden['root'],
+            'baseRoot' => (string) $nestedHidden['baseRoot'],
+            'nestedPath' => (string) $nestedHidden['nestedPath'],
+            'mode' => (string) $nestedHidden['mode'],
+            'generatedConstraints' => $constraints,
+            'generatedConstraintSignatures' => array_map(
+                static fn (array $constraint): string => $constraint['name'] . ':' . $constraint['source'] . ':' . $constraint['path'] . ':' . $constraint['operator'] . ':' . json_encode($constraint['value']),
+                $constraints,
+            ),
+            'hiddenEstimatedCost' => $hiddenCost,
+            'generatedEstimatedCost' => $generatedCost,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'rowCount' => $rowCount,
+            'matchedRowCount' => $matchedCount,
+            'filteredRowids' => $filteredRowids,
+            'filteredFullkeys' => $filteredFullkeys,
+            'generatedValueTape' => $tape,
+            'firstFilteredRowid' => $filteredRowids[0] ?? null,
+            'lastFilteredRowid' => $filteredRowids === [] ? null : $filteredRowids[array_key_last($filteredRowids)],
+            'costClass' => self::jsonTableGeneratedHiddenCostClass136((bool) $plan['runnable'], count($constraints), $rowCount, $matchedCount, $effectiveCost),
+            'scanStrategy' => (string) $nestedHidden['scanStrategy'],
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $constraints
+     * @return list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>
+     */
+    private static function normalizeGeneratedHiddenConstraints136(array $constraints): array
+    {
+        $normalized = [];
+        foreach ($constraints as $constraint) {
+            $name = (string) ($constraint['name'] ?? '');
+            $source = (string) ($constraint['source'] ?? 'value');
+            $path = (string) ($constraint['path'] ?? '');
+            $operator = strtoupper((string) ($constraint['operator'] ?? '='));
+            if ($name === '' || $path === '') {
+                throw new \InvalidArgumentException('SQLite JSON table generated hidden cost constraints require a name and path');
+            }
+            if (!in_array($source, ['value', 'json', 'atom'], true)) {
+                throw new \InvalidArgumentException('SQLite JSON table generated hidden cost source must be value, json, or atom');
+            }
+            if (!in_array($operator, ['=', 'IS', 'IS NOT', 'IS NULL', 'IS NOT NULL', 'IN', 'BETWEEN'], true)) {
+                throw new \InvalidArgumentException('SQLite JSON table generated hidden cost operator is not supported');
+            }
+            if (!SQLiteJsonPath::isWellFormed($path)) {
+                throw new \InvalidArgumentException('SQLite JSON table generated hidden cost path is not well-formed');
+            }
+
+            $normalized[] = [
+                'name' => $name,
+                'source' => $source,
+                'path' => $path,
+                'operator' => $operator,
+                'value' => $constraint['value'] ?? null,
+                'usable' => (bool) ($constraint['usable'] ?? true),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @param list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}> $constraints
+     */
+    private static function generatedHiddenValuesMatch136(array $values, array $constraints): bool
+    {
+        foreach ($constraints as $constraint) {
+            if (!$constraint['usable']) {
+                continue;
+            }
+
+            $actual = $values[$constraint['name']] ?? null;
+            $expected = $constraint['value'];
+            $matched = match ($constraint['operator']) {
+                '=', 'IS' => self::valuesAreNotDistinct($actual, $expected),
+                'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
+                'IS NULL' => $actual === null,
+                'IS NOT NULL' => $actual !== null,
+                'IN' => is_array($expected) && self::generatedHiddenInList136($actual, $expected),
+                'BETWEEN' => is_array($expected)
+                    && count($expected) === 2
+                    && self::compareSQLiteValues($actual, array_values($expected)[0]) >= 0
+                    && self::compareSQLiteValues($actual, array_values($expected)[1]) <= 0,
+                default => false,
+            };
+            if (!$matched) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function generatedHiddenInList136(mixed $actual, array $values): bool
+    {
+        foreach ($values as $value) {
+            if (self::valuesAreNotDistinct($actual, $value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function jsonTableGeneratedHiddenCostClass136(bool $runnable, int $constraintCount, int $rowCount, int $matchedCount, int $effectiveCost): string
+    {
+        if (!$runnable) {
+            return 'unrunnable-json-table';
+        }
+        if ($matchedCount === 0) {
+            return 'json-table-generated-hidden-empty';
+        }
+        if ($matchedCount === 1) {
+            return 'json-table-generated-hidden-point';
+        }
+        if ($constraintCount > 0 && $matchedCount < $rowCount) {
+            return $effectiveCost <= 8
+                ? 'json-table-generated-hidden-narrow-filter'
+                : 'json-table-generated-hidden-filter';
+        }
+
+        return 'json-table-generated-hidden-full-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedHiddenCostTransitions136(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'root',
+                'current' => $current['root'],
+                'next' => $next['root'],
+                'changed' => $current['root'] !== $next['root'],
+            ],
+            [
+                'field' => 'generatedConstraintSignatures',
+                'current' => $current['generatedConstraintSignatures'],
+                'next' => $next['generatedConstraintSignatures'],
+                'changed' => $current['generatedConstraintSignatures'] !== $next['generatedConstraintSignatures'],
+            ],
+            [
+                'field' => 'matchedRowCount',
+                'current' => $current['matchedRowCount'],
+                'next' => $next['matchedRowCount'],
+                'changed' => $current['matchedRowCount'] !== $next['matchedRowCount'],
+            ],
+            [
+                'field' => 'filteredRowids',
+                'current' => $current['filteredRowids'],
+                'next' => $next['filteredRowids'],
+                'changed' => $current['filteredRowids'] !== $next['filteredRowids'],
+            ],
+            [
+                'field' => 'filteredFullkeys',
+                'current' => $current['filteredFullkeys'],
+                'next' => $next['filteredFullkeys'],
+                'changed' => $current['filteredFullkeys'] !== $next['filteredFullkeys'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'generatedValueTape',
+                'current' => $current['generatedValueTape'],
+                'next' => $next['generatedValueTape'],
+                'changed' => $current['generatedValueTape'] !== $next['generatedValueTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedHiddenCostReplanReasons136(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root' => 'json-table-generated-hidden-root-changed',
+                'generatedConstraintSignatures' => 'json-table-generated-hidden-constraint-changed',
+                'matchedRowCount' => 'json-table-generated-hidden-row-count-changed',
+                'filteredRowids', 'filteredFullkeys' => 'json-table-generated-hidden-rowset-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-cost-changed',
+                'generatedValueTape' => 'json-table-generated-hidden-values-changed',
+                default => 'json-table-generated-hidden-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
      * @param array<string,mixed> $plan
      * @param array<string,mixed> $indexedCost
      * @return array{pathConstraints:list<array<string,mixed>>,selectedPath:array<string,mixed>|null,selectedPathSignature:string|null,pathScanStrategy:string,pathEstimatedRows:int,pathEstimatedCost:int,effectiveEstimatedCost:int,costClass:string,pathRowCount:int,pathTape:list<string>,firstPath:string|null,lastPath:string|null}
@@ -4198,6 +4570,219 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-path-order-cost-changed',
                 'orderedRowids', 'pathRowidTape' => 'json-table-hidden-path-order-output-changed',
                 default => 'json-table-hidden-path-order-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{orderBy:list<array{column:string,direction:string}>,rowidTieBreakColumns:list<string>,rowidTieBreakConsumed:bool,orderByConsumed:bool,requiresSorter:bool,baseEstimatedCost:int,sortPenalty:int,effectiveEstimatedCost:int,costClass:string,orderedRowids:list<int>,orderKeyTape:list<array{rowid:int,orderKey:list<mixed>,fullkey:string}>,firstOrderKey:list<mixed>|null,lastOrderKey:list<mixed>|null}
+     */
+    private static function jsonTableHiddenRowidOrderProfile135(array $plan, array $orderBy): array
+    {
+        $normalizedOrderBy = self::normalizeOrderByTerms113($orderBy);
+        $rows = $plan['rows'];
+        if ($normalizedOrderBy !== []) {
+            usort($rows, static fn (array $left, array $right): int => self::compareRowsForOrderBy($left, $right, $normalizedOrderBy));
+        }
+
+        $rowCount = count($rows);
+        $rowidTieBreakColumns = self::rowidTieBreakColumns135($normalizedOrderBy);
+        $rowidTieBreakConsumed = $rowidTieBreakColumns !== [] && self::rowidTieBreakIsStreaming135($normalizedOrderBy);
+        $orderByConsumed = (bool) $plan['orderByConsumed'];
+        $requiresSorter = $normalizedOrderBy !== [] && !$orderByConsumed && $rowCount > 1;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($rowCount, $normalizedOrderBy) : 0;
+        $baseCost = (int) $plan['estimatedCost'];
+        $effectiveCost = $baseCost >= 1000000 ? $baseCost : $baseCost + $sortPenalty;
+        $orderKeyTape = self::hiddenRowidOrderKeyTape135($rows, $normalizedOrderBy);
+
+        return [
+            'orderBy' => $normalizedOrderBy,
+            'rowidTieBreakColumns' => $rowidTieBreakColumns,
+            'rowidTieBreakConsumed' => $rowidTieBreakConsumed,
+            'orderByConsumed' => $orderByConsumed,
+            'requiresSorter' => $requiresSorter,
+            'baseEstimatedCost' => $baseCost,
+            'sortPenalty' => $sortPenalty,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableHiddenRowidOrderCostClass135($plan, $normalizedOrderBy, $rowidTieBreakConsumed, $requiresSorter),
+            'orderedRowids' => array_map(static fn (array $row): int => (int) $row['id'], $rows),
+            'orderKeyTape' => $orderKeyTape,
+            'firstOrderKey' => $orderKeyTape[0]['orderKey'] ?? null,
+            'lastOrderKey' => $orderKeyTape === [] ? null : $orderKeyTape[count($orderKeyTape) - 1]['orderKey'],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,direction:string}> $orderBy
+     * @return list<string>
+     */
+    private static function rowidTieBreakColumns135(array $orderBy): array
+    {
+        $columns = [];
+        foreach ($orderBy as $term) {
+            if ((string) $term['column'] === 'id' || self::isRowIdAlias((string) $term['column'])) {
+                $columns[] = (string) $term['column'];
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param list<array{column:string,direction:string}> $orderBy
+     */
+    private static function rowidTieBreakIsStreaming135(array $orderBy): bool
+    {
+        $count = count($orderBy);
+        for ($index = 0; $index < $count; $index++) {
+            $term = $orderBy[$index];
+            if ((string) $term['column'] !== 'id' && !self::isRowIdAlias((string) $term['column'])) {
+                continue;
+            }
+
+            return $term['direction'] === 'ASC' && $index === $count - 1;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{column:string,direction:string}> $orderBy
+     * @return list<array{rowid:int,orderKey:list<mixed>,fullkey:string}>
+     */
+    private static function hiddenRowidOrderKeyTape135(array $rows, array $orderBy): array
+    {
+        $tape = [];
+        foreach ($rows as $row) {
+            $key = [];
+            foreach ($orderBy as $term) {
+                $key[] = self::rowColumnValue($row, (string) $term['column']);
+            }
+            $tape[] = [
+                'rowid' => (int) $row['id'],
+                'orderKey' => $key,
+                'fullkey' => (string) ($row['fullkey'] ?? ''),
+            ];
+        }
+
+        return $tape;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<array{column:string,direction:string}> $orderBy
+     */
+    private static function jsonTableHiddenRowidOrderCostClass135(
+        array $plan,
+        array $orderBy,
+        bool $rowidTieBreakConsumed,
+        bool $requiresSorter,
+    ): string {
+        if (!$plan['runnable']) {
+            return 'unrunnable-json-table';
+        }
+        if ($orderBy === []) {
+            return 'json-table-hidden-rowid-natural-order';
+        }
+        if ((bool) $plan['orderByConsumed']) {
+            return 'json-table-hidden-rowid-order-consumed';
+        }
+        if ($rowidTieBreakConsumed && $requiresSorter) {
+            return 'json-table-hidden-rowid-tiebreak-sort';
+        }
+        if ($rowidTieBreakConsumed) {
+            return 'json-table-hidden-rowid-tiebreak-streaming';
+        }
+
+        return $requiresSorter
+            ? 'json-table-hidden-rowid-order-sort'
+            : 'json-table-hidden-rowid-narrow-order';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenRowidOrderTransitions135(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'orderBy',
+                'current' => $current['orderBy'],
+                'next' => $next['orderBy'],
+                'changed' => $current['orderBy'] !== $next['orderBy'],
+            ],
+            [
+                'field' => 'rowidTieBreakColumns',
+                'current' => $current['rowidTieBreakColumns'],
+                'next' => $next['rowidTieBreakColumns'],
+                'changed' => $current['rowidTieBreakColumns'] !== $next['rowidTieBreakColumns'],
+            ],
+            [
+                'field' => 'rowidTieBreakConsumed',
+                'current' => $current['rowidTieBreakConsumed'],
+                'next' => $next['rowidTieBreakConsumed'],
+                'changed' => $current['rowidTieBreakConsumed'] !== $next['rowidTieBreakConsumed'],
+            ],
+            [
+                'field' => 'requiresSorter',
+                'current' => $current['requiresSorter'],
+                'next' => $next['requiresSorter'],
+                'changed' => $current['requiresSorter'] !== $next['requiresSorter'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'orderedRowids',
+                'current' => $current['orderedRowids'],
+                'next' => $next['orderedRowids'],
+                'changed' => $current['orderedRowids'] !== $next['orderedRowids'],
+            ],
+            [
+                'field' => 'orderKeyTape',
+                'current' => $current['orderKeyTape'],
+                'next' => $next['orderKeyTape'],
+                'changed' => $current['orderKeyTape'] !== $next['orderKeyTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenRowidOrderReplanReasons135(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'orderBy' => 'json-table-hidden-rowid-orderby-changed',
+                'rowidTieBreakColumns', 'rowidTieBreakConsumed' => 'json-table-hidden-rowid-tiebreak-changed',
+                'requiresSorter' => 'json-table-hidden-rowid-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-rowid-order-cost-changed',
+                'orderedRowids' => 'json-table-hidden-rowid-output-order-changed',
+                'orderKeyTape' => 'json-table-hidden-rowid-order-key-tape-changed',
+                default => 'json-table-hidden-rowid-order-state-changed',
             };
         }
 
@@ -7248,6 +7833,36 @@ final class SQLiteJsonTablePlan
         }
 
         return $left === $right;
+    }
+
+    private static function compareSQLiteValues(mixed $left, mixed $right): int
+    {
+        if ($left === null || $right === null) {
+            return $left <=> $right;
+        }
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return (float) $left <=> (float) $right;
+        }
+        if (is_string($left) && is_string($right)) {
+            return strcmp($left, $right);
+        }
+
+        return self::sqliteValueSortRank($left) <=> self::sqliteValueSortRank($right);
+    }
+
+    private static function sqliteValueSortRank(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        if (is_int($value) || is_float($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+
+        return 3;
     }
 
     /**

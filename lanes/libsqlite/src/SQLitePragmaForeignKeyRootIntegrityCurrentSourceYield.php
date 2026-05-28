@@ -9,6 +9,99 @@ use InvalidArgumentException;
 final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
 {
     /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $currentSchemas
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $nextSchemas
+     * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
+     * @return array{status:string,source_id:string,current_source:array{database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null},next_source:array{database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null},offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array{integrity_root:int,foreign_key:int},next_counts:array{integrity_root:int,foreign_key:int},delta:array{integrity_root:int,foreign_key:int,total:int,cleared:bool},next_state:array{ready:bool,blocking:list<string>},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
+     */
+    public static function currentNextPage(
+        string|SQLiteDatabase $currentDatabase,
+        array $currentSchemas,
+        string|SQLiteDatabase $nextDatabase,
+        array $nextSchemas,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 136,
+        ?array $cursor = null,
+        ?SQLiteAttachedSchemaCatalog $currentCatalog = null,
+        ?SQLiteAttachedSchemaCatalog $nextCatalog = null,
+        string $integritySql = 'PRAGMA quick_check',
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException('SQLite PRAGMA foreign-key quickcheck root current/next cursor offset must be non-negative');
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException('SQLite PRAGMA foreign-key quickcheck root current/next cursor limit must be positive');
+        }
+
+        $currentSource = self::source($currentDatabase, $currentSchemas, $foreignKeySql, $currentCatalog, $integritySql);
+        $nextSource = self::source($nextDatabase, $nextSchemas, $foreignKeySql, $nextCatalog, $integritySql);
+        $source = [
+            'current' => $currentSource['source_id'],
+            'next' => $nextSource['source_id'],
+            'foreign_key_sql' => $currentSource['foreign_key_sql'],
+            'integrity_sql' => $currentSource['integrity_sql'],
+        ];
+        $sourceId = self::stableHash($source);
+        if ($cursor !== null) {
+            self::validateCursor($cursor, $sourceId, $offset);
+        }
+
+        $currentRows = array_map(
+            static fn (array $row): array => ['side' => 'current', ...$row],
+            self::collect($currentDatabase, $currentSchemas, $foreignKeySql, $currentCatalog, $integritySql),
+        );
+        $nextRows = array_map(
+            static fn (array $row): array => ['side' => 'next', ...$row],
+            self::collect($nextDatabase, $nextSchemas, $foreignKeySql, $nextCatalog, $integritySql),
+        );
+        $rows = [...$currentRows, ...$nextRows];
+        $pageRows = array_slice($rows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $complete = $nextOffset >= count($rows);
+        $currentCounts = self::sourceCounts($currentRows);
+        $nextCounts = self::sourceCounts($nextRows);
+        $delta = [
+            'integrity_root' => $nextCounts['integrity_root'] - $currentCounts['integrity_root'],
+            'foreign_key' => $nextCounts['foreign_key'] - $currentCounts['foreign_key'],
+            'total' => count($nextRows) - count($currentRows),
+            'cleared' => count($currentRows) > 0 && count($nextRows) === 0,
+        ];
+        $blocking = [];
+        if ($nextCounts['integrity_root'] > 0) {
+            $blocking[] = 'quick_check_root';
+        }
+        if ($nextCounts['foreign_key'] > 0) {
+            $blocking[] = 'foreign_key_check';
+        }
+
+        return [
+            'status' => $blocking === [] ? 'ok' : 'blocked',
+            'source_id' => $sourceId,
+            'current_source' => self::publicSource($currentSource),
+            'next_source' => self::publicSource($nextSource),
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($rows),
+            'next_offset' => $complete ? null : $nextOffset,
+            'complete' => $complete,
+            'current' => $currentCounts,
+            'next_counts' => $nextCounts,
+            'delta' => $delta,
+            'next_state' => [
+                'ready' => $blocking === [],
+                'blocking' => $blocking,
+            ],
+            'next' => $complete ? null : [
+                'source_id' => $sourceId,
+                'offset' => $nextOffset,
+            ],
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
      * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
      * @return list<array<string,mixed>>
      */
@@ -253,6 +346,23 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         }
 
         return $counts;
+    }
+
+    /**
+     * @param array{source_id:string,database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null} $source
+     * @return array{database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null}
+     */
+    private static function publicSource(array $source): array
+    {
+        return [
+            'database' => $source['database'],
+            'foreign_key_sql' => $source['foreign_key_sql'],
+            'integrity_sql' => $source['integrity_sql'],
+            'integrity_scope' => $source['integrity_scope'],
+            'integrity_target' => $source['integrity_target'],
+            'schema_hash' => $source['schema_hash'],
+            'catalog_hash' => $source['catalog_hash'],
+        ];
     }
 
     /**
