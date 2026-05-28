@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 22:03:41 UTC",
-    "sourceCommit": "d650b9d8bbcee54ae28d34c6f45fad861468f872",
-    "sourceCommitShort": "d650b9d8bbce",
-    "sourceBranch": "unknown",
-    "dashboardCommit": "d650b9d8bbcee54ae28d34c6f45fad861468f872",
-    "dashboardCommitShort": "d650b9d8bbce",
+    "generated": "2026-05-28 22:15:05 UTC",
+    "sourceCommit": "9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05",
+    "sourceCommitShort": "9cbacde7b8c5",
+    "sourceBranch": "main",
+    "dashboardCommit": "9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05",
+    "dashboardCommitShort": "9cbacde7b8c5",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "680",
-            "coverage": "680 / 1589",
-            "php": "136435 pass / 0 fail",
+            "mapped": "683",
+            "coverage": "683 / 1589",
+            "php": "137964 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch220 subset covering next250-next276 non-J...",
-            "audit": "Implementation batch220 accepts 18 verifi...",
-            "currentWork": "Accepted verified batch220 subset in the clean integration worktree while 10-11 live libs...",
-            "nextTarget": "Publish dashboard/status for batch220, consume accepted marker triplets, then integrate q...",
-            "blocker": "No blocker for the accepted batch220 subset.",
-            "commit": "d650b9d"
+            "phase": "accepted batch221 subset covering next251-next279 non-J...",
+            "audit": "Implementation batch221 accepts 18 verifi...",
+            "currentWork": "Accepted verified batch221 subset in the clean integration worktree while 10-11 live libs...",
+            "nextTarget": "Publish dashboard/status for batch221, consume accepted marker triplets, then integrate q...",
+            "blocker": "No blocker for the accepted batch221 subset.",
+            "commit": "9cbacde"
         },
         {
             "library": "LightningCSS",
