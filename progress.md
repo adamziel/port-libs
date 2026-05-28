@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 06:22 UTC):
+  Batch116/117 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `59bb9f9859e574d5a66090ba53e6a356fb46aa8a` (`Integrate libsqlite batch
+  116 117 subset`) accepted 22 current-source libsqlite handoffs, applying
+  behavior/test hunks while excluding stale status-file hunks. Verification
+  passed: php-lint for `64` changed/untracked PHP files, 20 changed
+  WordPress examples/self-tests, git diff --check, focused changed tests plus
+  `SQLiteHeaderTest.php` `23 test files / 13012 assertions / 0 failures /
+  1602 PASS lines`, full libsqlite `821 test files / 92619 assertions /
+  0 failures / 46412 PASS lines`, and root `1034 test files / 117087
+  assertions / 0 failures / 49440 PASS lines` with `opcache.enable_cli=0`
+  and `memory_limit=512M`. This is `+1110` public libsqlite PASS-line
+  movement over batch114/115 (`45302 -> 46412`); mapped coverage remains
+  conservative at `604 / 1589` because the accepted worker evidence did not
+  claim fresh manifest-backed mapped rows. During verification the worker
+  pool drained as ready markers landed; the refiller queue was extended with
+  next119 slices and tmux `main` was restored to 10 active libsqlite next119
+  Codex workers while status/dashboard publication proceeds.
+
 - 2026-05-28 supervisor continuation (shell samples 06:08 UTC):
   Batch114/115 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
