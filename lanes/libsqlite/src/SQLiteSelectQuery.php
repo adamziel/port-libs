@@ -632,12 +632,18 @@ final class SQLiteSelectQuery
     private static function windowFrameRowBounds(array $rows, array $groups, array $groupByIndex, string $unit, int $position, int|float $preceding, int|float $following, int $lastIndex): array
     {
         if ($unit === 'ROWS') {
-            return [max(0, $position - (int) $preceding), min($lastIndex, $position + (int) $following)];
+            $precedingOffset = is_float($preceding) && is_infinite($preceding) ? $lastIndex : (int) $preceding;
+            $followingOffset = is_float($following) && is_infinite($following) ? $lastIndex : (int) $following;
+
+            return [max(0, $position - $precedingOffset), min($lastIndex, $position + $followingOffset)];
         }
         if ($unit === 'GROUPS') {
             $group = $groupByIndex[$position];
-            $startGroup = max(0, $group - (int) $preceding);
-            $endGroup = min(count($groups) - 1, $group + (int) $following);
+            $lastGroup = count($groups) - 1;
+            $precedingOffset = is_float($preceding) && is_infinite($preceding) ? $lastGroup : (int) $preceding;
+            $followingOffset = is_float($following) && is_infinite($following) ? $lastGroup : (int) $following;
+            $startGroup = max(0, $group - $precedingOffset);
+            $endGroup = min($lastGroup, $group + $followingOffset);
 
             return [$groups[$startGroup]['start'], $groups[$endGroup]['end']];
         }

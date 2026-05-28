@@ -14,6 +14,40 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
      */
     public static function plan(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
+        return self::buildPlan($schemas, $statements, $events, $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next92', [
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-attach-detach-search-order-cache-expiry',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext116(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    {
+        return self::buildPlan($schemas, $statements, $events, $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next116', [
+            'sqlite-attach-temp-wal-schema-cache-current-source-next116',
+            'sqlite-indexed-by-schema-cache-expiry',
+            'sqlite-attach-wal-temp-schema-cache-current-source-next92',
+            'sqlite-wal-page-one-schema-cookie-current-source',
+            'sqlite-temp-schema-shadow-cache-expiry',
+        ]);
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, temp?:bool}> $schemas
+     * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
+     * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, file?:string|null, commit?:bool}> $events
+     * @param list<string> $dependencies
+     * @return array<string,mixed>
+     */
+    private static function buildPlan(array $schemas, array $statements, array $events, string $sourceSchema, string $operation, array $dependencies): array
+    {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite attach WAL temp schema-cache current-source next92 requires statements');
         }
@@ -67,6 +101,28 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 ];
             }
 
+            $indexTransitions = [];
+            foreach ($statement['indexed_by'] as $table => $index) {
+                $beforeTable = $statement['resolutions'][$table] ?? self::resolve($current, $currentOrder, $table);
+                $afterTable = self::resolve($next, $nextOrder, $table);
+                $beforeIndex = self::resolveIndex($current, $beforeTable['schema'], $index);
+                $afterIndex = self::resolveIndex($next, $afterTable['schema'], $index);
+                $indexChanged = $beforeIndex['schema'] !== $afterIndex['schema']
+                    || $beforeIndex['found'] !== $afterIndex['found']
+                    || $beforeIndex['name'] !== $afterIndex['name'];
+                $requiresReprepare = $requiresReprepare || $indexChanged;
+                $indexTransitions[] = [
+                    'table' => $table,
+                    'index' => $index,
+                    'current_schema' => $beforeIndex['schema'],
+                    'next_schema' => $afterIndex['schema'],
+                    'current_found' => $beforeIndex['found'],
+                    'next_found' => $afterIndex['found'],
+                    'resolution_changed' => $indexChanged,
+                    'requires_reprepare' => $indexChanged,
+                ];
+            }
+
             $name = $statement['name'];
             if ($requiresReprepare) {
                 $expired[] = $name;
@@ -88,9 +144,11 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 'active' => $statement['active'],
                 'read_only' => $statement['read_only'],
                 'tables' => $statement['tables'],
+                'indexed_by' => $statement['indexed_by'],
                 'current_schemas' => $statement['schemas'],
                 'next_schemas' => $nextSchemas,
                 'schema_transitions' => $transitions,
+                'index_transitions' => $indexTransitions,
                 'requires_reprepare' => $requiresReprepare,
                 'sqlite_result_on_current_step' => $statement['active'] ? 'SQLITE_OK' : ($requiresReprepare ? 'SQLITE_SCHEMA' : 'SQLITE_OK'),
                 'next_step_action' => self::action($statement['active'], $statement['read_only'], $requiresReprepare),
@@ -103,7 +161,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
 
         return [
             'status' => $expired === [] ? 'schema_cache_stable' : 'schema_cache_expired',
-            'operation' => 'attach-wal-temp-schema-cache-current-source-next92',
+            'operation' => $operation,
             'source' => $source,
             'event_count' => count($events),
             'statement_count' => count($statementPlans),
@@ -120,18 +178,13 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
             'retryable_read_statements' => $retryable,
             'write_statements_blocked_before_retry' => $writeBlocked,
             'requires_reprepare' => $expired !== [],
-            'dependencies' => [
-                'sqlite-attach-wal-temp-schema-cache-current-source-next92',
-                'sqlite-attach-detach-search-order-cache-expiry',
-                'sqlite-wal-page-one-schema-cookie-current-source',
-                'sqlite-temp-schema-shadow-cache-expiry',
-            ],
+            'dependencies' => $dependencies,
         ];
     }
 
     /**
      * @param array<string,array<string,mixed>> $schemas
-     * @return array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}>
+     * @return array<string,array{schema_cookie:int,tables:list<string>,indexes:list<string>,file:string|null,temp:bool}>
      */
     private static function normalizeSchemas(array $schemas): array
     {
@@ -143,9 +196,15 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 $tables[] = self::name((string) $table, 'SQLite table');
             }
             sort($tables);
+            $indexes = [];
+            foreach (($entry['indexes'] ?? []) as $index) {
+                $indexes[] = self::name((string) $index, 'SQLite index');
+            }
+            sort($indexes);
             $normalized[$name] = [
                 'schema_cookie' => self::currentCookie($entry),
                 'tables' => array_values(array_unique($tables)),
+                'indexes' => array_values(array_unique($indexes)),
                 'file' => isset($entry['file']) ? (string) $entry['file'] : null,
                 'temp' => (bool) ($entry['temp'] ?? $name === 'temp'),
             ];
@@ -155,6 +214,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
             $normalized[$schema] ??= [
                 'schema_cookie' => 0,
                 'tables' => [],
+                'indexes' => [],
                 'file' => $schema === 'temp' ? '' : null,
                 'temp' => $schema === 'temp',
             ];
@@ -218,7 +278,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
      * @param array<string,array<string,mixed>> $schemas
      * @param list<string> $order
      * @param list<array{name?:string, sql:string, active?:bool, read_only?:bool}> $statements
-     * @return list<array{name:string,sql:string,active:bool,read_only:bool,tables:list<string>,schemas:list<string>,resolutions:array<string,array{schema:string,name:string,found:bool}>}>
+     * @return list<array{name:string,sql:string,active:bool,read_only:bool,tables:list<string>,indexed_by:array<string,string>,schemas:list<string>,resolutions:array<string,array{schema:string,name:string,found:bool}>}>
      */
     private static function prepareStatements(array $schemas, array $order, array $statements): array
     {
@@ -229,6 +289,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 throw new \InvalidArgumentException('SQLite prepared statement SQL cannot be empty');
             }
             $tables = self::tables($sql);
+            $indexedBy = self::indexedBy($sql);
             $resolutions = [];
             $schemasRead = [];
             foreach ($tables as $table) {
@@ -244,6 +305,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 'active' => (bool) ($statement['active'] ?? false),
                 'read_only' => (bool) ($statement['read_only'] ?? self::readOnly($sql)),
                 'tables' => $tables,
+                'indexed_by' => $indexedBy,
                 'schemas' => $schemasRead,
                 'resolutions' => $resolutions,
             ];
@@ -268,6 +330,34 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
         }
 
         return $tables;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private static function indexedBy(string $sql): array
+    {
+        $indexed = [];
+        if (preg_match('/\bindexed\s+by\s+\[\s*\]/i', $sql) === 1) {
+            throw new \InvalidArgumentException('SQLite INDEXED BY index cannot be empty');
+        }
+        $identifier = '(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
+        $tablePattern = '(' . $identifier . '(?:\s*\.\s*' . $identifier . ')?)';
+        $aliasPattern = '(?:(?:as\s+)?(?!(?:indexed|not)\b)' . $identifier . '\s+)?';
+        $patterns = [
+            '/\b(?:from|join|update)\s+' . $tablePattern . '\s+' . $aliasPattern . 'indexed\s+by\s+(' . $identifier . ')/i',
+            '/\bdelete\s+from\s+' . $tablePattern . '\s+' . $aliasPattern . 'indexed\s+by\s+(' . $identifier . ')/i',
+        ];
+        foreach ($patterns as $pattern) {
+            if (!preg_match_all($pattern, $sql, $matches, PREG_SET_ORDER)) {
+                continue;
+            }
+            foreach ($matches as $match) {
+                $indexed[self::compoundName($match[1])] = self::name($match[2], 'SQLite INDEXED BY index');
+            }
+        }
+
+        return $indexed;
     }
 
     private static function compoundName(string $raw): string
@@ -310,9 +400,26 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
     }
 
     /**
+     * @param array<string,array{indexes:list<string>}> $schemas
+     * @return array{schema:string,name:string,found:bool}
+     */
+    private static function resolveIndex(array $schemas, string $schema, string $index): array
+    {
+        if ($schema === '__detached__' || !isset($schemas[$schema])) {
+            return ['schema' => '__detached__', 'name' => $index, 'found' => false];
+        }
+
+        return [
+            'schema' => $schema,
+            'name' => $index,
+            'found' => in_array($index, $schemas[$schema]['indexes'], true),
+        ];
+    }
+
+    /**
      * @param array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}> $current
      * @param list<array<string,mixed>> $events
-     * @return array{0:array<string,array{schema_cookie:int,tables:list<string>,file:string|null,temp:bool}>,1:list<array<string,mixed>>}
+     * @return array{0:array<string,array{schema_cookie:int,tables:list<string>,indexes:list<string>,file:string|null,temp:bool}>,1:list<array<string,mixed>>}
      */
     private static function applyEvents(array $current, array $events): array
     {
@@ -333,9 +440,14 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                 $next[$schema] = [
                     'schema_cookie' => isset($event['schema_cookie']) ? self::integer($event['schema_cookie'], 'SQLite ATTACH schema cookie') : 1,
                     'tables' => array_values(array_unique($tables)),
+                    'indexes' => array_values(array_map(
+                        static fn (string $index): string => self::name($index, 'SQLite attached index'),
+                        $event['indexes'] ?? [],
+                    )),
                     'file' => isset($event['file']) ? (string) $event['file'] : null,
                     'temp' => false,
                 ];
+                sort($next[$schema]['indexes']);
                 $log[] = ['index' => $index, 'op' => 'attach', 'schema' => $schema, 'schema_cookie' => $next[$schema]['schema_cookie']];
                 continue;
             }
@@ -367,8 +479,45 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNext92Plan
                             sort($next[$schema]['tables']);
                         }
                     }
+                    foreach (($event['indexes'] ?? []) as $indexName) {
+                        $normalizedIndex = self::name((string) $indexName, 'SQLite schema index');
+                        if (!in_array($normalizedIndex, $next[$schema]['indexes'], true)) {
+                            $next[$schema]['indexes'][] = $normalizedIndex;
+                            sort($next[$schema]['indexes']);
+                        }
+                    }
                 }
                 $log[] = ['index' => $index, 'op' => $op, 'schema' => $schema, 'schema_cookie' => $next[$schema]['schema_cookie']];
+                continue;
+            }
+
+            if ($op === 'create_index') {
+                $schema = self::name((string) ($event['schema'] ?? ''), 'SQLite CREATE INDEX schema');
+                $indexName = self::name((string) ($event['index'] ?? $event['object'] ?? ''), 'SQLite CREATE INDEX name');
+                if (!isset($next[$schema])) {
+                    throw new \InvalidArgumentException("SQLite schema {$schema} is not attached");
+                }
+                $next[$schema]['schema_cookie']++;
+                if (!in_array($indexName, $next[$schema]['indexes'], true)) {
+                    $next[$schema]['indexes'][] = $indexName;
+                    sort($next[$schema]['indexes']);
+                }
+                $log[] = ['index' => $index, 'op' => 'create_index', 'schema' => $schema, 'index_name' => $indexName, 'schema_cookie' => $next[$schema]['schema_cookie']];
+                continue;
+            }
+
+            if ($op === 'drop_index') {
+                $schema = self::name((string) ($event['schema'] ?? ''), 'SQLite DROP INDEX schema');
+                $indexName = self::name((string) ($event['index'] ?? $event['object'] ?? ''), 'SQLite DROP INDEX name');
+                if (!isset($next[$schema])) {
+                    throw new \InvalidArgumentException("SQLite schema {$schema} is not attached");
+                }
+                $next[$schema]['schema_cookie']++;
+                $next[$schema]['indexes'] = array_values(array_filter(
+                    $next[$schema]['indexes'],
+                    static fn (string $existing): bool => $existing !== $indexName,
+                ));
+                $log[] = ['index' => $index, 'op' => 'drop_index', 'schema' => $schema, 'index_name' => $indexName, 'schema_cookie' => $next[$schema]['schema_cookie']];
                 continue;
             }
 

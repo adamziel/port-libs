@@ -23207,7 +23207,9 @@ SQL;
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::combine([], [], 'UNION'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::combine($autoloaded, $network, 'MINUS'));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => 'siteurl']], [['different' => 'siteurl']]));
+        $renamedRightRows = SQLiteSelectCompound::union([['option_name' => 'siteurl']], [['different' => 'network_home']]);
+        $t->same([['option_name' => 'siteurl'], ['option_name' => 'network_home']], $renamedRightRows);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => 'siteurl']], [['different' => 'siteurl', 'extra' => 'too-wide']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => []]], []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['' => 'bad']], []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::execute($autoloaded, $network, 'UNION', [['column' => 'missing']]));

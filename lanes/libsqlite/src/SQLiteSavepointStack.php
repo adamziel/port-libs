@@ -854,6 +854,91 @@ final class SQLiteSavepointStack
         return $rolledBack;
     }
 
+    /**
+     * @param array<int,string> $currentPageImages
+     * @return array{savepoint:string,found_index:int,page_size:int,current_source_verified:bool,current_source_page_numbers:list<int>,current_source_prefixes:array<int,string>,rollback_to_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int,source_frame:string}>,missing_page_numbers:list<int>,names_before:list<string>,names_after_rollback:list<string>,names_after_release:list<string>,released_frame_names:list<string>,released_merged_page_numbers:list<int>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,rolled_back_database_bytes:string,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function rollbackToCurrentSourceThenRelease116(
+        string $name,
+        string $currentDatabaseBytes,
+        array $currentPageImages,
+        int $pageSize,
+    ): array {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($currentDatabaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite savepoint rollback current source must be aligned to the page size');
+        }
+        if ($currentPageImages === []) {
+            throw new \InvalidArgumentException('SQLite savepoint rollback current source pages must not be empty');
+        }
+
+        $sourcePageNumbers = [];
+        $currentSourcePrefixes = [];
+        foreach ($currentPageImages as $pageNumber => $expectedImage) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite savepoint rollback current source page numbers are one-based');
+            }
+            if (!is_string($expectedImage) || strlen($expectedImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint rollback current source image for page {$pageNumber} must match the page size");
+            }
+
+            $offset = ($pageNumber - 1) * $pageSize;
+            $actualImage = substr($currentDatabaseBytes, $offset, $pageSize);
+            if (strlen($actualImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint rollback current source page {$pageNumber} is outside the database image");
+            }
+            if ($actualImage !== $expectedImage) {
+                throw new \RuntimeException("SQLite savepoint rollback current source page {$pageNumber} is stale");
+            }
+
+            $sourcePageNumbers[] = $pageNumber;
+            $currentSourcePrefixes[$pageNumber] = rtrim(substr($actualImage, 0, min(48, $pageSize)), "\0");
+        }
+        sort($sourcePageNumbers, SORT_NUMERIC);
+        ksort($currentSourcePrefixes, SORT_NUMERIC);
+
+        $index = $this->findFrame($name);
+        $namesBefore = $this->names();
+        $walPlan = $this->walRollbackToPlan($name);
+        $imagePlan = $this->rollbackToImagePlan($name, $pageSize);
+        $rolledBackDatabaseBytes = $this->rollbackToDatabaseImage($name, $currentDatabaseBytes, $pageSize);
+
+        $this->rollbackTo($name);
+        $namesAfterRollback = $this->names();
+        $releasePlan = $this->releaseWithPlan($name);
+
+        return [
+            'savepoint' => $name,
+            'found_index' => $index,
+            'page_size' => $pageSize,
+            'current_source_verified' => true,
+            'current_source_page_numbers' => $sourcePageNumbers,
+            'current_source_prefixes' => $currentSourcePrefixes,
+            'rollback_to_frame' => $walPlan['rollback_to_frame'],
+            'discarded_wal_frames' => $walPlan['discarded_wal_frames'],
+            'discarded_page_numbers' => $walPlan['discarded_page_numbers'],
+            'restored_page_numbers' => $imagePlan['restored_page_numbers'],
+            'restore_pages' => $imagePlan['restore_pages'],
+            'missing_page_numbers' => $imagePlan['missing_page_numbers'],
+            'names_before' => $namesBefore,
+            'names_after_rollback' => $namesAfterRollback,
+            'names_after_release' => $this->names(),
+            'released_frame_names' => $releasePlan['released_frame_names'],
+            'released_merged_page_numbers' => $releasePlan['merged_page_numbers'],
+            'pending_page_numbers_after_release' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_release' => $this->pendingWalFrameIndexes(),
+            'rolled_back_database_bytes' => $rolledBackDatabaseBytes,
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-savepoint-nested-rollback-release-current-source-next116',
+                'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                'sqlite-savepoint-release-after-rollback',
+            ],
+        ];
+    }
+
     public function beginStatementJournal(string $name): void
     {
         if ($name === '') {

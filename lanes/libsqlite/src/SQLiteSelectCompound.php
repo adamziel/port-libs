@@ -45,8 +45,8 @@ final class SQLiteSelectCompound
     {
         $operator = strtoupper(trim(preg_replace('/\s+/', ' ', $operator) ?? $operator));
         $columns = self::resultColumns($leftRows, $rightRows);
-        self::assertRowsMatch($leftRows, $columns, 'left');
-        self::assertRowsMatch($rightRows, $columns, 'right');
+        $leftRows = self::normalizeRows($leftRows, $columns, 'left');
+        $rightRows = self::normalizeRows($rightRows, $columns, 'right');
 
         return match ($operator) {
             'UNION ALL' => array_merge($leftRows, $rightRows),
@@ -109,16 +109,24 @@ final class SQLiteSelectCompound
      * @param list<array<string,mixed>> $rows
      * @param list<string> $columns
      */
-    private static function assertRowsMatch(array $rows, array $columns, string $side): void
+    private static function normalizeRows(array $rows, array $columns, string $side): array
     {
+        $normalized = [];
         foreach ($rows as $row) {
-            if (array_keys($row) !== $columns) {
-                throw new \InvalidArgumentException("SQLite compound SELECT {$side} row columns must match the first SELECT result columns");
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite compound SELECT {$side} row width must match the first SELECT result width");
             }
             foreach ($row as $value) {
                 self::valueKey($value);
             }
+            $renamed = array_combine($columns, array_values($row));
+            if (!is_array($renamed)) {
+                throw new \InvalidArgumentException("SQLite compound SELECT {$side} row width must match the first SELECT result width");
+            }
+            $normalized[] = $renamed;
         }
+
+        return $normalized;
     }
 
     /**

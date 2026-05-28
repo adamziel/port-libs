@@ -699,11 +699,16 @@ final class SQLiteSelectSql
         }
 
         $rows = null;
+        $columns = null;
         foreach ($compound['arms'] as $index => $arm) {
             if (!is_array($arm)) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arm plan is malformed');
             }
             $armRows = self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($arm), $arm);
+            if ($columns === null) {
+                $columns = self::compoundOutputColumns($arm);
+            }
+            $armRows = self::renameCompoundRows($armRows, $columns);
             if ($rows === null) {
                 $rows = $armRows;
                 continue;
@@ -721,6 +726,62 @@ final class SQLiteSelectSql
             isset($compound['limit']) && is_int($compound['limit']) ? $compound['limit'] : null,
             isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0,
         );
+    }
+
+    /**
+     * @param array<string,mixed> $arm
+     * @return list<string>
+     */
+    private static function compoundOutputColumns(array $arm): array
+    {
+        $select = $arm['select'] ?? null;
+        if (!is_array($select) || !array_is_list($select)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound arm select list is malformed');
+        }
+
+        $columns = [];
+        foreach ($select as $index => $term) {
+            if (!is_array($term)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound arm select term is malformed');
+            }
+            if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
+                $columns[] = $term['alias'];
+                continue;
+            }
+            if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
+                $name = $term['name'];
+                $columns[] = str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
+                continue;
+            }
+            $columns[] = 'expr' . ($index + 1);
+        }
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound SELECT needs output columns');
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function renameCompoundRows(array $rows, array $columns): array
+    {
+        $renamed = [];
+        foreach ($rows as $row) {
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound arm row width does not match the first SELECT result width');
+            }
+            $combined = array_combine($columns, array_values($row));
+            if (!is_array($combined)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL compound arm row width does not match the first SELECT result width');
+            }
+            $renamed[] = $combined;
+        }
+
+        return $renamed;
     }
 
     /**
@@ -1401,7 +1462,7 @@ final class SQLiteSelectSql
             return $joinGroup;
         }
 
-        $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
+        $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns, $jsonConstraints);
         if ($jsonTable !== null) {
             return $jsonTable;
         }
@@ -1501,6 +1562,7 @@ final class SQLiteSelectSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $jsonErrorBoundaryColumns
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
     private static function parenthesizedJoinReference(string $sql, array $tables, array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): ?array
@@ -1714,7 +1776,7 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
-    private static function jsonTableReference(string $sql, array $jsonErrorBoundaryColumns = []): ?array
+    private static function jsonTableReference(string $sql, array $jsonErrorBoundaryColumns = [], array $jsonConstraints = []): ?array
     {
         if (preg_match('/^(json_each|json_tree)\s*\((.*)\)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i', trim($sql), $match) !== 1) {
             return null;
@@ -1749,7 +1811,7 @@ final class SQLiteSelectSql
                 'name' => $function,
                 'alias' => $alias,
                 'rows' => [],
-                'dynamicRows' => static function (array $row) use ($function, $alias, $argumentExpressions, $guardedJsonArgument): array {
+                'dynamicRows' => static function (array $row) use ($function, $alias, $argumentExpressions, $guardedJsonArgument, $jsonConstraints): array {
                     $jsonValue = SQLiteSelectExpression::evaluate($row, $argumentExpressions[0]);
                     if ($guardedJsonArgument && SQLiteJsonTablePlan::invalidInputCanBeSkipped($jsonValue)) {
                         return [];
@@ -1772,6 +1834,9 @@ final class SQLiteSelectSql
                             'operator' => '=',
                             'value' => $rootValue,
                         ];
+                    }
+                    foreach ($jsonConstraints as $constraint) {
+                        $constraints[] = $constraint;
                     }
                     $extraConstraints = $row['__sqlite_json_table_constraints'][$alias] ?? [];
                     if (is_array($extraConstraints) && array_is_list($extraConstraints)) {
@@ -1801,6 +1866,9 @@ final class SQLiteSelectSql
                 'operator' => '=',
                 'value' => self::literalExpressionValue($argumentExpressions[1], 'JSON table root'),
             ];
+        }
+        foreach ($jsonConstraints as $constraint) {
+            $constraints[] = $constraint;
         }
 
         return [
@@ -1994,7 +2062,7 @@ final class SQLiteSelectSql
         if (self::firstJoinOffset($fromSql) !== null) {
             return null;
         }
-        if (preg_match('/^(json_each|json_tree)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i', trim($fromSql), $match) !== 1) {
+        if (preg_match('/^(json_each|json_tree)(?:\s*\(.*\))?(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/is', trim($fromSql), $match) !== 1) {
             return null;
         }
 
@@ -3632,12 +3700,22 @@ final class SQLiteSelectSql
             };
         }
 
-        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $sql, $match) !== 1) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports bounded BETWEEN frames');
+        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $sql, $match) === 1) {
+            [$preceding, $following] = self::windowFrameBounds(trim($match[2]), trim($match[3]));
+
+            return [
+                'unit' => strtoupper($match[1]),
+                'preceding' => $preceding,
+                'following' => $following,
+                'exclude' => $exclude,
+            ];
         }
 
-        [$preceding, $following] = self::windowFrameBounds(trim($match[2]), trim($match[3]));
+        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+(.+)$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports bounded frames');
+        }
 
+        [$preceding, $following] = self::windowFrameBounds(trim($match[2]), 'CURRENT ROW');
         return [
             'unit' => strtoupper($match[1]),
             'preceding' => $preceding,
@@ -3671,6 +3749,12 @@ final class SQLiteSelectSql
     {
         if (strcasecmp($sql, 'CURRENT ROW') === 0) {
             return ['direction' => 'CURRENT', 'offset' => 0];
+        }
+        if (strcasecmp($sql, 'UNBOUNDED PRECEDING') === 0) {
+            return ['direction' => 'PRECEDING', 'offset' => INF];
+        }
+        if (strcasecmp($sql, 'UNBOUNDED FOLLOWING') === 0) {
+            return ['direction' => 'FOLLOWING', 'offset' => INF];
         }
         if (preg_match('/^(.+?)\s+(PRECEDING|FOLLOWING)$/i', $sql, $match) === 1) {
             return [

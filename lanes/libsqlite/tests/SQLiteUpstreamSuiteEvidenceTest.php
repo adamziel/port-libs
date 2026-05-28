@@ -3350,4 +3350,224 @@ MD);
             @rmdir($root);
         }
     },
+    'admits only next-source release artifacts for current-source next117 release gap burnup' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-release-gap-next117-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $currentHead = '6b824ac24854056466145761d32a9f27720d286a';
+        $nextHead = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/next-release.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-release
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next117-release`
+- Log: `next-release.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 26014 tests`
+- Parsed errors: `0`
+- Parsed tests: `26014`
+MD);
+        file_put_contents($root . '/next-release.log', "31:40 tcl(26014/26014) r0\n");
+
+        file_put_contents($root . '/next-all.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-all
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next117-all`
+- Log: `next-all.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `all`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 312 tests`
+- Parsed errors: `0`
+- Parsed tests: `312`
+MD);
+        file_put_contents($root . '/next-all.log', "00:22 tcl(312/312) r0\n");
+
+        file_put_contents($root . '/next-focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-focused-json
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next117-focused-json`
+- Log: `next-focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `json101.test` `json102.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 812 tests`
+- Parsed errors: `0`
+- Parsed tests: `812`
+MD);
+        file_put_contents($root . '/next-focused.log', "00:04 tcl(812/812) r0\n");
+
+        file_put_contents($root . '/current-release.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-current117-release
+
+- Repository HEAD: `{$currentHead}`
+- Scratch: `/tmp/libsqlite-current117-release`
+- Log: `current-release.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `1`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 24000 tests`
+- Parsed errors: `0`
+- Parsed tests: `24000`
+MD);
+        file_put_contents($root . '/current-release.log', "28:00 tcl(24000/24000) r0\n");
+
+        try {
+            $record = $evidence->releaseGapBurnupCurrentSourceNext117Record($root, $currentHead, $nextHead, 5);
+
+            $t->same('release-gap-burnup-current-source-next117-countable', $record['status']);
+            $t->same(4, $record['artifact_count']);
+            $t->same(3, $record['next_source_count']);
+            $t->same(2, $record['next_source_release_count']);
+            $t->same(1, $record['next_source_focused_count']);
+            $t->same(1, $record['current_source_release_count']);
+            $t->same(0, $record['blocked_count']);
+            $t->same([], $record['blockers']);
+            $t->same(['libsqlite-next117-all', 'libsqlite-next117-release'], $record['next_source_release_labels']);
+            $t->same(['libsqlite-next117-focused-json'], $record['next_source_focused_labels']);
+            $t->same(['libsqlite-current117-release'], $record['current_source_release_labels']);
+            $t->same(26326, $record['release_tests_total']);
+            $t->same(0, $record['release_errors_total']);
+            $t->same(5, $record['current_release_gap']);
+            $t->same(2, $record['release_gap_burned_down']);
+            $t->same(3, $record['next_release_gap']);
+            $t->same(true, $record['counts_next_source']);
+            $t->same(true, $record['counts_release_gap_burnup']);
+            $t->same(false, $record['counts_as_release_parity']);
+            $t->contains('focused next-source artifacts remain focused evidence', $record['next_gate']);
+            $t->contains('all/release testset classification', $record['dependency_closure']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
+    'blocks current-source next117 release gap burnup when artifacts are focused stale or missing logs' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-release-gap-next117-blocked-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $currentHead = '6b824ac24854056466145761d32a9f27720d286a';
+        $nextHead = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/next-focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-focused-only
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next117-focused-only`
+- Log: `next-focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `select1.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 91 tests`
+- Parsed errors: `0`
+- Parsed tests: `91`
+MD);
+        file_put_contents($root . '/next-focused.log', "00:01 tcl(91/91) r0\n");
+
+        file_put_contents($root . '/stale-release.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-stale117-release
+
+- Repository HEAD: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Scratch: `/tmp/libsqlite-stale117-release`
+- Log: `stale-release.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `1`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 25000 tests`
+- Parsed errors: `0`
+- Parsed tests: `25000`
+MD);
+        file_put_contents($root . '/stale-release.log', "29:00 tcl(25000/25000) r0\n");
+
+        file_put_contents($root . '/missing-log-release.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next117-missing-log-release
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next117-missing-log-release`
+- Log: `missing-release.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `wrong-manifest`
+- Testset: `release`
+- Jobs: `1`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 26014 tests`
+- Parsed errors: `0`
+- Parsed tests: `26014`
+MD);
+
+        try {
+            $record = $evidence->releaseGapBurnupCurrentSourceNext117Record($root, $currentHead, $nextHead, 4);
+
+            $t->same('blocked-release-gap-burnup-current-source-next117', $record['status']);
+            $t->same(3, $record['artifact_count']);
+            $t->same(1, $record['next_source_count']);
+            $t->same(0, $record['next_source_release_count']);
+            $t->same(1, $record['next_source_focused_count']);
+            $t->same(['libsqlite-next117-focused-only'], $record['next_source_focused_labels']);
+            $t->same(['libsqlite-next117-missing-log-release', 'libsqlite-stale117-release'], $record['blocked_labels']);
+            $t->same(['libsqlite-next117-missing-log-release'], $record['missing_log_labels']);
+            $t->same(3, $record['blocked_count']);
+            $t->same([
+                'next-source-release-artifact-missing',
+                'missing-runner-log-artifacts-present',
+                'blocked-runner-artifacts-present',
+            ], array_column($record['blockers'], 'id'));
+            $t->same(0, $record['release_tests_total']);
+            $t->same(0, $record['release_gap_burned_down']);
+            $t->same(4, $record['next_release_gap']);
+            $t->same(false, $record['counts_next_source']);
+            $t->same(false, $record['counts_release_gap_burnup']);
+            $t->contains('focused and stale evidence routed elsewhere', $record['next_gate']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
 ];

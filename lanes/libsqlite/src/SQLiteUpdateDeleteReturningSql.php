@@ -371,7 +371,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return list<string>|array<string,string>
+     * @return list<string>|array<string,string|callable(array<string,mixed>):mixed>
      */
     private static function returningProjection(string $sql): array
     {
@@ -382,14 +382,20 @@ final class SQLiteUpdateDeleteReturningSql
                 $projection[] = '*';
                 continue;
             }
-            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite UPDATE/DELETE RETURNING only supports columns, aliases, and *');
-            }
-            if (isset($match[2]) && $match[2] !== '') {
-                $projection[$match[2]] = $match[1];
+            if (preg_match('/^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $term, $match) === 1) {
+                $expression = trim($match[1]);
+                $alias = $match[2];
+                if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
+                    $projection[$alias] = $expression;
+                    continue;
+                }
+                $projection[$alias] = static fn (array $row): mixed => self::evaluateReturningExpression($expression, $row);
                 continue;
             }
-            $projection[] = $match[1];
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $term) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE RETURNING expressions require an AS alias');
+            }
+            $projection[] = $term;
         }
 
         return $projection;
@@ -398,28 +404,133 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param array<string,mixed> $row
      */
+    private static function evaluateReturningExpression(string $expression, array $row): mixed
+    {
+        $expression = trim($expression);
+        if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $comparison = self::rowValueCompare($left, $right);
+            $result = match ($match[2]) {
+                '=' => $comparison === null ? null : $comparison === 0,
+                '<>', '!=' => $comparison === null ? null : $comparison !== 0,
+                '>' => $comparison === null ? null : $comparison > 0,
+                '>=' => $comparison === null ? null : $comparison >= 0,
+                '<' => $comparison === null ? null : $comparison < 0,
+                '<=' => $comparison === null ? null : $comparison <= 0,
+                default => false,
+            };
+
+            return $result === null ? null : ($result ? 1 : 0);
+        }
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $tuples = self::rowValueTupleList($match[3], $row);
+            $result = self::rowValueIn($left, $tuples);
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = self::negateNullable($result);
+            }
+
+            return $result === null ? null : ($result ? 1 : 0);
+        }
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL$/i', $expression, $match) === 1) {
+            $result = self::column($row, $match[1]) === null;
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = !$result;
+            }
+
+            return $result ? 1 : 0;
+        }
+
+        return self::evaluateExpression($expression, $row);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
     private static function evaluateExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        $concatParts = self::splitOperator($expression, '||');
+        if (count($concatParts) > 1) {
+            $pieces = [];
+            foreach ($concatParts as $part) {
+                $value = self::evaluateExpression($part, $row);
+                if ($value === null) {
+                    return null;
+                }
+                $pieces[] = (string) $value;
+            }
+
+            return implode('', $pieces);
+        }
+        $additionParts = self::splitOperator($expression, '+');
+        if (count($additionParts) > 1) {
+            $sum = 0;
+            foreach ($additionParts as $part) {
+                $value = self::evaluateExpression($part, $row);
+                if ($value === null) {
+                    return null;
+                }
+                $sum += (int) $value;
+            }
+
+            return $sum;
+        }
         if (preg_match("/^'.*'$/s", $expression) === 1 || strcasecmp($expression, 'NULL') === 0 || preg_match('/^-?\d+$/', $expression) === 1) {
             return self::literal($expression);
-        }
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\+\s*(-?\d+)$/', $expression, $match) === 1) {
-            $value = self::column($row, $match[1]);
-
-            return $value === null ? null : (int) $value + (int) $match[2];
-        }
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\|\|\s*(.+)$/s', $expression, $match) === 1) {
-            $value = self::column($row, $match[1]);
-            $suffix = self::literal(trim($match[2]));
-
-            return $value === null || $suffix === null ? null : (string) $value . (string) $suffix;
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
             return self::column($row, $expression);
         }
 
         return self::literal($expression);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitOperator(string $sql, string $operator): array
+    {
+        $parts = [];
+        $buffer = '';
+        $inString = false;
+        $depth = 0;
+        $length = strlen($sql);
+        $operatorLength = strlen($operator);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $buffer .= "'";
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $depth === 0 && substr($sql, $i, $operatorLength) === $operator) {
+                $parts[] = trim($buffer);
+                $buffer = '';
+                $i += $operatorLength - 1;
+                continue;
+            }
+            $buffer .= $char;
+        }
+        $parts[] = trim($buffer);
+
+        return count($parts) > 1 ? $parts : [$sql];
     }
 
     /**

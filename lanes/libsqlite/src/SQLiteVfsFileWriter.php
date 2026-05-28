@@ -357,6 +357,113 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param array<int,string> $currentStatementSourcePages
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
+     */
+    public function applyWalHotJournalStatementCurrentSourceNext117(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $currentStatementName,
+        string $nextStatementName,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        string $databasePath,
+        array $pageNumbers,
+        array $currentStatementSourcePages,
+        bool $nextCommitFrame = false,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal statement current-source apply requires a database path');
+        }
+
+        $databaseLocalPath = $this->localPath($databasePath);
+        $journalPath = $databasePath . '-journal';
+        $journalLocalPath = $this->localPath($journalPath);
+        $walPath = $databasePath . '-wal';
+        $walLocalPath = $this->localPath($walPath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal statement current-source database is missing: {$databasePath}");
+        }
+        if (!is_file($journalLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal statement current-source journal is missing: {$journalPath}");
+        }
+        if (!is_file($walLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal statement current-source WAL is missing: {$walPath}");
+        }
+
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        $journalBytes = (string) file_get_contents($journalLocalPath);
+        $walBytes = (string) file_get_contents($walLocalPath);
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $plan = SQLiteWalHotJournalSavepointReplayPlan::statementCurrentSourceNext91(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $savepoints,
+            $savepoint,
+            $currentStatementName,
+            $nextStatementName,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $wal,
+            $walBytes,
+            $databasePath,
+            $pageNumbers,
+            $currentStatementSourcePages,
+            $nextCommitFrame,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $source = [
+            'database_path' => $databasePath,
+            'database_bytes' => strlen($databaseBytes),
+            'journal_path' => $journalPath,
+            'journal_bytes' => strlen($journalBytes),
+            'wal_path' => $walPath,
+            'wal_bytes' => strlen($walBytes),
+        ];
+
+        if (!$plan['hot_recovered']) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => $plan['dependencies'],
+                'recovery' => $plan,
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations(
+            $plan['operations'],
+            $plan['payloads'],
+            array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['sqlite-wal-hot-journal-statement-current-source-vfs-apply-next117']
+            )))
+        );
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{database_path:string,database_bytes:string,journal_bytes:string,journal?:SQLiteRollbackJournal,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
      */

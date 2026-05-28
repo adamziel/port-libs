@@ -31,6 +31,16 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext117(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-shm-lockbyte-uri-filecontrol-current-source-next117');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(array $operations, array $options, bool $trackFileControls, string $dependency): array
     {
         if ($operations === []) {
@@ -185,6 +195,30 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'source_generation' => $generation,
                 'opened_generation' => $openedGeneration,
                 'stale_current_source' => $openedGeneration !== $generation,
+                'stale_handles' => self::staleHandles($state, $owner),
+            ]];
+        }
+
+        if ($control === 'data_version' && self::isRefreshValue($op['value'] ?? null)) {
+            if (isset($state['handles'][(string) $handle['id']])) {
+                $state['handles'][(string) $handle['id']]['source_generation'] = $generation;
+            }
+            $state['owners'][$owner] = self::owner($state, $owner);
+
+            return ['ok', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'file_control' => $control,
+                'value' => $generation,
+                'previous' => $openedGeneration,
+                'changed' => $openedGeneration !== $generation,
+                'reason' => null,
+                'routed_to' => 'database',
+                'source_generation' => $generation,
+                'opened_generation' => $generation,
+                'refreshed_current_source' => true,
+                'stale_current_source' => false,
                 'stale_handles' => self::staleHandles($state, $owner),
             ]];
         }
@@ -903,6 +937,11 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         }
 
         return $trimmed;
+    }
+
+    private static function isRefreshValue(mixed $value): bool
+    {
+        return is_string($value) && in_array(strtolower(trim($value)), ['refresh', 'current', 'reopen'], true);
     }
 
     private static function boolean(mixed $value): bool

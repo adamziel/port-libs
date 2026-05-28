@@ -103,6 +103,127 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parentRows
+     * @param list<array<string,mixed>> $childRows
+     * @param list<array<string,mixed>> $grandchildRows
+     * @param list<array<string,mixed>> $updates
+     * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool} $foreignKey
+     * @param list<array<string,mixed>> $childTriggers
+     * @param array{parent_key:string,child_key:string,on_update?:string}|null $grandchildForeignKey
+     * @param list<array<string,mixed>> $currentSourceOps
+     * @return array{before_statement:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,grandchild:list<array<string,mixed>>},after_statement:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,grandchild:list<array<string,mixed>>},before_commit:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,grandchild:list<array<string,mixed>>},after_commit:array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,grandchild:list<array<string,mixed>>},deferred:list<array<string,mixed>>,current_source_actions:list<array<string,mixed>>,cascade_actions:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,audit:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int,dependencies:list<string>}
+     */
+    public static function updateParents(
+        array $parentRows,
+        array $childRows,
+        array $grandchildRows,
+        array $updates,
+        array $foreignKey,
+        array $childTriggers = [],
+        ?array $grandchildForeignKey = null,
+        array $currentSourceOps = [],
+    ): array {
+        $spec = self::normalizeUpdateForeignKey($foreignKey, 'parent');
+        $grandchildSpec = $grandchildForeignKey === null ? null : self::normalizeUpdateForeignKey($grandchildForeignKey, 'grandchild');
+        $parents = array_values($parentRows);
+        $children = array_values($childRows);
+        $grandchildren = array_values($grandchildRows);
+        $updatedKeys = [];
+        $deferred = [];
+        $statementChanges = 0;
+
+        foreach ($updates as $update) {
+            $oldKey = self::rowValue($update, $spec['parent_key'], 'update key');
+            $newKey = array_key_exists('new_' . $spec['parent_key'], $update)
+                ? $update['new_' . $spec['parent_key']]
+                : self::rowValue($update, 'new', 'update key');
+            $parentIndex = self::findRowIndex($parents, $spec['parent_key'], $oldKey, 'parent row');
+            if ($parentIndex === null) {
+                continue;
+            }
+
+            $parent = $parents[$parentIndex];
+            foreach ($update as $column => $value) {
+                if ($column === 'new' || str_starts_with((string) $column, 'new_')) {
+                    continue;
+                }
+                if ($column !== $spec['parent_key']) {
+                    $parent[$column] = $value;
+                }
+            }
+            $parent[$spec['parent_key']] = $newKey;
+            $parents[$parentIndex] = $parent;
+            $statementChanges++;
+
+            if ($oldKey !== $newKey) {
+                $updatedKeys[] = ['old' => $oldKey, 'new' => $newKey];
+                $deferred[] = [
+                    'operation' => 'deferred-update-parent',
+                    'old_parent_key' => $oldKey,
+                    'new_parent_key' => $newKey,
+                    'action' => $spec['on_update'],
+                    'deferred' => $spec['deferred'],
+                ];
+            }
+        }
+
+        if ($spec['on_update'] === 'restrict' && self::hasReferencingUpdatedChild($children, $updatedKeys, $spec['child_key'])) {
+            throw new \InvalidArgumentException('SQLite deferred cascade trigger RESTRICT prevents parent update before commit');
+        }
+
+        $afterStatement = [
+            'parent' => array_values($parents),
+            'child' => $children,
+            'grandchild' => $grandchildren,
+        ];
+        $current = self::applyCurrentSourceOps($children, $grandchildren, $currentSourceOps, [
+            'parent_key' => $spec['parent_key'],
+            'child_key' => $spec['child_key'],
+            'on_delete' => 'cascade',
+            'deferred' => $spec['deferred'],
+        ], $grandchildSpec === null ? null : [
+            'parent_key' => $grandchildSpec['parent_key'],
+            'child_key' => $grandchildSpec['child_key'],
+            'on_delete' => 'cascade',
+        ]);
+        $children = $current['child'];
+        $grandchildren = $current['grandchild'];
+
+        $commit = self::commitDeferredUpdateCascade($children, $grandchildren, $updatedKeys, $spec, $childTriggers, $grandchildSpec);
+
+        return [
+            'before_statement' => [
+                'parent' => array_values($parentRows),
+                'child' => array_values($childRows),
+                'grandchild' => array_values($grandchildRows),
+            ],
+            'after_statement' => $afterStatement,
+            'before_commit' => [
+                'parent' => array_values($parents),
+                'child' => $children,
+                'grandchild' => $grandchildren,
+            ],
+            'after_commit' => [
+                'parent' => array_values($parents),
+                'child' => $commit['child'],
+                'grandchild' => $commit['grandchild'],
+            ],
+            'deferred' => $deferred,
+            'current_source_actions' => $current['actions'],
+            'cascade_actions' => $commit['cascade_actions'],
+            'trigger_effects' => $commit['trigger_effects'],
+            'audit' => $commit['audit'],
+            'violations' => $commit['violations'],
+            'changes' => $statementChanges + $current['changes'] + $commit['changes'],
+            'dependencies' => [
+                'sqlite-deferred-foreign-key-cascade',
+                'sqlite-current-source-before-deferred-commit',
+                'sqlite-cascade-update-trigger-current-source',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $children
      * @param list<array<string,mixed>> $grandchildren
      * @param list<array<string,mixed>> $ops
@@ -286,6 +407,79 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $children
+     * @param list<array<string,mixed>> $grandchildren
+     * @param list<array{old:mixed,new:mixed}> $updatedKeys
+     * @param array{parent_key:string,child_key:string,on_update:string,deferred:bool} $spec
+     * @param list<array<string,mixed>> $triggers
+     * @param array{parent_key:string,child_key:string,on_update:string}|null $grandchildSpec
+     * @return array{child:list<array<string,mixed>>,grandchild:list<array<string,mixed>>,cascade_actions:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,audit:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int}
+     */
+    private static function commitDeferredUpdateCascade(array $children, array $grandchildren, array $updatedKeys, array $spec, array $triggers, ?array $grandchildSpec): array
+    {
+        $updates = [];
+        foreach ($updatedKeys as $updated) {
+            $updates[self::keyIndex($updated['old'])] = $updated['new'];
+        }
+
+        $cascadeActions = [];
+        $triggerEffects = [];
+        $audit = [];
+        $violations = [];
+        $changes = 0;
+
+        foreach ($children as &$child) {
+            $oldChild = $child;
+            $childKey = self::rowValue($child, $spec['child_key'], 'child row');
+            if (!array_key_exists(self::keyIndex($childKey), $updates)) {
+                continue;
+            }
+
+            if ($spec['on_update'] !== 'cascade') {
+                $violations[] = ['reason' => 'referenced-parent-updated-at-deferred-commit', 'child_key' => $childKey, 'child' => $child];
+                continue;
+            }
+
+            $newChild = $child;
+            $newChild[$spec['child_key']] = $updates[self::keyIndex($childKey)];
+
+            $before = self::applyChildUpdateTriggers('before', $oldChild, $newChild, $grandchildren, $triggers, $grandchildSpec);
+            $grandchildren = $before['grandchild'];
+            $triggerEffects = array_merge($triggerEffects, $before['effects']);
+            $audit = array_merge($audit, $before['audit']);
+            $changes += $before['changes'];
+
+            $child = $newChild;
+            $cascadeActions[] = ['action' => 'deferred-cascade-update-child', 'old_child_key' => $childKey, 'new_child_key' => $newChild[$spec['child_key']], 'old_child' => $oldChild, 'child' => $newChild];
+            $changes++;
+
+            if ($grandchildSpec !== null && $grandchildSpec['on_update'] === 'cascade') {
+                $grandchild = self::cascadeUpdateGrandchildren($grandchildren, self::rowValue($oldChild, $grandchildSpec['parent_key'], 'old child'), self::rowValue($newChild, $grandchildSpec['parent_key'], 'new child'), $grandchildSpec);
+                $grandchildren = $grandchild['grandchild'];
+                $cascadeActions = array_merge($cascadeActions, $grandchild['actions']);
+                $changes += $grandchild['changes'];
+            }
+
+            $after = self::applyChildUpdateTriggers('after', $oldChild, $newChild, $grandchildren, $triggers, $grandchildSpec);
+            $grandchildren = $after['grandchild'];
+            $triggerEffects = array_merge($triggerEffects, $after['effects']);
+            $audit = array_merge($audit, $after['audit']);
+            $changes += $after['changes'];
+        }
+        unset($child);
+
+        return [
+            'child' => array_values($children),
+            'grandchild' => array_values($grandchildren),
+            'cascade_actions' => $cascadeActions,
+            'trigger_effects' => $triggerEffects,
+            'audit' => $audit,
+            'violations' => $violations,
+            'changes' => $changes,
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $grandchildren
      * @param list<array<string,mixed>> $triggers
      * @param array{parent_key:string,child_key:string,on_delete:string}|null $grandchildSpec
@@ -364,6 +558,64 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
 
     /**
      * @param list<array<string,mixed>> $grandchildren
+     * @param list<array<string,mixed>> $triggers
+     * @param array{parent_key:string,child_key:string,on_update:string}|null $grandchildSpec
+     * @return array{grandchild:list<array<string,mixed>>,effects:list<array<string,mixed>>,audit:list<array<string,mixed>>,changes:int}
+     */
+    private static function applyChildUpdateTriggers(string $timing, array $oldChild, array $newChild, array $grandchildren, array $triggers, ?array $grandchildSpec): array
+    {
+        $effects = [];
+        $audit = [];
+        $changes = 0;
+
+        foreach ($triggers as $trigger) {
+            if (strtolower((string) ($trigger['timing'] ?? '')) !== $timing || strtolower((string) ($trigger['event'] ?? '')) !== 'update') {
+                continue;
+            }
+
+            $action = strtolower((string) ($trigger['action'] ?? ''));
+            if ($action === 'insert-audit') {
+                $row = [];
+                foreach (self::row($trigger['audit'] ?? [], 'trigger audit') as $column => $value) {
+                    $row[$column] = self::updateTriggerValue($value, $oldChild, $newChild, count($grandchildren));
+                }
+                $audit[] = $row;
+                $effects[] = ['timing' => $timing, 'action' => $action, 'rows' => 1, 'grandchild_count' => count($grandchildren)];
+                $changes++;
+                continue;
+            }
+
+            if ($grandchildSpec === null) {
+                throw new \InvalidArgumentException('SQLite deferred cascade child update trigger requires a grandchild foreign key');
+            }
+
+            if ($action === 'update-grandchild-key') {
+                $match = array_key_exists('grandchild_key', $trigger)
+                    ? self::updateTriggerValue($trigger['grandchild_key'], $oldChild, $newChild, count($grandchildren))
+                    : self::rowValue($oldChild, $grandchildSpec['parent_key'], 'old child');
+                $set = self::updateTriggerValue($trigger['set_grandchild_key'] ?? null, $oldChild, $newChild, count($grandchildren));
+                $updated = 0;
+                foreach ($grandchildren as &$grandchild) {
+                    if (self::rowValue($grandchild, $grandchildSpec['child_key'], 'grandchild row') !== $match) {
+                        continue;
+                    }
+                    $grandchild[$grandchildSpec['child_key']] = $set;
+                    $updated++;
+                }
+                unset($grandchild);
+                $effects[] = ['timing' => $timing, 'action' => $action, 'matched_grandchild_key' => $match, 'set_grandchild_key' => $set, 'rows' => $updated];
+                $changes += $updated;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite deferred cascade child update trigger action is unsupported');
+        }
+
+        return ['grandchild' => array_values($grandchildren), 'effects' => $effects, 'audit' => $audit, 'changes' => $changes];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $grandchildren
      * @param array{parent_key:string,child_key:string,on_delete:string} $spec
      * @return array{grandchild:list<array<string,mixed>>,actions:list<array<string,mixed>>,changes:int}
      */
@@ -382,6 +634,29 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
         }
 
         return ['grandchild' => array_values($kept), 'actions' => $actions, 'changes' => $changes];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $grandchildren
+     * @param array{parent_key:string,child_key:string,on_update:string} $spec
+     * @return array{grandchild:list<array<string,mixed>>,actions:list<array<string,mixed>>,changes:int}
+     */
+    private static function cascadeUpdateGrandchildren(array $grandchildren, mixed $oldChildKey, mixed $newChildKey, array $spec): array
+    {
+        $actions = [];
+        $changes = 0;
+        foreach ($grandchildren as &$grandchild) {
+            if (self::rowValue($grandchild, $spec['child_key'], 'grandchild row') !== $oldChildKey) {
+                continue;
+            }
+            $before = $grandchild;
+            $grandchild[$spec['child_key']] = $newChildKey;
+            $actions[] = ['action' => 'deferred-cascade-update-grandchild', 'old_child_key' => $oldChildKey, 'new_child_key' => $newChildKey, 'before' => $before, 'grandchild' => $grandchild];
+            $changes++;
+        }
+        unset($grandchild);
+
+        return ['grandchild' => array_values($grandchildren), 'actions' => $actions, 'changes' => $changes];
     }
 
     /**
@@ -404,6 +679,25 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
     }
 
     /**
+     * @param array{parent_key:string,child_key:string,on_update?:string,deferred?:bool} $foreignKey
+     * @return array{parent_key:string,child_key:string,on_update:string,deferred:bool}
+     */
+    private static function normalizeUpdateForeignKey(array $foreignKey, string $label): array
+    {
+        $action = strtolower(trim((string) ($foreignKey['on_update'] ?? 'no action')));
+        if (!in_array($action, ['cascade', 'no action', 'restrict'], true)) {
+            throw new \InvalidArgumentException("SQLite deferred cascade {$label} foreign key action is unsupported");
+        }
+
+        return [
+            'parent_key' => self::identifier($foreignKey['parent_key'] ?? null, "{$label} parent key"),
+            'child_key' => self::identifier($foreignKey['child_key'] ?? null, "{$label} child key"),
+            'on_update' => $action,
+            'deferred' => (bool) ($foreignKey['deferred'] ?? false),
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $children
      * @param list<mixed> $deletedKeys
      */
@@ -420,6 +714,26 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
         return false;
     }
 
+    /**
+     * @param list<array<string,mixed>> $children
+     * @param list<array{old:mixed,new:mixed}> $updatedKeys
+     */
+    private static function hasReferencingUpdatedChild(array $children, array $updatedKeys, string $childKeyColumn): bool
+    {
+        $updated = [];
+        foreach ($updatedKeys as $key) {
+            $updated[self::keyIndex($key['old'])] = true;
+        }
+        foreach ($children as $child) {
+            $childKey = self::rowValue($child, $childKeyColumn, 'child row');
+            if (array_key_exists(self::keyIndex($childKey), $updated)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static function triggerValue(mixed $value, array $oldChild, int $grandchildCount): mixed
     {
         if ($value === 'grandchild_count') {
@@ -427,6 +741,21 @@ final class SQLiteForeignKeyDeferredCascadeTriggerCurrentSourcePlan
         }
         if (is_string($value) && str_starts_with($value, 'old.')) {
             return self::rowValue($oldChild, substr($value, 4), 'old child');
+        }
+
+        return $value;
+    }
+
+    private static function updateTriggerValue(mixed $value, array $oldChild, array $newChild, int $grandchildCount): mixed
+    {
+        if ($value === 'grandchild_count') {
+            return $grandchildCount;
+        }
+        if (is_string($value) && str_starts_with($value, 'old.')) {
+            return self::rowValue($oldChild, substr($value, 4), 'old child');
+        }
+        if (is_string($value) && str_starts_with($value, 'new.')) {
+            return self::rowValue($newChild, substr($value, 4), 'new child');
         }
 
         return $value;
