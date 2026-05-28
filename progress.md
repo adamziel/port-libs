@@ -43,10 +43,33 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 2.4G available, 100% used; `/tmp` has about 7.1G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current sample reports `/` at 452G size with under 1G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The worker pool drained during the latest verification pass and must be refilled under the critical disk gate without long sleep loops.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 01:23 UTC):
+  Batch70/71 clean subset is integrated and verified in the rolling clean
+  integration worktree. Implementation source advanced to
+  `8c22dddf559a0f005e513b779f9cb3a04f9d846b` (`Integrate libsqlite batch 70
+  71 clean subset`). The accepted subset applied btree70, freelist71,
+  encoding70, pagercache71, sqldml70, walchk70, and walshm70. It adds B-tree
+  freeblock defragmentation, freelist trunk-cycle rejection, malformed text
+  collation/range cursors, pager dirty-page cache-spill planning, UPSERT
+  RETURNING expressions, WAL checksum/salt recovery, and WAL SHM readmark
+  recovery. The sqlplan71 handoff was rejected from this batch after full
+  libsqlite exposed 11 planner regressions; removing that patch restored the
+  focused planner regression suite. Verification passed: focused accepted
+  subset plus planner regressions `11 test files / 964 assertions / 0
+  failures`, full libsqlite lane `495 test files / 58235 assertions / 0
+  failures / 27004 PASS lines`, and root `708 test files / 82703 assertions /
+  0 failures / 30032 PASS lines` with no runtime warnings. This is `+373`
+  libsqlite PASS lines over the published batch69 conflict subset
+  (`26631 -> 27004`); mapped upstream coverage remains `464 / 1589` because
+  no new accepted upstream inventory row was included. Worker pool was refilled
+  to 10 active windows, but disk is now below 1G free; next decision is to
+  publish this status/dashboard, consume accepted markers, keep sqlplan71 in
+  rework, and avoid further worktree spawning until disk is relieved safely.
 
 - 2026-05-28 supervisor continuation (shell samples 01:15 UTC):
   Batch69 conflict subset is integrated and verified in the rolling clean
