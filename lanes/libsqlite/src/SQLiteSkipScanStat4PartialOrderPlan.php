@@ -64,6 +64,94 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderByExpressions
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function partialCoveringSkipScanCurrentSourceNext127(
+        array $preparedSource,
+        array $currentSource,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $orderByExpressions,
+        array $neededColumns,
+    ): array {
+        $preparedOrder = self::reducedOrderByExpressions($preparedSource, $queryTerms, $orderByExpressions);
+        $currentOrder = self::reducedOrderByExpressions($currentSource, $queryTerms, $orderByExpressions);
+
+        $prepared = self::coveringCurrentSourceNext125(
+            $preparedSource,
+            $preparedSource,
+            $partialPredicate,
+            $queryTerms,
+            $preparedOrder['orderBy'],
+            array_values(array_unique(array_merge($neededColumns, $preparedOrder['neededExpressionColumns']))),
+        );
+        $current = self::coveringCurrentSourceNext125(
+            $currentSource,
+            $currentSource,
+            $partialPredicate,
+            $queryTerms,
+            $currentOrder['orderBy'],
+            array_values(array_unique(array_merge($neededColumns, $currentOrder['neededExpressionColumns']))),
+        );
+
+        $preparedSignature = self::sourceSignature($preparedSource) . '|' . self::orderExpressionSignature($preparedOrder);
+        $currentSignature = self::sourceSignature($currentSource) . '|' . self::orderExpressionSignature($currentOrder);
+        $stale = $preparedSignature !== $currentSignature;
+        $selected = $stale ? $current : $prepared;
+        $selectedOrder = $stale ? $currentOrder : $preparedOrder;
+        $selectedSource = $stale ? $currentSource : $preparedSource;
+        $selectedPlan = is_array($selected['selectedPlan'] ?? null) ? $selected['selectedPlan'] : null;
+
+        if ($selectedPlan !== null && $selectedOrder['uncoveredExpressions'] !== []) {
+            $selectedPlan = array_replace($selectedPlan, [
+                'covering' => false,
+                'tableSeekRequired' => true,
+                'deferredSeekOpcode' => 'DeferredSeek',
+                'coveringRejectedColumns' => array_values(array_unique(array_merge(
+                    $selectedPlan['coveringRejectedColumns'] ?? [],
+                    $selectedOrder['uncoveredExpressions'],
+                ))),
+                'coveringMode' => 'skipscan-expression-order-table-seek',
+                'detail' => ($selectedPlan['detail'] ?? 'SEARCH USING SKIP-SCAN') . ' ORDER BY EXPRESSION NEEDS TABLE',
+            ]);
+        }
+
+        return [
+            'status' => $selected['status'] ?? 'unusable',
+            'selectedSource' => $stale ? 'current' : 'prepared',
+            'stalePreparedStatement' => $stale,
+            'reprepareRequired' => $stale,
+            'schemaCookieChanged' => self::nonNegativeSourceInt($preparedSource, 'schemaCookie') !== self::nonNegativeSourceInt($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::nonNegativeSourceInt($preparedSource, 'stat4Generation') !== self::nonNegativeSourceInt($currentSource, 'stat4Generation'),
+            'orderExpressionSignatureChanged' => self::orderExpressionSignature($preparedOrder) !== self::orderExpressionSignature($currentOrder),
+            'preparedOrder' => $preparedOrder,
+            'currentOrder' => $currentOrder,
+            'selectedOrder' => $selectedOrder,
+            'preparedSource' => $prepared['preparedSource'] ?? null,
+            'currentSource' => $current['preparedSource'] ?? null,
+            'selectedPlan' => $selectedPlan,
+            'currentSourceFence' => [
+                'name' => self::sourceString($selectedSource, 'name'),
+                'schemaCookie' => self::nonNegativeSourceInt($selectedSource, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeSourceInt($selectedSource, 'stat4Generation'),
+                'orderExpressionSignature' => self::orderExpressionSignature($selectedOrder),
+                'coveringSignature' => self::columnSignature(self::sourceStringList($selectedSource, 'coveringColumns')),
+            ],
+            'detail' => ($stale ? 'REPREPARE ' : 'REUSE PREPARED ')
+                . 'PARTIAL COVERING SKIP-SCAN ORDER EXPRESSIONS '
+                . self::sourceString($selectedSource, 'name')
+                . ' constants=' . count($selectedOrder['constantExpressions'])
+                . ' uncovered=' . count($selectedOrder['uncoveredExpressions']),
+            'dependencies' => ['sqlite-sqlplanner-partial-covering-skipscan-current-source-next127'],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
@@ -530,6 +618,114 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             self::sourceBool($source, 'upperInclusive', true),
             self::sourceString($source, 'collation', 'BINARY'),
         );
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderByExpressions
+     * @return array{orderBy:list<array{column:string,direction?:string}>,constantExpressions:list<string>,uncoveredExpressions:list<string>,coveredExpressions:list<string>,neededExpressionColumns:list<string>,directions:list<string>}
+     */
+    private static function reducedOrderByExpressions(array $source, array $queryTerms, array $orderByExpressions): array
+    {
+        $covering = array_fill_keys(array_map('strtolower', self::sourceStringList($source, 'coveringColumns')), true);
+        $constants = self::constantColumnsFromTerms($queryTerms);
+        $orderBy = [];
+        $constantExpressions = [];
+        $uncoveredExpressions = [];
+        $coveredExpressions = [];
+        $neededExpressionColumns = [];
+        $directions = [];
+
+        foreach ($orderByExpressions as $term) {
+            $expression = $term['expression'] ?? null;
+            if (!is_string($expression) || trim($expression) === '') {
+                throw new \InvalidArgumentException('SQLite partial covering skip-scan ORDER BY expressions need SQL text');
+            }
+            $expression = trim($expression);
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if (!in_array($direction, ['ASC', 'DESC'], true)) {
+                throw new \InvalidArgumentException('SQLite partial covering skip-scan ORDER BY direction must be ASC or DESC');
+            }
+            $directions[] = $direction;
+            $column = isset($term['column']) && is_string($term['column']) ? $term['column'] : self::simpleColumnExpression($expression);
+            if ($column !== null && isset($constants[strtolower($column)])) {
+                $constantExpressions[] = $expression;
+                continue;
+            }
+            if ($column !== null && isset($covering[strtolower($column)])) {
+                $orderBy[] = ['column' => $column, 'direction' => $direction];
+                $coveredExpressions[] = $expression;
+                $neededExpressionColumns[] = $column;
+                continue;
+            }
+            if (isset($covering[strtolower($expression)])) {
+                $coveredExpressions[] = $expression;
+                continue;
+            }
+            $uncoveredExpressions[] = $expression;
+        }
+
+        return [
+            'orderBy' => $orderBy,
+            'constantExpressions' => $constantExpressions,
+            'uncoveredExpressions' => $uncoveredExpressions,
+            'coveredExpressions' => $coveredExpressions,
+            'neededExpressionColumns' => array_values(array_unique($neededExpressionColumns)),
+            'directions' => $directions,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $queryTerms
+     * @return array<string,mixed>
+     */
+    private static function constantColumnsFromTerms(array $queryTerms): array
+    {
+        $constants = [];
+        foreach ($queryTerms as $term) {
+            $operator = strtoupper((string) ($term['operator'] ?? ''));
+            if ($operator !== '=') {
+                continue;
+            }
+            $left = $term['left'] ?? null;
+            if (!is_array($left) || !isset($left['column']) || !is_string($left['column']) || $left['column'] === '') {
+                continue;
+            }
+            $constants[strtolower($left['column'])] = $term['right'] ?? null;
+        }
+
+        return $constants;
+    }
+
+    private static function simpleColumnExpression(string $expression): ?string
+    {
+        $trimmed = trim($expression);
+        if (preg_match('/^(?:"([^"]+)"|`([^`]+)`|\[([^\]]+)\]|([A-Za-z_][A-Za-z0-9_]*))$/', $trimmed, $matches) !== 1) {
+            return null;
+        }
+
+        $doubleQuoted = $matches[1] ?? '';
+        $backtickQuoted = $matches[2] ?? '';
+        $bracketQuoted = $matches[3] ?? '';
+        $bare = $matches[4] ?? '';
+
+        return $doubleQuoted !== '' ? $doubleQuoted : ($backtickQuoted !== '' ? $backtickQuoted : ($bracketQuoted !== '' ? $bracketQuoted : $bare));
+    }
+
+    /**
+     * @param array<string,mixed> $order
+     */
+    private static function orderExpressionSignature(array $order): string
+    {
+        return hash('sha256', serialize([
+            $order['orderBy'] ?? [],
+            $order['constantExpressions'] ?? [],
+            $order['uncoveredExpressions'] ?? [],
+            $order['coveredExpressions'] ?? [],
+            $order['neededExpressionColumns'] ?? [],
+            $order['directions'] ?? [],
+        ]));
     }
 
     /**

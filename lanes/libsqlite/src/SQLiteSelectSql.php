@@ -79,8 +79,22 @@ final class SQLiteSelectSql
         } else {
             $cteNames = [];
         }
+        if (preg_match('/^values\s+/i', $sql) === 1) {
+            $compound = self::compoundSqlPlan($sql, $tables, $cteNames, $outerRow);
+            if ($compound !== null) {
+                return $compound;
+            }
+
+            $plan = self::valuesSelectPlan($sql);
+            if ($cteNames !== []) {
+                $plan['with'] = $cteNames;
+            }
+
+            return $plan;
+        }
+
         if (!preg_match('/^select\s+/i', $sql)) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT');
+            throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT or VALUES');
         }
 
         $compound = self::compoundSqlPlan($sql, $tables, $cteNames, $outerRow);
@@ -276,6 +290,31 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @return array{from:list<array<string,mixed>>,select:list<array<string,string>>}
+     */
+    private static function valuesSelectPlan(string $sql): array
+    {
+        $rows = self::executeValuesClause($sql);
+        $first = $rows[0] ?? null;
+        if ($first === null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES clause needs at least one row');
+        }
+
+        $select = [];
+        foreach (array_keys($first) as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES column name is malformed');
+            }
+            $select[] = ['type' => 'column', 'name' => $column];
+        }
+
+        return [
+            'from' => $rows,
+            'select' => $select,
+        ];
+    }
+
+    /**
      * @param array<int|string,mixed> $parameters
      */
     private static function bindParameters(string $sql, array $parameters): string
@@ -408,7 +447,11 @@ final class SQLiteSelectSql
         }
 
         $lastIndex = count($parts['arms']) - 1;
+        $finalArmWasValues = preg_match('/^values\s+/i', trim($parts['arms'][$lastIndex])) === 1;
         [$lastSql, $orderSql, $limitSql] = self::stripCompoundTailClauses($parts['arms'][$lastIndex]);
+        if ($finalArmWasValues && ($orderSql !== null || $limitSql !== null)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL compound ORDER BY/LIMIT is not supported after a final VALUES arm');
+        }
         $parts['arms'][$lastIndex] = $lastSql;
 
         $arms = [];
@@ -416,7 +459,9 @@ final class SQLiteSelectSql
             if (self::splitCompoundSql($armSql) !== null) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arms cannot contain nested compound SELECT text');
             }
-            $arm = self::plan($armSql, $tables, [], $outerRow);
+            $arm = preg_match('/^values\s+/i', trim($armSql)) === 1
+                ? self::valuesSelectPlan($armSql)
+                : self::plan($armSql, $tables, [], $outerRow);
             if ($outerRow !== null) {
                 $arm = self::expandCorrelatedPlan($arm, $tables, $outerRow);
             }
@@ -1316,8 +1361,8 @@ final class SQLiteSelectSql
             }
 
             $mainSql = trim(substr($sql, $offset));
-            if (!preg_match('/^select\s+/i', $mainSql)) {
-                throw new \InvalidArgumentException('SQLite SELECT SQL WITH clause needs a trailing SELECT');
+            if (!preg_match('/^(select|values)\s+/i', $mainSql)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WITH clause needs a trailing SELECT or VALUES');
             }
 
             return [$entries, $mainSql, $recursive];

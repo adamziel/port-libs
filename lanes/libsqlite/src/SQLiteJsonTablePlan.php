@@ -1174,6 +1174,113 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceNestedConstraintOrderNext127(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested constraint order planner requires a JSON source column');
+        }
+        if ($baseRootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested constraint order planner requires a base root column');
+        }
+        if ($nestedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested constraint order planner requires a nested path column');
+        }
+
+        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $current = $currentSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $currentRoot['root']];
+        $next = $nextSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $nextRoot['root']];
+
+        $plan = self::currentSourceConstraintOrderByCostNext124(
+            $function,
+            $current,
+            $next,
+            $jsonColumn,
+            $constraints,
+            '__sqlite_json_table_nested_constraint_order_root_next127',
+            $orderBy,
+        );
+
+        $transitions = [
+            'baseRoot' => [
+                'current' => $currentRoot['baseRoot'],
+                'next' => $nextRoot['baseRoot'],
+                'changed' => $currentRoot['baseRoot'] !== $nextRoot['baseRoot'],
+            ],
+            'nestedPath' => [
+                'current' => $currentRoot['nestedPath'],
+                'next' => $nextRoot['nestedPath'],
+                'changed' => $currentRoot['nestedPath'] !== $nextRoot['nestedPath'],
+            ],
+            'composedRoot' => [
+                'current' => $currentRoot['root'],
+                'next' => $nextRoot['root'],
+                'changed' => $currentRoot['root'] !== $nextRoot['root'],
+            ],
+            'consumedPrefixColumns' => [
+                'current' => $plan['currentPartialOrderCost']['consumedPrefixColumns'],
+                'next' => $plan['nextPartialOrderCost']['consumedPrefixColumns'],
+                'changed' => $plan['currentPartialOrderCost']['consumedPrefixColumns'] !== $plan['nextPartialOrderCost']['consumedPrefixColumns'],
+            ],
+            'suffixColumns' => [
+                'current' => $plan['currentPartialOrderCost']['suffixColumns'],
+                'next' => $plan['nextPartialOrderCost']['suffixColumns'],
+                'changed' => $plan['currentPartialOrderCost']['suffixColumns'] !== $plan['nextPartialOrderCost']['suffixColumns'],
+            ],
+        ];
+
+        $nestedReasons = [];
+        if ($transitions['baseRoot']['changed']) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-base-root-changed';
+        }
+        if ($transitions['nestedPath']['changed']) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-path-changed';
+        }
+        if ($transitions['composedRoot']['changed']) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-root-changed';
+        }
+        if ($transitions['consumedPrefixColumns']['changed']) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-prefix-changed';
+        }
+        if ($transitions['suffixColumns']['changed']) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-suffix-changed';
+        }
+        if (count($plan['currentRows']) !== count($plan['nextRows'])) {
+            $nestedReasons[] = 'json-table-nested-constraint-order-row-count-changed';
+        }
+
+        $plan['currentNestedConstraintOrder'] = self::nestedConstraintOrderProfile127($currentRoot, $plan['currentPartialOrderCost'], $plan['currentOrderConstraintCoverage']);
+        $plan['nextNestedConstraintOrder'] = self::nestedConstraintOrderProfile127($nextRoot, $plan['nextPartialOrderCost'], $plan['nextOrderConstraintCoverage']);
+        $plan['nestedConstraintOrderTransitions'] = $transitions;
+        $plan['next127ReplanReasons'] = array_values(array_unique(array_merge($plan['next124ReplanReasons'], $nestedReasons)));
+        $plan['replanRequired'] = $plan['next127ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-constraint-order-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next127ReplanReasons'] === []
+            ? 'reuse-current-json-table-nested-constraint-order-source-plan'
+            : 'prepare-next-json-table-nested-constraint-order-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-nested-constraint-order-current-source-next127'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourcePathHiddenRowidCostNext126(
         string $function,
         array $currentSource,
@@ -4974,6 +5081,33 @@ final class SQLiteJsonTablePlan
         }
 
         return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $nestedRoot
+     * @param array<string,mixed> $partialOrder
+     * @param list<array{column:string,direction:string,consumed:bool,reason:string,constraintOperator:string|null,constraintValue:mixed}> $coverage
+     * @return array{baseRoot:string,nestedPath:string,root:string,mode:string,consumedPrefixColumns:list<string>,suffixColumns:list<string>,prefixConsumedCount:int,blockSortRequired:bool,effectiveEstimatedCost:int,costClass:string,rowOrder:list<int|null>,coverage:list<array<string,mixed>>,rootOrderKey:list<mixed>,firstSuffixKey:mixed,lastSuffixKey:mixed}
+     */
+    private static function nestedConstraintOrderProfile127(array $nestedRoot, array $partialOrder, array $coverage): array
+    {
+        return [
+            'baseRoot' => (string) $nestedRoot['baseRoot'],
+            'nestedPath' => (string) $nestedRoot['nestedPath'],
+            'root' => (string) $nestedRoot['root'],
+            'mode' => (string) $nestedRoot['mode'],
+            'consumedPrefixColumns' => $partialOrder['consumedPrefixColumns'],
+            'suffixColumns' => $partialOrder['suffixColumns'],
+            'prefixConsumedCount' => (int) $partialOrder['prefixConsumedCount'],
+            'blockSortRequired' => (bool) $partialOrder['blockSortRequired'],
+            'effectiveEstimatedCost' => (int) $partialOrder['effectiveEstimatedCost'],
+            'costClass' => (string) $partialOrder['costClass'],
+            'rowOrder' => $partialOrder['rowOrder'],
+            'coverage' => $coverage,
+            'rootOrderKey' => [$nestedRoot['root'], $partialOrder['rowOrder'][0] ?? null],
+            'firstSuffixKey' => $partialOrder['firstSuffixKey'],
+            'lastSuffixKey' => $partialOrder['lastSuffixKey'],
+        ];
     }
 
     /**

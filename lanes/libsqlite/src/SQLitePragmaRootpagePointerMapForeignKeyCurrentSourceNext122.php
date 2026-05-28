@@ -91,15 +91,15 @@ final class SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122
         SQLiteAttachedSchemaCatalog $catalog,
         string $foreignKeySql = 'PRAGMA foreign_key_check',
     ): array {
-        $rootRows = self::rootRowsByName($database);
+        $rootRows = self::rootRows($database);
         $foreignKeys = self::executeForeignKeySql($foreignKeySql, $schemas, $catalog);
         $rows = [];
 
         foreach ($foreignKeys['rows'] as $row) {
             $child = self::catalogRoot($catalog, $row['schema'], $row['table']);
             $parent = self::catalogRoot($catalog, $row['schema'], $row['parent']);
-            $childRoot = $child === null ? null : ($rootRows[$child['name']] ?? null);
-            $parentRoot = $parent === null ? null : ($rootRows[$parent['name']] ?? null);
+            $childRoot = $child === null ? null : self::rootRowForCatalogRoot($rootRows, $child);
+            $parentRoot = $parent === null ? null : self::rootRowForCatalogRoot($rootRows, $parent);
 
             $rows[] = [
                 'kind' => 'foreign_key_rootpage_pointer_map',
@@ -129,13 +129,22 @@ final class SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122
     /**
      * @return array<string,array<string,mixed>>
      */
-    private static function rootRowsByName(string|SQLiteDatabase $database): array
+    private static function rootRows(string|SQLiteDatabase $database): array
     {
         $analysis = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext111::analyze($database);
-        $rows = [];
+        $rows = [
+            'by_name' => [],
+            'by_rootpage' => [],
+        ];
         foreach ($analysis['rows'] as $row) {
-            if (($row['type'] ?? null) === 'table' && is_string($row['name'] ?? null)) {
-                $rows[$row['name']] = $row;
+            if (($row['type'] ?? null) !== 'table') {
+                continue;
+            }
+            if (is_string($row['name'] ?? null)) {
+                $rows['by_name'][$row['name']] = $row;
+            }
+            if (is_int($row['rootpage'] ?? null)) {
+                $rows['by_rootpage'][$row['rootpage']] = $row;
             }
         }
 
@@ -157,6 +166,21 @@ final class SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122
         }
 
         return null;
+    }
+
+    /**
+     * @param array{by_name:array<string,array<string,mixed>>,by_rootpage:array<int,array<string,mixed>>} $rootRows
+     * @param array{name:string,rootpage:int|null} $catalogRoot
+     * @return array<string,mixed>|null
+     */
+    private static function rootRowForCatalogRoot(array $rootRows, array $catalogRoot): ?array
+    {
+        $rootPage = $catalogRoot['rootpage'];
+        if ($rootPage !== null && isset($rootRows['by_rootpage'][$rootPage])) {
+            return $rootRows['by_rootpage'][$rootPage];
+        }
+
+        return $rootRows['by_name'][$catalogRoot['name']] ?? null;
     }
 
     /**
