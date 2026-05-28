@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 01:00:42 UTC",
-    "sourceCommit": "a79fefdc001b795aceafa5d5a02e112ff86e8908",
-    "sourceCommitShort": "a79fefdc001b",
+    "generated": "2026-05-28 01:11:04 UTC",
+    "sourceCommit": "4b8ed8768462cafb1b17205f1203ed9637ccf439",
+    "sourceCommitShort": "4b8ed8768462",
     "sourceBranch": "main",
-    "dashboardCommit": "a79fefdc001b795aceafa5d5a02e112ff86e8908",
-    "dashboardCommitShort": "a79fefdc001b",
+    "dashboardCommit": "4b8ed8768462cafb1b17205f1203ed9637ccf439",
+    "dashboardCommitShort": "4b8ed8768462",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "464",
             "coverage": "464 / 1589",
-            "php": "26354 pass / 0 fail",
+            "php": "26631 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch68/69 clean subset libsqlite current-next...",
-            "audit": "Batch68/69 clean subset accepted in imple...",
-            "currentWork": "Accepted batch68/69 clean subset covering ATTACH WAL/temp transaction schema-cookie visib...",
-            "nextTarget": "Resolve and integrate queued pager69/select69/suite69/vfs69 patches, then consume their m...",
-            "blocker": "No blocker for the accepted batch68/69 clean subset: focused, full libsql...",
-            "commit": "c9ad144"
+            "phase": "accepted batch69 conflict subset libsqlite current-next...",
+            "audit": "Batch69 conflict subset accepted in imple...",
+            "currentWork": "Accepted batch69 conflict subset covering pager savepoint rollback-to-current retry handl...",
+            "nextTarget": "Consume accepted pager69/select69/suite69/vfs69 markers, then integrate ready batch70/bat...",
+            "blocker": "No blocker for the accepted batch69 conflict subset: focused, full libsql...",
+            "commit": "567c2b3"
         },
         {
             "library": "LightningCSS",
