@@ -12,6 +12,8 @@ final class SQLiteOverflowVacuumTruncatePlan
     private function __construct(
         public readonly SQLiteOverflowFreelistReleasePlan $releasePlan,
         public readonly SQLiteFreelistTruncatePlan $truncatePlan,
+        public readonly SQLiteDatabase $currentDatabase,
+        public readonly SQLiteDatabase $nextDatabase,
         public readonly array $pageImages,
     ) {
     }
@@ -44,7 +46,9 @@ final class SQLiteOverflowVacuumTruncatePlan
         }
         ksort($pageImages);
 
-        return new self($releasePlan, $truncatePlan, $pageImages);
+        $nextDatabase = self::databaseWithPageImages($database, $pageImages, $truncatePlan->databasePageCount);
+
+        return new self($releasePlan, $truncatePlan, $releasedDatabase, $nextDatabase, $pageImages);
     }
 
     /**
@@ -79,6 +83,30 @@ final class SQLiteOverflowVacuumTruncatePlan
     }
 
     /**
+     * @return list<int>
+     */
+    public function currentFreelistPageNumbers(): array
+    {
+        return $this->currentDatabase->freelistPageNumbers();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function nextFreelistPageNumbers(): array
+    {
+        return $this->nextDatabase->freelistPageNumbers();
+    }
+
+    /**
+     * @return list<array{page_number:int,pointer_map_page:int,offset:int,type:int,type_name:string,parent_page_number:int}>
+     */
+    public function currentFreedPointerMapEntries(): array
+    {
+        return $this->releasePlan->freePlan->freedPointerMapEntries;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -87,9 +115,15 @@ final class SQLiteOverflowVacuumTruncatePlan
             'action' => 'overflow-freelist-release-vacuum-truncate',
             'released_overflow_pages' => $this->releasedOverflowPages(),
             'truncated_page_numbers' => $this->truncatedPageNumbers(),
+            'current_database_page_count' => $this->currentDatabase->pageCount(),
+            'current_first_freelist_trunk_page' => $this->currentDatabase->header->firstFreelistTrunkPage,
+            'current_freelist_page_count' => $this->currentDatabase->header->freelistPageCount,
+            'current_freelist_page_numbers' => $this->currentFreelistPageNumbers(),
+            'current_freed_pointer_map_entries' => $this->currentFreedPointerMapEntries(),
             'final_database_page_count' => $this->finalDatabasePageCount(),
             'final_first_freelist_trunk_page' => $this->finalFirstFreelistTrunkPage(),
             'final_freelist_page_count' => $this->finalFreelistPageCount(),
+            'next_freelist_page_numbers' => $this->nextFreelistPageNumbers(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),
@@ -99,9 +133,9 @@ final class SQLiteOverflowVacuumTruncatePlan
     /**
      * @param array<int, string> $pageImages
      */
-    private static function databaseWithPageImages(SQLiteDatabase $database, array $pageImages): SQLiteDatabase
+    private static function databaseWithPageImages(SQLiteDatabase $database, array $pageImages, ?int $pageCountOverride = null): SQLiteDatabase
     {
-        $pageCount = $database->pageCount();
+        $pageCount = $pageCountOverride ?? $database->pageCount();
         foreach ($pageImages as $pageNumber => $page) {
             if (!is_int($pageNumber) || $pageNumber < 1) {
                 throw new \InvalidArgumentException('SQLite overflow vacuum page images must use one-based page numbers');
@@ -109,7 +143,9 @@ final class SQLiteOverflowVacuumTruncatePlan
             if (!is_string($page) || strlen($page) !== $database->header->pageSize) {
                 throw new \InvalidArgumentException('SQLite overflow vacuum page image length does not match page size');
             }
-            $pageCount = max($pageCount, $pageNumber);
+            if ($pageCountOverride === null) {
+                $pageCount = max($pageCount, $pageNumber);
+            }
         }
 
         $pages = [];

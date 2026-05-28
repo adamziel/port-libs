@@ -1296,6 +1296,81 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{mode:string,status:string,first:array<string,mixed>,retry:array<string,mixed>,current_reader_end_frame:int|null,current_reader:list<array<string,mixed>>,current_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,retry_reader_end_frame:int,next_reader:list<array<string,mixed>>,next_reader_sources:list<string>,next_reader_frame_indexes:list<int|null>,next_reader_errors:list<string>,current_reader_kept_snapshot:bool,retry_reset_ready:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,images_match:bool,dependencies:list<string>}
+     */
+    public function checkpointReaderPinRestartRetryCurrentNext(
+        string $databaseBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $releasedShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader-pin restart retry requires at least one page number');
+        }
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL checkpoint reader-pin restart retry mode: {$mode}");
+        }
+
+        $first = $this->restartReadMarkTransition($databaseBytes, $currentShm, $mode);
+        $retry = $this->restartReadMarkTransition($databaseBytes, $releasedShm, $mode);
+
+        $retryWal = null;
+        if ($retry['checkpoint']['wal_bytes'] !== '') {
+            $retryWal = self::parse($retry['checkpoint']['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        }
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint reader-pin restart retry pages must be integers');
+            }
+
+            $current[] = $first['current_reader_end_frame'] === null
+                ? self::databasePageVisibilityOrError($databaseBytes, $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $first['current_reader_end_frame']);
+
+            if ($retryWal === null || $retry['next_wal_frame_count'] === 0) {
+                $next[] = self::databasePageVisibilityOrError($retry['checkpoint']['database_bytes'], $this->header->pageSize, $pageNumber);
+                continue;
+            }
+
+            $next[] = self::safeReaderVisibility($retryWal, $retry['checkpoint']['database_bytes'], $pageNumber, $retry['next_wal_frame_count']);
+        }
+
+        return [
+            'mode' => $mode,
+            'status' => $first['status'] === 'current-reader-pinned' && $retry['status'] === 'restart-ready'
+                ? 'reader-pin-restart-current-next'
+                : 'restart-retry-' . $retry['status'],
+            'first' => $first,
+            'retry' => $retry,
+            'current_reader_end_frame' => $first['current_reader_end_frame'],
+            'current_reader' => $current,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'retry_reader_end_frame' => $retry['next_wal_frame_count'],
+            'next_reader' => $next,
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_reader_kept_snapshot' => $first['current_reader_kept_snapshot'],
+            'retry_reset_ready' => !$retry['checkpoint']['busy'] && in_array($retry['checkpoint']['wal_action'], ['restart_wal', 'truncate_wal'], true),
+            'next_reader_uses_database' => $retry['next_reader_uses_database'],
+            'next_reader_uses_restarted_wal' => $retry['next_reader_uses_restarted_wal'],
+            'images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'dependencies' => array_values(array_unique(array_merge(
+                $first['dependencies'],
+                $retry['dependencies'],
+                ['wal-checkpoint-reader-pin-restart-retry-current-next54']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

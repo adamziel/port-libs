@@ -1864,6 +1864,221 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $denominatorRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerSuiteDenominatorBurnupCurrentNext54(
+        array $denominatorRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite current-next54 denominator burnup requires current and next accepted HEAD values');
+        }
+        if ($denominatorRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next54 denominator burnup requires at least one denominator row');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = [];
+        $families = [];
+        $blockers = [];
+        $currentMapped = 0;
+        $nextMapped = 0;
+        $currentRunnerCountable = 0;
+        $nextRunnerCountable = 0;
+        $advanced = [];
+        $preserved = [];
+        $regressed = [];
+        $open = [];
+        $inventoryUnits = 0;
+
+        foreach ($denominatorRows as $label => $row) {
+            if (!is_array($row)) {
+                $blockers[] = [
+                    'id' => 'denominator-row-invalid',
+                    'evidence' => 'denominator burnup row is not an array',
+                    'label' => is_string($label) ? $label : 'row-' . (string) count($entries),
+                ];
+                continue;
+            }
+
+            $id = is_string($row['id'] ?? null) && $row['id'] !== ''
+                ? $row['id']
+                : (is_string($label) ? $label : 'row-' . (string) count($entries));
+            $family = is_string($row['family'] ?? null) && $row['family'] !== '' ? $row['family'] : 'unclassified';
+            $unitCount = max(1, (int) ($row['units'] ?? 1));
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'missing';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'missing';
+            $currentCountable = (bool) ($row['current_countable'] ?? ($currentStatus === 'mapped'));
+            $nextCountable = (bool) ($row['next_countable'] ?? ($nextStatus === 'mapped'));
+            $currentRunner = (bool) ($row['current_runner_countable'] ?? false);
+            $nextRunner = (bool) ($row['next_runner_countable'] ?? false);
+            $rowBlockers = [];
+
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            if (is_string($row['blocker'] ?? null) && $row['blocker'] !== '') {
+                $rowBlockers[] = $row['blocker'];
+            }
+
+            if ($currentCountable) {
+                $currentMapped += $unitCount;
+            }
+            if ($nextCountable) {
+                $nextMapped += $unitCount;
+            }
+            if ($currentRunner) {
+                $currentRunnerCountable++;
+            }
+            if ($nextRunner) {
+                $nextRunnerCountable++;
+            }
+
+            $movement = 'open';
+            if ($nextCountable && !$currentCountable) {
+                $movement = 'advanced';
+                $advanced[] = $id;
+            } elseif ($nextCountable && $currentCountable) {
+                $movement = 'preserved';
+                $preserved[] = $id;
+            } elseif (!$nextCountable && $currentCountable) {
+                $movement = 'regressed';
+                $regressed[] = $id;
+                $rowBlockers[] = 'next-denominator-countability-regressed';
+            } else {
+                $open[] = $id;
+            }
+
+            if ($nextRunner && !$nextCountable) {
+                $rowBlockers[] = 'runner-countable-without-denominator-mapping';
+            }
+
+            if ($rowBlockers !== []) {
+                $blockers[] = [
+                    'id' => 'denominator-row-blocked',
+                    'row_id' => $id,
+                    'evidence' => implode('; ', array_values(array_unique($rowBlockers))),
+                ];
+            }
+
+            if (!isset($families[$family])) {
+                $families[$family] = [
+                    'family' => $family,
+                    'rows' => 0,
+                    'inventory_units' => 0,
+                    'current_mapped' => 0,
+                    'next_mapped' => 0,
+                    'advanced' => 0,
+                    'preserved' => 0,
+                    'regressed' => 0,
+                    'open' => 0,
+                ];
+            }
+
+            $families[$family]['rows']++;
+            $families[$family]['inventory_units'] += $unitCount;
+            $families[$family]['current_mapped'] += $currentCountable ? $unitCount : 0;
+            $families[$family]['next_mapped'] += $nextCountable ? $unitCount : 0;
+            $families[$family][$movement]++;
+            $inventoryUnits += $unitCount;
+
+            $entries[] = [
+                'id' => $id,
+                'family' => $family,
+                'units' => $unitCount,
+                'current_status' => $currentStatus,
+                'next_status' => $nextStatus,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'current_runner_countable' => $currentRunner,
+                'next_runner_countable' => $nextRunner,
+                'movement' => $movement,
+                'blockers' => array_values(array_unique($rowBlockers)),
+            ];
+        }
+
+        ksort($families);
+        sort($advanced);
+        sort($preserved);
+        sort($regressed);
+        sort($open);
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $mappedDelta = $nextMapped - $currentMapped;
+        $runnerDelta = $nextRunnerCountable - $currentRunnerCountable;
+        $status = 'blocked';
+        if ($blockers === [] && $mappedDelta > 0) {
+            $status = 'current-next54-denominator-burnup-advanced';
+        } elseif ($blockers === [] && $mappedDelta === 0 && $regressed === []) {
+            $status = 'current-next54-denominator-burnup-preserved';
+        } elseif ($currentMapped > 0 && $regressed === []) {
+            $status = 'current-denominator-preserved-with-open-gaps';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'family_count' => count($families),
+            'inventory_units' => $inventoryUnits,
+            'current_mapped_units' => $currentMapped,
+            'next_mapped_units' => $nextMapped,
+            'mapped_unit_delta' => $mappedDelta,
+            'current_runner_countable_count' => $currentRunnerCountable,
+            'next_runner_countable_count' => $nextRunnerCountable,
+            'runner_countable_delta' => $runnerDelta,
+            'advanced_count' => count($advanced),
+            'preserved_count' => count($preserved),
+            'regressed_count' => count($regressed),
+            'open_count' => count($open),
+            'advanced_ids' => $advanced,
+            'preserved_ids' => $preserved,
+            'regressed_ids' => $regressed,
+            'open_ids' => $open,
+            'families' => array_values($families),
+            'entries' => $entries,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_denominator_burnup' => $status === 'current-next54-denominator-burnup-advanced',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => match ($status) {
+                'current-next54-denominator-burnup-advanced' => 'publish only the current-next54 mapped denominator burnup rows, then require matching zero-error artifacts before claiming release/all parity',
+                'current-next54-denominator-burnup-preserved' => 'record denominator preservation without launching duplicate broad suite runners',
+                'current-denominator-preserved-with-open-gaps' => 'preserve current denominator rows and resolve open next-source mapping or runner artifact blockers',
+                default => 'repair regressed, blocked, or unfocused denominator burnup evidence before counting current-next54 movement',
+            },
+            'dependency_closure' => 'no new support component needed; current-next54 denominator burnup composes lane-local denominator rows, runner countability flags, and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */
