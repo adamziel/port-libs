@@ -1902,6 +1902,68 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenPathGeneratedNext143(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        if ($generatedConstraints === []) {
+            throw new \InvalidArgumentException('SQLite JSON table hidden path generated current-source planner requires generated constraints');
+        }
+
+        $plan = self::currentSourceHiddenPathRowidNext140(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+            $plan['current'],
+            $plan['currentHiddenPathRowidSource'],
+            $generatedConstraints,
+        );
+        $nextProfile = self::jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+            $plan['next'],
+            $plan['nextHiddenPathRowidSource'],
+            $generatedConstraints,
+        );
+        $transitions = self::jsonTableHiddenPathGeneratedCurrentSourceTransitions143($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathGeneratedCurrentSourceReplanReasons143($transitions);
+
+        $plan['currentHiddenPathGeneratedSource'] = $currentProfile;
+        $plan['nextHiddenPathGeneratedSource'] = $nextProfile;
+        $plan['hiddenPathGeneratedSourceTransitions'] = $transitions;
+        $plan['next143ReplanReasons'] = array_values(array_unique(array_merge($plan['next140ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next143ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-path-generated-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next143ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-path-generated-source'
+            : 'prepare-next-json-table-hidden-path-generated-source';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-path-generated-current-source-next143'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceNestedHiddenCostNext129(
@@ -7635,6 +7697,188 @@ final class SQLiteJsonTablePlan
                 'seekTape' => 'json-table-hidden-path-rowid-current-source-tape-changed',
                 'costClass' => 'json-table-hidden-path-rowid-current-source-cost-changed',
                 default => 'json-table-hidden-path-rowid-current-source-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $hiddenPathRowid
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array{seekSignature:string|null,sourceKind:string,matched:bool,generatedMatched:bool,generatedConstraints:list<array{name:string,source:string,path:string,operator:string,value:mixed,usable:bool}>,generatedConstraintSignatures:list<string>,generatedValues:array<string,mixed>,generatedTape:list<array{name:string,source:string,path:string,operator:string,expected:mixed,actual:mixed,matched:bool,usable:bool}>,matchedRowid:int|null,matchedPath:string|null,matchedFullkey:string|null,matchedValueFingerprint:string|null,effectiveEstimatedCost:int,costClass:string}
+     */
+    private static function jsonTableHiddenPathGeneratedCurrentSourceProfile143(
+        array $plan,
+        array $hiddenPathRowid,
+        array $generatedConstraints,
+    ): array {
+        $constraints = self::normalizeGeneratedHiddenConstraints136($generatedConstraints);
+        $matched = (bool) ($hiddenPathRowid['matched'] ?? false);
+        $fakeRow = [
+            'json' => $plan['source']['jsonValue'] ?? $plan['source']['option_value'] ?? null,
+            'value' => $hiddenPathRowid['matchedValue'] ?? null,
+            'atom' => $hiddenPathRowid['matchedAtom'] ?? null,
+        ];
+
+        $values = [];
+        $tape = [];
+        foreach ($constraints as $constraint) {
+            $actual = $matched ? self::generatedOrderValue132($fakeRow, $constraint) : null;
+            $singleMatch = $matched && self::generatedHiddenValuesMatch136(
+                [$constraint['name'] => $actual],
+                [$constraint],
+            );
+            $values[$constraint['name']] = $actual;
+            $tape[] = [
+                'name' => $constraint['name'],
+                'source' => $constraint['source'],
+                'path' => $constraint['path'],
+                'operator' => $constraint['operator'],
+                'expected' => $constraint['value'],
+                'actual' => $actual,
+                'matched' => $singleMatch,
+                'usable' => $constraint['usable'],
+            ];
+        }
+
+        $generatedMatched = $matched && self::generatedHiddenValuesMatch136($values, $constraints);
+        $baseCost = (int) ($hiddenPathRowid['effectiveEstimatedCost'] ?? 1000000);
+        if (!(bool) ($plan['runnable'] ?? false) || ($hiddenPathRowid['costClass'] ?? null) === 'unrunnable-json-table') {
+            $effectiveCost = 1000000;
+        } elseif (!$matched) {
+            $effectiveCost = min(8, max(3, $baseCost + count($constraints)));
+        } elseif (!$generatedMatched) {
+            $effectiveCost = min(12, max(4, $baseCost + count($constraints) + 1));
+        } else {
+            $effectiveCost = max(1, min($baseCost + count($constraints), 6));
+        }
+
+        return [
+            'seekSignature' => $hiddenPathRowid['seekSignature'] ?? null,
+            'sourceKind' => (string) ($hiddenPathRowid['sourceKind'] ?? 'missing'),
+            'matched' => $matched,
+            'generatedMatched' => $generatedMatched,
+            'generatedConstraints' => $constraints,
+            'generatedConstraintSignatures' => array_map(
+                static fn (array $constraint): string => $constraint['name'] . ':' . $constraint['source'] . ':' . $constraint['path'] . ':' . $constraint['operator'] . ':' . json_encode($constraint['value']),
+                $constraints,
+            ),
+            'generatedValues' => $values,
+            'generatedTape' => $tape,
+            'matchedRowid' => $hiddenPathRowid['matchedRowid'] ?? null,
+            'matchedPath' => $hiddenPathRowid['matchedPath'] ?? null,
+            'matchedFullkey' => $hiddenPathRowid['matchedFullkey'] ?? null,
+            'matchedValueFingerprint' => $hiddenPathRowid['matchedValueFingerprint'] ?? null,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableHiddenPathGeneratedCurrentSourceCostClass143(
+                (bool) ($plan['runnable'] ?? false),
+                $matched,
+                $generatedMatched,
+                (string) ($hiddenPathRowid['costClass'] ?? 'json-table-hidden-path-rowid-current-source-scan'),
+            ),
+        ];
+    }
+
+    private static function jsonTableHiddenPathGeneratedCurrentSourceCostClass143(
+        bool $runnable,
+        bool $matched,
+        bool $generatedMatched,
+        string $baseCostClass,
+    ): string {
+        if (!$runnable || $baseCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$matched) {
+            return 'json-table-hidden-path-generated-current-source-miss';
+        }
+        if (!$generatedMatched) {
+            return 'json-table-hidden-path-generated-current-source-filtered';
+        }
+
+        return 'json-table-hidden-path-generated-current-source-point';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenPathGeneratedCurrentSourceTransitions143(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'seekSignature',
+                'current' => $current['seekSignature'],
+                'next' => $next['seekSignature'],
+                'changed' => $current['seekSignature'] !== $next['seekSignature'],
+            ],
+            [
+                'field' => 'sourceKind',
+                'current' => $current['sourceKind'],
+                'next' => $next['sourceKind'],
+                'changed' => $current['sourceKind'] !== $next['sourceKind'],
+            ],
+            [
+                'field' => 'generatedConstraintSignatures',
+                'current' => $current['generatedConstraintSignatures'],
+                'next' => $next['generatedConstraintSignatures'],
+                'changed' => $current['generatedConstraintSignatures'] !== $next['generatedConstraintSignatures'],
+            ],
+            [
+                'field' => 'generatedMatched',
+                'current' => $current['generatedMatched'],
+                'next' => $next['generatedMatched'],
+                'changed' => $current['generatedMatched'] !== $next['generatedMatched'],
+            ],
+            [
+                'field' => 'generatedValues',
+                'current' => $current['generatedValues'],
+                'next' => $next['generatedValues'],
+                'changed' => $current['generatedValues'] !== $next['generatedValues'],
+            ],
+            [
+                'field' => 'matchedValueFingerprint',
+                'current' => $current['matchedValueFingerprint'],
+                'next' => $next['matchedValueFingerprint'],
+                'changed' => $current['matchedValueFingerprint'] !== $next['matchedValueFingerprint'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenPathGeneratedCurrentSourceReplanReasons143(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'seekSignature' => 'json-table-hidden-path-generated-seek-signature-changed',
+                'sourceKind' => 'json-table-hidden-path-generated-source-kind-changed',
+                'generatedConstraintSignatures' => 'json-table-hidden-path-generated-constraint-changed',
+                'generatedMatched' => 'json-table-hidden-path-generated-match-changed',
+                'generatedValues', 'matchedValueFingerprint' => 'json-table-hidden-path-generated-value-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-path-generated-cost-changed',
+                default => 'json-table-hidden-path-generated-state-changed',
             };
         }
 
