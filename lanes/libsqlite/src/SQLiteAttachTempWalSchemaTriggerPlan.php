@@ -422,6 +422,132 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
     }
 
     /**
+     * @param list<array{name:string, active?:bool, statement?:string}> $preparedTriggers
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function triggerViewCacheCurrentSourceNext97(
+        SQLiteAttachedSchemaCatalog $current,
+        SQLiteAttachedSchemaCatalog $next,
+        array $preparedTriggers,
+        array $schemaStates = [],
+    ): array {
+        if ($preparedTriggers === []) {
+            throw new \InvalidArgumentException('SQLite attach temp WAL trigger view-cache current-source-next97 requires prepared triggers');
+        }
+
+        $base = self::currentSourceNext90($current, $next, $preparedTriggers, $schemaStates);
+        $viewExpired = [];
+        $viewStable = [];
+        $viewPlans = [];
+        $reprepare = $base['reprepare_triggers'];
+        $activeCurrent = $base['active_current_snapshot_triggers'];
+        $resetSchema = $base['reset_schema_triggers'];
+        $nextStepSchema = $base['next_step_schema_triggers'];
+        $changedSchemas = $base['changed_schemas'];
+        $walSchemas = $base['wal_schemas'];
+        $tempSchemas = $base['temp_schemas'];
+        $attachedSchemas = $base['attached_schemas'];
+
+        foreach ($preparedTriggers as $trigger) {
+            $name = trim((string) $trigger['name']);
+            $active = (bool) ($trigger['active'] ?? false);
+            $currentPlan = $base['triggers'][$name]['current'];
+            $nextPlan = $base['triggers'][$name]['next'];
+            if (($currentPlan['targetType'] ?? '') !== 'view' && ($nextPlan['targetType'] ?? '') !== 'view') {
+                continue;
+            }
+
+            $currentView = self::viewCacheSnapshot($current, (string) $currentPlan['targetSchema'], (string) $currentPlan['target']);
+            $nextView = self::viewCacheSnapshot($next, (string) $nextPlan['targetSchema'], (string) $nextPlan['target']);
+            $changedFields = [];
+            foreach (['schema', 'name', 'rootpage', 'sql', 'columns', 'dependencies'] as $field) {
+                if (($currentView[$field] ?? null) !== ($nextView[$field] ?? null)) {
+                    $changedFields[] = $field;
+                }
+            }
+
+            $requires = $changedFields !== [];
+            if ($requires) {
+                $viewExpired[] = $name;
+                if (!in_array($name, $reprepare, true)) {
+                    $reprepare[] = $name;
+                }
+                if ($active) {
+                    if (!in_array($name, $activeCurrent, true)) {
+                        $activeCurrent[] = $name;
+                    }
+                    if (!in_array($name, $resetSchema, true)) {
+                        $resetSchema[] = $name;
+                    }
+                    $base['triggers'][$name]['current_step_result'] = 'SQLITE_OK';
+                    $base['triggers'][$name]['next_step_action'] = 'finish_current_view_source_then_sqlite_schema_on_reset';
+                    $base['triggers'][$name]['current_source_kept_until_reset'] = true;
+                } else {
+                    if (!in_array($name, $nextStepSchema, true)) {
+                        $nextStepSchema[] = $name;
+                    }
+                    $base['triggers'][$name]['current_step_result'] = 'SQLITE_SCHEMA';
+                    $base['triggers'][$name]['next_step_action'] = 'sqlite_schema_before_next_view_trigger_step';
+                }
+                $base['triggers'][$name]['changed'] = true;
+                $base['triggers'][$name]['requires_reprepare'] = true;
+                foreach (array_merge([(string) $currentView['schema'], (string) $nextView['schema']], $currentView['dependency_schemas'], $nextView['dependency_schemas']) as $schema) {
+                    $changedSchemas[] = $schema;
+                    if ($schema === 'temp') {
+                        $tempSchemas[] = $schema;
+                    } elseif ($schema !== '') {
+                        $walSchemas[] = $schema;
+                        if ($schema !== 'main') {
+                            $attachedSchemas[] = $schema;
+                        }
+                    }
+                }
+            } else {
+                $viewStable[] = $name;
+            }
+
+            $viewPlans[$name] = [
+                'current' => $currentView,
+                'next' => $nextView,
+                'changed_fields' => $changedFields,
+                'requires_reprepare' => $requires,
+                'current_source_kept_until_reset' => $active && $requires,
+            ];
+            $base['triggers'][$name]['view_cache'] = $viewPlans[$name];
+        }
+
+        $base['status'] = $reprepare === [] ? 'trigger_view_cache_stable' : 'trigger_view_cache_expired';
+        $base['operation'] = 'attach-temp-wal-trigger-view-cache-current-source-next97';
+        $base['reprepare_triggers'] = array_values($reprepare);
+        $base['stable_triggers'] = array_values(array_filter(
+            $base['stable_triggers'],
+            static fn (string $name): bool => !in_array($name, $viewExpired, true),
+        ));
+        foreach ($viewStable as $name) {
+            if (!in_array($name, $base['stable_triggers'], true) && !in_array($name, $reprepare, true)) {
+                $base['stable_triggers'][] = $name;
+            }
+        }
+        $base['active_current_snapshot_triggers'] = array_values($activeCurrent);
+        $base['reset_schema_triggers'] = array_values($resetSchema);
+        $base['next_step_schema_triggers'] = array_values($nextStepSchema);
+        $base['requires_reprepare'] = $reprepare !== [];
+        $base['changed_schemas'] = self::orderedSchemaNames($changedSchemas);
+        $base['wal_schemas'] = self::orderedSchemaNames($walSchemas);
+        $base['temp_schemas'] = self::orderedSchemaNames($tempSchemas);
+        $base['attached_schemas'] = self::orderedSchemaNames($attachedSchemas);
+        $base['view_cache_triggers'] = array_keys($viewPlans);
+        $base['view_cache_expired_triggers'] = $viewExpired;
+        $base['view_cache_stable_triggers'] = $viewStable;
+        $base['view_caches'] = $viewPlans;
+        array_unshift($base['dependencies'], 'sqlite-attach-temp-wal-trigger-view-cache-current-source-next97');
+        $base['dependencies'] = array_values(array_unique($base['dependencies']));
+
+        return $base;
+    }
+
+    /**
      * @param list<array<string,mixed>> $operations
      * @return list<array{operation_index:int,kind:string,schema:string,table:string,cookie_delta:int,journal:string,source:string}>
      */
@@ -449,6 +575,134 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         return $writes;
+    }
+
+    /**
+     * @return array{schema:string,name:string,type:string,rootpage:int|null,sql:string|null,columns:list<string>,dependencies:list<array{schema:?string,name:string}>,dependency_schemas:list<string>,status:string}
+     */
+    private static function viewCacheSnapshot(SQLiteAttachedSchemaCatalog $catalog, string $schema, string $name): array
+    {
+        $record = null;
+        foreach ($catalog->schemaRecords($schema) as $candidate) {
+            if (strtolower($candidate->type) === 'view' && strcasecmp($candidate->name, $name) === 0) {
+                $record = $candidate;
+                break;
+            }
+        }
+        if ($record === null) {
+            throw new \InvalidArgumentException("SQLite trigger view-cache target does not resolve: {$schema}.{$name}");
+        }
+
+        $dependencies = self::viewDependencies((string) $record->sql);
+        $dependencySchemas = [];
+        foreach ($dependencies as $dependency) {
+            $dependencySchemas[] = $dependency['schema'] ?? $schema;
+        }
+        $dependencySchemas = self::orderedSchemaNames($dependencySchemas);
+
+        return [
+            'schema' => $schema,
+            'name' => $record->name,
+            'type' => strtolower($record->type),
+            'rootpage' => $record->rootPage,
+            'sql' => $record->sql,
+            'columns' => self::viewColumnsForSql((string) $record->sql),
+            'dependencies' => $dependencies,
+            'dependency_schemas' => $dependencySchemas,
+            'status' => $record->sql === null || trim($record->sql) === '' ? 'unresolved' : 'resolved',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function viewColumnsForSql(string $sql): array
+    {
+        if (preg_match('/\bcreate\s+(?:temp(?:orary)?\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:["`\[]?[\w]+["`\]]?\s*\.\s*)?["`\[]?[\w]+["`\]]?\s*\((?<columns>[^)]*)\)/i', $sql, $matches)) {
+            return array_values(array_filter(array_map(static fn (string $column): string => trim($column, " \t\r\n`\"[]"), explode(',', $matches['columns']))));
+        }
+        if (!preg_match('/\bas\s+select\s+(?<select>.*?)\s+\bfrom\b/is', $sql, $matches)) {
+            return [];
+        }
+
+        $columns = [];
+        foreach (self::splitSqlCommaList($matches['select']) as $expression) {
+            $expression = trim($expression);
+            if (preg_match('/\bas\s+(["`\[]?[\w ]+["`\]]?)$/i', $expression, $alias)) {
+                $columns[] = trim($alias[1], " \t\r\n`\"[]");
+                continue;
+            }
+            if (preg_match('/(?:^|\.)(["`\[]?[\w]+["`\]]?)$/', $expression, $column)) {
+                $columns[] = trim($column[1], " \t\r\n`\"[]");
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return list<array{schema:?string,name:string}>
+     */
+    private static function viewDependencies(string $sql): array
+    {
+        preg_match_all('/\b(?:from|join)\s+(?:(["`\[]?[\w]+["`\]]?)\s*\.\s*)?(["`\[]?[\w]+["`\]]?)/i', $sql, $matches, PREG_SET_ORDER);
+        $dependencies = [];
+        foreach ($matches as $match) {
+            $schema = isset($match[1]) && $match[1] !== '' ? strtolower(trim($match[1], " \t\r\n`\"[]")) : null;
+            $name = trim($match[2], " \t\r\n`\"[]");
+            if ($name === '') {
+                continue;
+            }
+            $key = ($schema ?? '') . '.' . strtolower($name);
+            $dependencies[$key] = ['schema' => $schema, 'name' => $name];
+        }
+
+        return array_values($dependencies);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitSqlCommaList(string $value): array
+    {
+        $parts = [];
+        $current = '';
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; ++$i) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === $quote) {
+                    if ($i + 1 < $length && $value[$i + 1] === $quote) {
+                        $current .= $value[++$i];
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === '\'' || $char === '`') {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+            } elseif ($char === ')') {
+                $depth = max(0, $depth - 1);
+            } elseif ($char === ',' && $depth === 0) {
+                $parts[] = $current;
+                $current = '';
+                continue;
+            }
+            $current .= $char;
+        }
+        $parts[] = $current;
+
+        return $parts;
     }
 
     /**

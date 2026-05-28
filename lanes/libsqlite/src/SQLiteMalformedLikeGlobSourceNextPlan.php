@@ -19,6 +19,8 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      *   reprepareReasons:list<string>,
      *   currentRowids:list<int>,
      *   nextRowids:list<int>,
+     *   currentValidRowids:list<int>,
+     *   nextValidRowids:list<int>,
      *   enteredRowids:list<int>,
      *   exitedRowids:list<int>,
      *   retainedRowids:list<int>,
@@ -30,6 +32,8 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      *   nextErrors:array<int,string>,
      *   currentBytesHex:array<int,string>,
      *   nextBytesHex:array<int,string>,
+     *   currentRange:?array{lowerInclusive:string,upperBound:?string},
+     *   nextRange:?array{lowerInclusive:string,upperBound:?string},
      *   dependencies:list<string>
      * }
      */
@@ -86,6 +90,8 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
             'reprepareReasons' => $reasons,
             'currentRowids' => $currentRowids,
             'nextRowids' => $nextRowids,
+            'currentValidRowids' => $current['validRowids'],
+            'nextValidRowids' => $next['validRowids'],
             'enteredRowids' => $entered,
             'exitedRowids' => $exited,
             'retainedRowids' => $retained,
@@ -97,6 +103,8 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
             'nextErrors' => $next['errors'],
             'currentBytesHex' => $current['bytesHex'],
             'nextBytesHex' => $next['bytesHex'],
+            'currentRange' => $current['range'],
+            'nextRange' => $next['range'],
             'dependencies' => [
                 'sqlite-encoding-source-cursor',
                 'sqlite-like-glob-collation',
@@ -109,8 +117,10 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array{
      *   matched:list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int}>,
+     *   validRowids:list<int>,
      *   errors:array<int,string>,
-     *   bytesHex:array<int,string>
+     *   bytesHex:array<int,string>,
+     *   range:?array{lowerInclusive:string,upperBound:?string}
      * }
      */
     private static function classifyRows(
@@ -122,8 +132,10 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
         bool $caseSensitiveLike,
     ): array {
         $validRows = [];
+        $validRowids = [];
         $errors = [];
         $bytesHex = [];
+        $range = null;
 
         foreach ($rows as $row) {
             $rowid = self::rowid($row);
@@ -136,7 +148,7 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
 
             $bytesHex[$rowid] = bin2hex($row['option_name_bytes']);
             try {
-                new SQLiteEncodingCollationSourceCursor([
+                $cursor = new SQLiteEncodingCollationSourceCursor([
                     [
                         'keyBytes' => $row['option_name_bytes'],
                         'textEncoding' => $row['text_encoding'],
@@ -144,12 +156,14 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
                         'payload' => $row,
                     ],
                 ], $pattern, $operator, $collation, $escape, $caseSensitiveLike);
+                $range ??= $cursor->currentNextPlan()['range'];
             } catch (\InvalidArgumentException $exception) {
                 $errors[$rowid] = $exception->getMessage();
                 continue;
             }
 
             $validRows[] = $row;
+            $validRowids[] = $rowid;
         }
 
         ksort($errors);
@@ -164,8 +178,10 @@ final class SQLiteMalformedLikeGlobSourceNextPlan
                 $escape,
                 $caseSensitiveLike,
             ),
+            'validRowids' => $validRowids,
             'errors' => $errors,
             'bytesHex' => $bytesHex,
+            'range' => $range,
         ];
     }
 

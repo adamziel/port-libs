@@ -1,0 +1,705 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteVfsLockByteUriShmCurrentSourceNext97
+{
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function plan(array $operations, array $options = []): array
+    {
+        if ($operations === []) {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 requires operations');
+        }
+
+        $state = self::normalizeCurrent($options['current'] ?? null);
+        $defaultFilename = self::stringValue($options['filename'] ?? 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared', 'filename');
+        $events = [];
+
+        foreach ($operations as $operation) {
+            $op = self::operation($operation);
+            $before = self::snapshot($state);
+
+            if ($op['kind'] === 'open') {
+                $handle = self::openHandle($state, $op, $defaultFilename);
+                $state['handles'][$handle['id']] = $handle;
+                $state['source_handles'][$handle['source']] = $handle['id'];
+                $state['current_source'] = $handle['source'];
+                $state['owners'][$handle['owner']] = self::owner($state, $handle['owner']);
+                $events[] = self::event('open', $handle['status'], $before, self::snapshot($state), [
+                    'handle' => $handle['id'],
+                    'source' => $handle['source'],
+                    'path' => $handle['path'],
+                    'owner' => $handle['owner'],
+                    'uri' => $handle['uri'],
+                    'sidecar_open_first' => $handle['source'] !== 'main' && !$handle['owner_had_main_open'],
+                    'readonly' => $handle['readonly'],
+                    'nolock' => $handle['nolock'],
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'source') {
+                $source = self::sourceName((string) $op['source']);
+                if (!isset($state['source_handles'][$source])) {
+                    $events[] = self::event('source', 'missing-handle', $before, self::snapshot($state), ['source' => $source]);
+                    continue;
+                }
+                $state['current_source'] = $source;
+                $events[] = self::event('source', 'ok', $before, self::snapshot($state), [
+                    'source' => $source,
+                    'handle' => $state['source_handles'][$source],
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'lock') {
+                $events[] = self::event('lock', ...self::applyByteLock($state, $op, $before));
+                continue;
+            }
+
+            if ($op['kind'] === 'shm') {
+                $events[] = self::event('shm', ...self::applyShmLock($state, $op, $before));
+                continue;
+            }
+
+            if ($op['kind'] === 'yield') {
+                $connection = self::connection((string) $op['connection']);
+                $owner = self::ownerFor($state, $op['source'] ?? null);
+                self::releaseConnection($state, $owner, $connection);
+                $state['owners'][$owner] = self::owner($state, $owner);
+                $events[] = self::event('yield', 'released', $before, self::snapshot($state), [
+                    'owner' => $owner,
+                    'connection' => $connection,
+                ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'close') {
+                $source = self::sourceFor($state, $op['source'] ?? null);
+                $handleId = $state['source_handles'][$source] ?? null;
+                if (!is_string($handleId) || !isset($state['handles'][$handleId])) {
+                    $events[] = self::event('close', 'missing-handle', $before, self::snapshot($state), ['source' => $source]);
+                    continue;
+                }
+                $handle = $state['handles'][$handleId];
+                unset($state['handles'][$handleId], $state['source_handles'][$source]);
+                $state['owners'][$handle['owner']] = self::owner($state, $handle['owner']);
+                if ($state['current_source'] === $source) {
+                    $state['current_source'] = self::firstOpenSource($state);
+                }
+                $events[] = self::event('close', 'closed', $before, self::snapshot($state), [
+                    'source' => $source,
+                    'handle' => $handleId,
+                    'owner' => $handle['owner'],
+                ]);
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 operation is unsupported');
+        }
+
+        return [
+            'status' => (string) $events[array_key_last($events)]['status'],
+            'current' => $events[0]['current'],
+            'next' => self::next($state),
+            'events' => $events,
+            'dependencies' => [
+                'sqlite-file-uri',
+                'sqlite-lock-byte-range-current-next',
+                'sqlite-wal-shm-locks',
+                'vfs-lock-byte-uri-shm-current-source-next97',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $before
+     * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>,3:array<string,mixed>}
+     */
+    private static function applyByteLock(array &$state, array $op, array $before): array
+    {
+        $source = self::sourceFor($state, $op['source'] ?? null);
+        $handle = self::handle($state, $source);
+        $owner = (string) $handle['owner'];
+        $connection = self::connection((string) $op['connection']);
+        $level = self::level((string) $op['level']);
+        $currentLevel = (string) ($state['lock_holders'][$owner][$connection] ?? 'none');
+        $currentSlot = (int) ($state['shared_slots'][$owner][$connection] ?? 0);
+        $slot = isset($op['shared_slot']) ? self::slot($op['shared_slot']) : $currentSlot;
+        $plan = SQLiteLockByteRangePlan::transition((string) $handle['path'], $currentLevel, $level, (bool) $handle['nolock'], $level === 'none' ? null : $connection, $currentSlot, $slot);
+        $blocking = self::byteBlockers($state['lock_holders'][$owner] ?? [], $connection, $level);
+        $status = (string) $plan['status'];
+        $reason = $plan['reason'] ?? null;
+        if ($status === 'planned' && $blocking !== []) {
+            $status = 'blocked';
+            $reason = 'owner_byte_lock_conflict';
+        }
+
+        if ($status === 'planned') {
+            if ($level === 'none') {
+                unset($state['lock_holders'][$owner][$connection], $state['shared_slots'][$owner][$connection]);
+            } else {
+                $state['lock_holders'][$owner][$connection] = $level;
+                if (in_array($level, ['shared', 'reserved'], true)) {
+                    $state['shared_slots'][$owner][$connection] = $slot;
+                }
+            }
+            ksort($state['lock_holders'][$owner]);
+            ksort($state['shared_slots'][$owner]);
+        }
+
+        $state['owners'][$owner] = self::owner($state, $owner);
+
+        return [$status, $before, self::snapshot($state), [
+            'source' => $source,
+            'handle' => $handle['id'],
+            'owner' => $owner,
+            'path' => $handle['path'],
+            'connection' => $connection,
+            'level' => $level,
+            'plan' => $plan,
+            'blocking' => $blocking,
+            'reason' => $reason,
+        ]];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $before
+     * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>,3:array<string,mixed>}
+     */
+    private static function applyShmLock(array &$state, array $op, array $before): array
+    {
+        $source = self::sourceFor($state, $op['source'] ?? null);
+        $handle = self::handle($state, $source);
+        $owner = (string) $handle['owner'];
+        $connection = self::connection((string) $op['connection']);
+        $lock = self::shmLock((string) $op['lock']);
+        $mode = self::shmMode((string) ($op['mode'] ?? 'shared'));
+
+        if ($mode === 'unlock') {
+            unset($state['shm_locks'][$owner][$lock][$connection]);
+            $state['owners'][$owner] = self::owner($state, $owner);
+
+            return ['released', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'connection' => $connection,
+                'lock' => $lock,
+                'mode' => $mode,
+                'blocking' => [],
+                'reason' => null,
+            ]];
+        }
+
+        $blocking = self::shmBlockers($state['shm_locks'][$owner][$lock] ?? [], $connection, $mode);
+        $status = $blocking === [] ? 'acquired' : 'blocked';
+        if ($status === 'acquired') {
+            $state['shm_locks'][$owner][$lock][$connection] = $mode;
+            ksort($state['shm_locks'][$owner][$lock]);
+        }
+        $state['owners'][$owner] = self::owner($state, $owner);
+
+        return [$status, $before, self::snapshot($state), [
+            'source' => $source,
+            'handle' => $handle['id'],
+            'owner' => $owner,
+            'connection' => $connection,
+            'lock' => $lock,
+            'mode' => $mode,
+            'blocking' => $blocking,
+            'reason' => $blocking === [] ? null : 'owner_shm_lock_conflict',
+        ]];
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @return array<string,mixed>
+     */
+    private static function normalizeCurrent(mixed $current): array
+    {
+        if (!is_array($current)) {
+            return [
+                'sequence' => 0,
+                'current_source' => null,
+                'handles' => [],
+                'source_handles' => [],
+                'owners' => [],
+                'lock_holders' => [],
+                'shared_slots' => [],
+                'shm_locks' => [],
+            ];
+        }
+
+        return [
+            'sequence' => max(0, (int) ($current['sequence'] ?? 0)),
+            'current_source' => isset($current['current_source']) ? self::sourceName((string) $current['current_source']) : null,
+            'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
+            'source_handles' => is_array($current['source_handles'] ?? null) ? $current['source_handles'] : [],
+            'owners' => is_array($current['owners'] ?? null) ? $current['owners'] : [],
+            'lock_holders' => is_array($current['lock_holders'] ?? null) ? $current['lock_holders'] : [],
+            'shared_slots' => is_array($current['shared_slots'] ?? null) ? $current['shared_slots'] : [],
+            'shm_locks' => is_array($current['shm_locks'] ?? null) ? $current['shm_locks'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $op
+     * @return array<string,mixed>
+     */
+    private static function openHandle(array &$state, array $op, string $defaultFilename): array
+    {
+        $state['sequence']++;
+        $filename = self::stringValue($op['filename'] ?? $defaultFilename, 'filename');
+        $uri = SQLiteFileUri::parse($filename);
+        $path = self::openPath($filename, $uri);
+        $memory = $path === ':memory:' || $uri['mode'] === 'memory';
+        $source = isset($op['source']) && $op['source'] !== null ? self::sourceName((string) $op['source']) : self::sourceFromPath($path);
+        $owner = $memory ? 'memory:vfs97-' . $state['sequence'] : self::ownerPath($path);
+        $sourcePath = $memory ? $owner : self::sourcePath($owner, $source);
+        $ownerHadMainOpen = isset($state['source_handles']['main'])
+            && isset($state['handles'][(string) $state['source_handles']['main']])
+            && ($state['handles'][(string) $state['source_handles']['main']]['owner'] ?? null) === $owner;
+        $readonly = (bool) ($op['readonly'] ?? ($uri['mode'] === 'ro' || $uri['immutable'] === true));
+        $nolock = (bool) ($uri['nolock'] ?? false);
+        self::ensureOwner($state, $owner);
+
+        return [
+            'id' => 'vfs97-' . $state['sequence'],
+            'status' => $source . '-open',
+            'source' => $source,
+            'path' => $sourcePath,
+            'owner' => $owner,
+            'readonly' => $readonly,
+            'nolock' => $nolock,
+            'owner_had_main_open' => $ownerHadMainOpen,
+            'uri' => [
+                'is_uri' => $uri['is_uri'],
+                'path' => $path,
+                'mode' => $uri['mode'],
+                'cache' => $uri['cache'],
+                'immutable' => $uri['immutable'],
+                'nolock' => $uri['nolock'],
+                'vfs' => $uri['vfs'],
+                'authority' => $uri['authority'],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function ensureOwner(array &$state, string $owner): void
+    {
+        $state['lock_holders'][$owner] ??= [];
+        $state['shared_slots'][$owner] ??= [];
+        $state['shm_locks'][$owner] ??= self::emptyShmLocks();
+        $state['owners'][$owner] = self::owner($state, $owner);
+    }
+
+    /**
+     * @return array<string,array<string,string>>
+     */
+    private static function emptyShmLocks(): array
+    {
+        return ['read0' => [], 'read1' => [], 'read2' => [], 'read3' => [], 'read4' => [], 'write' => [], 'checkpoint' => [], 'recover' => []];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function owner(array $state, string $owner): array
+    {
+        $open = [];
+        foreach (['main', 'wal', 'shm'] as $source) {
+            $handleId = $state['source_handles'][$source] ?? null;
+            $open[$source] = is_string($handleId) && isset($state['handles'][$handleId]) && ($state['handles'][$handleId]['owner'] ?? null) === $owner;
+        }
+
+        return [
+            'owner' => $owner,
+            'open' => $open,
+            'holders' => self::sortedMap($state['lock_holders'][$owner] ?? []),
+            'shared_slots' => self::sortedMap($state['shared_slots'][$owner] ?? []),
+            'shm_locks' => self::sortedShm($state['shm_locks'][$owner] ?? self::emptyShmLocks()),
+            'lock_count' => count($state['lock_holders'][$owner] ?? []),
+            'shm_lock_count' => array_sum(array_map('count', $state['shm_locks'][$owner] ?? self::emptyShmLocks())),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function releaseConnection(array &$state, string $owner, string $connection): void
+    {
+        unset($state['lock_holders'][$owner][$connection], $state['shared_slots'][$owner][$connection]);
+        foreach (array_keys(self::emptyShmLocks()) as $lock) {
+            unset($state['shm_locks'][$owner][$lock][$connection]);
+        }
+    }
+
+    /**
+     * @param array<string,string> $holders
+     * @return list<string>
+     */
+    private static function byteBlockers(array $holders, string $connection, string $level): array
+    {
+        if ($level === 'none' || $level === 'shared') {
+            return [];
+        }
+
+        $blocking = [];
+        foreach ($holders as $holder => $held) {
+            if ($holder === $connection) {
+                continue;
+            }
+            if ($level === 'reserved' && in_array($held, ['reserved', 'pending', 'exclusive'], true)) {
+                $blocking[] = $holder . ':' . $held;
+            } elseif ($level === 'pending' && in_array($held, ['pending', 'exclusive'], true)) {
+                $blocking[] = $holder . ':' . $held;
+            } elseif ($level === 'exclusive') {
+                $blocking[] = $holder . ':' . $held;
+            }
+        }
+        sort($blocking);
+
+        return $blocking;
+    }
+
+    /**
+     * @param array<string,string> $holders
+     * @return list<string>
+     */
+    private static function shmBlockers(array $holders, string $connection, string $mode): array
+    {
+        $blocking = [];
+        foreach ($holders as $holder => $held) {
+            if ($holder === $connection) {
+                continue;
+            }
+            if ($mode === 'exclusive' || $held === 'exclusive') {
+                $blocking[] = $holder . ':' . $held;
+            }
+        }
+        sort($blocking);
+
+        return $blocking;
+    }
+
+    /**
+     * @param string|array<string,mixed> $operation
+     * @return array<string,mixed>
+     */
+    private static function operation(string|array $operation): array
+    {
+        if (is_array($operation)) {
+            $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
+
+            return $operation + ['kind' => match ($kind) {
+                'xopen' => 'open',
+                'mainlock', 'byte', 'bytelock', 'lock' => 'lock',
+                'shmlock', 'shm' => 'shm',
+                'release' => 'yield',
+                default => $kind,
+            }];
+        }
+
+        $trimmed = trim($operation);
+        if (preg_match('/^open\s*(?:\((?<arg>[^)]*)\))?$/i', $trimmed, $matches) === 1) {
+            $arg = trim($matches['arg'] ?? '');
+            if (in_array(strtolower($arg), ['main', 'wal', 'shm'], true)) {
+                return ['kind' => 'open', 'source' => strtolower($arg), 'filename' => null];
+            }
+
+            return ['kind' => 'open', 'source' => null, 'filename' => $arg !== '' ? $arg : null];
+        }
+        if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm)\s*\)$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'source', 'source' => strtolower($matches['source'])];
+        }
+        if (preg_match('/^close\s*(?:\((?<source>main|wal|shm)\))?$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'close', 'source' => strtolower($matches['source'] ?? '') ?: null];
+        }
+        if (preg_match('/^lock\s+(?<level>none|shared|reserved|pending|exclusive)\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+(?<slot>\d+))?(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
+            return [
+                'kind' => 'lock',
+                'level' => strtolower($matches['level']),
+                'connection' => $matches['connection'],
+                'shared_slot' => isset($matches['slot']) && $matches['slot'] !== '' ? (int) $matches['slot'] : null,
+                'source' => isset($matches['source']) && $matches['source'] !== '' ? strtolower($matches['source']) : null,
+            ];
+        }
+        if (preg_match('/^shm\s+(?<lock>read[0-4]|write|checkpoint|recover)\s+(?<mode>shared|exclusive|unlock)\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
+            return [
+                'kind' => 'shm',
+                'lock' => strtolower($matches['lock']),
+                'mode' => strtolower($matches['mode']),
+                'connection' => $matches['connection'],
+                'source' => isset($matches['source']) && $matches['source'] !== '' ? strtolower($matches['source']) : null,
+            ];
+        }
+        if (preg_match('/^yield\s+(?<connection>[A-Za-z0-9_.:-]+)(?:\s+on\s+(?<source>main|wal|shm))?$/i', $trimmed, $matches) === 1) {
+            return [
+                'kind' => 'yield',
+                'connection' => $matches['connection'],
+                'source' => isset($matches['source']) && $matches['source'] !== '' ? strtolower($matches['source']) : null,
+            ];
+        }
+
+        throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 operation string is unsupported');
+    }
+
+    private static function openPath(string $filename, array $uri): string
+    {
+        if (($uri['path'] ?? '') !== '') {
+            return (string) $uri['path'];
+        }
+        if ($filename === ':memory:' || str_starts_with(strtolower($filename), 'file::memory:')) {
+            return ':memory:';
+        }
+        if (str_starts_with(strtolower($filename), 'file:')) {
+            $withoutScheme = substr($filename, 5);
+            $query = strpos($withoutScheme, '?');
+
+            return $query === false ? $withoutScheme : substr($withoutScheme, 0, $query);
+        }
+
+        return $filename;
+    }
+
+    private static function sourceFromPath(string $path): string
+    {
+        if (str_ends_with($path, '-shm')) {
+            return 'shm';
+        }
+        if (str_ends_with($path, '-wal')) {
+            return 'wal';
+        }
+
+        return 'main';
+    }
+
+    private static function ownerPath(string $path): string
+    {
+        return preg_replace('/-(?:wal|shm)$/', '', $path) ?? $path;
+    }
+
+    private static function sourcePath(string $owner, string $source): string
+    {
+        return match ($source) {
+            'wal' => $owner . '-wal',
+            'shm' => $owner . '-shm',
+            default => $owner,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function sourceFor(array $state, mixed $source): string
+    {
+        if ($source !== null && $source !== '') {
+            return self::sourceName((string) $source);
+        }
+        if (is_string($state['current_source'] ?? null)) {
+            return $state['current_source'];
+        }
+
+        return 'main';
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function handle(array $state, string $source): array
+    {
+        $id = $state['source_handles'][$source] ?? null;
+        if (!is_string($id) || !isset($state['handles'][$id])) {
+            throw new \InvalidArgumentException("SQLite VFS current-source {$source} handle is not open");
+        }
+
+        return $state['handles'][$id];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function ownerFor(array $state, mixed $source): string
+    {
+        $handle = self::handle($state, self::sourceFor($state, $source));
+
+        return (string) $handle['owner'];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function firstOpenSource(array $state): ?string
+    {
+        foreach (['main', 'wal', 'shm'] as $source) {
+            if (isset($state['source_handles'][$source])) {
+                return $source;
+            }
+        }
+
+        return null;
+    }
+
+    private static function sourceName(string $source): string
+    {
+        $source = strtolower(trim($source));
+        if (!in_array($source, ['main', 'wal', 'shm'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS current source must be main, wal, or shm');
+        }
+
+        return $source;
+    }
+
+    private static function connection(string $connection): string
+    {
+        $connection = trim($connection);
+        if ($connection === '') {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 connection is required');
+        }
+
+        return $connection;
+    }
+
+    private static function level(string $level): string
+    {
+        $level = strtolower(trim($level));
+        if (!in_array($level, ['none', 'shared', 'reserved', 'pending', 'exclusive'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 byte lock level is unsupported');
+        }
+
+        return $level;
+    }
+
+    private static function shmLock(string $lock): string
+    {
+        $lock = strtolower(trim($lock));
+        if (!in_array($lock, array_keys(self::emptyShmLocks()), true)) {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 SHM lock is unsupported');
+        }
+
+        return $lock;
+    }
+
+    private static function shmMode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['shared', 'exclusive', 'unlock'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 SHM mode is unsupported');
+        }
+
+        return $mode;
+    }
+
+    private static function slot(mixed $slot): int
+    {
+        if (!is_int($slot) || $slot < 0 || $slot >= SQLiteLockByteRangePlan::SHARED_SIZE) {
+            throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 shared slot is out of range');
+        }
+
+        return $slot;
+    }
+
+    private static function stringValue(mixed $value, string $label): string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            throw new \InvalidArgumentException("SQLite VFS lock-byte URI SHM current-source next97 {$label} is required");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function snapshot(array $state): array
+    {
+        ksort($state['handles']);
+        ksort($state['source_handles']);
+        ksort($state['owners']);
+        ksort($state['lock_holders']);
+        ksort($state['shared_slots']);
+        ksort($state['shm_locks']);
+
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array<string,mixed>
+     */
+    private static function next(array $state): array
+    {
+        $openBySource = ['main' => 0, 'wal' => 0, 'shm' => 0];
+        foreach ($state['handles'] as $handle) {
+            $source = (string) ($handle['source'] ?? 'main');
+            $openBySource[$source] = ($openBySource[$source] ?? 0) + 1;
+        }
+
+        return [
+            'current_source' => $state['current_source'],
+            'open_by_source' => $openBySource,
+            'owner_count' => count($state['owners']),
+            'owners' => $state['owners'],
+            'handles' => $state['handles'],
+            'lock_holder_count' => array_sum(array_map('count', $state['lock_holders'])),
+            'shm_lock_count' => array_sum(array_map(static fn (array $locks): int => array_sum(array_map('count', $locks)), $state['shm_locks'])),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private static function event(string $op, string $status, array $current, array $next, array $extra): array
+    {
+        return ['op' => $op, 'status' => $status, 'current' => $current, 'next' => $next] + $extra;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @return array<string,mixed>
+     */
+    private static function sortedMap(array $values): array
+    {
+        ksort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param array<string,array<string,string>> $locks
+     * @return array<string,array<string,string>>
+     */
+    private static function sortedShm(array $locks): array
+    {
+        $normalized = self::emptyShmLocks();
+        foreach ($locks as $name => $holders) {
+            if (isset($normalized[$name]) && is_array($holders)) {
+                ksort($holders);
+                $normalized[$name] = $holders;
+            }
+        }
+
+        return $normalized;
+    }
+}

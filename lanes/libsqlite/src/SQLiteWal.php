@@ -2333,6 +2333,106 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointRestartTruncateReaderCurrentSourceNext97(
+        string $databaseBytes,
+        string $walBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next97 requires at least one page number');
+        }
+
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($source->toBytes() !== $this->toBytes()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next97 bytes mismatch');
+        }
+
+        $currentReleasedShm = $nextReaderShm;
+        $restart = $this->checkpointReaderRestartCurrentSourceNext89(
+            $databaseBytes,
+            $walBytes,
+            $currentShm,
+            $nextReaderShm,
+            $currentReleasedShm,
+            $allReleasedShm,
+            $pageNumbers,
+            'restart'
+        );
+        $truncate = $this->checkpointReaderRestartCurrentSourceNext89(
+            $databaseBytes,
+            $walBytes,
+            $currentShm,
+            $nextReaderShm,
+            $currentReleasedShm,
+            $allReleasedShm,
+            $pageNumbers,
+            'truncate'
+        );
+
+        $restartAfterCurrent = $restart['after_current_release']['checkpoint'];
+        $truncateAfterCurrent = $truncate['after_current_release']['checkpoint'];
+        $restartAfterAll = $restart['after_all_release']['checkpoint'];
+        $truncateAfterAll = $truncate['after_all_release']['checkpoint'];
+
+        return [
+            'status' => $restart['after_current_release']['status'] === 'current-reader-pinned'
+                && $truncate['after_current_release']['status'] === 'current-reader-pinned'
+                && $restart['after_all_release']['status'] === 'restart-ready'
+                && $truncate['after_all_release']['status'] === 'restart-ready'
+                    ? 'reader-current-source-next97'
+                    : 'reader-current-source-next97-incomplete',
+            'current_source_verified' => true,
+            'current_source' => [
+                'kind' => 'current_wal_sidecar',
+                'wal_bytes_length' => strlen($walBytes),
+                'frame_count' => $source->frameCount(),
+                'committed_frame_count' => $source->lastCommitFrame()?->index ?? 0,
+                'checkpoint_sequence' => $source->header->checkpointSequence,
+                'page_size' => $source->header->pageSize,
+                'salt1' => $source->header->salt1,
+                'salt2' => $source->header->salt2,
+                'checksums_validated' => $source->checksumsValidated,
+            ],
+            'current_reader_end_frame' => $restart['current_reader_end_frame'],
+            'next_reader_end_frame' => $restart['next_reader_end_frame'],
+            'final_reader_end_frame' => $restart['final_reader_end_frame'],
+            'restart' => $restart,
+            'truncate' => $truncate,
+            'restart_after_current_wal_action' => $restartAfterCurrent['wal_action'],
+            'truncate_after_current_wal_action' => $truncateAfterCurrent['wal_action'],
+            'restart_after_all_wal_action' => $restartAfterAll['wal_action'],
+            'truncate_after_all_wal_action' => $truncateAfterAll['wal_action'],
+            'restart_after_all_wal_bytes_length' => $restartAfterAll['wal_bytes_length'],
+            'truncate_after_all_wal_bytes_length' => $truncateAfterAll['wal_bytes_length'],
+            'restart_after_all_checkpoint_sequence' => is_array($restartAfterAll['wal_header']) ? $restartAfterAll['wal_header']['checkpoint_sequence'] : null,
+            'truncate_after_all_checkpoint_sequence' => is_array($truncateAfterAll['wal_header']) ? $truncateAfterAll['wal_header']['checkpoint_sequence'] : null,
+            'current_sources' => $restart['current_source_names'],
+            'next_sources_after_current_release' => $restart['next_source_names_after_current_release'],
+            'restart_final_sources' => $restart['final_source_names_after_all_release'],
+            'truncate_final_sources' => $truncate['final_source_names_after_all_release'],
+            'current_reader_preserves_sidecar_source' => $restart['current_reader_preserves_sidecar_source'] && $truncate['current_reader_preserves_sidecar_source'],
+            'next_reader_blocks_restart_reset' => $restartAfterCurrent['busy'] && $restartAfterCurrent['wal_action'] === 'preserve_wal',
+            'next_reader_blocks_truncate_reset' => $truncateAfterCurrent['busy'] && $truncateAfterCurrent['wal_action'] === 'preserve_wal',
+            'restart_final_uses_restarted_wal_header' => $restartAfterAll['wal_action'] === 'restart_wal' && $restartAfterAll['wal_bytes_length'] === 32,
+            'truncate_final_removes_wal_sidecar' => $truncateAfterAll['wal_action'] === 'truncate_wal' && $truncateAfterAll['wal_bytes_length'] === 0,
+            'restart_and_truncate_checkpoint_same_database' => $restartAfterAll['database_bytes'] === $truncateAfterAll['database_bytes'],
+            'restart_next_final_images_match' => $restart['next_final_images_match'],
+            'truncate_next_final_images_match' => $truncate['next_final_images_match'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $restart['dependencies'],
+                $truncate['dependencies'],
+                ['wal-checkpoint-restart-truncate-reader-current-source-next97']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
