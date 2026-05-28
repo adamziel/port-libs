@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 00:31 UTC):
+  Batch65 is integrated and verified from clean worktree
+  `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`.
+  Implementation source advanced to
+  `5513a7fe4123c581710a6d56954f07d401eff089` (`Integrate libsqlite batch
+  65`). The accepted subset applied 7 current-next65 handoffs, excluded stale
+  lane-status/manifest prose, and kept mapped coverage unchanged because the
+  suite-denominator note keeps release/all parity and new mapped inventory rows
+  gated. Coverage added ATTACH WAL/temp write routing across temp/main/attached
+  schemas, pointer-map vacuum truncation across pointer-map pages, LIKE
+  collation planner and SQL semantics, pager savepoint rollback/release/commit
+  transitions, PRAGMA integrity table-scope pagination, trigger RETURNING
+  savepoint commit/rollback diagnostics, and suite-denominator focused PASS
+  admission. Verification passed: focused batch65 tests `7 test files / 913
+  assertions / 0 failures`; full libsqlite lane `462 test files / 54006
+  assertions / 0 failures / 25055 PASS lines`; root `675 test files / 78474
+  assertions / 0 failures / 28083 PASS lines`. This is `+445` libsqlite PASS
+  lines over the batch64 live count of `24610`; mapped upstream coverage
+  remains `463 / 1589`. The `main` tmux session was refilled back to 11 active
+  libsqlite isolated workers, with no long sleepers. Next decision: publish
+  dashboard/status for batch65, consume batch65 handoffs, keep 10-11 libsqlite
+  workers active, then integrate ready batch66 outputs by PASS-line movement.
+
 - 2026-05-28 supervisor continuation (shell/live samples 00:27 UTC):
   Batch64 is integrated and verified from clean worktree
   `.tmux-team/worktrees/integrate-libsqlite-yield-batch64-20260528T002419Z`.
