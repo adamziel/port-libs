@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 04:14 UTC):
+  Batch93 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `196640c645c5ebfa7706de32213465dadcc4e955` (`Integrate libsqlite batch
+  93 subset`) accepted 10 current-source libsqlite handoffs. Integration
+  fixed two cross-batch issues before acceptance: JSON object aggregate window
+  ORDER BY now uses normalized aggregate term lists, and JSON table rowid
+  aliases keep visible-index metadata while composing hidden dynamic
+  constraints. Verification passed: php -l `30` changed/untracked PHP files,
+  9 changed WordPress examples/self-tests, conflict-marker scan, git diff
+  --check, focused changed tests `10 test files / 1630 assertions /
+  0 failures / 544 PASS lines`, JSON table regression `3 test files /
+  138 assertions / 0 failures / 132 PASS lines`, full libsqlite
+  `669 test files / 76226 assertions / 0 failures / 37708 PASS lines`, and
+  root `882 test files / 100694 assertions / 0 failures / 40736 PASS lines`
+  with `memory_limit=512M`. This is `+482` libsqlite PASS lines over batch92
+  (`37226 -> 37708`); mapped coverage advances from `547 / 1589` to
+  `557 / 1589`. The worker pool drained during verification and was refilled
+  with batch97 reserve lanes while dashboard publication proceeds.
+
 - 2026-05-28 supervisor continuation (shell/live samples 04:00 UTC):
   Batch92 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
