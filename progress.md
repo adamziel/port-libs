@@ -43,10 +43,30 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 2.3G available, 100% used; `/tmp` has about 6.8G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite next104/105 development workers with no long sleepers; keep refills bounded because disk remains critical.
+- Root filesystem: current sample reports `/` at 452G size with about 1.4G available, 100% used; `/tmp` has about 6.7G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite next106 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 05:24 UTC):
+  Batch104/105 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `b3c4ecbf768d15d978a740cbb75a8109bca7e0f1` (`Integrate libsqlite batch
+  104 105 subset`) accepted 15 current-source libsqlite handoffs while leaving
+  `jsonvt104` queued for targeted rebase because `SQLiteJsonTablePlan.php`
+  conflicted. Verification passed: php-lint for `44` changed/untracked PHP
+  files, 14 changed WordPress examples/self-tests with valid JSON, git diff
+  --check, focused changed tests `15 test files / 1640 assertions /
+  0 failures / 895 PASS lines`, full libsqlite `739 test files / 84366
+  assertions / 0 failures / 41873 PASS lines`, and root `952 test files /
+  108834 assertions / 0 failures / 44901 PASS lines` with
+  `memory_limit=512M`. This is `+883` public libsqlite PASS-line movement over
+  batch102/103 (`40990 -> 41873`); mapped coverage advances conservatively
+  from `601 / 1589` to `604 / 1589` from three manifest-backed rows, while the
+  other accepted tests are counted as PHP PASS coverage only. The worker pool
+  drained during publication, the stale prompt baseline was corrected, and
+  tmux `main` was restored to 11 bounded libsqlite next106 workers based on
+  `eb252cf1`, with no sleep/status-only loop accepted.
 
 - 2026-05-28 supervisor continuation (shell samples 05:00 UTC):
   Batch102/103 clean subset is integrated and root-verified in the rolling
