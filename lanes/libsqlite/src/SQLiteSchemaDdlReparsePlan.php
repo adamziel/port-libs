@@ -147,6 +147,7 @@ final class SQLiteSchemaDdlReparsePlan
                 return ['kind' => 'create_view', 'name' => $name, 'changed' => false, 'reason' => 'view_already_exists'];
             }
 
+            $metadata = self::viewReparseMetadata($records, $trimmed, $name);
             $record = new SQLiteSchemaRecord('view', $name, $name, 0, self::normalizeCreateSql($trimmed), $nextRowId++);
             $records[] = $record;
 
@@ -155,6 +156,14 @@ final class SQLiteSchemaDdlReparsePlan
                 'name' => $name,
                 'rootpage' => 0,
                 'rowid' => $record->rowId,
+                'source_tables' => $metadata['source_tables'],
+                'indexed_by' => $metadata['indexed_by'],
+                'generated_column_references' => $metadata['generated_column_references'],
+                'generated_column_reference_count' => count($metadata['generated_column_references']),
+                'generated_index_references' => $metadata['generated_index_references'],
+                'generated_index_reference_count' => count($metadata['generated_index_references']),
+                'star_expansion_records' => $metadata['star_expansion_records'],
+                'current_source_reparse' => $metadata['current_source_reparse'],
                 'changed' => true,
             ];
         }
@@ -613,6 +622,123 @@ final class SQLiteSchemaDdlReparsePlan
         }
 
         return preg_match('/(?<![A-Za-z0-9_$])' . preg_quote($name, '/') . '(?![A-Za-z0-9_$])/i', $record->sql) === 1;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return array{source_tables:list<string>, indexed_by:list<string>, generated_column_references:list<string>, generated_index_references:list<string>, star_expansion_records:list<string>, current_source_reparse:bool}
+     */
+    private static function viewReparseMetadata(array $records, string $createViewSql, string $viewName): array
+    {
+        $sourceTables = self::viewSourceTables($createViewSql);
+        $indexedBy = self::viewIndexedByNames($createViewSql);
+        $generatedColumnReferences = [];
+        $generatedIndexReferences = [];
+        $starExpansionRecords = self::viewUsesStarProjection($createViewSql) ? ['view:' . $viewName] : [];
+
+        foreach ($sourceTables as $table) {
+            if (self::findRecordIndex($records, 'table', $table) === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot create view {$viewName} from missing table {$table}");
+            }
+
+            foreach (self::generatedColumnNames($records, $table) as $column) {
+                if (self::sqlReferencesIdentifier($createViewSql, $column) && !in_array($column, $generatedColumnReferences, true)) {
+                    $generatedColumnReferences[] = $column;
+                }
+            }
+        }
+
+        foreach ($indexedBy as $indexName) {
+            $index = self::findRecord($records, 'index', $indexName);
+            if ($index === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot create view {$viewName} with missing indexed-by index {$indexName}");
+            }
+            if ($index->sql === null) {
+                continue;
+            }
+
+            $terms = self::indexTerms($index->sql);
+            if (self::generatedColumnReferences($records, $index->tableName, $terms) !== [] && !in_array($indexName, $generatedIndexReferences, true)) {
+                $generatedIndexReferences[] = $indexName;
+            }
+        }
+
+        return [
+            'source_tables' => $sourceTables,
+            'indexed_by' => $indexedBy,
+            'generated_column_references' => $generatedColumnReferences,
+            'generated_index_references' => $generatedIndexReferences,
+            'star_expansion_records' => $starExpansionRecords,
+            'current_source_reparse' => $generatedColumnReferences !== [] || $generatedIndexReferences !== [] || $starExpansionRecords !== [],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function viewSourceTables(string $sql): array
+    {
+        $tables = [];
+        if (preg_match_all('/\b(?:from|join)\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?!\s*\()/i', $sql, $matches) !== false) {
+            foreach ($matches['table'] as $table) {
+                $name = self::unquoteIdentifier($table);
+                if (!in_array($name, $tables, true)) {
+                    $tables[] = $name;
+                }
+            }
+        }
+
+        return $tables;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function viewIndexedByNames(string $sql): array
+    {
+        $indexes = [];
+        if (preg_match_all('/\bindexed\s+by\s+(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)/i', $sql, $matches) !== false) {
+            foreach ($matches['name'] as $index) {
+                $name = self::unquoteIdentifier($index);
+                if (!in_array($name, $indexes, true)) {
+                    $indexes[] = $name;
+                }
+            }
+        }
+
+        return $indexes;
+    }
+
+    private static function viewUsesStarProjection(string $sql): bool
+    {
+        return preg_match('/\bas\s+select\s+(?:distinct\s+)?(?:\*|(?:[^;]*?,\s*)?[A-Za-z_][A-Za-z0-9_]*\.\*)(?=\s|,|$)/i', $sql) === 1;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<string>
+     */
+    private static function generatedColumnNames(array $records, string $tableName): array
+    {
+        $generated = [];
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        foreach ($catalog->execute('PRAGMA table_xinfo("' . str_replace('"', '""', $tableName) . '")')['rows'] ?? [] as $row) {
+            if (($row['hidden'] ?? 0) !== 0) {
+                $generated[] = (string) $row['name'];
+            }
+        }
+
+        return $generated;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     */
+    private static function findRecord(array $records, string $type, string $name): ?SQLiteSchemaRecord
+    {
+        $index = self::findRecordIndex($records, $type, $name);
+
+        return $index === null ? null : $records[$index];
     }
 
     /**

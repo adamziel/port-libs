@@ -9,9 +9,9 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>> $uniqueConstraints
-     * @return array{action:string,table:string,conflict_action:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>}
+     * @return array{action:string,table:string,conflict_action:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>,failed_conflict?:array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}}
      */
-    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = []): array
+    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = [], bool $preserveFailChanges = false): array
     {
         $parsed = self::parse($sql);
         $table = $parsed['table'];
@@ -51,7 +51,7 @@ final class SQLiteUpdateDeleteReturningSql
             'conflicts' => [],
         ];
         if ($parsed['action'] === 'update' && $uniqueConstraints !== []) {
-            $conflictResult = self::applyUpdateConflicts($plan, $projection, $uniqueConstraints, $conflictAction, $rowIdColumn);
+            $conflictResult = self::applyUpdateConflicts($plan, $projection, $uniqueConstraints, $conflictAction, $rowIdColumn, $preserveFailChanges);
         }
 
         $nextTables = $tables;
@@ -67,6 +67,7 @@ final class SQLiteUpdateDeleteReturningSql
             'ignored_rows' => $conflictResult['ignored_rows'],
             'deleted_conflict_rows' => $conflictResult['deleted_conflict_rows'],
             'conflicts' => $conflictResult['conflicts'],
+            'failed_conflict' => $conflictResult['failed_conflict'] ?? null,
         ];
     }
 
@@ -128,7 +129,7 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param list<string>|array<string,string|callable(array<string,mixed>):mixed> $projection
      * @param list<list<string>> $uniqueConstraints
-     * @return array{rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>}
+     * @return array{rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>,failed_conflict?:array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}}
      */
     private static function applyUpdateConflicts(
         SQLiteUpdateDeleteLimitPlan $plan,
@@ -136,6 +137,7 @@ final class SQLiteUpdateDeleteReturningSql
         array $uniqueConstraints,
         string $conflictAction,
         string $rowIdColumn,
+        bool $preserveFailChanges,
     ): array {
         $rows = $plan->inputRows;
         $inputById = self::rowsById($plan->inputRows, $rowIdColumn);
@@ -176,6 +178,18 @@ final class SQLiteUpdateDeleteReturningSql
                 }
                 $returningRows[] = self::projectReturningRow($row, $projection);
                 continue;
+            }
+            if ($conflictAction === 'fail' && $preserveFailChanges) {
+                $rows = self::replaceRowById($rows, $rowIdColumn, $rowId, $inputById[$rowId]);
+
+                return [
+                    'rows' => $rows,
+                    'returning' => $returningRows,
+                    'ignored_rows' => $ignoredRows,
+                    'deleted_conflict_rows' => $deletedRows,
+                    'conflicts' => $conflicts,
+                    'failed_conflict' => $conflict,
+                ];
             }
 
             throw new \InvalidArgumentException(
@@ -596,6 +610,13 @@ final class SQLiteUpdateDeleteReturningSql
 
             return isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result;
         }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $term, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIs($left, $right);
+
+            return isset($match[2]) && trim($match[2]) !== '' ? !$result : $result;
+        }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
@@ -735,6 +756,16 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return $result === null ? null : ($result ? 1 : 0);
+        }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIs($left, $right);
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = !$result;
+            }
+
+            return $result ? 1 : 0;
         }
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL$/i', $expression, $match) === 1) {
             $result = self::column($row, $match[1]) === null;
@@ -919,6 +950,31 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $unknown ? null : false;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function rowValueIs(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value arity mismatch');
+        }
+        foreach ($left as $index => $leftValue) {
+            $rightValue = $right[$index];
+            if ($leftValue === null || $rightValue === null) {
+                if ($leftValue !== null || $rightValue !== null) {
+                    return false;
+                }
+                continue;
+            }
+            if ($leftValue != $rightValue) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

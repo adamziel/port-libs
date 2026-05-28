@@ -1331,6 +1331,59 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNestedPathRowidNext133(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceNestedHiddenCostNext129(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+        );
+
+        $currentProfile = self::nestedPathRowidProfile133($plan['currentNestedHiddenCost'], $plan['current'], $constraints);
+        $nextProfile = self::nestedPathRowidProfile133($plan['nextNestedHiddenCost'], $plan['next'], $constraints);
+        $transitions = self::nestedPathRowidTransitions133($currentProfile, $nextProfile);
+        $reasons = self::nestedPathRowidReplanReasons133($transitions);
+
+        $plan['currentNestedPathRowid'] = $currentProfile;
+        $plan['nextNestedPathRowid'] = $nextProfile;
+        $plan['nestedPathRowidTransitions'] = $transitions;
+        $plan['next133ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next129ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next133ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-path-rowid-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next133ReplanReasons'] === []
+            ? 'reuse-current-json-table-nested-path-rowid-source-plan'
+            : 'prepare-next-json-table-nested-path-rowid-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-nested-path-rowid-current-source-next133'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
      */
@@ -6088,6 +6141,221 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-path-orderby-cost-changed',
                 'orderedPathTape' => 'json-table-path-orderby-output-changed',
                 default => 'json-table-path-orderby-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $nestedHidden
+     * @param array<string,mixed> $plan
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{root:string,baseRoot:string,nestedPath:string,mode:string,rowidConstraintSignature:string|null,rowidConstraintValue:mixed,rowidConstraintOperator:string|null,rowidConstraintColumn:string|null,rowidConstraintUsable:bool,rowidScoped:bool,rootRowidTape:list<array{root:string,rowid:int|null,fullkey:string|null}>,scopedRowids:list<int>,relativeFullkeys:list<string>,firstScopedRowid:int|null,lastScopedRowid:int|null,rowCount:int,matchedRowCount:int,missingRowid:bool,scanStrategy:string,costClass:string,effectiveEstimatedCost:int}
+     */
+    private static function nestedPathRowidProfile133(array $nestedHidden, array $plan, array $constraints): array
+    {
+        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidValue = $rowidConstraint['value'] ?? null;
+        $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
+        $root = (string) $nestedHidden['root'];
+        $rootRowidTape = $nestedHidden['rootRowidTape'];
+        $scopedTape = [];
+        foreach ($rootRowidTape as $entry) {
+            if ($rowidConstraint !== null && $rowidOperator === '=' && $entry['rowid'] !== self::rowidConstraintIntValue133($rowidValue)) {
+                continue;
+            }
+
+            $scopedTape[] = $entry;
+        }
+
+        $relativeFullkeys = array_values(array_map(
+            static fn (array $entry): string => self::relativeJsonFullkey133($root, $entry['fullkey']),
+            $scopedTape,
+        ));
+        $scopedRowids = array_values(array_filter(
+            array_map(static fn (array $entry): ?int => is_int($entry['rowid']) ? $entry['rowid'] : null, $scopedTape),
+            static fn (?int $rowid): bool => $rowid !== null,
+        ));
+
+        $rowidScoped = $rowidConstraint !== null && $rowidOperator === '=' && self::rowidConstraintIntValue133($rowidValue) !== null;
+
+        return [
+            'root' => $root,
+            'baseRoot' => (string) $nestedHidden['baseRoot'],
+            'nestedPath' => (string) $nestedHidden['nestedPath'],
+            'mode' => (string) $nestedHidden['mode'],
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintValue' => $rowidValue,
+            'rowidConstraintOperator' => $rowidOperator,
+            'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
+            'rowidConstraintUsable' => (bool) ($rowidConstraint['usable'] ?? true),
+            'rowidScoped' => $rowidScoped,
+            'rootRowidTape' => $rootRowidTape,
+            'scopedRowids' => $scopedRowids,
+            'relativeFullkeys' => $relativeFullkeys,
+            'firstScopedRowid' => $scopedRowids[0] ?? null,
+            'lastScopedRowid' => $scopedRowids === [] ? null : $scopedRowids[array_key_last($scopedRowids)],
+            'rowCount' => (int) $nestedHidden['rowCount'],
+            'matchedRowCount' => count($scopedTape),
+            'missingRowid' => $rowidScoped && $scopedTape === [],
+            'scanStrategy' => (string) $nestedHidden['scanStrategy'],
+            'costClass' => self::nestedPathRowidCostClass133((bool) $plan['runnable'], $rowidScoped, $scopedTape !== [], (string) $nestedHidden['scanStrategy']),
+            'effectiveEstimatedCost' => $rowidScoped && $scopedTape !== []
+                ? max(1, min((int) $nestedHidden['hiddenEstimatedCost'], 2))
+                : (int) $nestedHidden['hiddenEstimatedCost'],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{column:string,operator:string,value:mixed,usable?:bool}|null
+     */
+    private static function firstRowidConstraint133(array $constraints): ?array
+    {
+        foreach ($constraints as $constraint) {
+            $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
+            if ($column === 'id' && ($constraint['usable'] ?? true)) {
+                return $constraint + ['column' => $column];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{column:string,operator:string,value:mixed,usable?:bool} $constraint
+     */
+    private static function nestedPathRowidConstraintSignature133(array $constraint): string
+    {
+        $column = self::normalizeConstraintColumn((string) $constraint['column']);
+        $operator = strtoupper((string) $constraint['operator']);
+
+        return $column . ':' . $operator . ':' . json_encode($constraint['value']);
+    }
+
+    private static function rowidConstraintIntValue133(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    private static function relativeJsonFullkey133(string $root, mixed $fullkey): string
+    {
+        if (!is_string($fullkey) || $fullkey === '') {
+            return '';
+        }
+        if ($fullkey === $root) {
+            return '$';
+        }
+        if (str_starts_with($fullkey, $root . '.')) {
+            return '$.' . substr($fullkey, strlen($root) + 1);
+        }
+        if (str_starts_with($fullkey, $root . '[')) {
+            return '$' . substr($fullkey, strlen($root));
+        }
+
+        return $fullkey;
+    }
+
+    private static function nestedPathRowidCostClass133(bool $runnable, bool $rowidScoped, bool $matchedRowid, string $scanStrategy): string
+    {
+        if (!$runnable || $scanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($rowidScoped && $matchedRowid) {
+            return 'json-table-nested-path-rowid-point';
+        }
+        if ($rowidScoped) {
+            return 'json-table-nested-path-rowid-miss';
+        }
+        if ($scanStrategy === 'rowid-only-lookup' || $scanStrategy === 'path-rowid-intersection') {
+            return 'json-table-nested-path-rowid-scan';
+        }
+
+        return 'json-table-nested-path-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function nestedPathRowidTransitions133(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'root',
+                'current' => $current['root'],
+                'next' => $next['root'],
+                'changed' => $current['root'] !== $next['root'],
+            ],
+            [
+                'field' => 'rowidConstraintSignature',
+                'current' => $current['rowidConstraintSignature'],
+                'next' => $next['rowidConstraintSignature'],
+                'changed' => $current['rowidConstraintSignature'] !== $next['rowidConstraintSignature'],
+            ],
+            [
+                'field' => 'scopedRowids',
+                'current' => $current['scopedRowids'],
+                'next' => $next['scopedRowids'],
+                'changed' => $current['scopedRowids'] !== $next['scopedRowids'],
+            ],
+            [
+                'field' => 'relativeFullkeys',
+                'current' => $current['relativeFullkeys'],
+                'next' => $next['relativeFullkeys'],
+                'changed' => $current['relativeFullkeys'] !== $next['relativeFullkeys'],
+            ],
+            [
+                'field' => 'missingRowid',
+                'current' => $current['missingRowid'],
+                'next' => $next['missingRowid'],
+                'changed' => $current['missingRowid'] !== $next['missingRowid'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'matchedRowCount',
+                'current' => $current['matchedRowCount'],
+                'next' => $next['matchedRowCount'],
+                'changed' => $current['matchedRowCount'] !== $next['matchedRowCount'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function nestedPathRowidReplanReasons133(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root' => 'json-table-nested-path-rowid-root-changed',
+                'rowidConstraintSignature' => 'json-table-nested-path-rowid-constraint-changed',
+                'scopedRowids' => 'json-table-nested-path-rowid-rowset-changed',
+                'relativeFullkeys' => 'json-table-nested-path-rowid-fullkey-changed',
+                'missingRowid' => 'json-table-nested-path-rowid-miss-changed',
+                'costClass' => 'json-table-nested-path-rowid-cost-class-changed',
+                'matchedRowCount' => 'json-table-nested-path-rowid-count-changed',
+                default => 'json-table-nested-path-rowid-state-changed',
             };
         }
 
