@@ -392,7 +392,7 @@ final class SQLiteWindowFunction
         ?iterable $filters = null,
     ): array {
         $function = strtolower($function);
-        if (!in_array($function, ['count', 'sum', 'min', 'max', 'group_concat'], true)) {
+        if (!in_array($function, ['count', 'sum', 'avg', 'min', 'max', 'group_concat'], true)) {
             throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
         }
         if ($preceding < 0 || $following < 0) {
@@ -442,6 +442,7 @@ final class SQLiteWindowFunction
             $result[] = match ($function) {
                 'count' => count(array_filter($values, static fn (mixed $value): bool => $value !== null)),
                 'sum' => self::sumFrameValues($values),
+                'avg' => self::avgFrameValues($values),
                 'min' => self::minMaxFrameValues($values, true),
                 'max' => self::minMaxFrameValues($values, false),
                 'group_concat' => self::groupConcatFrameValues($values),
@@ -674,6 +675,21 @@ final class SQLiteWindowFunction
         }
 
         return $sum;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function avgFrameValues(array $values): ?float
+    {
+        $sum = self::sumFrameValues($values);
+        if ($sum === null) {
+            return null;
+        }
+
+        $count = count(array_filter($values, static fn (mixed $value): bool => $value !== null));
+
+        return $count === 0 ? null : $sum / $count;
     }
 
     /**

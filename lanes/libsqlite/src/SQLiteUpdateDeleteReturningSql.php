@@ -1188,6 +1188,10 @@ final class SQLiteUpdateDeleteReturningSql
     private static function rowValueTupleList(string $sql, array $row, array $tables = []): array
     {
         $sql = trim($sql);
+        $compound = self::rowValueCompoundSelectTupleList($sql, $tables);
+        if ($compound !== null) {
+            return $compound;
+        }
         if (preg_match('/^SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(.+))?$/is', $sql, $match) === 1) {
             return self::rowValueSelectTupleList(
                 trim($match[2]),
@@ -1219,6 +1223,174 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $tuples;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<list<mixed>>|null
+     */
+    private static function rowValueCompoundSelectTupleList(string $sql, array $tables): ?array
+    {
+        $parts = self::splitCompoundSelect($sql);
+        if (count($parts) === 1) {
+            return null;
+        }
+
+        $current = self::rowValueSimpleSelectTupleList($parts[0]['sql'], $tables);
+        foreach (array_slice($parts, 1) as $part) {
+            $right = self::rowValueSimpleSelectTupleList($part['sql'], $tables);
+            $operator = $part['operator'];
+            if ($operator === 'UNION ALL') {
+                $current = array_merge($current, $right);
+                continue;
+            }
+            if ($operator === 'UNION') {
+                $current = self::distinctRowValueTuples(array_merge($current, $right));
+                continue;
+            }
+            if ($operator === 'INTERSECT') {
+                $rightKeys = self::rowValueTupleKeySet($right);
+                $intersect = [];
+                foreach (self::distinctRowValueTuples($current) as $tuple) {
+                    if (isset($rightKeys[self::rowValueTupleKey($tuple)])) {
+                        $intersect[] = $tuple;
+                    }
+                }
+                $current = $intersect;
+                continue;
+            }
+            if ($operator === 'EXCEPT') {
+                $rightKeys = self::rowValueTupleKeySet($right);
+                $except = [];
+                foreach (self::distinctRowValueTuples($current) as $tuple) {
+                    if (!isset($rightKeys[self::rowValueTupleKey($tuple)])) {
+                        $except[] = $tuple;
+                    }
+                }
+                $current = $except;
+                continue;
+            }
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value compound operator {$operator} is not supported");
+        }
+
+        return $current;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<list<mixed>>
+     */
+    private static function rowValueSimpleSelectTupleList(string $sql, array $tables): array
+    {
+        if (preg_match('/^SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(.+))?$/is', trim($sql), $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value compound subquery arms must be simple SELECT statements');
+        }
+
+        return self::rowValueSelectTupleList(
+            trim($match[2]),
+            $match[3],
+            isset($match[4]) ? trim($match[4]) : null,
+            isset($match[5]) ? trim($match[5]) : null,
+            isset($match[6]) ? trim($match[6]) : null,
+            $tables,
+            trim($match[1] ?? '') !== '',
+        );
+    }
+
+    /**
+     * @return list<array{operator:?string,sql:string}>
+     */
+    private static function splitCompoundSelect(string $sql): array
+    {
+        $parts = [];
+        $buffer = '';
+        $operator = null;
+        $inString = false;
+        $depth = 0;
+        $length = strlen($sql);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $buffer .= "'";
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $depth === 0) {
+                $matched = self::compoundOperatorAt($sql, $i);
+                if ($matched !== null) {
+                    $part = trim($buffer);
+                    if ($part === '') {
+                        throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value compound subquery has an empty SELECT arm');
+                    }
+                    $parts[] = ['operator' => $operator, 'sql' => $part];
+                    $operator = $matched;
+                    $buffer = '';
+                    $i += strlen($matched) - 1;
+                    continue;
+                }
+            }
+            $buffer .= $char;
+        }
+
+        $part = trim($buffer);
+        if ($parts === []) {
+            return [['operator' => null, 'sql' => $sql]];
+        }
+        if ($part === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value compound subquery has an empty SELECT arm');
+        }
+        $parts[] = ['operator' => $operator, 'sql' => $part];
+
+        return $parts;
+    }
+
+    private static function compoundOperatorAt(string $sql, int $offset): ?string
+    {
+        foreach (['UNION ALL', 'INTERSECT', 'EXCEPT', 'UNION'] as $operator) {
+            $length = strlen($operator);
+            if (strtoupper(substr($sql, $offset, $length)) !== $operator) {
+                continue;
+            }
+            $before = $offset === 0 ? ' ' : $sql[$offset - 1];
+            $after = $sql[$offset + $length] ?? ' ';
+            if (!preg_match('/\s/', $before) || !preg_match('/\s/', $after)) {
+                continue;
+            }
+
+            return $operator;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<list<mixed>> $tuples
+     * @return array<string,bool>
+     */
+    private static function rowValueTupleKeySet(array $tuples): array
+    {
+        $keys = [];
+        foreach ($tuples as $tuple) {
+            $keys[self::rowValueTupleKey($tuple)] = true;
+        }
+
+        return $keys;
     }
 
     /**
@@ -1290,23 +1462,7 @@ final class SQLiteUpdateDeleteReturningSql
         $seen = [];
         $distinct = [];
         foreach ($tuples as $tuple) {
-            $keyParts = [];
-            foreach ($tuple as $value) {
-                if ($value === null) {
-                    $keyParts[] = 'N:';
-                } elseif (is_bool($value)) {
-                    $keyParts[] = 'B:' . ($value ? '1' : '0');
-                } elseif (is_int($value)) {
-                    $keyParts[] = 'I:' . $value;
-                } elseif (is_float($value)) {
-                    $keyParts[] = 'F:' . sprintf('%.17G', $value);
-                } elseif (is_string($value)) {
-                    $keyParts[] = 'S:' . $value;
-                } else {
-                    $keyParts[] = 'X:' . serialize($value);
-                }
-            }
-            $key = implode("\0", $keyParts);
+            $key = self::rowValueTupleKey($tuple);
             if (isset($seen[$key])) {
                 continue;
             }
@@ -1315,6 +1471,31 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $distinct;
+    }
+
+    /**
+     * @param list<mixed> $tuple
+     */
+    private static function rowValueTupleKey(array $tuple): string
+    {
+        $keyParts = [];
+        foreach ($tuple as $value) {
+            if ($value === null) {
+                $keyParts[] = 'N:';
+            } elseif (is_bool($value)) {
+                $keyParts[] = 'B:' . ($value ? '1' : '0');
+            } elseif (is_int($value)) {
+                $keyParts[] = 'I:' . $value;
+            } elseif (is_float($value)) {
+                $keyParts[] = 'F:' . sprintf('%.17G', $value);
+            } elseif (is_string($value)) {
+                $keyParts[] = 'S:' . $value;
+            } else {
+                $keyParts[] = 'X:' . serialize($value);
+            }
+        }
+
+        return implode("\0", $keyParts);
     }
 
     /**
