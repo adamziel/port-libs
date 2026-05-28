@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 20:23:15 UTC",
-    "sourceCommit": "ab9b51da683f0747d6f32d892c5e3dbb11261215",
-    "sourceCommitShort": "ab9b51da683f",
+    "generated": "2026-05-28 20:32:28 UTC",
+    "sourceCommit": "9cf8d2b221d80ec3facf4a0e8191ff4de86e71bc",
+    "sourceCommitShort": "9cf8d2b221d8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ab9b51da683f0747d6f32d892c5e3dbb11261215",
-    "dashboardCommitShort": "ab9b51da683f",
+    "dashboardCommit": "9cf8d2b221d80ec3facf4a0e8191ff4de86e71bc",
+    "dashboardCommitShort": "9cf8d2b221d8",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "645",
-            "coverage": "645 / 1589",
-            "php": "121683 pass / 0 fail",
+            "mapped": "647",
+            "coverage": "647 / 1589",
+            "php": "122940 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch209 subset covering next237-next241 non-J...",
-            "audit": "Implementation batch209 accepts 12 verifi...",
-            "currentWork": "Accepted verified batch209 subset in the clean integration worktree while 11 live libsqli...",
-            "nextTarget": "Publish dashboard/status for batch209, consume accepted marker triplets, then integrate q...",
-            "blocker": "No blocker for the accepted batch209 subset.",
-            "commit": "ab9b51d"
+            "phase": "accepted batch210 subset covering next234-next243 non-J...",
+            "audit": "Implementation batch210 accepts 16 verifi...",
+            "currentWork": "Accepted verified batch210 subset in the clean integration worktree while 10-11 live libs...",
+            "nextTarget": "Publish dashboard/status for batch210, consume accepted marker triplets, then integrate q...",
+            "blocker": "No blocker for the accepted batch210 subset.",
+            "commit": "9cf8d2b"
         },
         {
             "library": "LightningCSS",
