@@ -2239,6 +2239,66 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext174(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $normalizedConstraints = self::jsonTableGeneratedPathRowidAliasConstraints174($constraints);
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext170(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $normalizedConstraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
+            $plan['currentGeneratedPathRowidCurrentSourceNext170'],
+            $constraints,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
+            $plan['nextGeneratedPathRowidCurrentSourceNext170'],
+            $constraints,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidAliasTransitions174($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidAliasReplanReasons174($transitions);
+
+        $plan['currentGeneratedPathRowidAliasCurrentSourceNext174'] = $currentProfile;
+        $plan['nextGeneratedPathRowidAliasCurrentSourceNext174'] = $nextProfile;
+        $plan['generatedPathRowidAliasCurrentSourceNext174Transitions'] = $transitions;
+        $plan['next174ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next170ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next174ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-alias-next174-until-xfilter-reset';
+        $plan['nextReaderPolicy'] = $plan['next174ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-alias-next174-plan'
+            : 'prepare-next-json-table-generated-path-rowid-alias-next174-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next174'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext170(
         string $function,
         array $currentSource,
@@ -9934,6 +9994,236 @@ final class SQLiteJsonTablePlan
                 'plannerCost', 'costClass' => 'json-table-generated-path-rowid-bestindex-cost-changed',
                 'bestIndexFingerprint' => 'json-table-generated-path-rowid-bestindex-fingerprint-changed',
                 default => 'json-table-generated-path-rowid-bestindex-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $profile170
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidAliasProfile174(array $profile170, array $constraints): array
+    {
+        $aliasConstraints = [];
+        $pointValues = [];
+        $usableAliases = [];
+        foreach ($constraints as $position => $constraint) {
+            $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
+            if ($column !== 'id') {
+                continue;
+            }
+
+            $operator = strtoupper((string) ($constraint['operator'] ?? ''));
+            $usable = ($constraint['usable'] ?? true) !== false;
+            $value = $constraint['value'] ?? null;
+            $entry = [
+                'position' => $position,
+                'sourceColumn' => (string) ($constraint['column'] ?? ''),
+                'canonicalColumn' => 'id',
+                'operator' => $operator,
+                'value' => $value,
+                'usable' => $usable,
+                'argvIndex' => null,
+                'omit' => false,
+            ];
+
+            if ($usable && $operator === '=' && (is_int($value) || is_string($value)) && is_numeric((string) $value)) {
+                $rowid = (int) $value;
+                $pointValues[] = $rowid;
+                $usableAliases[] = (string) ($constraint['column'] ?? '');
+                $entry['argvIndex'] = 1;
+                $entry['omit'] = true;
+            }
+
+            $aliasConstraints[] = $entry;
+        }
+
+        $distinctPointValues = array_values(array_unique($pointValues));
+        sort($distinctPointValues);
+        $conflict = count($distinctPointValues) > 1;
+        $canonicalRowid = count($distinctPointValues) === 1 ? $distinctPointValues[0] : null;
+        $rowidTape = array_values(array_map('intval', $profile170['rowidTape'] ?? []));
+        $pathTape = array_values(array_map('strval', $profile170['pathTape'] ?? []));
+        $rows = array_values($profile170['cursorRows'] ?? []);
+        if ($conflict) {
+            $rowidTape = [];
+            $pathTape = [];
+            $rows = [];
+        } elseif ($canonicalRowid !== null && $rowidTape !== []) {
+            $rows = array_values(array_filter(
+                $rows,
+                static fn (array $row): bool => (int) ($row['rowid'] ?? 0) === $canonicalRowid,
+            ));
+            $rowidTape = array_values(array_filter(
+                $rowidTape,
+                static fn (int $rowid): bool => $rowid === $canonicalRowid,
+            ));
+            $pathTape = array_values(array_map(
+                static fn (array $row): string => (string) ($row['path'] ?? ''),
+                $rows,
+            ));
+        }
+
+        $estimatedRows = $conflict ? 0 : min((int) ($profile170['estimatedRows'] ?? 0), $canonicalRowid === null ? PHP_INT_MAX : 1);
+        $estimatedCost = $conflict ? 0 : (int) ($profile170['estimatedCost'] ?? 1000000);
+        if ($canonicalRowid !== null && !$conflict) {
+            $estimatedCost = max(1, min($estimatedCost, max(1, count($rowidTape))));
+        }
+
+        $costClass = (string) ($profile170['costClass'] ?? 'unrunnable-json-table');
+        if ($conflict) {
+            $costClass = 'json-table-generated-path-rowid-alias-contradiction-empty';
+        } elseif ($canonicalRowid !== null && count($usableAliases) > 1) {
+            $costClass = 'json-table-generated-path-rowid-alias-point-deduped';
+        }
+
+        return [
+            'sourceOptionId' => $profile170['sourceOptionId'] ?? null,
+            'sourceRoot' => $profile170['sourceRoot'] ?? null,
+            'generatedPath' => $profile170['generatedPath'] ?? null,
+            'rowidAliasConstraintCount' => count($aliasConstraints),
+            'usableRowidAliasColumns' => array_values(array_unique($usableAliases)),
+            'canonicalRowidConstraint' => $canonicalRowid,
+            'conflictingRowidAliases' => $conflict,
+            'aliasPointValues' => $distinctPointValues,
+            'aliasConstraintUsage' => $aliasConstraints,
+            'dedupedArgvColumns' => $canonicalRowid === null || $conflict ? [] : ['id'],
+            'dedupedArgvValues' => $canonicalRowid === null || $conflict ? [] : [$canonicalRowid],
+            'omitColumns' => $conflict ? ['id'] : array_values(array_unique(array_merge(
+                array_values($profile170['omitColumns'] ?? []),
+                $canonicalRowid === null ? [] : ['id'],
+            ))),
+            'residualColumns' => $conflict ? [] : array_values($profile170['residualColumns'] ?? []),
+            'cursorMode' => $conflict ? 'pinned-current-source-empty' : (string) ($profile170['cursorMode'] ?? 'fresh-json-table-xfilter'),
+            'cursorRows' => $rows,
+            'cursorRowCount' => count($rows),
+            'rowidTape' => $rowidTape,
+            'pathTape' => $pathTape,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => $costClass,
+            'orderByConsumed' => (bool) ($profile170['orderByConsumed'] ?? false),
+            'currentSourcePinned' => (bool) ($profile170['currentSourcePinned'] ?? false),
+            'planFingerprint' => hash('sha256', json_encode([
+                $profile170['planFingerprint'] ?? null,
+                $aliasConstraints,
+                $distinctPointValues,
+                $rowidTape,
+                $pathTape,
+                $costClass,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array{column:string,operator:string,value:mixed,usable?:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidAliasConstraints174(array $constraints): array
+    {
+        $canonicalRowid = null;
+        $sawPointAlias = false;
+        $deduped = [];
+        foreach ($constraints as $constraint) {
+            $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
+            $operator = strtoupper((string) ($constraint['operator'] ?? ''));
+            $usable = ($constraint['usable'] ?? true) !== false;
+            $value = $constraint['value'] ?? null;
+            $isPointAlias = $column === 'id'
+                && $operator === '='
+                && $usable
+                && (is_int($value) || is_string($value))
+                && is_numeric((string) $value);
+            if (!$isPointAlias) {
+                $deduped[] = $constraint;
+                continue;
+            }
+
+            $rowid = (int) $value;
+            if (!$sawPointAlias) {
+                $canonicalRowid = $rowid;
+                $sawPointAlias = true;
+                $deduped[] = array_replace($constraint, [
+                    'column' => 'rowid',
+                    'operator' => '=',
+                    'value' => $rowid,
+                ]);
+                continue;
+            }
+
+            if ($canonicalRowid !== $rowid) {
+                $deduped[] = array_replace($constraint, [
+                    'column' => 'rowid',
+                    'operator' => '=',
+                    'value' => $rowid,
+                ]);
+            }
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidAliasTransitions174(array $current, array $next): array
+    {
+        $fields = [
+            'sourceOptionId',
+            'sourceRoot',
+            'generatedPath',
+            'canonicalRowidConstraint',
+            'conflictingRowidAliases',
+            'aliasPointValues',
+            'dedupedArgvColumns',
+            'dedupedArgvValues',
+            'omitColumns',
+            'residualColumns',
+            'cursorMode',
+            'rowidTape',
+            'pathTape',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'planFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidAliasReplanReasons174(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-alias-next174-source-changed',
+                'canonicalRowidConstraint', 'conflictingRowidAliases', 'aliasPointValues' => 'json-table-generated-path-rowid-alias-next174-rowid-alias-changed',
+                'dedupedArgvColumns', 'dedupedArgvValues', 'omitColumns', 'residualColumns' => 'json-table-generated-path-rowid-alias-next174-xfilter-changed',
+                'cursorMode', 'rowidTape', 'pathTape' => 'json-table-generated-path-rowid-alias-next174-rowset-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-alias-next174-cost-changed',
+                'planFingerprint' => 'json-table-generated-path-rowid-alias-next174-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-alias-next174-state-changed',
             };
         }
 
