@@ -1632,6 +1632,80 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedHiddenPathNext144(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        if ($generatedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table generated hidden path current-source planner requires a generated path column');
+        }
+
+        $plan = self::currentSourceGeneratedHiddenResidualCostNext141(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $generatedPathColumn,
+            $constraints,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableGeneratedHiddenPathProfile144(
+            $currentSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $generatedPathColumn,
+            $plan['currentNestedHiddenCost'],
+            $plan['currentGeneratedHiddenResidualCost'],
+        );
+        $nextProfile = self::jsonTableGeneratedHiddenPathProfile144(
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $generatedPathColumn,
+            $plan['nextNestedHiddenCost'],
+            $plan['nextGeneratedHiddenResidualCost'],
+        );
+        $transitions = self::jsonTableGeneratedHiddenPathTransitions144($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenPathReplanReasons144($transitions);
+
+        $plan['currentGeneratedHiddenPath'] = $currentProfile;
+        $plan['nextGeneratedHiddenPath'] = $nextProfile;
+        $plan['generatedHiddenPathTransitions'] = $transitions;
+        $plan['next144ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next141ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next144ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-hidden-path-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next144ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-hidden-path-plan'
+            : 'prepare-next-json-table-generated-hidden-path-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-hidden-path-current-source-next144'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceNestedPathRowidNext133(
@@ -5255,6 +5329,188 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-rowid-cost-changed',
                 'generatedRowidTape' => 'json-table-generated-hidden-rowid-tape-changed',
                 default => 'json-table-generated-hidden-rowid-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $nestedPath
+     * @param array<string,mixed> $residualCost
+     * @return array{baseRoot:string,generatedPath:string,composedRoot:string,mode:string,jsonSourceKind:string,jsonSourceFingerprint:string,rootFingerprint:string,generatedPathFingerprint:string,matchedRowCount:int,rowCount:int,matchedFullkeys:list<mixed>,residualColumns:list<string>,residualValueTape:list<array{rowid:int|null,fullkey:mixed,matched:bool,residualValues:array<string,mixed>}>,effectiveEstimatedCost:int,costClass:string,pathStableKey:string}
+     */
+    private static function jsonTableGeneratedHiddenPathProfile144(
+        array $source,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $generatedPathColumn,
+        array $nestedPath,
+        array $residualCost,
+    ): array {
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated hidden path source is missing {$jsonColumn}");
+        }
+        if (!array_key_exists($baseRootColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated hidden path source is missing {$baseRootColumn}");
+        }
+        if (!array_key_exists($generatedPathColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated hidden path source is missing {$generatedPathColumn}");
+        }
+
+        $baseRoot = (string) $nestedPath['baseRoot'];
+        $generatedPath = (string) $nestedPath['nestedPath'];
+        $composedRoot = (string) $nestedPath['root'];
+        $jsonValue = $source[$jsonColumn];
+        $jsonKind = self::validateJsonInput($jsonValue)['jsonInputKind'];
+        $matchedFullkeys = [];
+        $residualTape = [];
+        foreach ($residualCost['residualValueTape'] as $entry) {
+            if (($entry['matched'] ?? false) === true) {
+                $matchedFullkeys[] = $entry['fullkey'] ?? null;
+            }
+
+            $residualTape[] = [
+                'rowid' => isset($entry['rowid']) ? (int) $entry['rowid'] : null,
+                'fullkey' => $entry['fullkey'] ?? null,
+                'matched' => (bool) ($entry['matched'] ?? false),
+                'residualValues' => $entry['residualValues'] ?? [],
+            ];
+        }
+
+        return [
+            'baseRoot' => $baseRoot,
+            'generatedPath' => $generatedPath,
+            'composedRoot' => $composedRoot,
+            'mode' => (string) $nestedPath['mode'],
+            'jsonSourceKind' => $jsonKind,
+            'jsonSourceFingerprint' => self::jsonTableSourceValueFingerprint144($jsonValue),
+            'rootFingerprint' => hash('sha256', $composedRoot),
+            'generatedPathFingerprint' => hash('sha256', $generatedPath),
+            'matchedRowCount' => (int) $residualCost['matchedRowCount'],
+            'rowCount' => (int) $residualCost['rowCount'],
+            'matchedFullkeys' => $matchedFullkeys,
+            'residualColumns' => (array) $residualCost['residualGeneratedColumns'],
+            'residualValueTape' => $residualTape,
+            'effectiveEstimatedCost' => (int) $residualCost['effectiveEstimatedCost'],
+            'costClass' => self::jsonTableGeneratedHiddenPathCostClass144(
+                (string) $residualCost['costClass'],
+                $composedRoot,
+                (int) $residualCost['matchedRowCount'],
+            ),
+            'pathStableKey' => $baseRoot . '|' . $generatedPath . '|' . $composedRoot,
+        ];
+    }
+
+    private static function jsonTableSourceValueFingerprint144(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . hash('sha256', $value->bytes);
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return 'json-subtype:' . hash('sha256', $value->json);
+        }
+        if ($value === null) {
+            return 'sql-null';
+        }
+        if (is_scalar($value)) {
+            return get_debug_type($value) . ':' . hash('sha256', (string) $value);
+        }
+
+        return get_debug_type($value) . ':' . hash('sha256', json_encode($value));
+    }
+
+    private static function jsonTableGeneratedHiddenPathCostClass144(string $baseCostClass, string $composedRoot, int $matchedCount): string
+    {
+        if ($baseCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($matchedCount === 0) {
+            return 'json-table-generated-hidden-path-empty';
+        }
+        if ($composedRoot !== '$') {
+            return $matchedCount === 1
+                ? 'json-table-generated-hidden-path-point'
+                : 'json-table-generated-hidden-path-subtree';
+        }
+
+        return 'json-table-generated-hidden-path-root-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedHiddenPathTransitions144(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'pathStableKey',
+                'current' => $current['pathStableKey'],
+                'next' => $next['pathStableKey'],
+                'changed' => $current['pathStableKey'] !== $next['pathStableKey'],
+            ],
+            [
+                'field' => 'jsonSourceKind',
+                'current' => $current['jsonSourceKind'],
+                'next' => $next['jsonSourceKind'],
+                'changed' => $current['jsonSourceKind'] !== $next['jsonSourceKind'],
+            ],
+            [
+                'field' => 'jsonSourceFingerprint',
+                'current' => $current['jsonSourceFingerprint'],
+                'next' => $next['jsonSourceFingerprint'],
+                'changed' => $current['jsonSourceFingerprint'] !== $next['jsonSourceFingerprint'],
+            ],
+            [
+                'field' => 'matchedFullkeys',
+                'current' => $current['matchedFullkeys'],
+                'next' => $next['matchedFullkeys'],
+                'changed' => $current['matchedFullkeys'] !== $next['matchedFullkeys'],
+            ],
+            [
+                'field' => 'residualValueTape',
+                'current' => $current['residualValueTape'],
+                'next' => $next['residualValueTape'],
+                'changed' => $current['residualValueTape'] !== $next['residualValueTape'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedHiddenPathReplanReasons144(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'pathStableKey' => 'json-table-generated-hidden-path-root-changed',
+                'jsonSourceKind' => 'json-table-generated-hidden-path-source-kind-changed',
+                'jsonSourceFingerprint' => 'json-table-generated-hidden-path-source-changed',
+                'matchedFullkeys' => 'json-table-generated-hidden-path-rowset-changed',
+                'residualValueTape' => 'json-table-generated-hidden-path-values-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-path-cost-changed',
+                default => 'json-table-generated-hidden-path-state-changed',
             };
         }
 
