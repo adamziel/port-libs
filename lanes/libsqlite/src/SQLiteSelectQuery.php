@@ -353,7 +353,7 @@ final class SQLiteSelectQuery
                 'value' => SQLiteSelectExpression::evaluate($row, $argument),
                 'frameKey' => $peerKeys[$index],
                 'aggregateKey' => $aggregateOrderBy === null
-                    ? [['value' => $peerKeys[$index], 'direction' => 'ASC']]
+                    ? []
                     : array_map(
                         static fn (array $term): array => [
                             'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),
@@ -426,7 +426,7 @@ final class SQLiteSelectQuery
                 ],
                 'frameKey' => $peerKeys[$index],
                 'aggregateKey' => $aggregateOrderBy === null
-                    ? [['value' => $peerKeys[$index], 'direction' => 'ASC']]
+                    ? []
                     : array_map(
                         static fn (array $term): array => [
                             'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),

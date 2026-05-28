@@ -170,10 +170,55 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         int $currentSchemaCookie = 1,
         int $nextSchemaCookie = 1,
     ): array {
+        return self::wordpressOptionValueDynamicLikeGlobPlan(
+            $currentRows,
+            $nextRows,
+            $valueColumn,
+            $patternColumn,
+            'LIKE',
+            $escapeColumn,
+            $caseSensitiveLike,
+            $currentEncoding,
+            $nextEncoding,
+            $currentSource,
+            $nextSource,
+            $currentSchemaCookie,
+            $nextSchemaCookie,
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionValueDynamicLikeGlobPlan(
+        array $currentRows,
+        array $nextRows,
+        string $valueColumn,
+        string $patternColumn,
+        string $operator = 'LIKE',
+        ?string $escapeColumn = null,
+        bool $caseSensitiveLike = false,
+        int|string $currentEncoding = 'UTF-16LE',
+        int|string $nextEncoding = 'UTF-16LE',
+        string $currentSource = 'main.wp_options',
+        string $nextSource = 'main.wp_options',
+        int $currentSchemaCookie = 1,
+        int $nextSchemaCookie = 1,
+    ): array {
+        $operator = strtoupper($operator);
+        if (!in_array($operator, ['LIKE', 'GLOB'], true)) {
+            throw new \InvalidArgumentException('SQLite dynamic LIKE/GLOB current/next operator must be LIKE or GLOB');
+        }
+        if ($operator === 'GLOB' && $escapeColumn !== null) {
+            throw new \InvalidArgumentException('SQLite dynamic GLOB current/next scan does not accept ESCAPE');
+        }
+
         $currentEncodingName = self::encodingName($currentEncoding);
         $nextEncodingName = self::encodingName($nextEncoding);
-        $current = self::dynamicPatternRows($currentRows, $valueColumn, $patternColumn, $escapeColumn, $caseSensitiveLike, $currentEncodingName);
-        $next = self::dynamicPatternRows($nextRows, $valueColumn, $patternColumn, $escapeColumn, $caseSensitiveLike, $nextEncodingName);
+        $current = self::dynamicPatternRows($currentRows, $valueColumn, $patternColumn, $operator, $escapeColumn, $caseSensitiveLike, $currentEncodingName);
+        $next = self::dynamicPatternRows($nextRows, $valueColumn, $patternColumn, $operator, $escapeColumn, $caseSensitiveLike, $nextEncodingName);
 
         $currentByRowid = self::rowsByRowid($current);
         $nextByRowid = self::rowsByRowid($next);
@@ -249,7 +294,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         }
 
         return [
-            'operator' => 'LIKE',
+            'operator' => $operator,
             'valueColumn' => $valueColumn,
             'patternColumn' => $patternColumn,
             'escapeColumn' => $escapeColumn,
@@ -288,7 +333,12 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             'cursorInvalidated' => $reasons !== [],
             'cursorReusable' => $reasons === [],
             'invalidationReasons' => $reasons,
-            'dependencies' => ['sqlite-text-affinity', 'sqlite-like-dynamic-pattern-current-source-next99'],
+            'dependencies' => [
+                'sqlite-text-affinity',
+                $operator === 'LIKE'
+                    ? 'sqlite-like-dynamic-pattern-current-source-next99'
+                    : 'sqlite-glob-dynamic-pattern-current-source-next105',
+            ],
         ];
     }
 
@@ -328,6 +378,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         array $rows,
         string $valueColumn,
         string $patternColumn,
+        string $operator,
         ?string $escapeColumn,
         bool $caseSensitiveLike,
         string $encoding,
@@ -335,19 +386,19 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $index => $row) {
             if (!array_key_exists($valueColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite dynamic LIKE row is missing {$valueColumn}");
+                throw new \InvalidArgumentException("SQLite dynamic LIKE/GLOB row is missing {$valueColumn}");
             }
             if (!array_key_exists($patternColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite dynamic LIKE row is missing {$patternColumn}");
+                throw new \InvalidArgumentException("SQLite dynamic LIKE/GLOB row is missing {$patternColumn}");
             }
-            $text = self::coerceTextLikeOperand($row[$valueColumn], 'value');
-            $pattern = self::coerceTextLikeOperand($row[$patternColumn], 'pattern');
+            $text = self::coerceTextLikeGlobOperand($row[$valueColumn], 'value');
+            $pattern = self::coerceTextLikeGlobOperand($row[$patternColumn], 'pattern');
             $escape = null;
             if ($escapeColumn !== null) {
                 if (!array_key_exists($escapeColumn, $row)) {
-                    throw new \InvalidArgumentException("SQLite dynamic LIKE row is missing {$escapeColumn}");
+                    throw new \InvalidArgumentException("SQLite dynamic LIKE/GLOB row is missing {$escapeColumn}");
                 }
-                $escape = self::coerceTextLikeOperand($row[$escapeColumn], 'escape');
+                $escape = self::coerceTextLikeGlobOperand($row[$escapeColumn], 'escape');
                 if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
                     throw new \InvalidArgumentException('SQLite dynamic LIKE ESCAPE expression must be a single character after text affinity');
                 }
@@ -355,7 +406,10 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             if ($text === null || $pattern === null) {
                 continue;
             }
-            if (!SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike)) {
+            $matches = $operator === 'LIKE'
+                ? SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike)
+                : SQLiteDatabase::globMatches($text, $pattern);
+            if (!$matches) {
                 continue;
             }
             $matched[] = [
@@ -378,14 +432,14 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
         return $matched;
     }
 
-    private static function coerceTextLikeOperand(mixed $value, string $label): ?string
+    private static function coerceTextLikeGlobOperand(mixed $value, string $label): ?string
     {
         if ($value === null || $value instanceof SQLiteBlobValue) {
             return null;
         }
         if (is_string($value)) {
             if (preg_match('//u', $value) !== 1) {
-                throw new \InvalidArgumentException("SQLite dynamic LIKE {$label} requires well-formed UTF-8 before encoding");
+                throw new \InvalidArgumentException("SQLite dynamic LIKE/GLOB {$label} requires well-formed UTF-8 before encoding");
             }
 
             return $value;
@@ -400,7 +454,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
             return $value ? '1' : '0';
         }
 
-        throw new \InvalidArgumentException("SQLite dynamic LIKE {$label} must be scalar text-affinity input");
+        throw new \InvalidArgumentException("SQLite dynamic LIKE/GLOB {$label} must be scalar text-affinity input");
     }
 
     private static function sqliteTextLength(string $value): int

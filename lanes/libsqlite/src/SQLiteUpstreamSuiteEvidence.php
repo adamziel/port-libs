@@ -9517,6 +9517,148 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerAdmissionCurrentSourceNext102(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $gapRows = [];
+        $resolvedGapIds = [];
+        $preservedGapIds = [];
+        $blockedGapIds = [];
+        $blockedReasons = [];
+
+        foreach (is_array($record['entries'] ?? null) ? $record['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $unit = is_string($entry['unit'] ?? null) ? $entry['unit'] : '';
+            $source = $artifactRows[$unit] ?? null;
+            if (!is_array($source)) {
+                foreach ($artifactRows as $candidate) {
+                    if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                        $source = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            $gapId = is_array($source) && is_string($source['gap_id'] ?? null) && $source['gap_id'] !== ''
+                ? $source['gap_id']
+                : $unit;
+            $gapStatus = is_array($source) && is_string($source['gap_status'] ?? null) && $source['gap_status'] !== ''
+                ? $source['gap_status']
+                : 'open';
+            $removedBlocker = is_array($source) && is_string($source['removed_blocker'] ?? null)
+                ? trim($source['removed_blocker'])
+                : '';
+            $movement = is_string($entry['movement'] ?? null) ? $entry['movement'] : 'open';
+            $rowBlockers = is_array($entry['blocker_ids'] ?? null) ? $entry['blocker_ids'] : [];
+
+            if ($movement === 'next-source-admitted') {
+                if ($gapStatus !== 'removed') {
+                    $rowBlockers[] = 'gap-status-not-removed';
+                }
+                if ($removedBlocker === '') {
+                    $rowBlockers[] = 'removed-blocker-missing';
+                }
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedGapIds[] = $gapId;
+                $blockedReasons[] = [
+                    'id' => 'current-source-next104-gap-burnup-row-blocked',
+                    'unit' => $unit,
+                    'gap_id' => $gapId,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($movement === 'next-source-admitted') {
+                $resolvedGapIds[] = $gapId;
+            } elseif ($movement === 'current-source-preserved') {
+                $preservedGapIds[] = $gapId;
+            }
+
+            $gapRows[] = [
+                'unit' => $unit,
+                'gap_id' => $gapId,
+                'gap_status' => $gapStatus,
+                'removed_blocker' => $removedBlocker,
+                'movement' => $movement,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        sort($resolvedGapIds, SORT_STRING);
+        sort($preservedGapIds, SORT_STRING);
+        sort($blockedGapIds, SORT_STRING);
+
+        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $blockedReasons);
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && $resolvedGapIds !== [] ? 1 : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next104-upstream-runner-gap-burnup-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next104-upstream-runner-gap-burnup-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next104-upstream-runner-gap-burnup-countable';
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['gap_rows'] = $gapRows;
+        $record['resolved_gap_ids'] = $resolvedGapIds;
+        $record['preserved_gap_ids'] = $preservedGapIds;
+        $record['blocked_gap_ids'] = $blockedGapIds;
+        $record['counts_upstream_runner_admission_current_source_next102'] = false;
+        $record['counts_upstream_runner_gap_burnup_current_source_next104'] = $status === 'current-source-next104-upstream-runner-gap-burnup-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next104-upstream-runner-gap-burnup-countable'
+            ? 'publish only the current-source next104 upstream-runner gap-burnup row and exact focused PASS-line movement; release/all parity remains gated on separate zero-error broad artifacts'
+            : 'keep current-source next104 upstream-runner gap burnup uncounted until source provenance, lane-local artifacts, zero-error guarded runner rows, removed-blocker evidence, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next104 upstream-runner gap burnup composes lane-local bounded runner artifacts, removed-blocker classifications, launcher/dashboard/status/implementation source heads, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

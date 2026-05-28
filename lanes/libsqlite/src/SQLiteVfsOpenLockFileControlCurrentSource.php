@@ -71,6 +71,16 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext105(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-uri-current-source-next105', true, true, true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(
         array $operations,
         array $options,
@@ -79,7 +89,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         bool $lockRequiredForWriteControl = false,
         bool $persistWalRequiresWriteLock = false,
         bool $trackCurrentSourceGeneration = false,
-        bool $trackDeviceCharacteristics = false
+        bool $trackDeviceCharacteristics = false,
+        bool $trackUriFileControl = false
     ): array {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
@@ -161,6 +172,34 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                         'device_characteristics' => $characteristics,
                         'device_flags' => $flags,
                         'powersafe_overwrite' => in_array('powersafe_overwrite', $flags, true),
+                    ]);
+                    continue;
+                }
+                if ($trackUriFileControl && in_array($control, ['uri_parameter', 'uri_boolean', 'uri_int'], true)) {
+                    $parameter = self::uriFileControlParameter($op['value']);
+                    $uriValues = self::uriParameterValues($handle, $parameter);
+                    $value = match ($control) {
+                        'uri_boolean' => self::uriBooleanValue($uriValues),
+                        'uri_int' => self::uriIntValue($uriValues),
+                        default => $uriValues[array_key_last($uriValues)] ?? null,
+                    };
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'ok', $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'parameter' => $parameter,
+                        'value' => $value,
+                        'values' => $uriValues,
+                        'previous' => null,
+                        'changed' => false,
+                        'reason' => $uriValues === [] ? 'missing_uri_parameter' : null,
+                        'lock_state' => (string) ($before['handles'][$handleId]['lock_state'] ?? 'unlocked'),
+                        'source_generation' => $trackCurrentSourceGeneration ? self::sourceGeneration($state, (string) ($before['handles'][$handleId]['source_key'] ?? '')) : null,
+                        'opened_generation' => (int) ($before['handles'][$handleId]['source_generation'] ?? 1),
+                        'stale_current_source' => $trackCurrentSourceGeneration
+                            ? (int) ($before['handles'][$handleId]['source_generation'] ?? 1) !== self::sourceGeneration($state, (string) ($before['handles'][$handleId]['source_key'] ?? ''))
+                            : false,
                     ]);
                     continue;
                 }
@@ -275,6 +314,9 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             $dependencies[] = 'vfs-xopen';
             $dependencies[] = 'vfs-xdevicecharacteristics';
         }
+        if ($trackUriFileControl) {
+            $dependencies[] = 'vfs-uri-file-control';
+        }
 
         return [
             'status' => (string) $events[array_key_last($events)]['status'],
@@ -376,6 +418,9 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 'nolock' => $uri['nolock'],
                 'vfs' => $uri['vfs'],
                 'authority' => $uri['authority'],
+                'known_parameters' => $uri['known_parameters'] ?? [],
+                'unknown_parameters' => $uri['unknown_parameters'] ?? [],
+                'all_query_parameters' => $uri['all_query_parameters'] ?? [],
             ];
         }
 
@@ -390,6 +435,9 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'nolock' => str_contains(strtolower($filename), 'nolock=1') ? true : null,
             'vfs' => null,
             'authority' => null,
+            'known_parameters' => [],
+            'unknown_parameters' => [],
+            'all_query_parameters' => [],
         ];
     }
 
@@ -797,5 +845,61 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         }
 
         return $value;
+    }
+
+    private static function uriFileControlParameter(mixed $value): string
+    {
+        if (!is_string($value) || trim($value) === '' || str_contains($value, "\0")) {
+            throw new \InvalidArgumentException('SQLite VFS URI file-control requires a non-empty parameter name');
+        }
+
+        return trim($value);
+    }
+
+    /**
+     * @param array<string,mixed> $handle
+     * @return list<string>
+     */
+    private static function uriParameterValues(array $handle, string $parameter): array
+    {
+        $parameters = $handle['uri']['all_query_parameters'] ?? [];
+        if (!is_array($parameters) || !isset($parameters[$parameter]) || !is_array($parameters[$parameter])) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (mixed $value): string => (string) $value, $parameters[$parameter]));
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function uriBooleanValue(array $values): ?bool
+    {
+        if ($values === []) {
+            return null;
+        }
+        $value = $values[array_key_last($values)];
+
+        return match ($value) {
+            '0' => false,
+            '1' => true,
+            default => throw new \InvalidArgumentException("SQLite VFS URI boolean parameter expects 0 or 1: {$value}"),
+        };
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function uriIntValue(array $values): ?int
+    {
+        if ($values === []) {
+            return null;
+        }
+        $value = $values[array_key_last($values)];
+        if (preg_match('/^-?\d+$/', $value) !== 1) {
+            throw new \InvalidArgumentException("SQLite VFS URI integer parameter expects an integer: {$value}");
+        }
+
+        return (int) $value;
     }
 }

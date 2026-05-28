@@ -1259,6 +1259,7 @@ final class SQLiteWalSavepointCheckpointPlan
             'source_transitions' => array_column($rows, 'source_transition'),
             'pinned_next_source_counts' => array_count_values($pinned['next_sources']),
             'released_next_source_counts' => array_count_values($released['released_next_sources']),
+            'released_next_images' => $released['released_next_images'],
             'rolled_back_page_numbers' => $pinned['rolled_back_page_numbers'],
             'rolled_back_frame_indexes' => $pinned['rolled_back_frame_indexes'],
             'current_uses_rollback_prefix' => $pinned['current_uses_rollback_prefix'],
@@ -1420,6 +1421,155 @@ final class SQLiteWalSavepointCheckpointPlan
                 $releasedDurable['dependencies'],
                 $append['dependencies'],
                 ['sqlite-wal-savepoint-restart-reader-current-source-next103']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function checkpointRestartTruncateSavepointReaderCurrentSourceNext105(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart/truncate reader current-source next105 requires at least one page number');
+        }
+
+        self::assertCurrentWalSource($wal, $walBytes);
+        $currentPlan = $currentShm->checkpointPlan();
+        $nextPlan = $nextReaderShm->checkpointPlan();
+        $allReleasedPlan = $allReleasedShm->checkpointPlan();
+        $currentSalt = $currentShm->header['salt'] ?? [];
+        if (($currentSalt[0] ?? null) !== $wal->header->salt1 || ($currentSalt[1] ?? null) !== $wal->header->salt2) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart/truncate reader current-source next105 SHM salt does not match current WAL');
+        }
+        if ((int) ($currentShm->header['mx_frame'] ?? -1) !== $wal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart/truncate reader current-source next105 SHM mxFrame does not match current WAL');
+        }
+
+        $pinnedFrame = $currentPlan['checkpoint_pinned_frame'];
+        if (!is_int($pinnedFrame) || $pinnedFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint restart/truncate reader current-source next105 requires a current reader pin');
+        }
+
+        $restart = self::checkpointReaderSavepointCurrentSourceNext99(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            'restart',
+            $pinnedFrame
+        );
+        $truncate = self::checkpointReaderSavepointCurrentSourceNext99(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            'truncate',
+            $pinnedFrame
+        );
+
+        $restartRows = $restart['current_source_rows'];
+        $truncateRows = $truncate['current_source_rows'];
+
+        return [
+            'status' => $restart['reader_release_unblocked_checkpoint']
+                && $truncate['reader_release_unblocked_checkpoint']
+                && $currentPlan['reset_blocked']
+                && $nextPlan['reset_blocked']
+                && !$allReleasedPlan['reset_blocked']
+                    ? 'savepoint-reader-current-source-next105'
+                    : 'savepoint-reader-current-source-next105-incomplete',
+            'savepoint' => $savepoint,
+            'current_source_verified' => true,
+            'shm_source_verified' => true,
+            'current_source' => $restart['current_source'],
+            'retained_source' => $restart['retained_source'],
+            'current_reader_end_frame' => $restart['current_reader_end_frame'],
+            'next_reader_end_frame' => $restart['pinned_next_reader_end_frame'],
+            'released_restart_reader_end_frame' => $restart['released_next_reader_end_frame'],
+            'released_truncate_reader_end_frame' => $truncate['released_next_reader_end_frame'],
+            'retained_frame_count' => $restart['retained_frame_count'],
+            'discarded_frame_count' => $restart['discarded_frame_count'],
+            'current_shm_source' => [
+                'mx_frame' => $currentShm->header['mx_frame'],
+                'backfilled_frame_count' => $currentShm->backfilledFrameCount,
+                'backfill_attempted_frame_count' => $currentShm->backfillAttemptedFrameCount,
+                'salt1' => $currentSalt[0],
+                'salt2' => $currentSalt[1],
+                'checkpoint_pinned_frame' => $currentPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $currentPlan['reset_blocked'],
+                'read_locks' => $currentPlan['read_locks'],
+            ],
+            'next_shm_source' => [
+                'checkpoint_pinned_frame' => $nextPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $nextPlan['reset_blocked'],
+                'read_locks' => $nextPlan['read_locks'],
+            ],
+            'all_released_shm_source' => [
+                'checkpoint_pinned_frame' => $allReleasedPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $allReleasedPlan['reset_blocked'],
+                'read_locks' => $allReleasedPlan['read_locks'],
+            ],
+            'restart' => $restart,
+            'truncate' => $truncate,
+            'restart_released_source' => $restart['released_source'],
+            'truncate_released_source' => $truncate['released_source'],
+            'current_sources' => $restart['current_sources'],
+            'pinned_next_sources' => $restart['pinned_next_sources'],
+            'restart_released_sources' => $restart['released_next_sources'],
+            'truncate_released_sources' => $truncate['released_next_sources'],
+            'restart_source_transitions' => array_column($restartRows, 'source_transition'),
+            'truncate_source_transitions' => array_column($truncateRows, 'source_transition'),
+            'restart_final_wal_generation' => [
+                'action' => $restart['released_wal_action'],
+                'wal_bytes_length' => $restart['released_source']['wal_bytes_length'],
+                'checkpoint_sequence' => $restart['released_source']['checkpoint_sequence'],
+                'salt1' => $restart['released_source']['salt1'],
+            ],
+            'truncate_final_wal_generation' => [
+                'action' => $truncate['released_wal_action'],
+                'wal_bytes_length' => $truncate['released_source']['wal_bytes_length'],
+                'checkpoint_sequence' => $truncate['released_source']['checkpoint_sequence'],
+                'salt1' => $truncate['released_source']['salt1'],
+            ],
+            'restart_truncate_released_database_match' => $restart['released_next_images'] === $truncate['released_next_images'],
+            'current_reader_preserves_sidecar_source' => in_array('wal', $restart['current_sources'], true),
+            'pinned_reader_blocks_restart_reset' => $restart['pinned_checkpoint_busy'] && $restart['pinned_wal_action'] === 'preserve_wal',
+            'pinned_reader_blocks_truncate_reset' => $truncate['pinned_checkpoint_busy'] && $truncate['pinned_wal_action'] === 'preserve_wal',
+            'reader_release_unblocks_restart' => $restart['reader_release_unblocked_checkpoint'],
+            'reader_release_unblocks_truncate' => $truncate['reader_release_unblocked_checkpoint'],
+            'restart_released_uses_checkpoint_database' => $restart['released_reader_uses_checkpoint_database'],
+            'truncate_released_uses_checkpoint_database' => $truncate['released_reader_uses_checkpoint_database'],
+            'rolled_back_page_numbers' => $restart['rolled_back_page_numbers'],
+            'rolled_back_frame_indexes' => $restart['rolled_back_frame_indexes'],
+            'commit_frame_indexes' => $restart['commit_frame_indexes'],
+            'frame_source_rows' => $restart['frame_source_rows'],
+            'source_digest' => hash('sha256', implode('|', array_merge(
+                array_column($restartRows, 'source_transition'),
+                array_column($truncateRows, 'source_transition')
+            ))),
+            'yield_count' => $restart['yield_count'] + $truncate['yield_count'] + count($pageNumbers),
+            'dependencies' => array_values(array_unique(array_merge(
+                $restart['dependencies'],
+                $truncate['dependencies'],
+                $currentPlan['dependencies'],
+                $nextPlan['dependencies'],
+                $allReleasedPlan['dependencies'],
+                ['sqlite-wal-restart-truncate-savepoint-reader-current-source-next105']
             ))),
         ];
     }

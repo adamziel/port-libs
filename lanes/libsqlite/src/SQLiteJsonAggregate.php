@@ -514,6 +514,40 @@ final class SQLiteJsonAggregate
      * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
      * @return list<string>
      */
+    public static function jsonGroupArrayDistinctWindowFrameRows(iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        return self::jsonGroupArrayDistinctWindowFrameRowsByUnit($rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string>
+     */
+    public static function jsonGroupArrayDistinctWindowFrameRowsByUnit(iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        $frames = [];
+        foreach (self::jsonWindowFrameRows($rows, $unit, $preceding, $following, $exclude, 'json_group_array() DISTINCT window frame rows must be [value, orderKey] or [value, orderKey, filter] tuples') as $frame) {
+            $values = [];
+            $seen = [];
+            foreach ($frame as $row) {
+                $key = self::distinctKey($row['value']);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $values[] = $row['value'];
+            }
+            $frames[] = self::jsonGroupArray($values);
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string>
+     */
     public static function jsonGroupArrayDistinctOrderByWindowFrameRowsByUnit(iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
     {
         $frames = [];
@@ -573,6 +607,37 @@ final class SQLiteJsonAggregate
     public static function jsonGroupArrayDistinctOrderByWindowFrameRowsSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
     {
         return self::jsonGroupArrayDistinctOrderByWindowFrameRowsByUnitSqlFunction($function, $rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupArrayDistinctWindowFrameRowsSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        return self::jsonGroupArrayDistinctWindowFrameRowsByUnitSqlFunction($function, $rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupArrayDistinctWindowFrameRowsByUnitSqlFunction(string $function, iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        $frames = self::jsonGroupArrayDistinctWindowFrameRowsByUnit($rows, $unit, $preceding, $following, $exclude);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $frames;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        $jsonbFrames = [];
+        foreach ($frames as $frame) {
+            $jsonbFrames[] = new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($frame)));
+        }
+
+        return $jsonbFrames;
     }
 
     /**

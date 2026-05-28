@@ -31,7 +31,17 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker): array
+    public static function currentSourceNext104(array $operations, array $options = []): array
+    {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next104', true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source requires operations');
@@ -45,7 +55,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($state, $op, $options);
+                $handle = self::openHandle($state, $op, $options, $trackGeneration);
                 $state['handles'][$handle['id']] = $handle;
                 $state['source_handles'][$handle['source']] = $handle['id'];
                 $state['current_source'] = $handle['source'];
@@ -55,6 +65,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     'owner' => $handle['owner'],
                     'reused_controls' => $handle['reused_controls'],
                     'reused_shm_locks' => $handle['reused_shm_locks'],
+                    'source_generation' => $handle['source_generation'] ?? null,
                 ]);
                 continue;
             }
@@ -84,11 +95,44 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 $value = self::controlValue($control, $op['value']);
                 $handle = &$state['handles'][$handleId];
                 $previous = $handle['controls'][$control] ?? null;
+                if ($trackGeneration && $control === 'data_version' && $op['value'] === null) {
+                    $owner = (string) $handle['owner'];
+                    $currentGeneration = self::ownerGeneration($state, $owner);
+                    $sourceHandleId = (string) ($state['source_handles'][$source] ?? $handleId);
+                    $sourceHandle = is_array($state['handles'][$sourceHandleId] ?? null) ? $state['handles'][$sourceHandleId] : $handle;
+                    $openedGeneration = (int) ($sourceHandle['source_generation'] ?? $currentGeneration);
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'ok', $source, $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'value' => $currentGeneration,
+                        'previous' => $openedGeneration,
+                        'changed' => false,
+                        'routed_to' => 'database',
+                        'source_generation' => $currentGeneration,
+                        'opened_generation' => $openedGeneration,
+                        'stale_current_source' => $openedGeneration !== $currentGeneration,
+                        'stale_handles' => self::staleHandles($state, $owner),
+                    ]);
+                    continue;
+                }
                 $status = ($handle['readonly'] && self::writeControl($control)) ? 'ignored' : 'ok';
                 if ($status === 'ok') {
                     $handle['controls'][$control] = $value;
+                    if ($trackGeneration && self::writeControl($control) && $previous !== $value) {
+                        $state['persistent_generations'][$handle['owner']] = self::ownerGeneration($state, (string) $handle['owner']) + 1;
+                        $sourceHandleId = (string) ($state['source_handles'][$source] ?? $handleId);
+                        if ($sourceHandleId === $handleId) {
+                            $handle['source_generation'] = $state['persistent_generations'][$handle['owner']];
+                        } elseif (isset($state['handles'][$sourceHandleId])) {
+                            $state['handles'][$sourceHandleId]['source_generation'] = $state['persistent_generations'][$handle['owner']];
+                        }
+                        $handle['controls']['data_version'] = $state['persistent_generations'][$handle['owner']];
+                    }
                     $state['persistent_controls'][$handle['owner']] = self::persistentSubset($handle['controls']);
                 }
+                $owner = (string) $handle['owner'];
                 unset($handle);
 
                 $events[] = self::event('filecontrol', $status, $source, $before, self::snapshot($state), [
@@ -98,6 +142,8 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     'previous' => $previous,
                     'changed' => $status === 'ok' && $previous !== $value,
                     'routed_to' => 'database',
+                    'source_generation' => $trackGeneration ? self::ownerGeneration($state, $owner) : null,
+                    'stale_handles' => $trackGeneration ? self::staleHandles($state, $owner) : [],
                 ]);
                 continue;
             }
@@ -171,6 +217,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 'source_handles' => [],
                 'persistent_controls' => [],
                 'persistent_shm_locks' => [],
+                'persistent_generations' => [],
             ];
         }
 
@@ -181,6 +228,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'source_handles' => is_array($current['source_handles'] ?? null) ? $current['source_handles'] : [],
             'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
             'persistent_shm_locks' => is_array($current['persistent_shm_locks'] ?? null) ? $current['persistent_shm_locks'] : [],
+            'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
         ];
     }
 
@@ -190,7 +238,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function openHandle(array &$state, array $op, array $options): array
+    private static function openHandle(array &$state, array $op, array $options, bool $trackGeneration = false): array
     {
         $state['sequence']++;
         $source = self::sourceName((string) ($op['source'] ?? 'main'));
@@ -220,6 +268,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'shm_locks' => $source === 'shm' ? $shmLocks : [],
             'reused_controls' => $source === 'main' && $controls !== [],
             'reused_shm_locks' => $source === 'shm' && $shmLocks !== [],
+            'source_generation' => $trackGeneration ? self::ownerGeneration($state, $owner) : null,
         ];
     }
 
@@ -419,7 +468,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
 
     private static function writeControl(string $control): bool
     {
-        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite'], true);
+        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite', 'persist_wal'], true);
     }
 
     /**
@@ -429,7 +478,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     private static function persistentSubset(array $controls): array
     {
         $subset = [];
-        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout'] as $key) {
+        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout', 'data_version'] as $key) {
             if (array_key_exists($key, $controls)) {
                 $subset[$key] = $controls[$key];
             }
@@ -448,6 +497,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         ksort($state['source_handles']);
         ksort($state['persistent_controls']);
         ksort($state['persistent_shm_locks']);
+        ksort($state['persistent_generations']);
 
         return $state;
     }
@@ -474,7 +524,41 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'persistent_control_count' => count($state['persistent_controls']),
             'shm_lock_count' => $shmLockCount,
             'persistent_shm_owner_count' => count(array_filter($state['persistent_shm_locks'], static fn (mixed $locks): bool => is_array($locks) && $locks !== [])),
+            'persistent_generation_count' => count($state['persistent_generations']),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function ownerGeneration(array $state, string $owner): int
+    {
+        $generation = $state['persistent_generations'][$owner] ?? null;
+        if (is_int($generation) && $generation > 0) {
+            return $generation;
+        }
+
+        return 1;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return list<string>
+     */
+    private static function staleHandles(array $state, string $owner): array
+    {
+        $generation = self::ownerGeneration($state, $owner);
+        $stale = [];
+        foreach ($state['handles'] as $id => $handle) {
+            if (($handle['owner'] ?? null) !== $owner) {
+                continue;
+            }
+            if ((int) ($handle['source_generation'] ?? $generation) !== $generation) {
+                $stale[] = (string) $id;
+            }
+        }
+
+        return $stale;
     }
 
     /**
