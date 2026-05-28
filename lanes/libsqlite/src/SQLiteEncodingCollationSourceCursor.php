@@ -356,6 +356,11 @@ final class SQLiteEncodingCollationSourceCursor
         };
     }
 
+    public static function encodingNameForCode(int $encoding): string
+    {
+        return self::encodingName($encoding);
+    }
+
     private static function encodeUtf16(string $text, int $encoding): string
     {
         $bytes = '';
