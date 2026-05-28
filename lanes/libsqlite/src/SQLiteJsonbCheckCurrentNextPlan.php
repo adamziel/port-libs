@@ -114,6 +114,20 @@ final class SQLiteJsonbCheckCurrentNextPlan
     private static function parseTerm(string $term): array
     {
         $term = trim(self::stripOuterParens($term));
+        if (preg_match('/^NOT\s+(.+)$/i', $term, $m) === 1) {
+            return ['operator' => 'NOT', 'terms' => [self::parseTerm($m[1])]];
+        }
+
+        $andTerms = self::splitLogical($term, 'AND');
+        if (count($andTerms) > 1) {
+            return ['operator' => 'AND', 'terms' => array_map(self::parseTerm(...), $andTerms)];
+        }
+
+        $orTerms = self::splitLogical($term, 'OR');
+        if (count($orTerms) > 1) {
+            return ['operator' => 'OR', 'terms' => array_map(self::parseTerm(...), $orTerms)];
+        }
+
         if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/i', $term, $m) === 1) {
             return ['expr' => self::parseExpr($m[1]), 'operator' => isset($m[2]) && trim($m[2]) !== '' ? 'IS NOT NULL' : 'IS NULL', 'value' => null];
         }
@@ -156,13 +170,40 @@ final class SQLiteJsonbCheckCurrentNextPlan
         foreach ($checks as $check) {
             $terms = [];
             foreach ($check['terms'] as $term) {
-                $actual = self::evalExpr($term['expr'], $row);
-                $terms[] = $term + ['actual' => $actual, 'ok' => self::compare($actual, $term['operator'], $term['value'])];
+                $terms[] = self::evaluateTerm($term, $row);
             }
             $results[] = ['sql' => $check['sql'], 'ok' => self::termsOk($terms), 'terms' => $terms];
         }
 
         return $results;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     * @return array<string,mixed>
+     */
+    private static function evaluateTerm(array $term, array $row): array
+    {
+        $operator = (string) ($term['operator'] ?? '');
+        if ($operator === 'AND') {
+            $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+
+            return array_replace($term, ['actual' => array_column($children, 'actual'), 'ok' => self::termsOk($children), 'terms' => $children]);
+        }
+        if ($operator === 'OR') {
+            $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+
+            return array_replace($term, ['actual' => array_column($children, 'actual'), 'ok' => self::anyTermOk($children), 'terms' => $children]);
+        }
+        if ($operator === 'NOT') {
+            $children = array_map(static fn (array $child): array => self::evaluateTerm($child, $row), $term['terms']);
+
+            return array_replace($term, ['actual' => $children[0]['actual'] ?? null, 'ok' => !self::termsOk($children), 'terms' => $children]);
+        }
+
+        $actual = self::evalExpr($term['expr'], $row);
+
+        return $term + ['actual' => $actual, 'ok' => self::compare($actual, $operator, $term['value'])];
     }
 
     /**
@@ -319,6 +360,20 @@ final class SQLiteJsonbCheckCurrentNextPlan
         return true;
     }
 
+    /**
+     * @param list<array<string,mixed>> $terms
+     */
+    private static function anyTermOk(array $terms): bool
+    {
+        foreach ($terms as $term) {
+            if (($term['ok'] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static function literalValue(string $literal): mixed
     {
         $literal = trim($literal);
@@ -437,10 +492,19 @@ final class SQLiteJsonbCheckCurrentNextPlan
      */
     private static function splitAnd(string $sql): array
     {
+        return self::splitLogical($sql, 'AND');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitLogical(string $sql, string $keyword): array
+    {
         $parts = [];
         $start = 0;
         $depth = 0;
         $quote = null;
+        $pattern = '/\G\s+' . preg_quote($keyword, '/') . '\s+/i';
         $length = strlen($sql);
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
@@ -462,7 +526,7 @@ final class SQLiteJsonbCheckCurrentNextPlan
                 $depth--;
                 continue;
             }
-            if ($depth === 0 && preg_match('/\G\s+AND\s+/i', $sql, $m, 0, $i) === 1) {
+            if ($depth === 0 && preg_match($pattern, $sql, $m, 0, $i) === 1) {
                 $parts[] = trim(substr($sql, $start, $i - $start));
                 $i += strlen($m[0]) - 1;
                 $start = $i + 1;

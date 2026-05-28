@@ -102,6 +102,64 @@ final class SQLitePagerSavepointCurrentNextPlan
 
     /**
      * @param list<array<string,mixed>> $events
+     * @param array<string,mixed> $action
+     * @return array<string,mixed>
+     */
+    public static function rollbackJournalLifecycleCurrentNext67(array $events, array $action): array
+    {
+        $plan = self::currentNext($events, $action);
+        $mode = self::journalMode($action['journal_mode'] ?? 'delete');
+        $pageSize = self::positiveInt($action['page_size'] ?? 4096, 'page_size');
+        $databasePageCount = self::positiveInt($action['database_page_count'] ?? 1, 'database_page_count');
+        $truncateOnCommit = (bool) ($action['truncate_on_commit'] ?? ($mode === 'truncate'));
+        $syncDirectory = (bool) ($action['sync_directory'] ?? in_array($mode, ['delete', 'truncate', 'persist'], true));
+        $hotJournal = (bool) ($action['hot_journal'] ?? false);
+        $currentPages = $plan['current']['pending_pages'];
+        $nextPages = $plan['next']['pending_pages'];
+        $rollbackPages = self::operationPageNumbers($plan, ['restore_savepoint_pages', 'rollback_transaction']);
+        $mergePages = self::operationPageNumbers($plan, ['merge_savepoint_pages', 'commit_transaction']);
+        $journalBytesBefore = self::journalBytes($currentPages, $pageSize);
+        $journalBytesAfter = self::journalBytes($nextPages, $pageSize);
+        $statementJournalPages = self::statementJournalPagesForAction($plan);
+        $needsHotJournal = $hotJournal || ($journalBytesBefore > 0 && $plan['current']['active']);
+        $finalDisposition = self::journalDisposition(
+            $plan['action'],
+            $plan['next']['active'],
+            $mode,
+            $truncateOnCommit
+        );
+
+        return $plan + [
+            'journal_lifecycle' => [
+                'mode' => $mode,
+                'page_size' => $pageSize,
+                'database_page_count' => $databasePageCount,
+                'journal_bytes_before' => $journalBytesBefore,
+                'journal_bytes_after' => $journalBytesAfter,
+                'statement_journal_pages' => $statementJournalPages,
+                'restore_page_numbers' => $rollbackPages,
+                'merge_page_numbers' => $mergePages,
+                'hot_journal_required_before' => $needsHotJournal,
+                'final_disposition' => $finalDisposition,
+                'sync_sequence' => self::syncSequence(
+                    $plan['action'],
+                    $mode,
+                    $plan['next']['active'],
+                    $syncDirectory,
+                    $finalDisposition
+                ),
+                'super_journal_participant' => (bool) ($action['super_journal_participant'] ?? false),
+                'requires_reserved_lock' => $plan['pager']['lock_after'] === 'reserved',
+                'dependencies' => [
+                    'sqlite-pager-savepoint-current-next67',
+                    'sqlite-rollback-journal-lifecycle',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $events
      */
     private static function stackFromEvents(array $events): SQLiteSavepointStack
     {
@@ -236,6 +294,146 @@ final class SQLitePagerSavepointCurrentNextPlan
         }
 
         return $value;
+    }
+
+    private static function journalMode(mixed $value): string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            throw new \InvalidArgumentException('SQLite pager savepoint journal_mode must be a non-empty string');
+        }
+
+        $mode = strtolower(trim($value));
+        if (!in_array($mode, ['delete', 'truncate', 'persist', 'memory', 'off'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager savepoint journal_mode: {$mode}");
+        }
+
+        return $mode;
+    }
+
+    /**
+     * @param list<int> $pages
+     */
+    private static function journalBytes(array $pages, int $pageSize): int
+    {
+        if ($pages === []) {
+            return 0;
+        }
+
+        return 28 + (count($pages) * ($pageSize + 8));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return list<int>
+     */
+    private static function statementJournalPagesForAction(array $plan): array
+    {
+        if ($plan['action'] === 'savepoint') {
+            return [];
+        }
+
+        if ($plan['action'] === 'rollback_to') {
+            return $plan['transition']['rollback_page_numbers'];
+        }
+
+        if ($plan['action'] === 'release') {
+            return $plan['transition']['merged_page_numbers'];
+        }
+
+        return $plan['current']['pending_pages'];
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<string> $ops
+     * @return list<int>
+     */
+    private static function operationPageNumbers(array $plan, array $ops): array
+    {
+        $pages = [];
+        foreach ($plan['operations'] as $operation) {
+            if (!in_array($operation['op'], $ops, true) || !isset($operation['pages'])) {
+                continue;
+            }
+            foreach ($operation['pages'] as $pageNumber) {
+                $pages[$pageNumber] = true;
+            }
+        }
+
+        $numbers = array_keys($pages);
+        sort($numbers, SORT_NUMERIC);
+
+        return $numbers;
+    }
+
+    private static function journalDisposition(string $action, bool $transactionActiveAfter, string $mode, bool $truncateOnCommit): string
+    {
+        if ($transactionActiveAfter) {
+            return 'keep_open';
+        }
+
+        if ($mode === 'memory' || $mode === 'off') {
+            return 'discard_memory_journal';
+        }
+
+        if ($action === 'rollback') {
+            return $mode === 'persist' ? 'zero_header' : 'delete';
+        }
+
+        if ($truncateOnCommit || $mode === 'truncate') {
+            return 'truncate';
+        }
+
+        if ($mode === 'persist') {
+            return 'zero_header';
+        }
+
+        return 'delete';
+    }
+
+    /**
+     * @return list<array{op:string,target:string,reason:string}>
+     */
+    private static function syncSequence(
+        string $action,
+        string $mode,
+        bool $transactionActiveAfter,
+        bool $syncDirectory,
+        string $finalDisposition
+    ): array {
+        if ($transactionActiveAfter) {
+            return [[
+                'op' => 'sync',
+                'target' => 'statement-journal',
+                'reason' => $action === 'rollback_to' ? 'savepoint_rollback_keeps_outer_transaction' : 'savepoint_release_keeps_outer_transaction',
+            ]];
+        }
+
+        if ($mode === 'memory' || $mode === 'off') {
+            return [];
+        }
+
+        $sequence = [[
+            'op' => 'sync',
+            'target' => 'rollback-journal',
+            'reason' => $action === 'rollback' ? 'rollback_before_database_restore' : 'commit_before_database_write',
+        ]];
+        if ($action !== 'rollback') {
+            $sequence[] = [
+                'op' => 'sync',
+                'target' => 'database',
+                'reason' => 'commit_database_pages',
+            ];
+        }
+        if ($syncDirectory && in_array($finalDisposition, ['delete', 'truncate', 'zero_header'], true)) {
+            $sequence[] = [
+                'op' => 'sync',
+                'target' => 'directory',
+                'reason' => "journal_{$finalDisposition}_durable",
+            ];
+        }
+
+        return $sequence;
     }
 
     private static function nonEmptyString(mixed $value, string $label): string

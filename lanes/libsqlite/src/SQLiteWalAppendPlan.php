@@ -376,6 +376,126 @@ final class SQLiteWalAppendPlan
     /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
+     * @return array{status:string,reason:string,database_path:string,wal_path:string,current_reader_end_frame:int|null,next_reader_end_frame:int|null,next_reader_slot:int|null,current_read_marks:list<int|null>,next_read_marks:list<int|null>,release_read_marks:list<int|null>,append:array<string,mixed>,current_read_mark_plan:array<string,mixed>,next_read_mark_plan:array<string,mixed>,release_read_mark_plan:array<string,mixed>,checkpoint_before_release:array<string,mixed>,checkpoint_after_release:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_snapshot_stable:bool,next_snapshot_advances:bool,current_pin_blocks_checkpoint:bool,release_allows_checkpoint_reset:bool,frames_hidden_from_current:list<int>,frames_visible_to_next:list<int>,dependencies:list<string>}
+     */
+    public static function readerPinAppendCurrentNext(
+        SQLiteWal $wal,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $pageNumbers,
+        array $readMarks,
+        string $checkpointMode = 'restart',
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL reader-pin append current/next requires at least one page number');
+        }
+
+        $checkpointMode = strtolower(trim($checkpointMode));
+        if (!in_array($checkpointMode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL reader-pin append current/next requires restart or truncate checkpoint mode');
+        }
+
+        $currentReadMarkPlan = $wal->readMarkPlan($readMarks);
+        $currentEndFrame = $currentReadMarkPlan['checkpoint_pinned_frame'] ?? $currentReadMarkPlan['recommended_reader_frame'];
+        $append = self::appendTransactions($wal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $nextWal = SQLiteWal::parse($append['wal_bytes'], $wal->header->pageSize, true);
+        $nextEndFrame = $append['last_commit_frame'] ?? $wal->frameCount();
+
+        $nextReadMarks = array_values($readMarks);
+        $nextReaderSlot = self::nextReaderSlot($nextReadMarks, $currentReadMarkPlan);
+        if ($nextReaderSlot !== null) {
+            $nextReadMarks[$nextReaderSlot] = $nextEndFrame;
+        }
+        $nextReadMarkPlan = $nextWal->readMarkPlan($nextReadMarks);
+
+        $releaseReadMarks = $nextReadMarks;
+        foreach ($currentReadMarkPlan['read_marks'] as $mark) {
+            if ($mark['pins_checkpoint']) {
+                $releaseReadMarks[$mark['slot']] = null;
+            }
+        }
+        $releaseReadMarkPlan = $nextWal->readMarkPlan($releaseReadMarks);
+
+        $checkpointBeforeRelease = $nextWal->durableCheckpointResult(
+            $databaseBytes,
+            $checkpointMode,
+            $nextReadMarkPlan['checkpoint_pinned_frame'],
+        );
+        $checkpointAfterRelease = $nextWal->durableCheckpointResult(
+            $databaseBytes,
+            $checkpointMode,
+            $releaseReadMarkPlan['checkpoint_pinned_frame'],
+        );
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL reader-pin append current/next pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame, true);
+            $next[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame, true);
+        }
+
+        return [
+            'status' => $currentReadMarkPlan['checkpoint_pinned_frame'] !== null
+                ? 'current-reader-pinned-next-reader-advanced'
+                : 'no-current-reader-pin',
+            'reason' => $append['committed_transaction_count'] > 0
+                ? 'wal_append_preserves_current_pin_and_assigns_next_reader'
+                : 'wal_append_has_no_committed_next_reader_frame',
+            'database_path' => $databasePath,
+            'wal_path' => $append['wal_path'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'next_reader_slot' => $nextReaderSlot,
+            'current_read_marks' => array_values($readMarks),
+            'next_read_marks' => $nextReadMarks,
+            'release_read_marks' => $releaseReadMarks,
+            'append' => $append,
+            'current_read_mark_plan' => $currentReadMarkPlan,
+            'next_read_mark_plan' => $nextReadMarkPlan,
+            'release_read_mark_plan' => $releaseReadMarkPlan,
+            'checkpoint_before_release' => $checkpointBeforeRelease,
+            'checkpoint_after_release' => $checkpointAfterRelease,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_snapshot_stable' => self::visibilityImages($current) === self::visibilityImages(array_map(
+                static fn (array $entry): array => self::safeReaderVisibility($wal, $databaseBytes, (int) $entry['page_number'], $currentEndFrame, true),
+                $current
+            )),
+            'next_snapshot_advances' => self::visibilityImages($current) !== self::visibilityImages($next),
+            'current_pin_blocks_checkpoint' => $checkpointBeforeRelease['busy'] && $checkpointBeforeRelease['wal_action'] === 'preserve_wal',
+            'release_allows_checkpoint_reset' => !$checkpointAfterRelease['busy'] && ($checkpointAfterRelease['can_reset'] || $checkpointAfterRelease['can_truncate']),
+            'frames_hidden_from_current' => $currentEndFrame !== null && $currentEndFrame < $nextWal->frameCount()
+                ? range($currentEndFrame + 1, $nextWal->frameCount())
+                : [],
+            'frames_visible_to_next' => $nextEndFrame > 0 ? range(1, $nextEndFrame) : [],
+            'dependencies' => array_values(array_unique(array_merge(
+                $append['dependencies'],
+                $checkpointBeforeRelease['dependencies'],
+                [
+                    'sqlite-wal-reader-pin-append-current-next67',
+                    'sqlite-wal-readmark-handoff',
+                ],
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,wal_path:string,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_database_page_count:int,next_database_page_count:int,appended_frame_count:int,committed_transaction_count:int,uncommitted_transaction_count:int,uncommitted_tail_visible:bool,images_match:bool,append:array<string,mixed>,dependencies:list<string>}
      */
     public static function readerWriterSnapshotBoundary(
@@ -649,5 +769,26 @@ final class SQLiteWalAppendPlan
     private static function visibilityImages(array $entries): array
     {
         return array_map(static fn (array $entry): ?string => isset($entry['image']) && is_string($entry['image']) ? $entry['image'] : null, $entries);
+    }
+
+    /**
+     * @param list<int|null> $readMarks
+     * @param array<string,mixed> $readMarkPlan
+     */
+    private static function nextReaderSlot(array $readMarks, array $readMarkPlan): ?int
+    {
+        foreach ($readMarks as $slot => $frame) {
+            if ($frame === null) {
+                return $slot;
+            }
+        }
+
+        foreach ($readMarkPlan['read_marks'] as $mark) {
+            if (!$mark['pins_checkpoint'] && in_array($mark['slot'], $readMarkPlan['reusable_slots'], true)) {
+                return $mark['slot'];
+            }
+        }
+
+        return null;
     }
 }
