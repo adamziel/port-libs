@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 03:26 UTC):
+  Batch88 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `ce7a70d7a02bdde6e2df635a41134a7e45079f0f` (`Integrate libsqlite batch
+  88 subset`) accepted 10 current-source libsqlite handoffs. The late
+  `suite88` worker was not included because it was not ready at intake.
+  Verification passed: php -l `31` changed/untracked PHP files, 10 changed
+  WordPress examples with valid JSON, conflict-marker scan, git diff --check,
+  focused changed tests `10 test files / 684 assertions / 0 failures / 566
+  PASS lines`, planner/pragma regression `3 test files / 183 assertions /
+  0 failures / 182 PASS lines`, full libsqlite `630 test files / 72920
+  assertions / 0 failures / 35300 PASS lines`, and root `843 test files /
+  97388 assertions / 0 failures / 38328 PASS lines`. This is `+581`
+  libsqlite PASS lines over batch87 (`34719 -> 35300`); mapped coverage is
+  being advanced from `507 / 1589` to `517 / 1589`. The STAT4 partial-index
+  slice needed a supervisor compatibility fix so new `sample`-array STAT4
+  evidence does not reject older accepted `prefix`/`suffix` STAT4 evidence.
+  tmux `main` remains at 11 active libsqlite workers with no long sleepers;
+  disk remains tight at about 3.7G free on `/home/claude`.
+
 - 2026-05-28 supervisor continuation (shell/live samples 03:18 UTC):
   Batch87 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
