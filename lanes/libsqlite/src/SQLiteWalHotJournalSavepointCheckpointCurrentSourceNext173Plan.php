@@ -59,8 +59,8 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan
             && $stale === []
             && $readerDrained;
 
-        $checkpointDatabaseBytes = (int) ($prepared['base_plan']['checkpoint_database_bytes'] ?? strlen($databaseBytes));
-        $checkpointWalBytes = (int) ($prepared['base_plan']['next_wal_bytes'] ?? strlen($walBytes));
+        $checkpointDatabaseBytes = self::durablePayloadLength($prepared, ['base_plan', 'current_durable', 'database_bytes'], strlen($databaseBytes));
+        $checkpointWalBytes = self::durablePayloadLength($prepared, ['base_plan', 'next_durable', 'wal_bytes'], strlen($walBytes));
         $operations = $publicationReady ? [
             [
                 'op' => 'write',
@@ -180,5 +180,22 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan
         if (!is_array($prepared['dependencies']) || !is_array($prepared['current_source_token']) || !is_array($prepared['next_source_token'])) {
             throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next173 prepared plan has invalid token/dependency shape');
         }
+    }
+
+    /**
+     * @param array<string,mixed> $prepared
+     * @param list<string> $path
+     */
+    private static function durablePayloadLength(array $prepared, array $path, int $fallback): int
+    {
+        $value = $prepared;
+        foreach ($path as $key) {
+            if (!is_array($value) || !array_key_exists($key, $value)) {
+                return $fallback;
+            }
+            $value = $value[$key];
+        }
+
+        return is_string($value) ? strlen($value) : $fallback;
     }
 }

@@ -848,6 +848,98 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param array<string,mixed> $prepared
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,publication:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
+     */
+    public function applyWalHotJournalSavepointCheckpointCurrentSourceNext175(
+        array $prepared,
+        ?string $expectedDatabaseHash = null,
+        ?string $expectedJournalHash = null,
+        ?string $expectedWalHash = null,
+        bool $readerDrained = true
+    ): array {
+        foreach (['database_path', 'journal_path', 'wal_path'] as $key) {
+            if (!isset($prepared[$key]) || !is_string($prepared[$key]) || $prepared[$key] === '') {
+                throw new \InvalidArgumentException("SQLite WAL hot-journal savepoint checkpoint current-source next175 missing prepared {$key}");
+            }
+        }
+
+        $databasePath = (string) $prepared['database_path'];
+        $journalPath = (string) $prepared['journal_path'];
+        $walPath = (string) $prepared['wal_path'];
+        $databaseLocalPath = $this->localPath($databasePath);
+        $journalLocalPath = $this->localPath($journalPath);
+        $walLocalPath = $this->localPath($walPath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 database is missing: {$databasePath}");
+        }
+        if (!is_file($journalLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 journal is missing: {$journalPath}");
+        }
+        if (!is_file($walLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next175 WAL is missing: {$walPath}");
+        }
+
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        $journalBytes = (string) file_get_contents($journalLocalPath);
+        $walBytes = (string) file_get_contents($walLocalPath);
+        $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
+            $prepared,
+            $databaseBytes,
+            $journalBytes,
+            $walBytes,
+            $expectedDatabaseHash,
+            $expectedJournalHash,
+            $expectedWalHash,
+            $readerDrained
+        );
+        $source = [
+            'database_path' => $databasePath,
+            'database_bytes' => strlen($databaseBytes),
+            'journal_path' => $journalPath,
+            'journal_bytes' => strlen($journalBytes),
+            'wal_path' => $walPath,
+            'wal_bytes' => strlen($walBytes),
+        ];
+
+        if (!$publication['can_publish']) {
+            return [
+                'status' => 'blocked',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge($publication['dependencies'], ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-apply-next175']))),
+                'publication' => $publication,
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $payloads = [
+            $databasePath => self::preparedDurableString($prepared, ['base_plan', 'current_durable', 'database_bytes'], $databaseBytes),
+            $walPath => self::preparedDurableString($prepared, ['base_plan', 'next_durable', 'wal_bytes'], $walBytes),
+        ];
+        $applied = $this->applyAtomicOperations(
+            $publication['operations'],
+            $payloads,
+            array_values(array_unique(array_merge(
+                $publication['dependencies'],
+                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-vfs-apply-next175']
+            )))
+        );
+        $applied['publication'] = $publication;
+        $applied['atomic'] = true;
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
      * @param list<int> $pageNumbers
      * @param array<int,string> $currentStatementSourcePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
@@ -2925,6 +3017,23 @@ final class SQLiteVfsFileWriter
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $prepared
+     * @param list<string> $path
+     */
+    private static function preparedDurableString(array $prepared, array $path, string $fallback): string
+    {
+        $value = $prepared;
+        foreach ($path as $key) {
+            if (!is_array($value) || !array_key_exists($key, $value)) {
+                return $fallback;
+            }
+            $value = $value[$key];
+        }
+
+        return is_string($value) ? $value : $fallback;
     }
 
     /**

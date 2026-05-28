@@ -2358,6 +2358,67 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext175(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext173(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceCacheProfile175(
+            $currentSource,
+            $plan['currentGeneratedPathRowidCurrentSourceBestIndex173'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceCacheProfile175(
+            $nextSource,
+            $plan['nextGeneratedPathRowidCurrentSourceBestIndex173'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceCacheTransitions175($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceCacheReplanReasons175($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceCache175'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceCache175'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceCache175Transitions'] = $transitions;
+        $plan['next175ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next173ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next175ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-current-source-next175-until-cache-generation-reset';
+        $plan['nextReaderPolicy'] = $plan['next175ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-cost-current-source-next175-cache'
+            : 'prepare-next-json-table-generated-path-rowid-cost-current-source-next175-cache';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next175'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext173(
         string $function,
         array $currentSource,
@@ -10224,6 +10285,162 @@ final class SQLiteJsonTablePlan
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-alias-next174-cost-changed',
                 'planFingerprint' => 'json-table-generated-path-rowid-alias-next174-fingerprint-changed',
                 default => 'json-table-generated-path-rowid-alias-next174-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $bestIndex
+     * @return array{sourceGeneration:string,sourceToken:array<string,mixed>,bestIndexFingerprint:string,cacheKey:string,rowidScope:array<string,mixed>,argvColumns:list<string>,argvValues:list<mixed>,orderedOutputRowids:list<int>,estimatedRows:int,plannerCost:int,cacheReusable:bool,cacheDisposition:string,costClass:string}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCacheProfile175(array $source, array $bestIndex): array
+    {
+        $sourceGeneration = self::jsonTableGeneratedPathRowidCurrentSourceGeneration175($source);
+        $sourceToken = is_array($bestIndex['sourceToken'] ?? null) ? $bestIndex['sourceToken'] : [];
+        $bestIndexFingerprint = (string) ($bestIndex['bestIndexFingerprint'] ?? '');
+        $rowidScope = is_array($bestIndex['rowidScope'] ?? null) ? $bestIndex['rowidScope'] : [];
+        $argvColumns = array_values(array_map('strval', $bestIndex['argvColumns'] ?? []));
+        $argvValues = array_values($bestIndex['argvValues'] ?? []);
+        $orderedOutputRowids = array_values(array_map('intval', $bestIndex['orderedOutputRowids'] ?? []));
+        $plannerCost = (int) ($bestIndex['plannerCost'] ?? 1000000);
+        $estimatedRows = (int) ($bestIndex['estimatedRows'] ?? 0);
+        $cacheReusable = (bool) ($bestIndex['currentSourcePinned'] ?? false)
+            && (bool) ($bestIndex['sourceReusable'] ?? false)
+            && (bool) ($bestIndex['generatedPathUsable'] ?? false)
+            && (bool) ($bestIndex['rowidUsable'] ?? false)
+            && (bool) ($bestIndex['eof'] ?? true) === false
+            && $bestIndexFingerprint !== '';
+
+        $cacheKey = hash('sha256', json_encode([
+            'sourceGeneration' => $sourceGeneration,
+            'sourceToken' => $sourceToken,
+            'bestIndexFingerprint' => $bestIndexFingerprint,
+            'rowidScope' => $rowidScope,
+            'argvColumns' => $argvColumns,
+            'argvValues' => $argvValues,
+            'orderedOutputRowids' => $orderedOutputRowids,
+        ], JSON_THROW_ON_ERROR));
+
+        return [
+            'sourceGeneration' => $sourceGeneration,
+            'sourceToken' => $sourceToken,
+            'bestIndexFingerprint' => $bestIndexFingerprint,
+            'cacheKey' => $cacheKey,
+            'rowidScope' => $rowidScope,
+            'argvColumns' => $argvColumns,
+            'argvValues' => $argvValues,
+            'orderedOutputRowids' => $orderedOutputRowids,
+            'estimatedRows' => $estimatedRows,
+            'plannerCost' => $plannerCost,
+            'cacheReusable' => $cacheReusable,
+            'cacheDisposition' => self::jsonTableGeneratedPathRowidCurrentSourceCacheDisposition175($cacheReusable, $estimatedRows, $plannerCost),
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceCacheCostClass175($cacheReusable, $rowidScope, $estimatedRows, $plannerCost),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceGeneration175(array $source): string
+    {
+        foreach (['source_generation', 'sourceGeneration', 'generation', 'schema_cookie', 'schemaCookie'] as $column) {
+            if (array_key_exists($column, $source)) {
+                $value = $source[$column];
+                if ($value === null || is_scalar($value)) {
+                    return $column . ':' . (string) $value;
+                }
+            }
+        }
+
+        return 'value:' . hash('sha256', json_encode([
+            $source['option_id'] ?? null,
+            $source['option_name'] ?? null,
+            $source['option_value'] ?? null,
+            $source['generated_path'] ?? null,
+            $source['scan_root'] ?? null,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceCacheDisposition175(bool $cacheReusable, int $estimatedRows, int $plannerCost): string
+    {
+        if (!$cacheReusable) {
+            return 'reprepare-json-table-generated-path-rowid-cache';
+        }
+        if ($estimatedRows === 0 || $plannerCost >= 1000000) {
+            return 'cache-json-table-generated-path-rowid-empty';
+        }
+
+        return 'reuse-json-table-generated-path-rowid-cache';
+    }
+
+    /**
+     * @param array<string,mixed> $rowidScope
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCacheCostClass175(
+        bool $cacheReusable,
+        array $rowidScope,
+        int $estimatedRows,
+        int $plannerCost,
+    ): string {
+        if (!$cacheReusable) {
+            return 'json-table-generated-path-rowid-cache-reprepare-current-source';
+        }
+        if ($estimatedRows === 0 || $plannerCost >= 1000000) {
+            return 'json-table-generated-path-rowid-cache-empty-current-source';
+        }
+        if (($rowidScope['kind'] ?? null) === 'point' || $estimatedRows === 1) {
+            return 'json-table-generated-path-rowid-cache-point-current-source';
+        }
+
+        return 'json-table-generated-path-rowid-cache-range-current-source';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCacheTransitions175(array $current, array $next): array
+    {
+        return [
+            ['field' => 'sourceGeneration', 'current' => $current['sourceGeneration'], 'next' => $next['sourceGeneration'], 'changed' => $current['sourceGeneration'] !== $next['sourceGeneration']],
+            ['field' => 'sourceToken', 'current' => $current['sourceToken'], 'next' => $next['sourceToken'], 'changed' => $current['sourceToken'] !== $next['sourceToken']],
+            ['field' => 'bestIndexFingerprint', 'current' => $current['bestIndexFingerprint'], 'next' => $next['bestIndexFingerprint'], 'changed' => $current['bestIndexFingerprint'] !== $next['bestIndexFingerprint']],
+            ['field' => 'cacheKey', 'current' => $current['cacheKey'], 'next' => $next['cacheKey'], 'changed' => $current['cacheKey'] !== $next['cacheKey']],
+            ['field' => 'rowidScope', 'current' => $current['rowidScope'], 'next' => $next['rowidScope'], 'changed' => $current['rowidScope'] !== $next['rowidScope']],
+            ['field' => 'argvValues', 'current' => $current['argvValues'], 'next' => $next['argvValues'], 'changed' => $current['argvValues'] !== $next['argvValues']],
+            ['field' => 'orderedOutputRowids', 'current' => $current['orderedOutputRowids'], 'next' => $next['orderedOutputRowids'], 'changed' => $current['orderedOutputRowids'] !== $next['orderedOutputRowids']],
+            ['field' => 'estimatedRows', 'current' => $current['estimatedRows'], 'next' => $next['estimatedRows'], 'changed' => $current['estimatedRows'] !== $next['estimatedRows']],
+            ['field' => 'plannerCost', 'current' => $current['plannerCost'], 'next' => $next['plannerCost'], 'changed' => $current['plannerCost'] !== $next['plannerCost']],
+            ['field' => 'cacheReusable', 'current' => $current['cacheReusable'], 'next' => $next['cacheReusable'], 'changed' => $current['cacheReusable'] !== $next['cacheReusable']],
+            ['field' => 'cacheDisposition', 'current' => $current['cacheDisposition'], 'next' => $next['cacheDisposition'], 'changed' => $current['cacheDisposition'] !== $next['cacheDisposition']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCacheReplanReasons175(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceGeneration', 'sourceToken' => 'json-table-generated-path-rowid-cache-source-generation-changed',
+                'bestIndexFingerprint', 'cacheKey' => 'json-table-generated-path-rowid-cache-key-changed',
+                'rowidScope', 'argvValues' => 'json-table-generated-path-rowid-cache-argv-changed',
+                'orderedOutputRowids', 'estimatedRows' => 'json-table-generated-path-rowid-cache-rowset-changed',
+                'plannerCost', 'costClass' => 'json-table-generated-path-rowid-cache-cost-changed',
+                'cacheReusable', 'cacheDisposition' => 'json-table-generated-path-rowid-cache-disposition-changed',
+                default => 'json-table-generated-path-rowid-cache-state-changed',
             };
         }
 
