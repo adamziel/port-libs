@@ -2545,6 +2545,87 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext185(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+            $function,
+            $currentSource,
+            $jsonColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidCurrentSourceXNext182'],
+            $plan['currentGeneratedPathRowidCurrentSourceCache175'],
+            $plan['currentGeneratedPathRowidCurrentSourceYield178'],
+            $projection,
+            false,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+            $function,
+            $nextSource,
+            $jsonColumn,
+            $rootColumn,
+            $plan['nextGeneratedPathRowidCurrentSourceXNext182'],
+            $plan['nextGeneratedPathRowidCurrentSourceCache175'],
+            $plan['nextGeneratedPathRowidCurrentSourceYield178'],
+            $projection,
+            $plan['next182ReplanReasons'] !== [],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions185($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReplanReasons185($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceResume185'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceResume185'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceResume185Transitions'] = $transitions;
+        $plan['next185ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next182ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next185ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'checkpoint-current-json-table-generated-path-rowid-cost-current-source-next185';
+        $plan['nextReaderPolicy'] = $plan['next185ReplanReasons'] === []
+            ? 'resume-current-json-table-generated-path-rowid-cost-current-source-next185'
+            : 'restart-next-json-table-generated-path-rowid-cost-current-source-next185';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next185'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
@@ -12378,6 +12459,231 @@ final class SQLiteJsonTablePlan
                 'emitCost', 'costClass' => 'json-table-generated-path-rowid-batch-next183-cost-changed',
                 'batchFingerprint' => 'json-table-generated-path-rowid-batch-next183-fingerprint-changed',
                 default => 'json-table-generated-path-rowid-batch-next183-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $xnext
+     * @param array<string,mixed> $cache
+     * @param array<string,mixed> $yield
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpoint185(
+        string $function,
+        array $source,
+        string $jsonColumn,
+        ?string $rootColumn,
+        array $xnext,
+        array $cache,
+        array $yield,
+        array $projection,
+        bool $staleAfterNextSource,
+    ): array {
+        $function = self::normalizeFunction($function);
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid resume next185 is missing {$jsonColumn}");
+        }
+
+        $projection = self::jsonTableXColumnProjection181($projection);
+        $jsonValue = $source[$jsonColumn];
+        $validation = self::validateJsonInput($jsonValue);
+        $root = '$';
+        if ($rootColumn !== null && array_key_exists($rootColumn, $source)) {
+            if (!is_string($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid resume next185 root must be text');
+            }
+            if (!SQLiteJsonPath::isWellFormed($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid resume next185 root is not a well-formed path');
+            }
+            $root = $source[$rootColumn];
+        }
+
+        $deliverable = array_values(array_map('intval', $xnext['deliverableRowids'] ?? []));
+        $blocked = array_values(array_map('intval', $xnext['blockedRowids'] ?? []));
+        $rowsById = [];
+        if (($validation['jsonValid'] ?? null) !== false && $deliverable !== []) {
+            $rows = $function === 'json_each'
+                ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$jsonValue, $root])
+                : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$jsonValue, $root]);
+            foreach ($rows as $row) {
+                $rowid = self::jsonTableRowid181($row);
+                if ($rowid !== null) {
+                    $rowsById[$rowid] = $row;
+                }
+            }
+        }
+
+        $projectedRows = [];
+        $missing = [];
+        $checkpointTape = [];
+        foreach ($deliverable as $ordinal => $rowid) {
+            if (!isset($rowsById[$rowid])) {
+                $missing[] = $rowid;
+                continue;
+            }
+
+            $columns = [];
+            foreach ($projection as $column) {
+                $columns[$column] = $rowsById[$rowid][$column] ?? null;
+            }
+            $projectedRows[] = ['rowid' => $rowid] + $columns;
+            $checkpointTape[] = [
+                'ordinal' => (int) ($xnext['resumeOrdinal'] ?? 0) + $ordinal,
+                'rowid' => $rowid,
+                'checkpointRowid' => $rowid,
+                'columns' => $columns,
+                'sourceGeneration' => (string) ($cache['sourceGeneration'] ?? ''),
+                'sourcePinned' => !$staleAfterNextSource,
+            ];
+        }
+
+        $lastDelivered = $deliverable === [] ? null : $deliverable[array_key_last($deliverable)];
+        $nextResumeOrdinal = (int) ($xnext['resumeOrdinal'] ?? 0) + count($deliverable);
+        $resumeToken = hash('sha256', json_encode([
+            'cacheKey' => $cache['cacheKey'] ?? null,
+            'cursorGeneration' => $yield['cursorGeneration'] ?? null,
+            'admissionFingerprint' => $xnext['admissionFingerprint'] ?? null,
+            'projection' => $projection,
+            'deliverable' => $deliverable,
+            'blocked' => $blocked,
+            'lastDelivered' => $lastDelivered,
+            'nextResumeOrdinal' => $nextResumeOrdinal,
+            'staleAfterNextSource' => $staleAfterNextSource,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $checkpointReusable = (bool) ($xnext['cacheReusable'] ?? false)
+            && !$staleAfterNextSource
+            && $deliverable !== []
+            && $missing === [];
+        $estimatedRows = $checkpointReusable ? count($projectedRows) : 0;
+        $estimatedCost = $checkpointReusable
+            ? max(1, min((int) ($xnext['estimatedCost'] ?? 1000000), max(1, count($projectedRows))))
+            : 1000000;
+
+        return [
+            'function' => $function,
+            'jsonSourceKind' => (string) ($validation['jsonInputKind'] ?? 'missing'),
+            'sourceGeneration' => (string) ($cache['sourceGeneration'] ?? ''),
+            'cacheKey' => is_string($cache['cacheKey'] ?? null) ? $cache['cacheKey'] : null,
+            'cursorGeneration' => is_string($yield['cursorGeneration'] ?? null) ? $yield['cursorGeneration'] : null,
+            'admissionFingerprint' => is_string($xnext['admissionFingerprint'] ?? null) ? $xnext['admissionFingerprint'] : null,
+            'resumeToken' => $resumeToken,
+            'projection' => $projection,
+            'deliveredRowids' => $deliverable,
+            'blockedRowids' => $blocked,
+            'lastDeliveredRowid' => $lastDelivered,
+            'nextResumeOrdinal' => $nextResumeOrdinal,
+            'projectedRows' => $projectedRows,
+            'missingRowids' => $missing,
+            'checkpointTape' => $checkpointTape,
+            'checkpointReusable' => $checkpointReusable,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'eofAfterBatch' => (bool) ($xnext['eofAfterBatch'] ?? true),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidResumeCheckpointCostClass185(
+                $checkpointReusable,
+                $staleAfterNextSource,
+                count($projectedRows),
+                count($blocked),
+                count($missing),
+                (bool) ($xnext['eofAfterBatch'] ?? true),
+            ),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidResumeCheckpointCostClass185(
+        bool $checkpointReusable,
+        bool $staleAfterNextSource,
+        int $projectedCount,
+        int $blockedCount,
+        int $missingCount,
+        bool $eofAfterBatch,
+    ): string {
+        if ($staleAfterNextSource) {
+            return 'json-table-generated-path-rowid-resume-restart-next-source-next185';
+        }
+        if (!$checkpointReusable) {
+            return $missingCount > 0
+                ? 'json-table-generated-path-rowid-resume-missing-rowid-next185'
+                : 'json-table-generated-path-rowid-resume-blocked-current-source-next185';
+        }
+        if ($projectedCount === 0) {
+            return 'json-table-generated-path-rowid-resume-eof-current-source-next185';
+        }
+        if ($eofAfterBatch) {
+            return 'json-table-generated-path-rowid-resume-final-current-source-next185';
+        }
+        if ($blockedCount > 0) {
+            return 'json-table-generated-path-rowid-resume-batched-current-source-next185';
+        }
+
+        return 'json-table-generated-path-rowid-resume-current-source-next185';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointTransitions185(array $current, array $next): array
+    {
+        $fields = [
+            'jsonSourceKind',
+            'sourceGeneration',
+            'cacheKey',
+            'cursorGeneration',
+            'admissionFingerprint',
+            'resumeToken',
+            'projection',
+            'deliveredRowids',
+            'blockedRowids',
+            'lastDeliveredRowid',
+            'nextResumeOrdinal',
+            'projectedRows',
+            'missingRowids',
+            'checkpointReusable',
+            'staleAfterNextSource',
+            'eofAfterBatch',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceResumeCheckpointReplanReasons185(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'jsonSourceKind', 'sourceGeneration', 'cacheKey', 'cursorGeneration', 'admissionFingerprint', 'resumeToken', 'staleAfterNextSource' => 'json-table-generated-path-rowid-resume-source-fence-changed-next185',
+                'projection' => 'json-table-generated-path-rowid-resume-projection-changed-next185',
+                'deliveredRowids', 'blockedRowids', 'lastDeliveredRowid', 'nextResumeOrdinal', 'projectedRows', 'missingRowids', 'eofAfterBatch' => 'json-table-generated-path-rowid-resume-rowset-changed-next185',
+                'checkpointReusable' => 'json-table-generated-path-rowid-resume-reuse-changed-next185',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-resume-cost-changed-next185',
+                default => 'json-table-generated-path-rowid-resume-state-changed-next185',
             };
         }
 
