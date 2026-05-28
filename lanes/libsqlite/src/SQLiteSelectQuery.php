@@ -132,12 +132,19 @@ final class SQLiteSelectQuery
         $orderBy = self::windowOrderList($expression['orderBy'] ?? []);
         $frame = self::windowFrame($expression['frame'] ?? null);
         $filter = self::windowFilter($expression['filter'] ?? null);
+        $aggregateOrderBy = null;
+        if (array_key_exists('aggregateOrderBy', $expression)) {
+            if (!is_array($expression['aggregateOrderBy'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY must be an expression');
+            }
+            $aggregateOrderBy = $expression['aggregateOrderBy'];
+        }
 
         $result = array_fill(0, count($rows), null);
         foreach (self::windowPartitions($rows, $partitionBy) as $partitionIndexes) {
             $orderedIndexes = self::orderWindowPartition($rows, $partitionIndexes, $orderBy);
             $orderedRows = array_map(static fn (int $rowIndex): array => $rows[$rowIndex], $orderedIndexes);
-            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame, $filter);
+            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame, $filter, $aggregateOrderBy);
             foreach ($orderedIndexes as $offset => $rowIndex) {
                 $result[$rowIndex] = $orderedValues[$offset];
             }
@@ -210,7 +217,7 @@ final class SQLiteSelectQuery
      * @param array<string,mixed>|null $filter
      * @return list<mixed>
      */
-    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame, ?array $filter): array
+    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame, ?array $filter, ?array $aggregateOrderBy): array
     {
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
@@ -231,6 +238,16 @@ final class SQLiteSelectQuery
 
         if (in_array($function, ['lag', 'lead', 'first_value', 'last_value', 'nth_value'], true) && $arguments === []) {
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
+        }
+        if ($frame !== null && in_array($function, ['json_group_array', 'jsonb_group_array'], true)) {
+            if ($orderBy === []) {
+                throw new \InvalidArgumentException('SQLite SELECT query JSON aggregate window frame needs ORDER BY');
+            }
+            if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) === 'wildcard')) {
+                throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs one value argument");
+            }
+
+            return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy);
         }
         if ($frame !== null && in_array($function, ['count', 'sum', 'group_concat'], true)) {
             if ($orderBy === []) {
@@ -258,6 +275,9 @@ final class SQLiteSelectQuery
         }
         if ($filter !== null) {
             throw new \InvalidArgumentException("SQLite SELECT query FILTER is not supported for {$function}");
+        }
+        if ($aggregateOrderBy !== null) {
+            throw new \InvalidArgumentException("SQLite SELECT query aggregate ORDER BY is not supported for {$function}");
         }
         if ($frame !== null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
             if ($orderBy === []) {
@@ -293,6 +313,140 @@ final class SQLiteSelectQuery
             'nth_value' => SQLiteWindowFunction::nthValue($values, self::windowIntegerArgument($arguments, $orderedRows, 1, 'nth_value')),
             default => throw new \InvalidArgumentException("SQLite SELECT query window function {$function} is not supported"),
         };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $orderedRows
+     * @param list<mixed> $peerKeys
+     * @param array{unit:string,preceding:int|float,following:int|float,exclude:string} $frame
+     * @param array<string,mixed>|null $filter
+     * @param array<string,mixed>|null $aggregateOrderBy
+     * @return list<string|SQLiteBlobValue>
+     */
+    private static function jsonAggregateWindowFrameValues(string $function, array $argument, array $orderedRows, array $peerKeys, array $frame, ?array $filter, ?array $aggregateOrderBy): array
+    {
+        $frameRows = [];
+        foreach ($orderedRows as $index => $row) {
+            $frameRows[] = [
+                'value' => SQLiteSelectExpression::evaluate($row, $argument),
+                'frameKey' => $peerKeys[$index],
+                'aggregateKey' => $aggregateOrderBy === null ? $peerKeys[$index] : SQLiteSelectExpression::evaluate($row, $aggregateOrderBy),
+                'filter' => $filter === null || SQLiteSelectPredicate::filter([$row], $filter) !== [],
+                'position' => $index,
+            ];
+        }
+
+        $frames = self::windowFrameRows($frameRows, $frame['unit'], $frame['preceding'], $frame['following'], $frame['exclude']);
+        $result = [];
+        foreach ($frames as $frameRows) {
+            usort($frameRows, static function (array $left, array $right): int {
+                $comparison = self::compareSqlValues($left['aggregateKey'], $right['aggregateKey']);
+                if ($comparison === 0) {
+                    return $left['position'] <=> $right['position'];
+                }
+
+                return $comparison;
+            });
+            $values = array_map(static fn (array $row): mixed => $row['value'], $frameRows);
+            $json = SQLiteJsonAggregate::jsonGroupArray($values);
+            $result[] = $function === 'jsonb_group_array'
+                ? new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)))
+                : $json;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array{value:mixed,frameKey:mixed,aggregateKey:mixed,filter:bool,position:int}> $rows
+     * @return list<list<array{value:mixed,frameKey:mixed,aggregateKey:mixed,filter:bool,position:int}>>
+     */
+    private static function windowFrameRows(array $rows, string $unit, int|float $preceding, int|float $following, string $exclude): array
+    {
+        $count = count($rows);
+        $groups = [];
+        $groupByIndex = [];
+        foreach ($rows as $index => $row) {
+            $lastGroup = count($groups) - 1;
+            if ($lastGroup < 0 || self::compareSqlValues($row['frameKey'], $groups[$lastGroup]['key']) !== 0) {
+                $groups[] = ['key' => $row['frameKey'], 'start' => $index, 'end' => $index];
+                $lastGroup++;
+            } else {
+                $groups[$lastGroup]['end'] = $index;
+            }
+            $groupByIndex[$index] = $lastGroup;
+        }
+
+        $frames = [];
+        foreach ($rows as $position => $current) {
+            [$start, $end] = self::windowFrameRowBounds($rows, $groups, $groupByIndex, $unit, $position, $preceding, $following, $count - 1);
+            $frame = [];
+            for ($index = $start; $index <= $end; $index++) {
+                $candidate = $rows[$index];
+                $isCurrent = $index === $position;
+                $isPeer = self::compareSqlValues($candidate['frameKey'], $current['frameKey']) === 0;
+                if ($exclude === 'CURRENT ROW' && $isCurrent) {
+                    continue;
+                }
+                if ($exclude === 'GROUP' && $isPeer) {
+                    continue;
+                }
+                if ($exclude === 'TIES' && $isPeer && !$isCurrent) {
+                    continue;
+                }
+                if (!$candidate['filter']) {
+                    continue;
+                }
+                $frame[] = $candidate;
+            }
+            $frames[] = $frame;
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param list<array{value:mixed,frameKey:mixed,aggregateKey:mixed,filter:bool,position:int}> $rows
+     * @param list<array{key:mixed,start:int,end:int}> $groups
+     * @param array<int,int> $groupByIndex
+     * @return array{0:int,1:int}
+     */
+    private static function windowFrameRowBounds(array $rows, array $groups, array $groupByIndex, string $unit, int $position, int|float $preceding, int|float $following, int $lastIndex): array
+    {
+        if ($unit === 'ROWS') {
+            return [max(0, $position - (int) $preceding), min($lastIndex, $position + (int) $following)];
+        }
+        if ($unit === 'GROUPS') {
+            $group = $groupByIndex[$position];
+            $startGroup = max(0, $group - (int) $preceding);
+            $endGroup = min(count($groups) - 1, $group + (int) $following);
+
+            return [$groups[$startGroup]['start'], $groups[$endGroup]['end']];
+        }
+
+        $current = $rows[$position]['frameKey'];
+        if (!is_int($current) && !is_float($current)) {
+            $group = $groupByIndex[$position];
+
+            return [$groups[$group]['start'], $groups[$group]['end']];
+        }
+        $lower = $current - $preceding;
+        $upper = $current + $following;
+        $start = $position;
+        $end = $position;
+        foreach ($rows as $index => $row) {
+            $key = $row['frameKey'];
+            if (!is_int($key) && !is_float($key)) {
+                continue;
+            }
+            if ($key < $lower || $key > $upper) {
+                continue;
+            }
+            $start = min($start, $index);
+            $end = max($end, $index);
+        }
+
+        return [$start, $end];
     }
 
     /**

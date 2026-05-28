@@ -642,6 +642,106 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,statement_journal_path?:string,statement_pages:array<int,string>,outer_journal_bytes?:string,reserved_lock?:bool}> $databases
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{master_journal_path:string,master_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,statement_journal_paths:array<string,string>}}
+     */
+    public function applyMasterJournalStatementPageRecoveryFromCurrentSource84(
+        string $masterJournalPath,
+        array $databases,
+        int $pageSize,
+    ): array {
+        if ($masterJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite pager current-source statement recovery requires a master-journal path');
+        }
+        if ($databases === []) {
+            throw new \InvalidArgumentException('SQLite pager current-source statement recovery requires at least one attached database');
+        }
+
+        $masterLocalPath = $this->localPath($masterJournalPath);
+        $masterJournalBytes = is_file($masterLocalPath) ? (string) file_get_contents($masterLocalPath) : null;
+        $hydrated = [];
+        $sourceDatabasePaths = [];
+        $sourceDatabaseBytes = [];
+        $sourceStatementPaths = [];
+
+        foreach ($databases as $index => $database) {
+            $databasePath = isset($database['database_path']) ? (string) $database['database_path'] : '';
+            if ($databasePath === '') {
+                throw new \InvalidArgumentException("SQLite pager current-source statement recovery database {$index} requires a database path");
+            }
+
+            $databaseLocalPath = $this->localPath($databasePath);
+            if (!is_file($databaseLocalPath)) {
+                throw new \RuntimeException("SQLite pager current-source statement recovery database is missing: {$databasePath}");
+            }
+
+            $databaseBytes = (string) file_get_contents($databaseLocalPath);
+            $statementJournalPath = isset($database['statement_journal_path']) && (string) $database['statement_journal_path'] !== ''
+                ? (string) $database['statement_journal_path']
+                : $databasePath . '-stmt-journal';
+
+            $hydrated[] = array_merge($database, [
+                'database_bytes' => $databaseBytes,
+                'statement_journal_path' => $statementJournalPath,
+            ]);
+            $sourceDatabasePaths[] = $databasePath;
+            $sourceDatabaseBytes[$databasePath] = strlen($databaseBytes);
+            $sourceStatementPaths[$databasePath] = $statementJournalPath;
+        }
+
+        $plan = SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext(
+            $masterJournalPath,
+            $masterJournalBytes,
+            $hydrated,
+            $pageSize,
+            $this->readOnly,
+            $this->immutable
+        );
+        $source = [
+            'master_journal_path' => $masterJournalPath,
+            'master_journal_exists' => $masterJournalBytes !== null,
+            'database_paths' => $sourceDatabasePaths,
+            'database_bytes' => $sourceDatabaseBytes,
+            'statement_journal_paths' => $sourceStatementPaths,
+        ];
+
+        if ($plan['recovered_database_count'] === 0) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => array_values(array_unique(array_merge(
+                    $plan['dependencies'],
+                    ['sqlite-pager-statement-current-source-next84']
+                ))),
+                'recovery' => $plan,
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations(
+            $plan['operations'],
+            $plan['payloads'],
+            array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['sqlite-pager-statement-current-source-next84']
+            )))
+        );
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null}
      */
     public function applySavepointRollback(

@@ -1860,7 +1860,8 @@ final class SQLiteSelectSql
 
     private static function removeJsonTableHiddenConstraints(string $fromSql, array $where): ?array
     {
-        if (self::bareJsonTableAlias($fromSql) === null) {
+        $alias = self::bareJsonTableAlias($fromSql);
+        if ($alias === null) {
             return $where;
         }
 
@@ -1876,13 +1877,15 @@ final class SQLiteSelectSql
                 return null;
             }
             if (count($terms) === 1 && is_array($terms[0])) {
-                return $terms[0];
+                return self::unqualifyBareJsonTablePredicate($terms[0], $alias);
             }
 
-            return ['operator' => 'AND', 'terms' => $terms];
+            return self::unqualifyBareJsonTablePredicate(['operator' => 'AND', 'terms' => $terms], $alias);
         }
 
-        return self::jsonTableHiddenConstraint($where) === null ? $where : null;
+        return self::jsonTableHiddenConstraint($where) === null
+            ? self::unqualifyBareJsonTablePredicate($where, $alias)
+            : null;
     }
 
     private static function bareJsonTableAlias(string $fromSql): ?string
@@ -1895,6 +1898,36 @@ final class SQLiteSelectSql
         }
 
         return isset($match[2]) && $match[2] !== '' ? $match[2] : strtolower($match[1]);
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     * @return array<string,mixed>
+     */
+    private static function unqualifyBareJsonTablePredicate(array $predicate, string $alias): array
+    {
+        $normalizedAlias = strtolower($alias);
+        foreach ($predicate as $key => $value) {
+            if (is_array($value)) {
+                $predicate[$key] = self::unqualifyBareJsonTablePredicate($value, $alias);
+                continue;
+            }
+            if ($key !== 'name' || !is_string($value)) {
+                continue;
+            }
+
+            $name = strtolower($value);
+            if (!str_starts_with($name, $normalizedAlias . '.')) {
+                continue;
+            }
+
+            $column = substr($name, strlen($normalizedAlias) + 1);
+            if (in_array($column, ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'rowid', '_rowid_', 'oid'], true)) {
+                $predicate[$key] = $column;
+            }
+        }
+
+        return $predicate;
     }
 
     /**
@@ -1945,7 +1978,10 @@ final class SQLiteSelectSql
         if (str_contains($column, '.')) {
             $column = substr($column, strrpos($column, '.') + 1);
         }
-        if ($column !== 'json' && $column !== 'root') {
+        if ($column === 'rowid' || $column === '_rowid_' || $column === 'oid') {
+            $column = 'id';
+        }
+        if ($column !== 'json' && $column !== 'root' && $column !== 'id') {
             return null;
         }
 
@@ -3128,7 +3164,20 @@ final class SQLiteSelectSql
         $name = strtolower($match[1]);
         $argumentSql = trim($match[2]);
         $arguments = [];
+        $aggregateOrderBy = null;
         if ($argumentSql !== '') {
+            $orderParts = self::splitTopLevelByKeyword($argumentSql, 'ORDER BY');
+            if (count($orderParts) > 2) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL window aggregate supports one ORDER BY clause');
+            }
+            if (count($orderParts) === 2) {
+                $argumentSql = trim($orderParts[0]);
+                $orderSql = trim($orderParts[1]);
+                if ($argumentSql === '' || $orderSql === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL window aggregate ORDER BY needs value and order expression');
+                }
+                $aggregateOrderBy = self::valueExpression($orderSql, $tables);
+            }
             foreach (self::splitTopLevel($argumentSql, ',') as $argument) {
                 $arguments[] = trim($argument) === '*'
                     ? ['type' => 'wildcard']
@@ -3170,7 +3219,7 @@ final class SQLiteSelectSql
             $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
         }
 
-        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'group_concat'];
+        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'group_concat', 'json_group_array', 'jsonb_group_array'];
         if (!in_array($name, $supported, true)) {
             throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
         }
@@ -3187,6 +3236,9 @@ final class SQLiteSelectSql
         }
         if ($filter !== null) {
             $expression['filter'] = $filter;
+        }
+        if ($aggregateOrderBy !== null) {
+            $expression['aggregateOrderBy'] = $aggregateOrderBy;
         }
 
         return $expression;

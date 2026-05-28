@@ -1907,6 +1907,71 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderPinRestartCurrentSourceNext83(
+        string $databaseBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $currentReleasedShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        $plan = $this->checkpointReaderPinRestartCurrentNext76(
+            $databaseBytes,
+            $currentShm,
+            $nextReaderShm,
+            $currentReleasedShm,
+            $allReleasedShm,
+            $pageNumbers,
+            $mode
+        );
+
+        $afterCurrentCheckpoint = $plan['after_current_release']['checkpoint'];
+        $afterAllCheckpoint = $plan['after_all_release']['checkpoint'];
+        $currentSources = self::checkpointSourceRows(
+            $plan['current_reader'],
+            null,
+            $plan['first']['checkpoint']['checkpointed_frame_count'],
+            'current'
+        );
+        $nextSources = self::checkpointSourceRows(
+            $plan['next_reader'],
+            $afterCurrentCheckpoint['database_bytes'],
+            $afterCurrentCheckpoint['checkpointed_frame_count'],
+            'next'
+        );
+        $finalSources = self::checkpointSourceRows(
+            $plan['final_reader'],
+            $afterAllCheckpoint['database_bytes'],
+            $afterAllCheckpoint['checkpointed_frame_count'],
+            'final'
+        );
+
+        return array_merge($plan, [
+            'status' => str_replace('current-next76', 'current-source-next83', (string) $plan['status']),
+            'after_current_release_checkpointed_frame_count' => $afterCurrentCheckpoint['checkpointed_frame_count'],
+            'after_all_release_checkpointed_frame_count' => $afterAllCheckpoint['checkpointed_frame_count'],
+            'current_source_rows' => $currentSources,
+            'next_source_rows_after_current_release' => $nextSources,
+            'final_source_rows_after_all_release' => $finalSources,
+            'current_source_names' => self::visibilityColumn($currentSources, 'current_source'),
+            'next_source_names_after_current_release' => self::visibilityColumn($nextSources, 'current_source'),
+            'final_source_names_after_all_release' => self::visibilityColumn($finalSources, 'current_source'),
+            'next_mixed_checkpoint_database_and_wal' => in_array('checkpoint-database', self::visibilityColumn($nextSources, 'current_source'), true)
+                && in_array('preserved-wal', self::visibilityColumn($nextSources, 'current_source'), true),
+            'final_uses_reset_database_only' => !in_array('preserved-wal', self::visibilityColumn($finalSources, 'current_source'), true)
+                && !in_array('missing', self::visibilityColumn($finalSources, 'current_source'), true),
+            'dependencies' => array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['wal-reader-pin-checkpoint-restart-current-source-next83']
+            ))),
+        ]);
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
@@ -2169,6 +2234,39 @@ final class SQLiteWal
     private static function visibilityImages(array $rows): array
     {
         return array_map(static fn (array $row): ?string => is_string($row['image'] ?? null) ? $row['image'] : null, $rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function checkpointSourceRows(array $rows, ?string $checkpointDatabaseBytes, int $checkpointedFrameCount, string $phase): array
+    {
+        $sourceRows = [];
+        foreach ($rows as $row) {
+            $frameIndex = $row['frame_index'] ?? null;
+            $source = (string) ($row['source'] ?? 'missing');
+            $checkpointHasPage = $checkpointDatabaseBytes !== null
+                && is_int($row['database_offset'] ?? null)
+                && is_string($row['image'] ?? null)
+                && substr($checkpointDatabaseBytes, $row['database_offset'], strlen($row['image'])) === $row['image'];
+            $currentSource = match (true) {
+                $source === 'missing' => 'missing',
+                $source === 'database' => $phase === 'final' ? 'reset-database' : 'database',
+                is_int($frameIndex) && $checkpointHasPage => 'checkpoint-database',
+                $source === 'wal' => 'preserved-wal',
+                default => $source,
+            };
+
+            $sourceRows[] = $row + [
+                'phase' => $phase,
+                'current_source' => $currentSource,
+                'checkpointed_frame_count' => $checkpointedFrameCount,
+                'checkpoint_database_has_page' => $checkpointHasPage,
+            ];
+        }
+
+        return $sourceRows;
     }
 
     private static function highestActiveReadMarkFrame(SQLiteShmIndex $shm): ?int

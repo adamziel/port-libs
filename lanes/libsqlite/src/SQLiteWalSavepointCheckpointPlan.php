@@ -785,6 +785,48 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,before_reader_end_frame:int,after_release_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,release:array<string,mixed>,before_reader:list<array<string,mixed>>,after_release_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string>,after_release_reader_sources:list<string>,next_reader_sources:list<string>,before_reader_frame_indexes:list<int|null>,after_release_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_release_images_match:bool,release_to_next_images_match:bool,merged_page_numbers:list<int>,released_frame_names:list<string>,yield_count:int,current_wal_bytes_length:int,current_wal_frame_count:int,current_wal_checkpoint_sequence:int,current_wal_salt1:int,current_wal_salt2:int,current_source_verified:bool,dependencies:list<string>}
+     */
+    public static function releaseReaderCheckpointCurrentSourceNext84(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $beforeReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        self::assertCurrentWalSource($wal, $walBytes);
+
+        $plan = self::releaseReaderCheckpointCurrentNext(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $beforeReaderEndFrame,
+            $nextReaderEndFrame
+        );
+
+        $plan['current_wal_bytes_length'] = strlen($walBytes);
+        $plan['current_wal_frame_count'] = $wal->frameCount();
+        $plan['current_wal_checkpoint_sequence'] = $wal->header->checkpointSequence;
+        $plan['current_wal_salt1'] = $wal->header->salt1;
+        $plan['current_wal_salt2'] = $wal->header->salt2;
+        $plan['current_source_verified'] = true;
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-wal-savepoint-release-checkpoint-current-source-next84']
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
      */
     public static function releaseThenRollbackCheckpointCurrentNext(

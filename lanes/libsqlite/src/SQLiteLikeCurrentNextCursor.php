@@ -83,6 +83,9 @@ final class SQLiteLikeCurrentNextCursor
      *   comparisonToUpper:?int,
      *   nextComparisonToLower:?int,
      *   nextComparisonToUpper:?int,
+     *   patternMalformedUtf8:bool,
+     *   currentMalformedUtf8:?bool,
+     *   nextMalformedUtf8:?bool,
      *   rejectedReason:?string,
      *   range:?array{lowerInclusive:string,upperBound:?string},
      *   collation:string,
@@ -110,6 +113,9 @@ final class SQLiteLikeCurrentNextCursor
             'comparisonToUpper' => $current === null || $plan['range'] === null || $plan['range']['upperBound'] === null ? null : $this->compareText($current['key'], $plan['range']['upperBound']),
             'nextComparisonToLower' => $next === null || $plan['range'] === null ? null : $this->compareText($next['key'], $plan['range']['lowerInclusive']),
             'nextComparisonToUpper' => $next === null || $plan['range'] === null || $plan['range']['upperBound'] === null ? null : $this->compareText($next['key'], $plan['range']['upperBound']),
+            'patternMalformedUtf8' => self::isMalformedUtf8($this->pattern),
+            'currentMalformedUtf8' => $current === null ? null : self::isMalformedUtf8($current['key']),
+            'nextMalformedUtf8' => $next === null ? null : self::isMalformedUtf8($next['key']),
             'rejectedReason' => $plan['rejectedReason'],
             'range' => $plan['range'],
             'collation' => $plan['collation'],
@@ -118,7 +124,7 @@ final class SQLiteLikeCurrentNextCursor
     }
 
     /**
-     * @return list<array{rowid:int,key:string,payload:array<string,mixed>,position:int}>
+     * @return list<array{rowid:int,key:string,payload:array<string,mixed>,position:int,malformedUtf8:bool}>
      */
     public function matchedRows(): array
     {
@@ -136,6 +142,7 @@ final class SQLiteLikeCurrentNextCursor
                 'key' => $entry['key'],
                 'payload' => $entry['payload'],
                 'position' => $position,
+                'malformedUtf8' => self::isMalformedUtf8($entry['key']),
             ];
         }
 
@@ -176,5 +183,10 @@ final class SQLiteLikeCurrentNextCursor
     private static function asciiLower(string $value): string
     {
         return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    private static function isMalformedUtf8(string $value): bool
+    {
+        return preg_match('//u', $value) !== 1;
     }
 }

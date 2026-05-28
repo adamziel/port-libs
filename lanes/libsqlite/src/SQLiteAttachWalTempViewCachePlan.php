@@ -299,6 +299,110 @@ final class SQLiteAttachWalTempViewCachePlan
     }
 
     /**
+     * @param list<string> $triggers
+     * @param array<string,list<SQLiteSchemaRecord>> $nextSchemaRecords
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramCacheCurrentSourceNext(
+        SQLiteAttachedSchemaCatalog $catalog,
+        array $triggers,
+        array $nextSchemaRecords = [],
+        array $schemaStates = [],
+        string $sourceSchema = 'main',
+    ): array {
+        if ($triggers === []) {
+            throw new \InvalidArgumentException('SQLite trigger cache plan requires at least one prepared trigger');
+        }
+
+        $source = self::normalizeName($sourceSchema);
+        $beforeSnapshot = $catalog->schemaCacheResolutionSnapshot([], [], $source);
+        $beforeTriggers = [];
+        foreach ($triggers as $trigger) {
+            $triggerName = trim($trigger);
+            if ($triggerName === '') {
+                throw new \InvalidArgumentException('SQLite prepared trigger name cannot be empty');
+            }
+
+            $beforeTriggers[$triggerName] = self::triggerProgramEntry($catalog, $triggerName);
+        }
+
+        foreach ($nextSchemaRecords as $schema => $records) {
+            $catalog->replaceSchemaRecords($schema, $records);
+        }
+
+        $triggerPlans = [];
+        $reprepareTriggers = [];
+        $targetChangedTriggers = [];
+        $bodyChangedTriggers = [];
+        $missingTriggers = [];
+        foreach ($triggers as $trigger) {
+            $before = $beforeTriggers[$trigger];
+            $after = self::triggerProgramEntry($catalog, $trigger);
+            $triggerChanged = $before['trigger'] !== $after['trigger'];
+            $targetChanged = $before['target'] !== $after['target'];
+            $bodyChanged = $before['body_dependencies'] !== $after['body_dependencies'];
+            $requiresReprepare = $triggerChanged || $targetChanged || $bodyChanged || $after['trigger']['schema'] === null;
+            if ($requiresReprepare) {
+                $reprepareTriggers[] = $trigger;
+            }
+            if ($targetChanged) {
+                $targetChangedTriggers[] = $trigger;
+            }
+            if ($bodyChanged) {
+                $bodyChangedTriggers[] = $trigger;
+            }
+            if ($after['trigger']['schema'] === null) {
+                $missingTriggers[] = $trigger;
+            }
+
+            $triggerPlans[$trigger] = [
+                'before' => $before,
+                'after' => $after,
+                'trigger_changed' => $triggerChanged,
+                'target_changed' => $targetChanged,
+                'body_dependencies_changed' => $bodyChanged,
+                'current_program_kept' => true,
+                'next_requires_reprepare' => $requiresReprepare,
+            ];
+        }
+
+        $invalidation = $catalog->schemaCacheInvalidation($beforeSnapshot);
+        $schemaCookies = self::schemaCookies($schemaStates);
+        $changedSchemas = array_values(array_unique(array_merge(
+            $invalidation['invalidated_schemas'],
+            array_keys($nextSchemaRecords),
+            $schemaCookies['changed_schemas'],
+        )));
+        sort($changedSchemas);
+
+        return [
+            'status' => 'planned',
+            'operation' => 'attach-temp-wal-trigger-cache-current-source-next83',
+            'source_schema' => $source,
+            'trigger_count' => count($triggers),
+            'triggers' => $triggerPlans,
+            'reprepare_triggers' => $reprepareTriggers,
+            'target_changed_triggers' => $targetChangedTriggers,
+            'body_changed_triggers' => $bodyChangedTriggers,
+            'missing_triggers_next' => $missingTriggers,
+            'active_current_programs_kept' => true,
+            'requires_reprepare' => $reprepareTriggers !== [],
+            'schema_record_updates' => array_keys($nextSchemaRecords),
+            'changed_schemas' => $changedSchemas,
+            'schema_cookies_current' => $schemaCookies['current'],
+            'schema_cookies_next' => $schemaCookies['next'],
+            'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
+            'invalidation' => $invalidation,
+            'dependencies' => [
+                'sqlite-attach-temp-wal-trigger-cache-current-source-next83',
+                'sqlite-trigger-program-cache-reprepare',
+                'sqlite-wal-page-one-schema-cookie',
+            ],
+        ];
+    }
+
+    /**
      * @param array{schema: string, record: SQLiteSchemaRecord}|null $resolved
      * @return array{schema:string|null,name:string|null,rootpage:int|null,type:string|null,sql:string|null}
      */
@@ -314,6 +418,94 @@ final class SQLiteAttachWalTempViewCachePlan
             'rootpage' => $resolved['record']->rootPage,
             'type' => $resolved['record']->type,
             'sql' => $resolved['record']->sql,
+        ];
+    }
+
+    /**
+     * @return array{trigger:array{schema:string|null,name:string|null,table:string|null,rootpage:int|null,type:string|null,sql:string|null,rowid:int|null},target:array{schema:string|null,name:string|null,rootpage:int|null,type:string|null},body_dependencies:array<string,array{schema:string|null,name:string|null,rootpage:int|null,type:string|null}>}
+     */
+    private static function triggerProgramEntry(SQLiteAttachedSchemaCatalog $catalog, string $trigger): array
+    {
+        try {
+            $resolvedTrigger = SQLiteAttachTempViewTriggerResolution::resolveTrigger($catalog, $trigger);
+            $resolvedProgram = SQLiteAttachTempViewTriggerResolution::resolve($catalog, $trigger);
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), 'does not exist') || str_contains($exception->getMessage(), 'does not resolve')) {
+                return [
+                    'trigger' => ['schema' => null, 'name' => null, 'table' => null, 'rootpage' => null, 'type' => null, 'sql' => null, 'rowid' => null],
+                    'target' => ['schema' => null, 'name' => null, 'rootpage' => null, 'type' => null],
+                    'body_dependencies' => [],
+                ];
+            }
+
+            throw $exception;
+        }
+
+        $record = $resolvedTrigger['record'];
+        $target = self::tableEntry($catalog->resolveTable($resolvedProgram['targetSchema'] . '.' . $resolvedProgram['target']));
+        $dependencies = [];
+        foreach ($resolvedProgram['bodyDependencies'] as $dependency) {
+            $key = ($dependency['schema'] ?? '') !== '' ? $dependency['schema'] . '.' . $dependency['name'] : $dependency['name'];
+            $dependencies[$key] = self::tableEntry(self::resolveTriggerBodyDependency(
+                $catalog,
+                $dependency,
+                $resolvedTrigger['schema'],
+                $resolvedProgram['triggerTemporary'],
+            ));
+        }
+        ksort($dependencies);
+
+        return [
+            'trigger' => [
+                'schema' => $resolvedTrigger['schema'],
+                'name' => $record->name,
+                'table' => $record->tableName,
+                'rootpage' => $record->rootPage,
+                'type' => $record->type,
+                'sql' => $record->sql,
+                'rowid' => $record->rowId,
+            ],
+            'target' => $target,
+            'body_dependencies' => $dependencies,
+        ];
+    }
+
+    /**
+     * @param array{schema:?string,name:string} $dependency
+     * @return array{schema:string,record:SQLiteSchemaRecord}|null
+     */
+    private static function resolveTriggerBodyDependency(SQLiteAttachedSchemaCatalog $catalog, array $dependency, string $triggerSchema, bool $tempTrigger): ?array
+    {
+        $schemas = ($dependency['schema'] ?? '') !== ''
+            ? [(string) $dependency['schema']]
+            : ($tempTrigger ? $catalog->searchOrder() : [$triggerSchema]);
+
+        foreach ($schemas as $schema) {
+            foreach ($catalog->schemaRecords($schema) as $record) {
+                if (strtolower($record->type) === 'table' && strcasecmp($record->name, $dependency['name']) === 0) {
+                    return ['schema' => $schema, 'record' => $record];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{schema: string, record: SQLiteSchemaRecord}|null $resolved
+     * @return array{schema:string|null,name:string|null,rootpage:int|null,type:string|null}
+     */
+    private static function tableEntry(?array $resolved): array
+    {
+        if ($resolved === null) {
+            return ['schema' => null, 'name' => null, 'rootpage' => null, 'type' => null];
+        }
+
+        return [
+            'schema' => $resolved['schema'],
+            'name' => $resolved['record']->name,
+            'rootpage' => $resolved['record']->rootPage,
+            'type' => $resolved['record']->type,
         ];
     }
 
