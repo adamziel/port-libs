@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 02:02 UTC):
+  Batch72/73 clean subset is integrated and root-verified in the rolling
+  clean integration worktree. Implementation source advanced to
+  `1c41f13d8c95f17cb7363b4d4499ad3f21d1861d` (`Integrate libsqlite batch 72
+  73 clean subset`). Accepted handoffs: vfslock72, walckpt72, encoding72,
+  jsonvt72, sqlagg72, btreeptr72, suite72, btreeoverflow72, sqljoin72,
+  pagersp72, vfstemp73, jsonpath73, walreader73, sqlddl73, pragma73,
+  pagerhot73, trigger73, and btreevac73. The overlapping suite73 handoff is
+  held for targeted rework because suite72 already modified the same
+  `SQLiteUpstreamSuiteEvidence.php` surface. Verification passed: conflict
+  marker scan, `php -l` for changed libsqlite PHP files, staged
+  `git diff --check`, focused new tests `18 test files / 2877 assertions / 0
+  failures`, full libsqlite `513 test files / 60366 assertions / 0 failures /
+  28200 PASS lines`, and root `726 test files / 84834 assertions / 0 failures
+  / 31228 PASS lines` with `memory_limit=512M`. This is `+1196` libsqlite PASS
+  lines over the published batch70/71 subset (`27004 -> 28200`); mapped
+  upstream coverage remains `464 / 1589`. Disk is still critically low, so the
+  next decision is to publish dashboard/status, consume accepted markers, keep
+  suite73/sqlplan71 in rework, and avoid spawning more worktrees until safe
+  marker/worktree cleanup reopens the disk gate.
+
 - 2026-05-28 supervisor continuation (shell samples 01:23 UTC):
   Batch70/71 clean subset is integrated and verified in the rolling clean
   integration worktree. Implementation source advanced to
