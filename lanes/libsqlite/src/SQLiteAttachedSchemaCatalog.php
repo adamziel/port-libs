@@ -501,6 +501,55 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * Snapshot a table-valued PRAGMA foreign_key_list cursor, replace the
+     * owning schema catalog, and return the next cursor that SQLite would see
+     * after schema reparse. This keeps the current cursor rows stable while
+     * exposing recursive self-reference edges from the reparsed schema.
+     *
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @return array{status: string, operation: string, pragma: string, target: string, current_schema: string, next_schema: string, current_generation: int, next_generation: int, current_rows: list<array<string, int|string|null>>, next_rows: list<array<string, int|string|null>>, current_recursive_rows: list<array<string, int|string|null>>, next_recursive_rows: list<array<string, int|string|null>>, current_cursor: SQLitePragmaRowCursor, next_cursor: SQLitePragmaRowCursor, dependencies: list<string>}
+     */
+    public function foreignKeyListCurrentSourceNext106(string $sql, array $nextRecords, ?string $schemaName = null): array
+    {
+        $parsed = SQLitePragmaSchemaCatalog::parseTableValuedPragma($sql);
+        if ($parsed['pragma'] !== 'foreign_key_list') {
+            throw new \InvalidArgumentException('SQLite current-source next106 only supports pragma_foreign_key_list');
+        }
+
+        $current = $this->executeTableValuedPragma($sql);
+        $currentCursor = new SQLitePragmaRowCursor($current);
+        $owner = $schemaName !== null ? self::normalizeSchemaName($schemaName) : $current['schema'];
+        $currentGeneration = $this->schemaGeneration;
+        $this->replaceSchemaRecords($owner, $nextRecords);
+
+        $nextSql = 'pragma_foreign_key_list(' . self::pragmaArgumentLiteral($parsed['target']) . ', ' . self::pragmaArgumentLiteral($owner) . ')';
+        $next = $this->executeTableValuedPragma($nextSql);
+        $nextCursor = new SQLitePragmaRowCursor($next);
+
+        return [
+            'status' => 'ok',
+            'operation' => 'pragma-foreign-key-list-recursive-current-source-next106',
+            'pragma' => 'foreign_key_list',
+            'target' => $parsed['target'],
+            'current_schema' => $current['schema'],
+            'next_schema' => $next['schema'],
+            'current_generation' => $currentGeneration,
+            'next_generation' => $this->schemaGeneration,
+            'current_rows' => $current['rows'],
+            'next_rows' => $next['rows'],
+            'current_recursive_rows' => self::recursiveForeignKeyRows($parsed['target'], $current['rows']),
+            'next_recursive_rows' => self::recursiveForeignKeyRows($parsed['target'], $next['rows']),
+            'current_cursor' => $currentCursor,
+            'next_cursor' => $nextCursor,
+            'dependencies' => [
+                'sqlite-pragma-foreign-key-list-recursive-current-source-next106',
+                'sqlite-schema-catalog-current-source-cursor',
+                'sqlite-foreign-key-recursive-self-reference',
+            ],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function searchOrder(): array
@@ -520,6 +569,20 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<array<string, int|string|null>> $rows
+     * @return list<array<string, int|string|null>>
+     */
+    private static function recursiveForeignKeyRows(string $target, array $rows): array
+    {
+        $normalized = strtolower($target);
+
+        return array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => strtolower((string) ($row['table'] ?? '')) === $normalized,
+        ));
     }
 
     /**

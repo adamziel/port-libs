@@ -77,6 +77,7 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
         int $leafPageNumber,
         array $deleteResult,
         bool $secureDelete = false,
+        ?callable $overflowReader = null,
     ): self {
         $recordValues = $deleteResult['record_values'] ?? null;
         if (!is_array($recordValues)) {
@@ -94,7 +95,7 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
             $deletedRecordValues[] = array_values($recordValue);
         }
 
-        return self::fromDeleteResult($database, $leafPageNumber, 'index-leaf', $deleteResult, [], $deletedRecordValues, $secureDelete);
+        return self::fromDeleteResult($database, $leafPageNumber, 'index-leaf', $deleteResult, [], $deletedRecordValues, $secureDelete, $overflowReader);
     }
 
     /**
@@ -153,6 +154,7 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
         array $deletedRowIds,
         array $deletedRecordValues,
         bool $secureDelete,
+        ?callable $overflowReader = null,
     ): self {
         if ($leafPageNumber < 2 || $leafPageNumber > $database->pageCount()) {
             throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply leaf page is outside the database image');
@@ -175,6 +177,15 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
         if ($freeblocksBefore === []) {
             throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply requires at least one current leaf freeblock');
         }
+        self::assertDeleteResultMatchesCurrentLeaf(
+            $database,
+            $leafPageNumber,
+            $leafPageType,
+            $page,
+            $deletedRowIds,
+            $deletedRecordValues,
+            $overflowReader,
+        );
 
         $obsoleteOverflowPages = self::obsoleteOverflowPages($deleteResult);
         $freePlan = $database->planPageFreeList($obsoleteOverflowPages, $secureDelete);
@@ -208,6 +219,129 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
             $freePlan,
             $leafPageImage,
             $pageImages,
+        );
+    }
+
+    /**
+     * @param list<int> $deletedRowIds
+     * @param list<list<mixed>> $deletedRecordValues
+     */
+    private static function assertDeleteResultMatchesCurrentLeaf(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        string $leafPageType,
+        string $deletedPage,
+        array $deletedRowIds,
+        array $deletedRecordValues,
+        ?callable $overflowReader,
+    ): void {
+        $currentPage = $database->page($leafPageNumber);
+        $currentHeader = SQLiteBTreePageHeader::parsePage($currentPage, $database->header->pageSize);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, $database->header->pageSize);
+        if ($currentHeader->pageType !== $leafPageType || $deletedHeader->pageType !== $leafPageType) {
+            throw new \InvalidArgumentException("SQLite delete rebalance freeblock apply expected {$leafPageType} current-source page image");
+        }
+
+        if ($leafPageType === 'table-leaf') {
+            $expected = self::remainingTableEntries($currentPage, $currentHeader, $deletedRowIds, $database->usablePageSize());
+            $actual = self::tableEntries($deletedPage, $deletedHeader, $database->usablePageSize());
+            if ($expected !== $actual) {
+                throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply rejected stale table leaf delete result');
+            }
+
+            return;
+        }
+
+        $expected = self::remainingIndexEntries($currentPage, $currentHeader, $deletedRecordValues, $database->usablePageSize(), $overflowReader);
+        $actual = self::indexEntries($deletedPage, $deletedHeader, $database->usablePageSize(), $overflowReader);
+        if ($expected !== $actual) {
+            throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply rejected stale index leaf delete result');
+        }
+    }
+
+    /**
+     * @param list<int> $deletedRowIds
+     * @return list<array{rowid:int,payload_hash:string}>
+     */
+    private static function remainingTableEntries(string $page, SQLiteBTreePageHeader $header, array $deletedRowIds, int $usableSize): array
+    {
+        $deleteCounts = array_count_values($deletedRowIds);
+        $remaining = [];
+        foreach (self::tableEntries($page, $header, $usableSize) as $entry) {
+            $rowId = $entry['rowid'];
+            if (($deleteCounts[$rowId] ?? 0) > 0) {
+                --$deleteCounts[$rowId];
+                continue;
+            }
+            $remaining[] = $entry;
+        }
+
+        foreach ($deleteCounts as $count) {
+            if ($count !== 0) {
+                throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply table rowid is not present in the current source leaf');
+            }
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @return list<array{rowid:int,payload_hash:string}>
+     */
+    private static function tableEntries(string $page, SQLiteBTreePageHeader $header, int $usableSize): array
+    {
+        return array_map(
+            static fn (SQLiteTableLeafCell $cell): array => [
+                'rowid' => $cell->rowId,
+                'payload_hash' => hash('sha256', $cell->payload),
+            ],
+            SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount)),
+        );
+    }
+
+    /**
+     * @param list<list<mixed>> $deletedRecordValues
+     * @return list<array{values:list<mixed>,payload_hash:string}>
+     */
+    private static function remainingIndexEntries(string $page, SQLiteBTreePageHeader $header, array $deletedRecordValues, int $usableSize, ?callable $overflowReader): array
+    {
+        $deleteKeys = array_map(static fn (array $values): string => serialize($values), $deletedRecordValues);
+        $deleteCounts = array_count_values($deleteKeys);
+        $remaining = [];
+        foreach (self::indexEntries($page, $header, $usableSize, $overflowReader) as $entry) {
+            $key = serialize($entry['values']);
+            if (($deleteCounts[$key] ?? 0) > 0) {
+                --$deleteCounts[$key];
+                continue;
+            }
+            $remaining[] = $entry;
+        }
+
+        foreach ($deleteCounts as $count) {
+            if ($count !== 0) {
+                throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply index record is not present in the current source leaf');
+            }
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @return list<array{values:list<mixed>,payload_hash:string}>
+     */
+    private static function indexEntries(string $page, SQLiteBTreePageHeader $header, int $usableSize, ?callable $overflowReader): array
+    {
+        return array_map(
+            static fn (SQLiteIndexCell $cell): array => [
+                'values' => array_values($cell->record()->values),
+                'payload_hash' => hash('sha256', $cell->payload),
+            ],
+            SQLiteIndexCell::parsePageCells(
+                $page,
+                $header,
+                $usableSize,
+                $overflowReader ?? static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+            ),
         );
     }
 

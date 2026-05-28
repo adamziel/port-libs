@@ -85,6 +85,7 @@ final class SQLiteBTreeDeleteOverflowCurrentNext80Plan
             $leafPageNumber,
             $currentDeleteResult,
             $secureDelete,
+            $overflowReader,
         );
         $databaseAfterCurrent = self::databaseWithPageImages($database, $current->pageImages);
         $nextDeletePage = SQLiteIndexLeafPage::deleteCellByRecordValues(
@@ -106,6 +107,7 @@ final class SQLiteBTreeDeleteOverflowCurrentNext80Plan
                 'obsolete_overflow_page_numbers' => self::normalizeOverflowPages($nextObsoleteOverflowPageNumbers),
             ],
             $secureDelete,
+            $overflowReader,
         );
 
         return self::fromPlans('index-leaf', $leafPageNumber, $database, $current, $next);

@@ -167,7 +167,7 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNext86Plan
         int $textEncoding,
         ?callable $overflowReader,
     ): array {
-        $afterCurrent = self::databaseWithPageImages($database, self::pageImagesFromIndexDelete($database, $leafPageNumber, $currentDelete, $secureDelete));
+        $afterCurrent = self::databaseWithPageImages($database, self::pageImagesFromIndexDelete($database, $leafPageNumber, $currentDelete, $secureDelete, $overflowReader));
         $nextDelete = SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease(
             $afterCurrent->page($leafPageNumber),
             $nextRecordValues,
@@ -201,13 +201,14 @@ final class SQLiteBTreeOverflowDeletePointerMapCurrentSourceNext86Plan
      * @param array<string, mixed> $deleteResult
      * @return array<int, string>
      */
-    private static function pageImagesFromIndexDelete(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, bool $secureDelete): array
+    private static function pageImagesFromIndexDelete(SQLiteDatabase $database, int $leafPageNumber, array $deleteResult, bool $secureDelete, ?callable $overflowReader): array
     {
         return SQLiteBTreeDeleteRebalanceFreeblockApplyPlan::indexLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
             $secureDelete,
+            $overflowReader,
         )->pageImages;
     }
 

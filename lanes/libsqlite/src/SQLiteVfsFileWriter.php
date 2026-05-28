@@ -627,6 +627,97 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,stale_database_bytes?:string,stale_journal_bytes?:string,reserved_lock?:bool}> $databases
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{super_journal_path:string,super_journal_exists:bool,database_paths:list<string>,database_bytes:array<string,int>,journal_bytes:array<string,int>}}
+     */
+    public function applySuperJournalHotRollbackCurrentSource106(
+        string $superJournalPath,
+        array $databases,
+        int $pageSize,
+    ): array {
+        if ($superJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite pager super-journal hot rollback current-source requires a super-journal path');
+        }
+        if ($databases === []) {
+            throw new \InvalidArgumentException('SQLite pager super-journal hot rollback current-source requires at least one attached database');
+        }
+
+        $superLocalPath = $this->localPath($superJournalPath);
+        $superJournalBytes = is_file($superLocalPath) ? (string) file_get_contents($superLocalPath) : null;
+        $hydrated = [];
+        $sourceDatabasePaths = [];
+        $sourceDatabaseBytes = [];
+        $sourceJournalBytes = [];
+
+        foreach ($databases as $index => $database) {
+            $databasePath = isset($database['database_path']) ? (string) $database['database_path'] : '';
+            if ($databasePath === '') {
+                throw new \InvalidArgumentException("SQLite pager super-journal hot rollback current-source database {$index} requires a database path");
+            }
+
+            $databaseLocalPath = $this->localPath($databasePath);
+            $journalLocalPath = $this->localPath($databasePath . '-journal');
+            if (!is_file($databaseLocalPath)) {
+                throw new \RuntimeException("SQLite pager super-journal hot rollback current-source database is missing: {$databasePath}");
+            }
+            if (!is_file($journalLocalPath)) {
+                throw new \RuntimeException("SQLite pager super-journal hot rollback current-source journal is missing: {$databasePath}-journal");
+            }
+
+            $databaseBytes = (string) file_get_contents($databaseLocalPath);
+            $journalBytes = (string) file_get_contents($journalLocalPath);
+            $hydrated[] = array_merge($database, [
+                'current_database_bytes' => $databaseBytes,
+                'current_journal_bytes' => $journalBytes,
+            ]);
+            $sourceDatabasePaths[] = $databasePath;
+            $sourceDatabaseBytes[$databasePath] = strlen($databaseBytes);
+            $sourceJournalBytes[$databasePath . '-journal'] = strlen($journalBytes);
+        }
+
+        $plan = SQLitePagerSuperJournalHotRollbackCurrentSourceNext106Plan::currentSourceNext(
+            $superJournalPath,
+            $superJournalBytes,
+            $hydrated,
+            $pageSize,
+            $this->readOnly,
+            $this->immutable
+        );
+        $source = [
+            'super_journal_path' => $superJournalPath,
+            'super_journal_exists' => $superJournalBytes !== null,
+            'database_paths' => $sourceDatabasePaths,
+            'database_bytes' => $sourceDatabaseBytes,
+            'journal_bytes' => $sourceJournalBytes,
+        ];
+
+        if ($plan['status'] === 'super_journal_missing_preserved_current_source' || $plan['status'] === 'super_journal_current_source_hot_rollback_blocked') {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => $plan['dependencies'],
+                'recovery' => $plan,
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations($plan['operations'], $plan['payloads'], $plan['dependencies']);
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{database_path:string,database_bytes:string,journal_bytes:string,journal?:SQLiteRollbackJournal,reserved_lock?:bool}> $databases
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
      */
