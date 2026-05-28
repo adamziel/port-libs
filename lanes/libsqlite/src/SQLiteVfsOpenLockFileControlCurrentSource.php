@@ -61,6 +61,16 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext103(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-xopen-device-characteristics-current-source-next103', true, true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(
         array $operations,
         array $options,
@@ -68,7 +78,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         string $dependency,
         bool $lockRequiredForWriteControl = false,
         bool $persistWalRequiresWriteLock = false,
-        bool $trackCurrentSourceGeneration = false
+        bool $trackCurrentSourceGeneration = false,
+        bool $trackDeviceCharacteristics = false
     ): array {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
@@ -82,7 +93,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($op, $options, $state, $uriAware, $trackCurrentSourceGeneration);
+                $handle = self::openHandle($op, $options, $state, $uriAware, $trackCurrentSourceGeneration, $trackDeviceCharacteristics);
                 $state['handles'][$handle['id']] = $handle;
                 $state['last_open'] = $handle['id'];
                 $events[] = self::event('open', $handle['status'], $before, self::snapshot($state), [
@@ -92,6 +103,11 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     'uri' => $handle['uri'],
                     'reused_controls' => $handle['reused_controls'],
                     'reused_lock' => $handle['reused_lock'],
+                    'device_characteristics' => $handle['device_characteristics'] ?? null,
+                    'device_flags' => $handle['device_flags'] ?? [],
+                    'sector_size' => $handle['sector_size'] ?? null,
+                    'xopen_flags' => $handle['xopen_flags'] ?? [],
+                    'powersafe_overwrite' => $handle['controls']['powersafe_overwrite'] ?? null,
                 ]);
                 continue;
             }
@@ -129,6 +145,25 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     ]);
                     continue;
                 }
+                if ($trackDeviceCharacteristics && $control === 'device_characteristics' && $op['value'] === null) {
+                    $characteristics = (int) ($handle['device_characteristics'] ?? 0);
+                    $flags = is_array($handle['device_flags'] ?? null) ? array_values($handle['device_flags']) : [];
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'ok', $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'value' => $characteristics,
+                        'previous' => $characteristics,
+                        'changed' => false,
+                        'reason' => null,
+                        'lock_state' => (string) ($before['handles'][$handleId]['lock_state'] ?? 'unlocked'),
+                        'device_characteristics' => $characteristics,
+                        'device_flags' => $flags,
+                        'powersafe_overwrite' => in_array('powersafe_overwrite', $flags, true),
+                    ]);
+                    continue;
+                }
                 $requiresWrite = self::writeControl($control, $persistWalRequiresWriteLock);
                 $lockState = (string) $handle['lock_state'];
                 $reason = null;
@@ -144,6 +179,15 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     $handle['controls'][$control] = $value;
                     if ($lockRequiredForWriteControl && $requiresWrite && $handle['persistent']) {
                         $handle['controls']['data_version'] = self::nextDataVersion($handle['controls']['data_version'] ?? null);
+                    }
+                    if ($trackDeviceCharacteristics && $control === 'powersafe_overwrite') {
+                        $handle['device_characteristics'] = self::deviceCharacteristics(
+                            self::deviceFlagsWithPowersafe(
+                                is_array($handle['device_flags'] ?? null) ? $handle['device_flags'] : [],
+                                (bool) $value
+                            )
+                        );
+                        $handle['device_flags'] = self::deviceFlagNames((int) $handle['device_characteristics']);
                     }
                     if ($handle['persistent']) {
                         $state['persistent_controls'][$handle['source_key']] = self::persistentSubset($handle['controls']);
@@ -222,16 +266,22 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             }
         }
 
+        $dependencies = [
+            'vfs-open-file-control-application',
+            'vfs-lock-state-application',
+            $dependency,
+        ];
+        if ($trackDeviceCharacteristics) {
+            $dependencies[] = 'vfs-xopen';
+            $dependencies[] = 'vfs-xdevicecharacteristics';
+        }
+
         return [
             'status' => (string) $events[array_key_last($events)]['status'],
             'current' => self::snapshot($state),
             'next' => self::next($state),
             'events' => $events,
-            'dependencies' => [
-                'vfs-open-file-control-application',
-                'vfs-lock-state-application',
-                $dependency,
-            ],
+            'dependencies' => array_values(array_unique($dependencies)),
         ];
     }
 
@@ -261,7 +311,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function openHandle(array $op, array $options, array &$state, bool $uriAware, bool $trackCurrentSourceGeneration = false): array
+    private static function openHandle(array $op, array $options, array &$state, bool $uriAware, bool $trackCurrentSourceGeneration = false, bool $trackDeviceCharacteristics = false): array
     {
         $state['sequence']++;
         $filename = (string) ($op['filename'] ?? '');
@@ -280,6 +330,12 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             $controls = [];
         }
 
+        $deviceFlags = $trackDeviceCharacteristics ? self::openDeviceFlags($op, $options, $uri, $memory) : [];
+        $deviceCharacteristics = $trackDeviceCharacteristics ? self::deviceCharacteristics($deviceFlags) : null;
+        if ($trackDeviceCharacteristics && !array_key_exists('powersafe_overwrite', $controls)) {
+            $controls['powersafe_overwrite'] = in_array('powersafe_overwrite', $deviceFlags, true);
+        }
+
         return [
             'id' => 'db-' . $state['sequence'],
             'status' => $memory ? 'memory-open' : 'open',
@@ -296,6 +352,10 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'reused_controls' => $controls !== [],
             'reused_lock' => $lock !== 'unlocked',
             'source_generation' => $trackCurrentSourceGeneration ? $generation : null,
+            'device_characteristics' => $deviceCharacteristics,
+            'device_flags' => $trackDeviceCharacteristics ? self::deviceFlagNames((int) $deviceCharacteristics) : [],
+            'sector_size' => $trackDeviceCharacteristics ? self::openSectorSize($op, $options, $memory) : null,
+            'xopen_flags' => $trackDeviceCharacteristics ? self::xopenFlags($uri, (bool) ($op['readonly'] ?? ($uri['mode'] === 'ro' || $uri['immutable'] === true)), $memory) : [],
         ];
     }
 
@@ -350,6 +410,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 'filename' => $operation['filename'] ?? null,
                 'readonly' => $operation['readonly'] ?? null,
                 'nolock' => $operation['nolock'] ?? null,
+                'device_flags' => $operation['device_flags'] ?? null,
+                'sector_size' => $operation['sector_size'] ?? null,
                 'delete_on_close' => $operation['delete_on_close'] ?? null,
                 'control' => $operation['control'] ?? null,
                 'value' => $operation['value'] ?? null,
@@ -465,6 +527,139 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         }
 
         return $subset;
+    }
+
+    /**
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $options
+     * @param array<string,mixed> $uri
+     * @return list<string>
+     */
+    private static function openDeviceFlags(array $op, array $options, array $uri, bool $memory): array
+    {
+        $flags = [];
+        $raw = $op['device_flags'] ?? $options['device_flags'] ?? ['powersafe_overwrite'];
+        if (is_string($raw)) {
+            $raw = preg_split('/[,\s|]+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        }
+        if (!is_array($raw)) {
+            throw new \InvalidArgumentException('SQLite VFS xOpen device flags must be a list');
+        }
+
+        foreach ($raw as $flag) {
+            $name = strtolower(str_replace('-', '_', trim((string) $flag)));
+            if ($name === '') {
+                continue;
+            }
+            if (!array_key_exists($name, SQLiteVfsCapabilityPlan::deviceFlagMap())) {
+                throw new \InvalidArgumentException("Unsupported SQLite VFS xOpen device flag: {$flag}");
+            }
+            $flags[$name] = true;
+        }
+
+        if ($memory) {
+            unset($flags['powersafe_overwrite']);
+        }
+        if (($uri['nolock'] ?? null) === true) {
+            unset($flags['undeletable_when_open']);
+        }
+
+        return array_keys($flags);
+    }
+
+    /**
+     * @param list<string> $flags
+     */
+    private static function deviceCharacteristics(array $flags): int
+    {
+        $map = SQLiteVfsCapabilityPlan::deviceFlagMap();
+        $value = 0;
+        foreach ($flags as $flag) {
+            $value |= $map[$flag] ?? 0;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function deviceFlagNames(int $characteristics): array
+    {
+        $names = [];
+        foreach (SQLiteVfsCapabilityPlan::deviceFlagMap() as $name => $bit) {
+            if (($characteristics & $bit) !== 0) {
+                $names[] = $name;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<string> $flags
+     * @return list<string>
+     */
+    private static function deviceFlagsWithPowersafe(array $flags, bool $enabled): array
+    {
+        $set = array_fill_keys($flags, true);
+        if ($enabled) {
+            $set['powersafe_overwrite'] = true;
+        } else {
+            unset($set['powersafe_overwrite']);
+        }
+
+        return array_keys($set);
+    }
+
+    /**
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $options
+     */
+    private static function openSectorSize(array $op, array $options, bool $memory): int
+    {
+        if ($memory) {
+            return 0;
+        }
+        $value = $op['sector_size'] ?? $options['sector_size'] ?? 512;
+        if (!is_int($value) && !(is_string($value) && preg_match('/^\d+$/', $value) === 1)) {
+            throw new \InvalidArgumentException('SQLite VFS xOpen sector size must be a positive integer');
+        }
+        $sectorSize = (int) $value;
+        if ($sectorSize < 512 || ($sectorSize & ($sectorSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS xOpen sector size must be a power of two at least 512');
+        }
+
+        return $sectorSize;
+    }
+
+    /**
+     * @param array<string,mixed> $uri
+     * @return list<string>
+     */
+    private static function xopenFlags(array $uri, bool $readonly, bool $memory): array
+    {
+        $flags = [$readonly ? 'readonly' : 'readwrite'];
+        if ($memory) {
+            $flags[] = 'memory';
+        }
+        if (($uri['mode'] ?? null) === 'rwc') {
+            $flags[] = 'create';
+        }
+        if (($uri['cache'] ?? null) === 'shared') {
+            $flags[] = 'sharedcache';
+        }
+        if (($uri['cache'] ?? null) === 'private') {
+            $flags[] = 'privatecache';
+        }
+        if (($uri['immutable'] ?? null) === true) {
+            $flags[] = 'immutable';
+        }
+        if (($uri['nolock'] ?? null) === true) {
+            $flags[] = 'nolock';
+        }
+
+        return $flags;
     }
 
     /**

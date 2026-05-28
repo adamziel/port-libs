@@ -78,6 +78,10 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
             'updated_pointer_map_page_numbers' => array_keys($this->releasePlan->freePlan->updatedPointerMapPages),
             'secure_delete_cleared_pages' => $this->releasePlan->freePlan->clearedPageNumbers,
             'overflow_pointermap_freepage_current_source_next91' => $this->overflowPointerMapFreepageCurrentSourceNext91(),
+            'overflow_freepage_vacuum_current_source_next102' => $this->overflowFreepageVacuumCurrentSourceNext102(
+                count($this->releasePlan->releasedOverflowPages),
+                $this->firstReusableSourceParentPage(),
+            ),
         ];
     }
 
@@ -148,6 +152,100 @@ final class SQLiteBTreeOverflowVacuumFreepagePlan
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array{source:string|null,page_number:int,current_status:string,next_status:string,freelist_role:string|null,freelist_position:int|null,allocation_position:int|null,allocation_source:string|null,allocation_trunk_page:int|null,current_pointer_map_type:string|null,current_pointer_map_parent:int|null,next_pointer_map_type:string|null,next_pointer_map_parent:int|null,pointer_map_page:int|null,secure_deleted_before_reuse:bool}>
+     */
+    public function overflowFreepageVacuumCurrentSourceNext102(int $allocationCount, ?int $parentPageNumber): array
+    {
+        if ($allocationCount < 0) {
+            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source next102 allocation count cannot be negative');
+        }
+        if ($allocationCount === 0) {
+            return [];
+        }
+        if ($parentPageNumber !== null && $parentPageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite overflow freepage vacuum current-source next102 parent page must be null or at page 2 or later');
+        }
+
+        $allocationPlan = $this->currentDatabase->planBtreePageAllocation($allocationCount, $parentPageNumber, false);
+
+        $sourceByPage = [];
+        foreach ($this->releasePlan->sources as $source) {
+            foreach ($source['pages'] as $pageNumber) {
+                $sourceByPage[$pageNumber] = $source['source'];
+            }
+        }
+
+        $freelistPositions = [];
+        foreach ($this->currentFreelistPages as $index => $pageNumber) {
+            $freelistPositions[$pageNumber] = $index;
+        }
+
+        $newTrunks = array_fill_keys($this->releasePlan->freePlan->newTrunkPageNumbers, true);
+        $leaves = array_fill_keys($this->releasePlan->freePlan->leafPageNumbers, true);
+        $cleared = array_fill_keys($this->releasePlan->freePlan->clearedPageNumbers, true);
+
+        $nextEntries = [];
+        foreach ($allocationPlan->allocatedPointerMapEntries() as $entry) {
+            $nextEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $rows = [];
+        foreach ($allocationPlan->allocationSteps() as $index => $step) {
+            $pageNumber = (int) $step['allocated_page'];
+            $current = null;
+            if ($this->currentDatabase->isAutoVacuum() && !$this->currentDatabase->isPointerMapPage($pageNumber)) {
+                $current = $this->currentDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+            $next = $nextEntries[$pageNumber] ?? null;
+
+            $role = null;
+            if (isset($newTrunks[$pageNumber])) {
+                $role = 'freelist-trunk';
+            } elseif (isset($leaves[$pageNumber])) {
+                $role = 'freelist-leaf';
+            } elseif (array_key_exists($pageNumber, $freelistPositions)) {
+                $role = 'freelist-existing';
+            }
+
+            $rows[] = [
+                'source' => $sourceByPage[$pageNumber] ?? null,
+                'page_number' => $pageNumber,
+                'current_status' => $current === null ? 'current-freepage' : 'current-pointer-map-free-page',
+                'next_status' => $next === null ? 'allocated-without-pointer-map' : 'allocated-btree-page',
+                'freelist_role' => $role,
+                'freelist_position' => $freelistPositions[$pageNumber] ?? null,
+                'allocation_position' => $index,
+                'allocation_source' => is_string($step['source'] ?? null) ? $step['source'] : null,
+                'allocation_trunk_page' => is_int($step['trunk_page'] ?? null) ? $step['trunk_page'] : null,
+                'current_pointer_map_type' => $current['type_name'] ?? null,
+                'current_pointer_map_parent' => $current['parent_page_number'] ?? null,
+                'next_pointer_map_type' => $next['type_name'] ?? null,
+                'next_pointer_map_parent' => $next['parent_page_number'] ?? null,
+                'pointer_map_page' => $next['pointer_map_page'] ?? ($current['pointer_map_page'] ?? null),
+                'secure_deleted_before_reuse' => isset($cleared[$pageNumber]),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function firstReusableSourceParentPage(): ?int
+    {
+        foreach ($this->releasePlan->releasedOverflowPages as $pageNumber) {
+            if (!$this->sourceDatabase->isAutoVacuum() || $this->sourceDatabase->isPointerMapPage($pageNumber)) {
+                continue;
+            }
+
+            $entry = $this->sourceDatabase->pointerMapEntryForPage($pageNumber);
+            if ($entry->parentPageNumber >= 2) {
+                return $entry->parentPageNumber;
+            }
+        }
+
+        return null;
     }
 
     private static function fromReleasePlan(

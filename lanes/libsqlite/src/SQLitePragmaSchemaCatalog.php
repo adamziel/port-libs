@@ -145,6 +145,14 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return list<SQLiteSchemaRecord>
+     */
+    public function records(): array
+    {
+        return $this->records;
+    }
+
+    /**
      * @return list<array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int}|array{cid: int, name: string, type: string, notnull: int, dflt_value: string|null, pk: int, hidden: int}>
      */
     public function tableInfo(string $tableName, bool $includeHidden = false): array

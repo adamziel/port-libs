@@ -9258,6 +9258,265 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerAdmissionCurrentSourceNext102(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($artifactRows === []) {
+            throw new \InvalidArgumentException('SQLite current-source next102 upstream-runner admission requires at least one artifact row');
+        }
+        foreach ([
+            'launcher base HEAD' => $launcherBaseHead,
+            'dashboard source HEAD' => $dashboardSourceHead,
+            'status source HEAD' => $statusSourceHead,
+            'implementation source HEAD' => $implementationSourceHead,
+            'next source HEAD' => $nextSourceHead,
+        ] as $label => $head) {
+            if (trim($head) === '') {
+                throw new \InvalidArgumentException("SQLite current-source next102 upstream-runner admission requires {$label}");
+            }
+        }
+
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $launcherBaseHead,
+            $launcherBaseHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $admitted = [];
+        $preserved = [];
+        $blocked = [];
+        $sourceHeads = [];
+        $scripts = [];
+        $testsDelta = 0;
+
+        foreach ($artifactRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'current-source-next102-artifact-' . count($entries);
+            if (!is_array($row)) {
+                $blocked[] = $fallbackUnit;
+                $blockers[] = [
+                    'id' => 'current-source-next102-row-invalid',
+                    'unit' => $fallbackUnit,
+                    'evidence' => 'upstream-runner admission row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            $artifactPath = is_string($row['artifact_path'] ?? null) ? trim($row['artifact_path']) : '';
+            $command = is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $kind = is_string($row['kind'] ?? null) && $row['kind'] !== '' ? $row['kind'] : 'bounded-upstream-runner';
+            $artifactSourceHead = is_string($row['source_head'] ?? null) ? trim($row['source_head']) : '';
+            $rowLauncherHead = is_string($row['launcher_base_head'] ?? null) ? trim($row['launcher_base_head']) : '';
+            $rowDashboardHead = is_string($row['dashboard_source_head'] ?? null) ? trim($row['dashboard_source_head']) : '';
+            $rowStatusHead = is_string($row['status_source_head'] ?? null) ? trim($row['status_source_head']) : '';
+            $rowImplementationHead = is_string($row['implementation_source_head'] ?? null) ? trim($row['implementation_source_head']) : '';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $exit = $this->denominatorAuditInt($row, 'exit');
+            $errors = max(0, $this->denominatorAuditInt($row, 'errors'));
+            $currentTests = max(0, $this->denominatorAuditInt($row, 'current_tests'));
+            $nextTests = max(0, $this->denominatorAuditInt($row, 'next_tests'));
+            $rowScripts = array_values(array_unique(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && preg_match('/^[A-Za-z0-9_.*+-]+\.test$/', $script) === 1
+            )));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-current-source-next102-unit';
+            }
+            $seen[$unit] = true;
+            if ($artifactSourceHead !== $nextSourceHead) {
+                $rowBlockers[] = 'next-source-head-mismatch';
+            }
+            if ($rowLauncherHead !== $launcherBaseHead) {
+                $rowBlockers[] = 'launcher-base-head-mismatch';
+            }
+            if ($rowDashboardHead !== $dashboardSourceHead) {
+                $rowBlockers[] = 'dashboard-source-head-mismatch';
+            }
+            if ($rowStatusHead !== $statusSourceHead) {
+                $rowBlockers[] = 'status-source-head-mismatch';
+            }
+            if ($rowImplementationHead !== $implementationSourceHead) {
+                $rowBlockers[] = 'implementation-source-head-mismatch';
+            }
+            if ($artifactPath === '' || !str_starts_with($artifactPath, 'lanes/libsqlite/')) {
+                $rowBlockers[] = 'artifact-path-not-lane-local';
+            }
+            if ($command === '' || !str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl') || !preg_match('/(?:^|\s)--stop-on-error(?:\s|$)/', $command)) {
+                $rowBlockers[] = 'guarded-runner-command-missing';
+            }
+            if ($nextCountable && $exit !== 0) {
+                $rowBlockers[] = 'runner-exit-not-zero';
+            }
+            if ($nextCountable && $errors !== 0) {
+                $rowBlockers[] = 'runner-errors-not-zero';
+            }
+            if ($nextCountable && $nextTests < 1) {
+                $rowBlockers[] = 'runner-test-count-missing';
+            }
+            if ($nextCountable && $rowScripts === []) {
+                $rowBlockers[] = 'runner-scripts-missing';
+            }
+            if ($nextCountable && $evidence === '') {
+                $rowBlockers[] = 'runner-evidence-missing';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'runner-countability-regressed';
+            }
+            if ($nextTests < $currentTests) {
+                $rowBlockers[] = 'runner-test-count-regressed';
+            }
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $rowBlocker) {
+                if (is_string($rowBlocker) && $rowBlocker !== '') {
+                    $rowBlockers[] = $rowBlocker;
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blocked[] = $unit;
+                $blockers[] = [
+                    'id' => 'current-source-next102-artifact-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'next-source-admitted';
+                $admitted[] = $unit;
+                $testsDelta += max(0, $nextTests - $currentTests);
+            } elseif ($nextCountable) {
+                $movement = 'current-source-preserved';
+                $preserved[] = $unit;
+            }
+
+            if ($artifactSourceHead !== '') {
+                $sourceHeads[$artifactSourceHead] = true;
+            }
+
+            $entries[] = [
+                'unit' => $unit,
+                'kind' => $kind,
+                'movement' => $movement,
+                'source_head' => $artifactSourceHead,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'exit' => $exit,
+                'errors' => $errors,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'scripts' => $rowScripts,
+                'artifact_path' => $artifactPath,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-source next102 gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        sort($admitted, SORT_STRING);
+        sort($preserved, SORT_STRING);
+        sort($blocked, SORT_STRING);
+        $sourceHeadList = array_keys($sourceHeads);
+        sort($sourceHeadList, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $isBlocked = $blockers !== [];
+        $mappedDelta = !$isBlocked && $admitted !== [] ? 1 : 0;
+        $phpPassDelta = !$isBlocked ? (int) ($phpAdmission['pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$isBlocked && $mappedDelta > 0) {
+            $status = 'current-source-next102-upstream-runner-admission-countable';
+        } elseif (!$isBlocked) {
+            $status = 'current-source-next102-upstream-runner-admission-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-source-next102-upstream-runner-admission-countable',
+            'launcher_base_head' => $launcherBaseHead,
+            'dashboard_source_head' => $dashboardSourceHead,
+            'status_source_head' => $statusSourceHead,
+            'implementation_source_head' => $implementationSourceHead,
+            'next_source_head' => $nextSourceHead,
+            'artifact_source_heads' => $sourceHeadList,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $isBlocked ? $currentMapped : $currentMapped + $mappedDelta,
+            'mapped_delta' => $isBlocked ? 0 : $mappedDelta,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $phpPassDelta,
+            'next_php_pass' => $isBlocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta,
+            'row_count' => count($entries),
+            'admitted_units' => $admitted,
+            'preserved_units' => $preserved,
+            'blocked_units' => $blocked,
+            'tests_total_delta' => $isBlocked ? 0 : $testsDelta,
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_upstream_runner_admission_current_source_next102' => $status === 'current-source-next102-upstream-runner-admission-countable',
+            'counts_release_runner_admission_current_next72' => false,
+            'counts_release_runner_countability_current_source_next99' => false,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-source-next102-upstream-runner-admission-countable'
+                ? 'publish only the current-source next102 upstream-runner admission row and exact focused PASS-line movement; release/all parity remains gated on a separate broad zero-error artifact'
+                : 'keep current-source next102 admission uncounted until next-source provenance, lane-local artifacts, zero-error guarded runner rows, duplicate-runner state, and focused PASS-line gates are clear',
+            'dependency_closure' => 'no new support component needed; current-source next102 upstream-runner admission composes lane-local bounded runner artifacts, launcher/dashboard/status/implementation source heads, active-runner gates, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

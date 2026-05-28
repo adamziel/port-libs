@@ -332,7 +332,7 @@ final class SQLiteJsonAggregate
             }
             $ordered[] = [
                 'value' => $row[0],
-                'orderKey' => $row[1],
+                'orderKey' => self::validatedOrderKey($row[1]),
                 'position' => $position++,
             ];
         }
@@ -367,7 +367,7 @@ final class SQLiteJsonAggregate
             }
             $ordered[] = [
                 'value' => $row[0],
-                'orderKey' => $row[1],
+                'orderKey' => self::validatedOrderKey($row[1]),
                 'position' => $position++,
             ];
         }
@@ -452,7 +452,7 @@ final class SQLiteJsonAggregate
             }
             $ordered[] = [
                 'value' => $row[0],
-                'orderKey' => $row[1],
+                'orderKey' => self::validatedOrderKey($row[1]),
                 'position' => $position++,
             ];
         }
@@ -929,7 +929,7 @@ final class SQLiteJsonAggregate
             $ordered[] = [
                 'label' => $row[0],
                 'value' => $row[1],
-                'orderKey' => $row[2],
+                'orderKey' => self::validatedOrderKey($row[2]),
                 'position' => $position++,
             ];
         }
@@ -948,6 +948,42 @@ final class SQLiteJsonAggregate
 
     private static function compareOrderKeys(mixed $left, mixed $right): int
     {
+        if (self::isCompositeOrderKey($left) || self::isCompositeOrderKey($right)) {
+            if (!self::isCompositeOrderKey($left) || !self::isCompositeOrderKey($right)) {
+                throw new \InvalidArgumentException('SQLite JSON aggregate composite ORDER BY keys must be paired lists');
+            }
+            $leftTerms = self::compositeOrderTerms($left);
+            $rightTerms = self::compositeOrderTerms($right);
+            if (count($leftTerms) !== count($rightTerms)) {
+                throw new \InvalidArgumentException('SQLite JSON aggregate composite ORDER BY keys must have matching term counts');
+            }
+            foreach ($leftTerms as $index => $leftTerm) {
+                $rightTerm = $rightTerms[$index];
+                $comparison = self::compareSingleOrderKey($leftTerm['value'], $rightTerm['value']);
+                if ($comparison === 0) {
+                    continue;
+                }
+
+                return $leftTerm['direction'] === 'DESC' ? -$comparison : $comparison;
+            }
+
+            return 0;
+        }
+
+        return self::compareSingleOrderKey($left, $right);
+    }
+
+    private static function validatedOrderKey(mixed $value): mixed
+    {
+        if (self::isCompositeOrderKey($value)) {
+            self::compositeOrderTerms($value);
+        }
+
+        return $value;
+    }
+
+    private static function compareSingleOrderKey(mixed $left, mixed $right): int
+    {
         if ($left === null || $right === null) {
             return $left === $right ? 0 : ($left === null ? -1 : 1);
         }
@@ -956,6 +992,42 @@ final class SQLiteJsonAggregate
         }
 
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function isCompositeOrderKey(mixed $value): bool
+    {
+        return is_array($value)
+            && array_is_list($value)
+            && $value !== []
+            && is_array($value[0])
+            && array_key_exists('value', $value[0]);
+    }
+
+    /**
+     * @return non-empty-list<array{value:mixed,direction:string}>
+     */
+    private static function compositeOrderTerms(array $value): array
+    {
+        if ($value === [] || !array_is_list($value)) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate composite ORDER BY key must be a non-empty list');
+        }
+
+        $terms = [];
+        foreach ($value as $term) {
+            if (!is_array($term) || !array_key_exists('value', $term)) {
+                throw new \InvalidArgumentException('SQLite JSON aggregate composite ORDER BY terms need values');
+            }
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON aggregate composite ORDER BY direction must be ASC or DESC');
+            }
+            $terms[] = [
+                'value' => $term['value'],
+                'direction' => $direction,
+            ];
+        }
+
+        return $terms;
     }
 
     private static function sqlFilterPasses(mixed $value): bool
@@ -1011,7 +1083,7 @@ final class SQLiteJsonAggregate
             }
             $ordered[] = [
                 'value' => $row[0],
-                'orderKey' => $row[1],
+                'orderKey' => self::validatedOrderKey($row[1]),
                 'filter' => array_key_exists(2, $row) ? $row[2] : true,
                 'position' => $position++,
             ];

@@ -17,6 +17,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             throw new \InvalidArgumentException('SQLite VFS temp locking file-control current-source next83 requires operations');
         }
 
+        $trackGeneration = (bool) ($options['_track_temp_generation'] ?? false);
         $state = self::normalizeCurrent($options['current'] ?? null, self::sourceName((string) ($options['current_source'] ?? 'temp')));
         $events = [];
 
@@ -78,13 +79,62 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
 
                 $handle = &$state['handles'][$handleId];
                 $control = (string) $op['control'];
+                if ($trackGeneration && $control === 'data_version' && $op['value'] === null) {
+                    $key = (string) $handle['file_control_key'];
+                    $currentGeneration = ($handle['memory'] ?? false)
+                        ? (int) ($handle['source_generation'] ?? 1)
+                        : self::sourceGeneration($state, $key);
+                    $openedGeneration = (int) ($handle['source_generation'] ?? $currentGeneration);
+                    $source = (string) $handle['source'];
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'ok', $before, self::snapshot($state), [
+                        'source' => $source,
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'value' => $currentGeneration,
+                        'previous' => $openedGeneration,
+                        'changed' => false,
+                        'reason' => null,
+                        'opened_generation' => $openedGeneration,
+                        'source_generation' => $currentGeneration,
+                        'stale_current_source' => $openedGeneration !== $currentGeneration,
+                    ]);
+                    continue;
+                }
+
                 $previous = $handle['controls'][$control] ?? null;
                 $value = self::controlValue($control, $op['value']);
+                $writeControl = self::writeControl($control);
+                if ($trackGeneration && $writeControl && !self::writeLockHeld((string) $handle['lock_state'])) {
+                    $source = (string) $handle['source'];
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'blocked', $before, self::snapshot($state), [
+                        'source' => $source,
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'value' => $value,
+                        'previous' => $previous,
+                        'changed' => false,
+                        'reason' => 'requires_reserved_or_exclusive_temp_lock',
+                    ]);
+                    continue;
+                }
+
                 $handle['controls'][$control] = $value;
                 if (!($handle['memory'] ?? false)) {
                     $state['persistent_controls'][(string) $handle['file_control_key']] = $handle['controls'];
+                    if ($trackGeneration && $writeControl && $previous !== $value) {
+                        $key = (string) $handle['file_control_key'];
+                        $state['persistent_generations'][$key] = self::sourceGeneration($state, $key) + 1;
+                        $handle['source_generation'] = $state['persistent_generations'][$key];
+                    }
+                } elseif ($trackGeneration && $writeControl && $previous !== $value) {
+                    $handle['source_generation'] = ((int) ($handle['source_generation'] ?? 1)) + 1;
                 }
                 $source = (string) $handle['source'];
+                $generation = $trackGeneration ? (int) ($handle['source_generation'] ?? self::sourceGeneration($state, (string) $handle['file_control_key'])) : null;
                 unset($handle);
 
                 $events[] = self::event('filecontrol', 'ok', $before, self::snapshot($state), [
@@ -94,6 +144,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
                     'value' => $value,
                     'previous' => $previous,
                     'changed' => $previous !== $value,
+                    'source_generation' => $generation,
                 ]);
                 continue;
             }
@@ -163,7 +214,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
                 }
                 $deleted = (bool) $handle['delete_on_close'] && !$handle['memory'];
                 if ($deleted || $handle['memory']) {
-                    unset($state['persistent_controls'][(string) $handle['file_control_key']], $state['persistent_locks'][(string) $handle['file_control_key']]);
+                    unset($state['persistent_controls'][(string) $handle['file_control_key']], $state['persistent_locks'][(string) $handle['file_control_key']], $state['persistent_generations'][(string) $handle['file_control_key']]);
                 } else {
                     $state['persistent_controls'][(string) $handle['file_control_key']] = $handle['controls'];
                     $state['persistent_locks'][(string) $handle['file_control_key']] = 'unlocked';
@@ -191,9 +242,21 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             'dependencies' => [
                 'vfs-tempfile-open-lifecycle',
                 'vfs-xfilecontrol',
-                'vfs-temp-locking-current-source-next83',
+                $trackGeneration ? 'vfs-temp-lock-filecontrol-current-source-next102' : 'vfs-temp-locking-current-source-next83',
             ],
         ];
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array{temp_dir?:string,connection_id?:string,temp_store?:string,directory_writable?:bool,current_source?:string,current?:array<string,mixed>} $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext102(array $operations, array $options = []): array
+    {
+        $options['_track_temp_generation'] = true;
+
+        return self::currentSourceNext83($operations, $options);
     }
 
     /**
@@ -211,6 +274,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
                 'handles' => [],
                 'persistent_controls' => [],
                 'persistent_locks' => [],
+                'persistent_generations' => [],
             ];
         }
 
@@ -222,6 +286,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
             'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
             'persistent_locks' => is_array($current['persistent_locks'] ?? null) ? $current['persistent_locks'] : [],
+            'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
         ];
     }
 
@@ -336,6 +401,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             'file_control_key' => $key,
             'controls' => $controls,
             'lock_state' => (string) ($state['persistent_locks'][$key] ?? 'unlocked'),
+            'source_generation' => self::sourceGeneration($state, $key),
         ];
     }
 
@@ -424,6 +490,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
         ksort($state['source_handles']);
         ksort($state['persistent_controls']);
         ksort($state['persistent_locks']);
+        ksort($state['persistent_generations']);
 
         return $state;
     }
@@ -456,6 +523,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             'pending_delete_count' => $pendingDeletes,
             'persistent_control_count' => count($state['persistent_controls']),
             'persistent_lock_count' => count(array_filter($state['persistent_locks'], static fn (mixed $level): bool => $level !== 'unlocked')),
+            'persistent_generation_count' => count($state['persistent_generations']),
             'requires_directory_write' => $pendingDeletes > 0,
         ];
     }
@@ -524,6 +592,24 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function sourceGeneration(array $state, string $key): int
+    {
+        return max(1, (int) ($state['persistent_generations'][$key] ?? 1));
+    }
+
+    private static function writeControl(string $control): bool
+    {
+        return in_array($control, ['chunk_size', 'persist_wal', 'powersafe_overwrite', 'reserve_bytes', 'size_hint'], true);
+    }
+
+    private static function writeLockHeld(string $level): bool
+    {
+        return in_array($level, ['reserved', 'pending', 'exclusive'], true);
     }
 
     private static function normalizeSuffix(string $suffix): string

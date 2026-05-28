@@ -2433,6 +2433,109 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointRestartTruncateReaderCurrentSourceNext102(
+        string $databaseBytes,
+        string $walBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers
+    ): array {
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($source->toBytes() !== $this->toBytes()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next102 bytes mismatch');
+        }
+
+        $currentPlan = $currentShm->checkpointPlan();
+        $nextPlan = $nextReaderShm->checkpointPlan();
+        $allReleasedPlan = $allReleasedShm->checkpointPlan();
+        $currentSalt = $currentShm->header['salt'] ?? [];
+        if (($currentSalt[0] ?? null) !== $source->header->salt1 || ($currentSalt[1] ?? null) !== $source->header->salt2) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next102 SHM salt does not match current WAL');
+        }
+        if ((int) ($currentShm->header['mx_frame'] ?? -1) !== $source->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate reader current-source next102 SHM mxFrame does not match current WAL');
+        }
+
+        $plan = $this->checkpointRestartTruncateReaderCurrentSourceNext97(
+            $databaseBytes,
+            $walBytes,
+            $currentShm,
+            $nextReaderShm,
+            $allReleasedShm,
+            $pageNumbers
+        );
+        $restart = $plan['restart'];
+        $truncate = $plan['truncate'];
+
+        $currentRows = $restart['current_source_rows'];
+        $nextRows = $restart['next_source_rows_after_current_release'];
+        $restartFinalRows = $restart['final_source_rows_after_all_release'];
+        $truncateFinalRows = $truncate['final_source_rows_after_all_release'];
+        $restartAfterAll = $restart['after_all_release']['checkpoint'];
+        $truncateAfterAll = $truncate['after_all_release']['checkpoint'];
+
+        return array_merge($plan, [
+            'status' => $plan['status'] === 'reader-current-source-next97'
+                && $currentPlan['reset_blocked']
+                && $nextPlan['reset_blocked']
+                && !$allReleasedPlan['reset_blocked']
+                    ? 'reader-current-source-next102'
+                    : 'reader-current-source-next102-incomplete',
+            'current_source_verified' => true,
+            'shm_source_verified' => true,
+            'current_shm_source' => [
+                'mx_frame' => $currentShm->header['mx_frame'],
+                'backfilled_frame_count' => $currentShm->backfilledFrameCount,
+                'backfill_attempted_frame_count' => $currentShm->backfillAttemptedFrameCount,
+                'salt1' => $currentSalt[0],
+                'salt2' => $currentSalt[1],
+                'headers_match' => $currentShm->headersMatch,
+                'checkpoint_pinned_frame' => $currentPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $currentPlan['reset_blocked'],
+            ],
+            'next_shm_source' => [
+                'checkpoint_pinned_frame' => $nextPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $nextPlan['reset_blocked'],
+                'read_locks' => $nextPlan['read_locks'],
+            ],
+            'all_released_shm_source' => [
+                'checkpoint_pinned_frame' => $allReleasedPlan['checkpoint_pinned_frame'],
+                'reset_blocked' => $allReleasedPlan['reset_blocked'],
+                'read_locks' => $allReleasedPlan['read_locks'],
+            ],
+            'current_to_next_source_transition_next102' => self::sourceTransitionRows($currentRows, $nextRows, 'current_to_next102'),
+            'next_to_restart_final_source_transition_next102' => self::sourceTransitionRows($nextRows, $restartFinalRows, 'next_to_restart_final102'),
+            'next_to_truncate_final_source_transition_next102' => self::sourceTransitionRows($nextRows, $truncateFinalRows, 'next_to_truncate_final102'),
+            'current_source_names_next102' => self::visibilityColumn($currentRows, 'current_source'),
+            'next_source_names_next102' => self::visibilityColumn($nextRows, 'current_source'),
+            'restart_final_source_names_next102' => self::visibilityColumn($restartFinalRows, 'current_source'),
+            'truncate_final_source_names_next102' => self::visibilityColumn($truncateFinalRows, 'current_source'),
+            'restart_final_wal_generation' => [
+                'action' => $restartAfterAll['wal_action'],
+                'wal_bytes_length' => $restartAfterAll['wal_bytes_length'],
+                'checkpoint_sequence' => is_array($restartAfterAll['wal_header']) ? $restartAfterAll['wal_header']['checkpoint_sequence'] : null,
+            ],
+            'truncate_final_wal_generation' => [
+                'action' => $truncateAfterAll['wal_action'],
+                'wal_bytes_length' => $truncateAfterAll['wal_bytes_length'],
+                'checkpoint_sequence' => is_array($truncateAfterAll['wal_header']) ? $truncateAfterAll['wal_header']['checkpoint_sequence'] : null,
+            ],
+            'restart_truncate_final_database_match_next102' => $restartAfterAll['database_bytes'] === $truncateAfterAll['database_bytes'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                $currentPlan['dependencies'],
+                $nextPlan['dependencies'],
+                $allReleasedPlan['dependencies'],
+                ['wal-restart-truncate-reader-current-source-next102']
+            ))),
+        ]);
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
