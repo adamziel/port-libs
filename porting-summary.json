@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 17:13:30 UTC",
-    "sourceCommit": "5d479e1e0e9ae21ccf1455e68fefdab59fa9656e",
-    "sourceCommitShort": "5d479e1e0e9a",
+    "generated": "2026-05-28 17:27:34 UTC",
+    "sourceCommit": "8aa9cfc1feacc9c5df0f96c918d56c7ddba43ea3",
+    "sourceCommitShort": "8aa9cfc1feac",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5d479e1e0e9ae21ccf1455e68fefdab59fa9656e",
-    "dashboardCommitShort": "5d479e1e0e9a",
+    "dashboardCommit": "8aa9cfc1feacc9c5df0f96c918d56c7ddba43ea3",
+    "dashboardCommitShort": "8aa9cfc1feac",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "623",
             "coverage": "623 / 1589",
-            "php": "103870 pass / 0 fail",
+            "php": "104546 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch192 subset covering B-tree, compound SELE...",
-            "audit": "Implementation commit 5d479e1e0e9ae21ccf1...",
-            "currentWork": "Accepted verified batch192 subset; public dashboard/status is being updated while next210...",
-            "nextTarget": "Publish dashboard/status for batch192, consume accepted next207 marker triplets, keep 10-...",
-            "blocker": "No blocker for the accepted batch192 subset: focused, targeted compatibil...",
-            "commit": "5d479e1"
+            "phase": "accepted batch193 subset covering B-tree, compound SELE...",
+            "audit": "Implementation commit 8aa9cfc1feacc9c5df0...",
+            "currentWork": "Accepted verified batch193 subset; public dashboard/status is being updated while next213...",
+            "nextTarget": "Publish dashboard/status for batch193, consume accepted next211 marker triplets except re...",
+            "blocker": "No blocker for the accepted batch193 subset: focused, full libsqlite, and...",
+            "commit": "8aa9cfc"
         },
         {
             "library": "LightningCSS",
