@@ -2478,6 +2478,78 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext182(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext178(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionProfile182(
+            $plan['currentGeneratedPathRowidCurrentSourceYield178'],
+            $plan['currentGeneratedPathRowidCurrentSourceCache175'],
+            $orderBy,
+            $limit,
+            $yieldBatchSize,
+            false,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionProfile182(
+            $plan['nextGeneratedPathRowidCurrentSourceYield178'],
+            $plan['nextGeneratedPathRowidCurrentSourceCache175'],
+            $orderBy,
+            $limit,
+            $yieldBatchSize,
+            $plan['next178ReplanReasons'] !== [],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionTransitions182($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionReplanReasons182($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceXNext182'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceXNext182'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceXNext182Transitions'] = $transitions;
+        $plan['next182ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next178ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next182ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'admit-current-json-table-generated-path-rowid-cost-current-source-next182-xnext';
+        $plan['nextReaderPolicy'] = $plan['next182ReplanReasons'] === []
+            ? 'continue-current-json-table-generated-path-rowid-cost-current-source-next182-xnext'
+            : 'restart-next-json-table-generated-path-rowid-cost-current-source-next182-xfilter';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next182'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext181(
         string $function,
         array $currentSource,
@@ -11767,6 +11839,211 @@ final class SQLiteJsonTablePlan
                 'estimatedRows' => 'json-table-generated-path-rowid-xcolumn-row-estimate-changed-next181',
                 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xcolumn-cost-changed-next181',
                 default => 'json-table-generated-path-rowid-xcolumn-state-changed-next181',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $yield
+     * @param array<string,mixed> $cache
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{admissionState:string,xNextOpcode:string,nextRowid:int|null,deliverableRowids:list<int>,blockedRowids:list<int>,remainingRowids:list<int>,resumeOrdinal:int,limitFence:int|null,batchSize:int,orderFence:string,sourceFence:string,cacheReusable:bool,staleAfterNextSource:bool,eofAfterBatch:bool,estimatedRows:int,estimatedCost:int,costClass:string,admissionFingerprint:string}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionProfile182(
+        array $yield,
+        array $cache,
+        array $orderBy,
+        ?int $limit,
+        ?int $yieldBatchSize,
+        bool $staleAfterNextSource,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xNext limit must be non-negative');
+        }
+        if ($yieldBatchSize !== null && $yieldBatchSize < 1) {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xNext batch size must be positive');
+        }
+
+        $remaining = array_values(array_map('intval', $yield['remainingRowids'] ?? []));
+        $batchSize = $yieldBatchSize ?? max(1, count($remaining));
+        $cacheReusable = (bool) ($cache['cacheReusable'] ?? false);
+        $baseReusable = (bool) ($yield['xFilterReusable'] ?? false)
+            && $cacheReusable
+            && !$staleAfterNextSource;
+        $deliverable = array_slice($remaining, 0, $batchSize);
+        if ($limit !== null) {
+            $alreadyYielded = count($yield['yieldedRowids'] ?? []);
+            $remainingLimit = max(0, $limit - $alreadyYielded);
+            $deliverable = array_slice($deliverable, 0, $remainingLimit);
+        }
+        if (!$baseReusable) {
+            $deliverable = [];
+        }
+
+        $blocked = array_values(array_diff($remaining, $deliverable));
+        $nextRowid = $deliverable[0] ?? null;
+        $xNextReusable = $baseReusable && $deliverable !== [];
+        $eofAfterBatch = $deliverable === [] || count($deliverable) === count($remaining);
+        $sourceFence = $staleAfterNextSource
+            ? 'next-source-xfilter-fence'
+            : (string) ($yield['replanFence'] ?? 'current-source-generated-path-rowid-yield-fence');
+        $orderFence = self::jsonTableGeneratedPathRowidOrderFence182($orderBy);
+        $estimatedRows = $xNextReusable ? count($deliverable) : 0;
+        $estimatedCost = $xNextReusable ? max(1, count($deliverable)) : 1000000;
+        $admissionState = self::jsonTableGeneratedPathRowidXNextAdmissionState182(
+            $xNextReusable,
+            $baseReusable,
+            $deliverable,
+            $blocked,
+            $staleAfterNextSource,
+        );
+
+        return [
+            'admissionState' => $admissionState,
+            'xNextOpcode' => $xNextReusable ? 'xNext-current-generated-path-rowid' : 'xFilter-restart-generated-path-rowid',
+            'nextRowid' => $nextRowid,
+            'deliverableRowids' => $deliverable,
+            'blockedRowids' => $blocked,
+            'remainingRowids' => $remaining,
+            'resumeOrdinal' => (int) ($yield['resumeOrdinal'] ?? 0),
+            'limitFence' => $limit,
+            'batchSize' => $batchSize,
+            'orderFence' => $orderFence,
+            'sourceFence' => $sourceFence,
+            'cacheReusable' => $cacheReusable,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'eofAfterBatch' => $eofAfterBatch,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => $xNextReusable
+                ? ($eofAfterBatch ? 'json-table-generated-path-rowid-xnext-final-current-source' : 'json-table-generated-path-rowid-xnext-batched-current-source')
+                : ($staleAfterNextSource ? 'json-table-generated-path-rowid-xnext-restart-next-source' : 'json-table-generated-path-rowid-xnext-reseek-current-source'),
+            'admissionFingerprint' => hash('sha256', json_encode([
+                'cursorGeneration' => $yield['cursorGeneration'] ?? null,
+                'cacheKey' => $cache['cacheKey'] ?? null,
+                'deliverable' => $deliverable,
+                'blocked' => $blocked,
+                'limit' => $limit,
+                'batchSize' => $batchSize,
+                'orderFence' => $orderFence,
+                'sourceFence' => $sourceFence,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function jsonTableGeneratedPathRowidOrderFence182(array $orderBy): string
+    {
+        if ($orderBy === []) {
+            return 'unordered-json-table-generated-path-rowid-xnext';
+        }
+
+        $terms = [];
+        foreach ($orderBy as $term) {
+            $column = self::normalizeConstraintColumn((string) ($term['column'] ?? ''));
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if ($direction === '') {
+                $direction = 'ASC';
+            }
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xNext order direction must be ASC or DESC');
+            }
+            $terms[] = $column . ':' . $direction;
+        }
+
+        return implode('|', $terms);
+    }
+
+    /**
+     * @param list<int> $deliverable
+     * @param list<int> $blocked
+     */
+    private static function jsonTableGeneratedPathRowidXNextAdmissionState182(
+        bool $xNextReusable,
+        bool $baseReusable,
+        array $deliverable,
+        array $blocked,
+        bool $staleAfterNextSource,
+    ): string {
+        if ($staleAfterNextSource) {
+            return 'restart-next-source-before-xnext';
+        }
+        if (!$baseReusable) {
+            return 'reseek-current-source-before-xnext';
+        }
+        if (!$xNextReusable) {
+            return 'xnext-eof-or-limit-fence';
+        }
+        if ($blocked !== []) {
+            return 'admit-batched-current-source-xnext';
+        }
+
+        return 'admit-final-current-source-xnext';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionTransitions182(array $current, array $next): array
+    {
+        $fields = [
+            'admissionFingerprint',
+            'admissionState',
+            'xNextOpcode',
+            'nextRowid',
+            'deliverableRowids',
+            'blockedRowids',
+            'limitFence',
+            'batchSize',
+            'orderFence',
+            'sourceFence',
+            'cacheReusable',
+            'staleAfterNextSource',
+            'eofAfterBatch',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+        ];
+
+        $transitions = [];
+        foreach ($fields as $field) {
+            $transitions[] = [
+                'field' => $field,
+                'current' => $current[$field],
+                'next' => $next[$field],
+                'changed' => $current[$field] !== $next[$field],
+            ];
+        }
+
+        return $transitions;
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXNextAdmissionReplanReasons182(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'admissionFingerprint', 'sourceFence', 'cacheReusable', 'staleAfterNextSource' => 'json-table-generated-path-rowid-xnext-source-fence-changed',
+                'admissionState', 'xNextOpcode' => 'json-table-generated-path-rowid-xnext-admission-changed',
+                'nextRowid', 'deliverableRowids', 'blockedRowids', 'eofAfterBatch' => 'json-table-generated-path-rowid-xnext-rowset-changed',
+                'limitFence', 'batchSize' => 'json-table-generated-path-rowid-xnext-limit-fence-changed',
+                'orderFence' => 'json-table-generated-path-rowid-xnext-order-fence-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xnext-cost-changed',
+                default => 'json-table-generated-path-rowid-xnext-state-changed',
             };
         }
 
