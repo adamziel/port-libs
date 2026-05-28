@@ -2760,6 +2760,86 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext195(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext191(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile195(
+            $function,
+            $currentSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidXFilterRecheck191'],
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            false,
+        );
+        $nextAnchor = self::jsonTableGeneratedPathRowidAnchorRemapProfile195(
+            $function,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidXFilterRecheck191'],
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            false,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidAnchorRemapTransitions195($currentAnchor, $nextAnchor);
+        $reasons = self::jsonTableGeneratedPathRowidAnchorRemapReasons195($transitions, $nextAnchor);
+
+        $plan['currentGeneratedPathRowidAnchorRemap195'] = $currentAnchor;
+        $plan['nextGeneratedPathRowidAnchorRemap195'] = $nextAnchor;
+        $plan['generatedPathRowidAnchorRemap195Transitions'] = $transitions;
+        $plan['next195ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next191ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next195ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'anchor-current-json-table-generated-path-rowid-next195';
+        $plan['nextReaderPolicy'] = $nextAnchor['resumeByRowid']
+            ? 'reuse-rowid-anchor-json-table-generated-path-rowid-next195'
+            : ($nextAnchor['resumeByFullkey'] ? 'reseek-fullkey-anchor-json-table-generated-path-rowid-next195' : 'restart-anchor-json-table-generated-path-rowid-next195');
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next195'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
@@ -13739,6 +13819,266 @@ final class SQLiteJsonTablePlan
                 'estimatedRows', 'estimatedCost', 'xFilterOpcode', 'costClass' => 'json-table-generated-path-rowid-xfilter-cost-changed-next191',
                 default => 'json-table-generated-path-rowid-xfilter-state-changed-next191',
             };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $xfilter
+     * @param array<string,mixed> $resume
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidAnchorRemapProfile195(
+        string $function,
+        array $source,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        ?string $rootColumn,
+        array $xfilter,
+        array $resume,
+        bool $staleAfterNextSource,
+    ): array {
+        $function = self::normalizeFunction($function);
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid anchor next195 is missing {$jsonColumn}");
+        }
+        if (!array_key_exists($generatedPathColumn, $source) || !is_string($source[$generatedPathColumn])) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid anchor next195 is missing {$generatedPathColumn}");
+        }
+        if (!SQLiteJsonPath::isWellFormed($source[$generatedPathColumn])) {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path rowid anchor next195 generated path is not well formed');
+        }
+
+        $root = '$';
+        if ($rootColumn !== null && array_key_exists($rootColumn, $source)) {
+            if (!is_string($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid anchor next195 root must be text');
+            }
+            if (!SQLiteJsonPath::isWellFormed($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid anchor next195 root is not well formed');
+            }
+            $root = $source[$rootColumn];
+        }
+
+        $rows = $function === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$source[$jsonColumn], $root])
+            : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$source[$jsonColumn], $root]);
+        $rowsByRowid = [];
+        $rowsByFullkey = [];
+        foreach ($rows as $row) {
+            $rowid = self::jsonTableRowid181($row);
+            if ($rowid !== null) {
+                $rowsByRowid[$rowid] = $row;
+            }
+            if (is_string($row['fullkey'] ?? null)) {
+                $rowsByFullkey[$row['fullkey']] = $row;
+            }
+        }
+
+        $checkpointValues = [];
+        foreach ($resume['projectedRows'] ?? [] as $projectedRow) {
+            if (!is_array($projectedRow) || !array_key_exists('rowid', $projectedRow)) {
+                continue;
+            }
+            $checkpointValues[(int) $projectedRow['rowid']] = $projectedRow['value'] ?? null;
+        }
+
+        $anchors = [];
+        foreach ($xfilter['xFilterTape'] ?? [] as $entry) {
+            if (!is_array($entry) || ($entry['accepted'] ?? false) !== true) {
+                continue;
+            }
+
+            $rowid = (int) ($entry['rowid'] ?? 0);
+            $checkpointValue = $checkpointValues[$rowid] ?? null;
+            $fullkey = is_string($entry['sourceFullkey'] ?? null) ? $entry['sourceFullkey'] : null;
+            $row = $rowsByRowid[$rowid] ?? null;
+            $fullkeyRow = $fullkey !== null ? ($rowsByFullkey[$fullkey] ?? null) : null;
+            $sameRowid = is_array($row)
+                && ($row['fullkey'] ?? null) === $fullkey
+                && ($row['value'] ?? null) === $checkpointValue;
+            $remappedRowid = is_array($fullkeyRow) ? self::jsonTableRowid181($fullkeyRow) : null;
+            $remapped = !$sameRowid && $remappedRowid !== null && $remappedRowid !== $rowid && ($fullkeyRow['value'] ?? null) === $checkpointValue;
+            $collision = !$sameRowid && is_array($row) && !$remapped && ($row['fullkey'] ?? null) !== $fullkey;
+            $missing = !$sameRowid && !$remapped && !$collision;
+
+            $anchors[] = [
+                'checkpointRowid' => $rowid,
+                'fullkey' => $fullkey,
+                'path' => is_string($entry['sourcePath'] ?? null) ? $entry['sourcePath'] : null,
+                'sameRowid' => $sameRowid,
+                'remappedRowid' => $remappedRowid,
+                'remapped' => $remapped,
+                'rowidCollision' => $collision,
+                'missing' => $missing,
+                'checkpointValueFingerprint' => hash('sha256', json_encode($checkpointValue, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+                'sourceValueFingerprint' => hash('sha256', json_encode($fullkeyRow['value'] ?? ($row['value'] ?? null), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+            ];
+        }
+
+        $stable = array_values(array_map(static fn (array $anchor): int => (int) $anchor['checkpointRowid'], array_filter($anchors, static fn (array $anchor): bool => $anchor['sameRowid'])));
+        $remapped = array_values(array_filter($anchors, static fn (array $anchor): bool => $anchor['remapped']));
+        $collisions = array_values(array_filter($anchors, static fn (array $anchor): bool => $anchor['rowidCollision']));
+        $missing = array_values(array_filter($anchors, static fn (array $anchor): bool => $anchor['missing']));
+        $resumeByRowid = !$staleAfterNextSource && $anchors !== [] && count($stable) === count($anchors);
+        $resumeByFullkey = !$staleAfterNextSource && $remapped !== [] && $collisions === [] && $missing === [];
+        $reseekRowids = array_values(array_map(static fn (array $anchor): int => (int) $anchor['remappedRowid'], $remapped));
+        $opcode = self::jsonTableGeneratedPathRowidAnchorRemapOpcode195($resumeByRowid, $resumeByFullkey, $staleAfterNextSource, $collisions, $missing);
+
+        return [
+            'function' => $function,
+            'root' => $root,
+            'generatedPath' => $source[$generatedPathColumn],
+            'sourceGeneration' => (string) ($source['source_generation'] ?? $source['sourceGeneration'] ?? ''),
+            'checkpointRowids' => array_values(array_map(static fn (array $anchor): int => (int) $anchor['checkpointRowid'], $anchors)),
+            'stableRowids' => $stable,
+            'remappedRowids' => $reseekRowids,
+            'collisionRowids' => array_values(array_map(static fn (array $anchor): int => (int) $anchor['checkpointRowid'], $collisions)),
+            'missingRowids' => array_values(array_map(static fn (array $anchor): int => (int) $anchor['checkpointRowid'], $missing)),
+            'anchorTape' => $anchors,
+            'resumeByRowid' => $resumeByRowid,
+            'resumeByFullkey' => $resumeByFullkey,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'anchorOpcode' => $opcode,
+            'estimatedRows' => $resumeByRowid ? count($stable) : ($resumeByFullkey ? count($reseekRowids) : 0),
+            'estimatedCost' => $resumeByRowid ? max(1, count($stable)) : ($resumeByFullkey ? max(2, count($reseekRowids) + 1) : 1000000),
+            'costClass' => self::jsonTableGeneratedPathRowidAnchorRemapCostClass195($opcode, $reseekRowids),
+            'anchorFingerprint' => hash('sha256', json_encode([
+                'function' => $function,
+                'root' => $root,
+                'generatedPath' => $source[$generatedPathColumn],
+                'sourceGeneration' => $source['source_generation'] ?? $source['sourceGeneration'] ?? null,
+                'anchors' => $anchors,
+                'stale' => $staleAfterNextSource,
+                'opcode' => $opcode,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $collisions
+     * @param list<array<string,mixed>> $missing
+     */
+    private static function jsonTableGeneratedPathRowidAnchorRemapOpcode195(
+        bool $resumeByRowid,
+        bool $resumeByFullkey,
+        bool $staleAfterNextSource,
+        array $collisions,
+        array $missing,
+    ): string {
+        if ($staleAfterNextSource) {
+            return 'restart-stale-json-table-generated-path-rowid-anchor-next195';
+        }
+        if ($resumeByRowid) {
+            return 'resume-rowid-json-table-generated-path-rowid-anchor-next195';
+        }
+        if ($resumeByFullkey) {
+            return 'reseek-fullkey-json-table-generated-path-rowid-anchor-next195';
+        }
+        if ($collisions !== []) {
+            return 'reject-collision-json-table-generated-path-rowid-anchor-next195';
+        }
+        if ($missing !== []) {
+            return 'restart-missing-json-table-generated-path-rowid-anchor-next195';
+        }
+
+        return 'block-empty-json-table-generated-path-rowid-anchor-next195';
+    }
+
+    /**
+     * @param list<int> $reseekRowids
+     */
+    private static function jsonTableGeneratedPathRowidAnchorRemapCostClass195(string $opcode, array $reseekRowids): string
+    {
+        if (str_starts_with($opcode, 'resume-rowid')) {
+            return 'json-table-generated-path-rowid-anchor-rowid-next195';
+        }
+        if (str_starts_with($opcode, 'reseek-fullkey')) {
+            return count($reseekRowids) === 1
+                ? 'json-table-generated-path-rowid-anchor-fullkey-point-next195'
+                : 'json-table-generated-path-rowid-anchor-fullkey-range-next195';
+        }
+        if (str_starts_with($opcode, 'reject-collision')) {
+            return 'json-table-generated-path-rowid-anchor-collision-next195';
+        }
+        if (str_starts_with($opcode, 'restart-missing')) {
+            return 'json-table-generated-path-rowid-anchor-missing-next195';
+        }
+        if (str_starts_with($opcode, 'restart-stale')) {
+            return 'json-table-generated-path-rowid-anchor-stale-next195';
+        }
+
+        return 'json-table-generated-path-rowid-anchor-blocked-next195';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidAnchorRemapTransitions195(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'checkpointRowids',
+            'stableRowids',
+            'remappedRowids',
+            'collisionRowids',
+            'missingRowids',
+            'resumeByRowid',
+            'resumeByFullkey',
+            'staleAfterNextSource',
+            'anchorOpcode',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'anchorFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @param array<string,mixed> $next
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidAnchorRemapReasons195(array $transitions, array $next): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'staleAfterNextSource', 'anchorFingerprint' => 'json-table-generated-path-rowid-anchor-source-changed-next195',
+                'checkpointRowids', 'stableRowids', 'remappedRowids', 'collisionRowids', 'missingRowids' => 'json-table-generated-path-rowid-anchor-rowset-changed-next195',
+                'resumeByRowid', 'resumeByFullkey', 'anchorOpcode' => 'json-table-generated-path-rowid-anchor-resume-mode-changed-next195',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-anchor-cost-changed-next195',
+                default => 'json-table-generated-path-rowid-anchor-state-changed-next195',
+            };
+        }
+        if (($next['remappedRowids'] ?? []) !== []) {
+            $reasons[] = 'json-table-generated-path-rowid-anchor-fullkey-remap-next195';
+        }
+        if (($next['collisionRowids'] ?? []) !== []) {
+            $reasons[] = 'json-table-generated-path-rowid-anchor-collision-next195';
+        }
+        if (($next['missingRowids'] ?? []) !== []) {
+            $reasons[] = 'json-table-generated-path-rowid-anchor-missing-next195';
         }
 
         return array_values(array_unique($reasons));

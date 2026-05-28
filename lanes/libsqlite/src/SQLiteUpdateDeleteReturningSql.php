@@ -639,6 +639,10 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function evaluatePredicate(string $term, array $row): ?bool
     {
+        $not = self::unwrapUnaryNot($term);
+        if ($not !== null) {
+            return self::negateNullable(self::evaluatePredicate($not, $row));
+        }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $term, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
             $lower = self::rowValueExpressions($match[3], $row);
@@ -778,6 +782,12 @@ final class SQLiteUpdateDeleteReturningSql
     private static function evaluateReturningExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        $not = self::unwrapUnaryNot($expression);
+        if ($not !== null) {
+            $result = self::evaluatePredicate($not, $row);
+
+            return $result === null ? null : ($result ? 0 : 1);
+        }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
             $lower = self::rowValueExpressions($match[3], $row);
@@ -914,6 +924,10 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function evaluateRowValueExpressionPredicate(string $expression, array $row): array
     {
+        $not = self::unwrapUnaryNot($expression);
+        if ($not !== null) {
+            return ['matched' => true, 'value' => self::negateNullable(self::evaluatePredicate($not, $row))];
+        }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
             $lower = self::rowValueExpressions($match[3], $row);
@@ -985,6 +999,69 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return ['matched' => false, 'value' => null];
+    }
+
+    private static function unwrapUnaryNot(string $expression): ?string
+    {
+        $expression = trim($expression);
+        if (preg_match('/^NOT\s+(.+)$/is', $expression, $match) !== 1) {
+            return null;
+        }
+
+        $inner = trim($match[1]);
+        if (str_starts_with($inner, '(') && str_ends_with($inner, ')')) {
+            $stripped = self::stripEnclosingParentheses($inner);
+            if ($stripped !== null) {
+                $inner = $stripped;
+            }
+        }
+        if ($inner === '') {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE unary NOT needs an expression');
+        }
+
+        return $inner;
+    }
+
+    private static function stripEnclosingParentheses(string $expression): ?string
+    {
+        $expression = trim($expression);
+        if (!str_starts_with($expression, '(') || !str_ends_with($expression, ')')) {
+            return null;
+        }
+
+        $inString = false;
+        $depth = 0;
+        $last = strlen($expression) - 1;
+        for ($i = 0; $i <= $last; $i++) {
+            $char = $expression[$i];
+            if ($char === "'") {
+                if ($inString && ($expression[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if ($inString) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0 && $i !== $last) {
+                    return null;
+                }
+            }
+            if ($depth < 0) {
+                return null;
+            }
+        }
+        if ($depth !== 0) {
+            return null;
+        }
+
+        return trim(substr($expression, 1, -1));
     }
 
     /**
