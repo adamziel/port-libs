@@ -167,18 +167,36 @@ $tests['json aggregate object window filter current source next93 rejects wildca
     ));
 };
 
-$tests['json aggregate object window filter current source next93 rejects object window without frame'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+$tests['json aggregate object window filter current source next93 default range frame aggregates through current row'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
         'SELECT json_group_object(option_name, option_value) FILTER (WHERE enabled) OVER (ORDER BY option_id) AS frame_json FROM wp_options',
         $tables,
-    ));
+    );
+
+    $t->same([
+        '{"siteurl":"https://example.test"}',
+        '{"siteurl":"https://example.test","blogname":"Port Fixture"}',
+        '{"siteurl":"https://example.test","blogname":"Port Fixture","plugin_rules":{"kind":"rules"}}',
+        '{"siteurl":"https://example.test","blogname":"Port Fixture","plugin_rules":{"kind":"rules"},"plugin_queue":{"kind":"queue"}}',
+        '{"siteurl":"https://example.test","blogname":"Port Fixture","plugin_rules":{"kind":"rules"},"plugin_queue":{"kind":"queue"},"plugin_rules":{"kind":"rules-refresh"}}',
+        '{"siteurl":"https://example.test","blogname":"Port Fixture","plugin_rules":{"kind":"rules"},"plugin_queue":{"kind":"queue"},"plugin_rules":{"kind":"rules-refresh"}}',
+    ], array_column($rows, 'frame_json'));
 };
 
-$tests['json aggregate object window filter current source next93 rejects missing object window order by'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+$tests['json aggregate object window filter current source next93 explicit rows frame can omit window order'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
         'SELECT json_group_object(option_name, option_value) FILTER (WHERE enabled) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_json FROM wp_options',
         $tables,
-    ));
+    );
+
+    $t->same([
+        '{"siteurl":"https://example.test","blogname":"Port Fixture"}',
+        '{"blogname":"Port Fixture","plugin_rules":{"kind":"rules"}}',
+        '{"plugin_rules":{"kind":"rules"},"plugin_queue":{"kind":"queue"}}',
+        '{"plugin_queue":{"kind":"queue"},"plugin_rules":{"kind":"rules-refresh"}}',
+        '{"plugin_rules":{"kind":"rules-refresh"}}',
+        '{}',
+    ], array_column($rows, 'frame_json'));
 };
 
 return $tests;

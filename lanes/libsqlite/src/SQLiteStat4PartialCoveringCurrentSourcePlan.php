@@ -25,9 +25,12 @@ final class SQLiteStat4PartialCoveringCurrentSourcePlan
         $currentStat4 = self::nonNegativeInt($currentSource, 'stat4Generation');
         $preparedProjection = self::projectionSignature($preparedSource, $neededColumns);
         $currentProjection = self::projectionSignature($currentSource, $neededColumns);
+        $preparedIndexes = self::indexSignature($preparedSource);
+        $currentIndexes = self::indexSignature($currentSource);
         $stale = $preparedCookie !== $currentCookie
             || $preparedStat4 !== $currentStat4
-            || $preparedProjection !== $currentProjection;
+            || $preparedProjection !== $currentProjection
+            || $preparedIndexes !== $currentIndexes;
         $selected = $stale ? $current : $prepared;
 
         return [
@@ -38,6 +41,7 @@ final class SQLiteStat4PartialCoveringCurrentSourcePlan
             'schemaCookieChanged' => $preparedCookie !== $currentCookie,
             'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
             'projectionChanged' => $preparedProjection !== $currentProjection,
+            'indexSignatureChanged' => $preparedIndexes !== $currentIndexes,
             'coveringChanged' => (bool) ($prepared['covering'] ?? false) !== (bool) ($current['covering'] ?? false),
             'orderByModeChanged' => ($prepared['orderByMode'] ?? null) !== ($current['orderByMode'] ?? null),
             'stat4EstimateDelta' => (int) ($current['stat4Estimate'] ?? 0) - (int) ($prepared['stat4Estimate'] ?? 0),
@@ -95,6 +99,7 @@ final class SQLiteStat4PartialCoveringCurrentSourcePlan
             'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
             'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
             'projectionSignature' => $projectionSignature,
+            'indexSignature' => self::indexSignature($source),
             'status' => $plan['status'] ?? 'unusable',
             'selectedIndex' => $plan['name'] ?? null,
             'rootPage' => $plan['rootPage'] ?? null,
@@ -123,6 +128,24 @@ final class SQLiteStat4PartialCoveringCurrentSourcePlan
         $action = $stale ? 'REPREPARE STAT4 PARTIAL COVERING USING CURRENT SOURCE ' : 'REUSE PREPARED STAT4 PARTIAL COVERING ';
 
         return $action . self::stringValue($currentSource, 'name', 'current') . ' ' . (string) ($plan['detail'] ?? 'NO PLAN');
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     */
+    private static function indexSignature(array $source): string
+    {
+        $parts = [];
+        foreach (self::listValue($source, 'indexes') as $index) {
+            $name = isset($index['name']) && is_string($index['name']) ? $index['name'] : '';
+            $rootPage = isset($index['rootPage']) && is_int($index['rootPage']) ? (string) $index['rootPage'] : '';
+            $sql = isset($index['sql']) && is_string($index['sql']) ? preg_replace('/\s+/', ' ', trim($index['sql'])) : '';
+            $stat4 = $index['stat4Samples'] ?? [];
+            $parts[] = $name . '|' . $rootPage . '|' . $sql . '|' . hash('sha256', serialize($stat4));
+        }
+        sort($parts, SORT_STRING);
+
+        return hash('sha256', implode("\n", $parts));
     }
 
     /**

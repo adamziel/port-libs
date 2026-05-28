@@ -183,6 +183,7 @@ final class SQLiteAttachSchemaCookieRepreparePlan
             $statementPlans[] = [
                 'name' => $name,
                 'sql' => $statement['sql'],
+                'tables' => $statement['tables'],
                 'read_only' => $statement['read_only'],
                 'active' => $statement['active'],
                 'prepare_schemas' => $statement['prepare_schemas'],
@@ -236,6 +237,22 @@ final class SQLiteAttachSchemaCookieRepreparePlan
                 'sqlite-wal-page-one-schema-cookie',
             ],
         ];
+    }
+
+    /**
+     * @param array<string,array{schema_cookie:int,wal_schema_cookie?:int|null,wal_frames?:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables?:list<string>,file?:string|null,temp?:bool}> $schemas
+     * @param list<array{name:string,sql:string,active?:bool,read_only?:bool}> $preparedStatements
+     * @param list<array{op:string,schema?:string,file?:string|null,schema_cookie?:int,tables?:list<string>,table?:string,object?:string,commit?:bool}> $events
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext100(array $schemas, array $preparedStatements, array $events, string $sourceSchema = 'main'): array
+    {
+        $plan = self::plan($schemas, $preparedStatements, $events, $sourceSchema);
+        $plan['operation'] = 'attach-schema-cookie-reprepare-current-source-next100';
+        array_unshift($plan['dependencies'], 'sqlite-attach-schema-cookie-reprepare-current-source-next100');
+        $plan['dependencies'] = array_values(array_unique($plan['dependencies']));
+
+        return $plan;
     }
 
     /**
@@ -365,17 +382,23 @@ final class SQLiteAttachSchemaCookieRepreparePlan
         if ($trimmed === '') {
             throw new \InvalidArgumentException('SQLite prepared SQL statement cannot be empty');
         }
+        $identifier = '(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
         $patterns = [
-            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
-            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((' . $identifier . ')(?:\s*\.\s*' . $identifier . ')?)/i',
+            '/\bDELETE\s+FROM\s+((' . $identifier . ')(?:\s*\.\s*' . $identifier . ')?)/i',
         ];
+        $cteNames = self::cteNames($trimmed);
         $tables = [];
         foreach ($patterns as $pattern) {
-            if (preg_match_all($pattern, $trimmed, $matches) !== 1) {
+            $matchCount = preg_match_all($pattern, $trimmed, $matches);
+            if ($matchCount === false || $matchCount === 0) {
                 continue;
             }
             foreach ($matches[1] as $match) {
                 $table = self::normalizeSqlName($match);
+                if (!str_contains($table, '.') && isset($cteNames[$table])) {
+                    continue;
+                }
                 if (!in_array($table, $tables, true)) {
                     $tables[] = $table;
                 }
@@ -388,9 +411,179 @@ final class SQLiteAttachSchemaCookieRepreparePlan
         return $tables;
     }
 
+    /**
+     * @return array<string,true>
+     */
+    private static function cteNames(string $sql): array
+    {
+        if (preg_match('/^\s*WITH\s+(?:RECURSIVE\s+)?/i', $sql, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return [];
+        }
+
+        $offset = strlen($match[0][0]);
+        $length = strlen($sql);
+        $names = [];
+        while ($offset < $length) {
+            $offset = self::skipWhitespace($sql, $offset);
+            [$name, $offset] = self::readSqlIdentifier($sql, $offset, 'SQLite CTE name');
+            $names[$name] = true;
+            $offset = self::skipWhitespace($sql, $offset);
+
+            if (($sql[$offset] ?? '') === '(') {
+                $offset = self::skipBalanced($sql, $offset);
+                $offset = self::skipWhitespace($sql, $offset);
+            }
+
+            foreach (['MATERIALIZED', 'NOT MATERIALIZED'] as $modifier) {
+                $end = $offset + strlen($modifier);
+                if (strtoupper(substr($sql, $offset, strlen($modifier))) === $modifier && !preg_match('/[A-Za-z0-9_]/', $sql[$end] ?? '')) {
+                    $offset = self::skipWhitespace($sql, $end);
+                    break;
+                }
+            }
+
+            if (strtoupper(substr($sql, $offset, 2)) !== 'AS') {
+                return $names;
+            }
+            $offset = self::skipWhitespace($sql, $offset + 2);
+            $offset = self::skipCteMaterialization($sql, $offset);
+            if (($sql[$offset] ?? '') !== '(') {
+                return $names;
+            }
+            $offset = self::skipBalanced($sql, $offset);
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? '') !== ',') {
+                break;
+            }
+            $offset++;
+        }
+
+        return $names;
+    }
+
+    private static function skipWhitespace(string $sql, int $offset): int
+    {
+        $length = strlen($sql);
+        while ($offset < $length && ctype_space($sql[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    /**
+     * @return array{0:string,1:int}
+     */
+    private static function readSqlIdentifier(string $sql, int $offset, string $label): array
+    {
+        $char = $sql[$offset] ?? '';
+        if ($char === '"' || $char === '\'' || $char === '`' || $char === '[') {
+            $endChar = $char === '[' ? ']' : $char;
+            $end = strpos($sql, $endChar, $offset + 1);
+            if ($end === false) {
+                throw new \InvalidArgumentException($label . ' has an unterminated quoted identifier');
+            }
+
+            return [self::normalizeName(substr($sql, $offset, $end - $offset + 1), $label), $end + 1];
+        }
+
+        if (preg_match('/[A-Za-z_][A-Za-z0-9_]*/A', substr($sql, $offset), $match) !== 1) {
+            throw new \InvalidArgumentException($label . ' cannot be empty');
+        }
+
+        return [self::normalizeName($match[0], $label), $offset + strlen($match[0])];
+    }
+
+    private static function skipBalanced(string $sql, int $offset): int
+    {
+        $depth = 0;
+        $length = strlen($sql);
+        for ($index = $offset; $index < $length; $index++) {
+            $char = $sql[$index];
+            if ($char === '"' || $char === '\'' || $char === '`' || $char === '[') {
+                $endChar = $char === '[' ? ']' : $char;
+                $end = strpos($sql, $endChar, $index + 1);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('SQLite SQL has an unterminated quoted identifier');
+                }
+                $index = $end;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $index + 1;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite SQL has an unterminated parenthesized expression');
+    }
+
     private static function statementReadOnly(string $sql): bool
     {
-        return preg_match('/^\s*(?:SELECT|WITH|PRAGMA)\b/i', $sql) === 1;
+        $keyword = self::firstStatementKeyword($sql);
+
+        return in_array($keyword, ['SELECT', 'PRAGMA'], true);
+    }
+
+    private static function firstStatementKeyword(string $sql): string
+    {
+        $trimmed = ltrim($sql);
+        if (preg_match('/^WITH\s+(?:RECURSIVE\s+)?/i', $trimmed, $match) !== 1) {
+            return strtoupper(strtok($trimmed, " \t\r\n(") ?: '');
+        }
+
+        $offset = strlen($match[0]);
+        $length = strlen($trimmed);
+        while ($offset < $length) {
+            $offset = self::skipWhitespace($trimmed, $offset);
+            [, $offset] = self::readSqlIdentifier($trimmed, $offset, 'SQLite CTE name');
+            $offset = self::skipWhitespace($trimmed, $offset);
+            if (($trimmed[$offset] ?? '') === '(') {
+                $offset = self::skipBalanced($trimmed, $offset);
+                $offset = self::skipWhitespace($trimmed, $offset);
+            }
+            foreach (['MATERIALIZED', 'NOT MATERIALIZED'] as $modifier) {
+                $end = $offset + strlen($modifier);
+                if (strtoupper(substr($trimmed, $offset, strlen($modifier))) === $modifier && !preg_match('/[A-Za-z0-9_]/', $trimmed[$end] ?? '')) {
+                    $offset = self::skipWhitespace($trimmed, $end);
+                    break;
+                }
+            }
+            if (strtoupper(substr($trimmed, $offset, 2)) !== 'AS') {
+                return strtoupper(strtok(substr($trimmed, $offset), " \t\r\n(") ?: '');
+            }
+            $offset = self::skipWhitespace($trimmed, $offset + 2);
+            $offset = self::skipCteMaterialization($trimmed, $offset);
+            if (($trimmed[$offset] ?? '') !== '(') {
+                return strtoupper(strtok(substr($trimmed, $offset), " \t\r\n(") ?: '');
+            }
+            $offset = self::skipBalanced($trimmed, $offset);
+            $offset = self::skipWhitespace($trimmed, $offset);
+            if (($trimmed[$offset] ?? '') !== ',') {
+                return strtoupper(strtok(substr($trimmed, $offset), " \t\r\n(") ?: '');
+            }
+            $offset++;
+        }
+
+        return '';
+    }
+
+    private static function skipCteMaterialization(string $sql, int $offset): int
+    {
+        foreach (['NOT MATERIALIZED', 'MATERIALIZED'] as $modifier) {
+            $end = $offset + strlen($modifier);
+            if (strtoupper(substr($sql, $offset, strlen($modifier))) === $modifier && !preg_match('/[A-Za-z0-9_]/', $sql[$end] ?? '')) {
+                return self::skipWhitespace($sql, $end);
+            }
+        }
+
+        return $offset;
     }
 
     /**
@@ -497,12 +690,18 @@ final class SQLiteAttachSchemaCookieRepreparePlan
             throw new \InvalidArgumentException('SQLite table name cannot be empty');
         }
 
-        return implode('.', array_map(static fn (string $part): string => self::normalizeName($part, 'SQLite table name'), $parts));
+        $normalized = array_map(static fn (string $part): string => self::normalizeName($part, 'SQLite table name'), $parts);
+        $last = count($normalized) - 1;
+        if (($normalized[$last] ?? '') === 'sqlite_master') {
+            $normalized[$last] = 'sqlite_schema';
+        }
+
+        return implode('.', $normalized);
     }
 
     private static function normalizeName(string $name, string $label): string
     {
-        $trimmed = trim($name, " \t\r\n`'\"");
+        $trimmed = trim($name, " \t\r\n`'\"[]");
         if ($trimmed === '') {
             throw new \InvalidArgumentException($label . ' cannot be empty');
         }

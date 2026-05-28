@@ -145,6 +145,30 @@ final class SQLiteBTreeDeleteRebalanceFreelistCurrentSourcePlan
     }
 
     /**
+     * @return list<array{page_number:int,next_trunk_page:?int,leaf_page_numbers:list<int>,page_count:int,allocation_order:list<int>}>
+     */
+    public function finalFreelistTrunkPages(): array
+    {
+        return array_map(
+            static fn (SQLiteFreelistTrunkPage $trunk): array => $trunk->toArray(),
+            $this->databaseAfter->freelistTrunkPages(),
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function finalFreelistAllocationOrder(): array
+    {
+        $allocationOrder = [];
+        foreach ($this->databaseAfter->freelistTrunkPages() as $trunk) {
+            array_push($allocationOrder, ...$trunk->allocationOrder());
+        }
+
+        return $allocationOrder;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -158,6 +182,8 @@ final class SQLiteBTreeDeleteRebalanceFreelistCurrentSourcePlan
             'materialized_page_numbers' => $this->materializedPageNumbers(),
             'released_overflow_pages' => $this->releasedOverflowPageNumbers(),
             'final_freelist_page_count' => $this->finalFreelistPageCount(),
+            'final_freelist_trunk_pages' => $this->finalFreelistTrunkPages(),
+            'final_freelist_allocation_order' => $this->finalFreelistAllocationOrder(),
             'database_page_count_before' => $this->databaseBefore->pageCount(),
             'database_page_count_after' => $this->databaseAfter->pageCount(),
         ];

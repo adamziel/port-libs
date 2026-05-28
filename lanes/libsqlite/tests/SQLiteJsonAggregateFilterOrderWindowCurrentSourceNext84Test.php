@@ -169,12 +169,36 @@ $tests['json aggregate filter order window current source next84 empty filtered 
     $t->same(['[]', '[]', '[]', '[]', '[]', '[]'], array_column($rows, 'frame_json'));
 };
 
-$tests['json aggregate filter order window current source next84 rejects window aggregate without frame'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT json_group_array(option_name ORDER BY option_name) OVER (ORDER BY option_id) AS frame_json FROM wp_options", $tables));
+$tests['json aggregate filter order window current source next84 default range frame aggregates through current row'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
+        "SELECT json_group_array(option_name ORDER BY option_name) OVER (ORDER BY option_id) AS frame_json FROM wp_options",
+        $tables,
+    );
+
+    $t->same([
+        '["siteurl"]',
+        '["blogname","siteurl"]',
+        '["blogname","plugin_rules","siteurl"]',
+        '["blogname","plugin_queue","plugin_rules","siteurl"]',
+        '["blogname","empty_option","plugin_queue","plugin_rules","siteurl"]',
+        '["blogname","empty_option","plugin_queue","plugin_rules","plugin_tail","siteurl"]',
+    ], array_column($rows, 'frame_json'));
 };
 
-$tests['json aggregate filter order window current source next84 rejects missing window order by for frame'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT json_group_array(option_name ORDER BY option_name) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_json FROM wp_options", $tables));
+$tests['json aggregate filter order window current source next84 explicit rows frame can omit window order'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
+        "SELECT json_group_array(option_name ORDER BY option_name) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS frame_json FROM wp_options",
+        $tables,
+    );
+
+    $t->same([
+        '["blogname","siteurl"]',
+        '["blogname","plugin_rules"]',
+        '["plugin_queue","plugin_rules"]',
+        '["empty_option","plugin_queue"]',
+        '["empty_option","plugin_tail"]',
+        '["plugin_tail"]',
+    ], array_column($rows, 'frame_json'));
 };
 
 $tests['json aggregate filter order window current source next84 rejects wildcard json aggregate'] = static function (TestRunner $t) use ($tables): void {

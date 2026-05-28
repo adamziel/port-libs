@@ -1200,6 +1200,141 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $currentHostRows
+     * @param list<array<string,mixed>> $nextHostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function lateralPlannerCurrentSourceNext100(
+        array $currentHostRows,
+        array $nextHostRows,
+        string $hostKeyColumn,
+        string $jsonColumn,
+        string $function,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        if ($hostKeyColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral current-source planner requires a host key column');
+        }
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral current-source planner requires a host JSON column');
+        }
+        if ($rootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral current-source planner root column must be non-empty when provided');
+        }
+
+        $function = self::normalizeFunction($function);
+        $currentByKey = self::hostRowsByKey100($currentHostRows, $hostKeyColumn, 'current');
+        $nextByKey = self::hostRowsByKey100($nextHostRows, $hostKeyColumn, 'next');
+        $keys = array_values(array_unique(array_merge(array_keys($currentByKey), array_keys($nextByKey))));
+
+        $current = [];
+        $next = [];
+        $transitions = [];
+        $reasons = [];
+        foreach ($keys as $key) {
+            $key = (string) $key;
+            $currentEntry = $currentByKey[$key] ?? null;
+            $nextEntry = $nextByKey[$key] ?? null;
+            $pair = null;
+            $currentPlan = null;
+            $nextPlan = null;
+
+            if ($currentEntry !== null && $nextEntry !== null) {
+                $pair = self::currentSourceConstraintPlannerNext86(
+                    $function,
+                    $currentEntry['row'],
+                    $nextEntry['row'],
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralCurrentSourceHostPlan100($currentEntry['index'], $key, $currentEntry['row'], $pair, 'current');
+                $nextPlan = self::lateralCurrentSourceHostPlan100($nextEntry['index'], $key, $nextEntry['row'], $pair, 'next');
+            } elseif ($currentEntry !== null) {
+                $single = self::currentSourceConstraintPlannerNext86(
+                    $function,
+                    $currentEntry['row'],
+                    $currentEntry['row'],
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralCurrentSourceHostPlan100($currentEntry['index'], $key, $currentEntry['row'], $single, 'current');
+            } elseif ($nextEntry !== null) {
+                $single = self::currentSourceConstraintPlannerNext86(
+                    $function,
+                    $nextEntry['row'],
+                    $nextEntry['row'],
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $nextPlan = self::lateralCurrentSourceHostPlan100($nextEntry['index'], $key, $nextEntry['row'], $single, 'next');
+            }
+
+            if ($currentPlan !== null) {
+                $current[] = $currentPlan;
+            }
+            if ($nextPlan !== null) {
+                $next[] = $nextPlan;
+            }
+
+            $reason = self::lateralCurrentSourceTransitionReason100($currentPlan, $nextPlan, $pair);
+            if ($reason !== 'stable-lateral-current-source-json-plan') {
+                $reasons[$reason] = true;
+            }
+            foreach (($pair['replanReasons'] ?? []) as $pairReason) {
+                $reasons[$pairReason] = true;
+            }
+
+            $transitions[] = [
+                'hostKey' => $key,
+                'current' => $currentPlan,
+                'next' => $nextPlan,
+                'currentHostIndex' => $currentEntry['index'] ?? null,
+                'nextHostIndex' => $nextEntry['index'] ?? null,
+                'hostReordered' => $currentEntry !== null && $nextEntry !== null && $currentEntry['index'] !== $nextEntry['index'],
+                'changed' => $reason !== 'stable-lateral-current-source-json-plan',
+                'reason' => $reason,
+                'currentRows' => $currentPlan['rowCount'] ?? 0,
+                'nextRows' => $nextPlan['rowCount'] ?? 0,
+                'rowCountChanged' => ($currentPlan['rowCount'] ?? 0) !== ($nextPlan['rowCount'] ?? 0),
+                'currentFilterArguments' => $currentPlan['filterArguments'] ?? [],
+                'nextFilterArguments' => $nextPlan['filterArguments'] ?? [],
+                'argumentTransitions' => self::argumentTransitions(
+                    $currentPlan['filterArguments'] ?? [],
+                    $nextPlan['filterArguments'] ?? [],
+                ),
+                'pairReplanReasons' => $pair['replanReasons'] ?? [],
+            ];
+        }
+
+        return [
+            'function' => $function,
+            'current' => $current,
+            'next' => $next,
+            'transitions' => $transitions,
+            'replanRequired' => $reasons !== [],
+            'replanReasons' => array_keys($reasons),
+            'currentReaderPolicy' => 'pin-current-lateral-json-source-by-host-key-until-cursor-reset',
+            'nextReaderPolicy' => $reasons === []
+                ? 'reuse-current-lateral-json-source-by-host-key'
+                : 'prepare-next-lateral-json-source-by-host-key',
+            'dependencies' => [
+                'sqlite-json-table-constraint-planner-current-source-next86',
+                'sqlite-json-table-lateral-planner-current-source-next100',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -1261,6 +1396,99 @@ final class SQLiteJsonTablePlan
         }
 
         return $plans;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $hostRows
+     * @return array<string,array{index:int,row:array<string,mixed>}>
+     */
+    private static function hostRowsByKey100(array $hostRows, string $hostKeyColumn, string $side): array
+    {
+        $rows = [];
+        foreach ($hostRows as $index => $hostRow) {
+            if (!array_key_exists($hostKeyColumn, $hostRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral {$side} host row is missing {$hostKeyColumn}");
+            }
+            $key = self::hostKey100($hostRow[$hostKeyColumn]);
+            if (isset($rows[$key])) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral {$side} host key {$key} is duplicated");
+            }
+            $rows[$key] = ['index' => $index, 'row' => $hostRow];
+        }
+
+        return $rows;
+    }
+
+    private static function hostKey100(mixed $value): string
+    {
+        if (is_int($value) || is_string($value)) {
+            return (string) $value;
+        }
+        if ($value === null) {
+            throw new \InvalidArgumentException('SQLite JSON table lateral host key cannot be NULL');
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON table lateral host key must be text or integer');
+    }
+
+    /**
+     * @param array<string,mixed> $hostRow
+     * @param array<string,mixed> $pair
+     * @return array<string,mixed>
+     */
+    private static function lateralCurrentSourceHostPlan100(
+        int $hostIndex,
+        string $hostKey,
+        array $hostRow,
+        array $pair,
+        string $side,
+    ): array {
+        $rows = $side === 'current' ? $pair['currentRows'] : $pair['nextRows'];
+        $sourcePlan = $side === 'current' ? $pair['current'] : $pair['next'];
+
+        return [
+            'hostKey' => $hostKey,
+            'hostIndex' => $hostIndex,
+            'hostRow' => $hostRow,
+            'jsonValue' => $sourcePlan['jsonValue'],
+            'rootValue' => $sourcePlan['rootValue'],
+            'runnable' => $sourcePlan['runnable'],
+            'rowCount' => count($rows),
+            'idxStr' => $sourcePlan['idxStr'],
+            'filterArguments' => $sourcePlan['filterArguments'],
+            'constraintUsage' => $sourcePlan['constraintUsage'],
+            'orderByConsumed' => $sourcePlan['orderByConsumed'],
+            'estimatedRows' => $sourcePlan['estimatedRows'],
+            'jsonInputKind' => $sourcePlan['jsonInputKind'],
+            'jsonValid' => $sourcePlan['jsonValid'],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     * @param array<string,mixed>|null $pair
+     */
+    private static function lateralCurrentSourceTransitionReason100(?array $current, ?array $next, ?array $pair): string
+    {
+        if ($current === null) {
+            return 'next-lateral-current-source-host-row-added';
+        }
+        if ($next === null) {
+            return 'current-lateral-current-source-host-row-removed';
+        }
+        if (($pair['replanReasons'] ?? []) !== []) {
+            return 'lateral-current-source-plan-changed';
+        }
+        if (($current['hostIndex'] ?? null) !== ($next['hostIndex'] ?? null)) {
+            return 'lateral-current-source-host-row-reordered';
+        }
+        if (($current['rowCount'] ?? 0) !== ($next['rowCount'] ?? 0)) {
+            return 'lateral-current-source-row-count-changed';
+        }
+
+        return 'stable-lateral-current-source-json-plan';
     }
 
     /**

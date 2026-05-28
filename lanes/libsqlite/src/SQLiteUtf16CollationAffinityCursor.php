@@ -234,13 +234,15 @@ final class SQLiteUtf16CollationAffinityCursor
 
     private function compareForCursor(mixed $left, mixed $right): ?int
     {
-        return SQLiteAffinityComparison::compare(
+        $comparison = SQLiteAffinityComparison::compare(
             self::applyCursorAffinity($left, $this->leftAffinity),
             self::applyCursorAffinity($right, $this->leftAffinity),
             'NONE',
             'NONE',
             $this->collation,
         );
+
+        return $comparison === null ? null : $comparison <=> 0;
     }
 
     private static function applyCursorAffinity(mixed $value, string $affinity): mixed

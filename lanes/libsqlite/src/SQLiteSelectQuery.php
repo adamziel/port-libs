@@ -237,10 +237,10 @@ final class SQLiteSelectQuery
         if (in_array($function, ['lag', 'lead', 'first_value', 'last_value', 'nth_value'], true) && $arguments === []) {
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
         }
+        if ($frame === null && in_array($function, ['json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'], true)) {
+            $frame = self::defaultAggregateWindowFrame($orderBy, count($orderedRows));
+        }
         if ($frame !== null && in_array($function, ['json_group_array', 'jsonb_group_array'], true)) {
-            if ($orderBy === []) {
-                throw new \InvalidArgumentException('SQLite SELECT query JSON aggregate window frame needs ORDER BY');
-            }
             if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) === 'wildcard')) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs one value argument");
             }
@@ -248,9 +248,6 @@ final class SQLiteSelectQuery
             return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy, $distinct);
         }
         if ($frame !== null && in_array($function, ['json_group_object', 'jsonb_group_object'], true)) {
-            if ($orderBy === []) {
-                throw new \InvalidArgumentException('SQLite SELECT query JSON object aggregate window frame needs ORDER BY');
-            }
             if (count($arguments) !== 2 || (($arguments[0]['type'] ?? null) === 'wildcard') || (($arguments[1]['type'] ?? null) === 'wildcard')) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs label and value arguments");
             }
@@ -324,6 +321,20 @@ final class SQLiteSelectQuery
             'nth_value' => SQLiteWindowFunction::nthValue($values, self::windowIntegerArgument($arguments, $orderedRows, 1, 'nth_value')),
             default => throw new \InvalidArgumentException("SQLite SELECT query window function {$function} is not supported"),
         };
+    }
+
+    /**
+     * SQLite aggregate windows default to the whole partition when no window
+     * ORDER BY exists, otherwise RANGE UNBOUNDED PRECEDING through CURRENT ROW.
+     *
+     * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
+     * @return array{unit:string,preceding:int|float,following:int|float,exclude:string}
+     */
+    private static function defaultAggregateWindowFrame(array $orderBy, int $partitionSize): array
+    {
+        return $orderBy === []
+            ? ['unit' => 'ROWS', 'preceding' => $partitionSize, 'following' => $partitionSize, 'exclude' => 'NO OTHERS']
+            : ['unit' => 'RANGE', 'preceding' => INF, 'following' => 0.0, 'exclude' => 'NO OTHERS'];
     }
 
     /**
