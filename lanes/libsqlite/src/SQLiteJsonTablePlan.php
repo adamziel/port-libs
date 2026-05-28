@@ -975,6 +975,60 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array<string,mixed>
+     */
+    public static function currentSourcePathGeneratedOrderNext137(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        array $generatedOrder = [],
+    ): array {
+        if ($generatedOrder === []) {
+            throw new \InvalidArgumentException('SQLite JSON table path generated order requires generated order terms');
+        }
+
+        $plan = self::currentSourcePathOrderByCostNext131(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTablePathGeneratedOrderProfile137($plan['currentPathOrderByCost'], $plan['currentRows'], $generatedOrder);
+        $nextProfile = self::jsonTablePathGeneratedOrderProfile137($plan['nextPathOrderByCost'], $plan['nextRows'], $generatedOrder);
+        $transitions = self::jsonTablePathGeneratedOrderTransitions137($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathGeneratedOrderReplanReasons137($transitions);
+
+        $plan['currentPathGeneratedOrder'] = $currentProfile;
+        $plan['nextPathGeneratedOrder'] = $nextProfile;
+        $plan['pathGeneratedOrderTransitions'] = $transitions;
+        $plan['next137ReplanReasons'] = array_values(array_unique(array_merge($plan['next131ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next137ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-path-generated-order-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next137ReplanReasons'] === []
+            ? 'reuse-current-json-table-path-generated-order-source-plan'
+            : 'prepare-next-json-table-path-generated-order-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-path-generated-order-current-source-next137'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceGeneratedPathCostNext134(
@@ -3537,6 +3591,165 @@ final class SQLiteJsonTablePlan
                 'indexedEstimatedCost', 'effectiveEstimatedCost', 'costClass' => 'json-table-indexed-cost-changed',
                 'rowCount' => 'json-table-indexed-row-count-changed',
                 default => 'json-table-indexed-constraint-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $pathOrder
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array{generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,pathScanStrategy:string,selectedPathSignature:string|null,pathOrderCostClass:string,pathOrderEffectiveCost:int,hasGeneratedOrder:bool,requiresGeneratedSorter:bool,generatedSortPenalty:int,rowGeneratedKeys:list<list<mixed>>,orderedRowids:list<int|null>,firstGeneratedKey:list<mixed>,lastGeneratedKey:list<mixed>,generatedOutputTape:list<array{rowid:int|null,key:list<mixed>,path:mixed,fullkey:mixed}>,effectiveEstimatedCost:int,costClass:string,rowCount:int}
+     */
+    private static function jsonTablePathGeneratedOrderProfile137(array $pathOrder, array $rows, array $generatedOrder): array
+    {
+        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $rowCount = count($rows);
+        $rowEntries = [];
+        foreach ($rows as $row) {
+            $key = [];
+            foreach ($terms as $term) {
+                $key[] = self::generatedOrderValue132($row, $term);
+            }
+            $rowEntries[] = [
+                'rowid' => isset($row['id']) ? (int) $row['id'] : null,
+                'key' => $key,
+                'path' => $row['path'] ?? null,
+                'fullkey' => $row['fullkey'] ?? null,
+            ];
+        }
+
+        if ($terms !== []) {
+            usort(
+                $rowEntries,
+                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms),
+            );
+        }
+
+        $pathCost = (int) ($pathOrder['effectiveEstimatedCost'] ?? 1000000);
+        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $effectiveCost = $pathCost >= 1000000 ? $pathCost : $pathCost + $generatedSortPenalty;
+
+        return [
+            'generatedOrderBy' => $terms,
+            'pathScanStrategy' => (string) ($pathOrder['pathScanStrategy'] ?? 'full-json-table-scan'),
+            'selectedPathSignature' => $pathOrder['selectedPathSignature'] ?? null,
+            'pathOrderCostClass' => (string) ($pathOrder['costClass'] ?? 'json-table-path-generated-order'),
+            'pathOrderEffectiveCost' => $pathCost,
+            'hasGeneratedOrder' => $terms !== [],
+            'requiresGeneratedSorter' => $terms !== [] && $rowCount > 1,
+            'generatedSortPenalty' => $generatedSortPenalty,
+            'rowGeneratedKeys' => array_values(array_map(static fn (array $entry): array => $entry['key'], $rowEntries)),
+            'orderedRowids' => array_values(array_map(static fn (array $entry): ?int => $entry['rowid'], $rowEntries)),
+            'firstGeneratedKey' => $rowEntries[0]['key'] ?? [],
+            'lastGeneratedKey' => $rowEntries[$rowCount - 1]['key'] ?? [],
+            'generatedOutputTape' => $rowEntries,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTablePathGeneratedOrderCostClass137($pathOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveCost),
+            'rowCount' => $rowCount,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $pathOrder
+     * @param list<array{name:string,source:string,path:string,direction:string}> $terms
+     */
+    private static function jsonTablePathGeneratedOrderCostClass137(
+        array $pathOrder,
+        array $terms,
+        bool $requiresSorter,
+        int $effectiveCost,
+    ): string {
+        if (($pathOrder['costClass'] ?? null) === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($requiresSorter) {
+            return ($pathOrder['pathScanStrategy'] ?? null) === 'path-constraint-pushdown'
+                ? 'json-table-path-generated-order-block-sort'
+                : 'json-table-generated-order-sort-required';
+        }
+        if ($terms !== []) {
+            return $effectiveCost <= 6 ? 'json-table-path-generated-order-narrow' : 'json-table-path-generated-order';
+        }
+
+        return (string) ($pathOrder['costClass'] ?? 'json-table-path-generated-order');
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTablePathGeneratedOrderTransitions137(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'generatedOrderBy',
+                'current' => $current['generatedOrderBy'],
+                'next' => $next['generatedOrderBy'],
+                'changed' => $current['generatedOrderBy'] !== $next['generatedOrderBy'],
+            ],
+            [
+                'field' => 'selectedPathSignature',
+                'current' => $current['selectedPathSignature'],
+                'next' => $next['selectedPathSignature'],
+                'changed' => $current['selectedPathSignature'] !== $next['selectedPathSignature'],
+            ],
+            [
+                'field' => 'rowGeneratedKeys',
+                'current' => $current['rowGeneratedKeys'],
+                'next' => $next['rowGeneratedKeys'],
+                'changed' => $current['rowGeneratedKeys'] !== $next['rowGeneratedKeys'],
+            ],
+            [
+                'field' => 'orderedRowids',
+                'current' => $current['orderedRowids'],
+                'next' => $next['orderedRowids'],
+                'changed' => $current['orderedRowids'] !== $next['orderedRowids'],
+            ],
+            [
+                'field' => 'requiresGeneratedSorter',
+                'current' => $current['requiresGeneratedSorter'],
+                'next' => $next['requiresGeneratedSorter'],
+                'changed' => $current['requiresGeneratedSorter'] !== $next['requiresGeneratedSorter'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTablePathGeneratedOrderReplanReasons137(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'generatedOrderBy' => 'json-table-path-generated-order-terms-changed',
+                'selectedPathSignature' => 'json-table-path-generated-path-constraint-changed',
+                'rowGeneratedKeys' => 'json-table-path-generated-keys-changed',
+                'orderedRowids' => 'json-table-path-generated-output-order-changed',
+                'requiresGeneratedSorter' => 'json-table-path-generated-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-path-generated-cost-changed',
+                default => 'json-table-path-generated-state-changed',
             };
         }
 
