@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 07:58:53 UTC",
-    "sourceCommit": "99ed226e8b37afd7a87917a7157f3f45d8bc1b79",
-    "sourceCommitShort": "99ed226e8b37",
+    "generated": "2026-05-28 08:04:41 UTC",
+    "sourceCommit": "0520c536432b91320d92d859dd0f6f0be880b479",
+    "sourceCommitShort": "0520c536432b",
     "sourceBranch": "main",
-    "dashboardCommit": "99ed226e8b37afd7a87917a7157f3f45d8bc1b79",
-    "dashboardCommitShort": "99ed226e8b37",
+    "dashboardCommit": "0520c536432b91320d92d859dd0f6f0be880b479",
+    "dashboardCommitShort": "0520c536432b",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "606",
             "coverage": "606 / 1589",
-            "php": "56029 pass / 0 fail",
+            "php": "56681 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted vfs130 plus batch131 subset covering JSON tabl...",
-            "audit": "Implementation commit 1a5a670d1d4f6743fa8...",
-            "currentWork": "Accepted verified vfs130 plus batch131 behavior subset; public dashboard/status is being...",
-            "nextTarget": "Publish dashboard/status for vfs130 plus batch131, consume accepted marker triplets, keep...",
-            "blocker": "No blocker for the accepted vfs130 plus batch131 behavior subset: focused...",
-            "commit": "1a5a670"
+            "phase": "accepted schema/vfs131 plus batch132 subset covering sc...",
+            "audit": "Implementation commit 2de90f3f3b610147f94...",
+            "currentWork": "Accepted verified schema/vfs131 plus batch132 behavior subset; public dashboard/status is...",
+            "nextTarget": "Publish dashboard/status for schema/vfs131 plus batch132, consume accepted marker triplet...",
+            "blocker": "No blocker for the accepted schema/vfs131 plus batch132 behavior subset:...",
+            "commit": "2de90f3"
         },
         {
             "library": "LightningCSS",
