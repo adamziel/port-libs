@@ -2180,6 +2180,65 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext172(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext166(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(
+            $plan['currentGeneratedPathRowidYield'],
+            $plan['currentGeneratedPathRowidCostSource'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(
+            $plan['nextGeneratedPathRowidYield'],
+            $plan['nextGeneratedPathRowidCostSource'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceFenceTransitions172($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons172($transitions);
+
+        $plan['currentGeneratedPathRowidSourceFence172'] = $currentProfile;
+        $plan['nextGeneratedPathRowidSourceFence172'] = $nextProfile;
+        $plan['generatedPathRowidSourceFence172Transitions'] = $transitions;
+        $plan['next172ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next166ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next172ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'yield-current-json-table-generated-path-rowid-source-fence-next172-until-xfilter-reset';
+        $plan['nextReaderPolicy'] = $plan['next172ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-source-fence-next172-plan'
+            : 'prepare-next-json-table-generated-path-rowid-source-fence-next172-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next172'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext170(
         string $function,
         array $currentSource,
@@ -2239,6 +2298,73 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext173(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext167(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceBestIndexProfile173(
+            $currentSource,
+            $generatedPathColumn,
+            $plan['currentGeneratedPathRowidCurrentSource'],
+            $plan['currentGeneratedPathRowidCurrentSourceAdmission'],
+            $plan['currentGeneratedPathRowidCurrentSourceFilter'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceBestIndexProfile173(
+            $nextSource,
+            $generatedPathColumn,
+            $plan['nextGeneratedPathRowidCurrentSource'],
+            $plan['nextGeneratedPathRowidCurrentSourceAdmission'],
+            $plan['nextGeneratedPathRowidCurrentSourceFilter'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceBestIndexTransitions173($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceBestIndexReplanReasons173($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceBestIndex173'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceBestIndex173'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceBestIndex173Transitions'] = $transitions;
+        $plan['next173ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next167ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next173ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-current-source-next173-until-xbestindex-reset';
+        $plan['nextReaderPolicy'] = $plan['next173ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-cost-current-source-next173-bestindex'
+            : 'prepare-next-json-table-generated-path-rowid-cost-current-source-next173-bestindex';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next173'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext169(
         string $function,
         array $currentSource,
@@ -2286,6 +2412,71 @@ final class SQLiteJsonTablePlan
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
             ['sqlite-json-table-generated-path-rowid-cost-current-source-next169'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext171(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext167(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceCursorProfile171(
+            $plan['currentGeneratedPathRowidCurrentSourceFilter'],
+            $plan['currentGeneratedPathRowidCurrentSourceAdmission'],
+            $plan['currentGeneratedPathRowidCurrentSource'],
+            $currentSource,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceCursorProfile171(
+            $plan['nextGeneratedPathRowidCurrentSourceFilter'],
+            $plan['nextGeneratedPathRowidCurrentSourceAdmission'],
+            $plan['nextGeneratedPathRowidCurrentSource'],
+            $nextSource,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceCursorTransitions171($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceCursorReplanReasons171($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceCursor'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceCursor'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceCursorTransitions'] = $transitions;
+        $plan['next171ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next167ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next171ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-current-source-next171-until-xnext-eof';
+        $plan['nextReaderPolicy'] = $plan['next171ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-cost-current-source-next171-cursor'
+            : 'prepare-next-json-table-generated-path-rowid-cost-current-source-next171-cursor';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next171'],
         )));
 
         return $plan;
@@ -9219,6 +9410,530 @@ final class SQLiteJsonTablePlan
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-next170-cost-changed',
                 'planFingerprint' => 'json-table-generated-path-rowid-current-source-next170-fingerprint-changed',
                 default => 'json-table-generated-path-rowid-current-source-next170-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $filter
+     * @param array<string,mixed> $admission
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $sourceRow
+     * @return array{cursorOpcode:string,sourceOptionId:int|null,sourceOptionName:string|null,sourcePinKey:string|null,generatedPath:string|null,rowidAlias:string|null,argvColumns:list<string>,seekRowids:list<int>,yieldProgram:list<array{step:int,opcode:string,rowid:int|null,path:string|null,eof:bool}>,yieldRowids:list<int>,skippedRowids:list<int>,missingSeekRowids:list<int>,yieldCount:int,firstYieldRowid:int|null,lastYieldRowid:int|null,eofAfterYield:bool,currentSourcePinned:bool,requiresSorter:bool,estimatedRows:int,estimatedCost:int,costClass:string,cursorFingerprint:string}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCursorProfile171(
+        array $filter,
+        array $admission,
+        array $source,
+        array $sourceRow,
+    ): array {
+        $orderedRowids = array_values(array_map('intval', $filter['orderedOutputRowids'] ?? []));
+        $orderedPaths = array_values($filter['orderedOutputPaths'] ?? []);
+        $matchedSeekRowids = array_values(array_map('intval', $admission['matchedSeekRowids'] ?? []));
+        $seekRowids = array_values(array_map('intval', $admission['seekRowids'] ?? []));
+        $missingSeekRowids = array_values(array_map('intval', $admission['missingSeekRowids'] ?? []));
+        $skippedRowids = array_values(array_diff($matchedSeekRowids, $orderedRowids));
+        sort($skippedRowids);
+
+        $pinned = (bool) ($filter['currentSourcePinned'] ?? false);
+        $eof = (bool) ($filter['eof'] ?? true);
+        $yieldProgram = [];
+        if ($pinned && !$eof) {
+            foreach ($orderedRowids as $index => $rowid) {
+                $yieldProgram[] = [
+                    'step' => $index,
+                    'opcode' => $index === 0 ? 'xColumn-current-source-rowid-path' : 'xNext-current-source-rowid-path',
+                    'rowid' => $rowid,
+                    'path' => is_string($orderedPaths[$index] ?? null) ? $orderedPaths[$index] : null,
+                    'eof' => false,
+                ];
+            }
+        }
+        $yieldProgram[] = [
+            'step' => count($yieldProgram),
+            'opcode' => $pinned ? 'xEof-current-source-rowid-path' : 'xReprepare-json-table-cursor',
+            'rowid' => null,
+            'path' => null,
+            'eof' => true,
+        ];
+
+        $cursorOpcode = $pinned && !$eof
+            ? ((bool) ($filter['requiresSorter'] ?? false)
+                ? 'xNext-generated-path-rowid-current-source-sorter'
+                : 'xNext-generated-path-rowid-current-source')
+            : 'xNext-generated-path-rowid-current-source-reprepare';
+
+        $fingerprint = hash('sha256', json_encode([
+            $cursorOpcode,
+            $source['sourcePinKey'] ?? null,
+            $source['generatedPath'] ?? null,
+            $filter['argvColumns'] ?? [],
+            $seekRowids,
+            $orderedRowids,
+            $orderedPaths,
+            $skippedRowids,
+            $missingSeekRowids,
+            $filter['filterFingerprint'] ?? null,
+        ], JSON_THROW_ON_ERROR));
+
+        return [
+            'cursorOpcode' => $cursorOpcode,
+            'sourceOptionId' => is_int($sourceRow['option_id'] ?? null) ? $sourceRow['option_id'] : null,
+            'sourceOptionName' => is_string($sourceRow['option_name'] ?? null) ? $sourceRow['option_name'] : null,
+            'sourcePinKey' => is_string($source['sourcePinKey'] ?? null) ? $source['sourcePinKey'] : null,
+            'generatedPath' => is_string($source['generatedPath'] ?? null) ? $source['generatedPath'] : null,
+            'rowidAlias' => is_string($admission['rowidAlias'] ?? null) ? $admission['rowidAlias'] : null,
+            'argvColumns' => array_values(array_map('strval', $filter['argvColumns'] ?? [])),
+            'seekRowids' => $seekRowids,
+            'yieldProgram' => $yieldProgram,
+            'yieldRowids' => $orderedRowids,
+            'skippedRowids' => $skippedRowids,
+            'missingSeekRowids' => $missingSeekRowids,
+            'yieldCount' => count($orderedRowids),
+            'firstYieldRowid' => $orderedRowids[0] ?? null,
+            'lastYieldRowid' => $orderedRowids === [] ? null : $orderedRowids[array_key_last($orderedRowids)],
+            'eofAfterYield' => true,
+            'currentSourcePinned' => $pinned,
+            'requiresSorter' => (bool) ($filter['requiresSorter'] ?? false),
+            'estimatedRows' => (int) ($filter['estimatedRows'] ?? 0),
+            'estimatedCost' => (int) ($filter['estimatedCost'] ?? 1000000),
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceCursorCostClass171(
+                (string) ($filter['costClass'] ?? 'unrunnable-json-table'),
+                $pinned,
+                (bool) ($filter['requiresSorter'] ?? false),
+                count($orderedRowids),
+                $missingSeekRowids,
+            ),
+            'cursorFingerprint' => $fingerprint,
+        ];
+    }
+
+    /**
+     * @param list<int> $missingSeekRowids
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCursorCostClass171(
+        string $filterClass,
+        bool $pinned,
+        bool $requiresSorter,
+        int $yieldCount,
+        array $missingSeekRowids,
+    ): string {
+        if ($filterClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$pinned) {
+            return 'json-table-generated-path-rowid-current-source-cursor-reprepare';
+        }
+        if ($yieldCount === 0) {
+            return 'json-table-generated-path-rowid-current-source-cursor-empty';
+        }
+        if ($requiresSorter) {
+            return 'json-table-generated-path-rowid-current-source-cursor-sorter';
+        }
+        if ($missingSeekRowids !== []) {
+            return 'json-table-generated-path-rowid-current-source-cursor-partial';
+        }
+        if ($yieldCount === 1) {
+            return 'json-table-generated-path-rowid-current-source-cursor-point';
+        }
+
+        return 'json-table-generated-path-rowid-current-source-cursor-range';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCursorTransitions171(array $current, array $next): array
+    {
+        return [
+            ['field' => 'cursorOpcode', 'current' => $current['cursorOpcode'], 'next' => $next['cursorOpcode'], 'changed' => $current['cursorOpcode'] !== $next['cursorOpcode']],
+            ['field' => 'sourcePinKey', 'current' => $current['sourcePinKey'], 'next' => $next['sourcePinKey'], 'changed' => $current['sourcePinKey'] !== $next['sourcePinKey']],
+            ['field' => 'generatedPath', 'current' => $current['generatedPath'], 'next' => $next['generatedPath'], 'changed' => $current['generatedPath'] !== $next['generatedPath']],
+            ['field' => 'argvColumns', 'current' => $current['argvColumns'], 'next' => $next['argvColumns'], 'changed' => $current['argvColumns'] !== $next['argvColumns']],
+            ['field' => 'seekRowids', 'current' => $current['seekRowids'], 'next' => $next['seekRowids'], 'changed' => $current['seekRowids'] !== $next['seekRowids']],
+            ['field' => 'yieldProgram', 'current' => $current['yieldProgram'], 'next' => $next['yieldProgram'], 'changed' => $current['yieldProgram'] !== $next['yieldProgram']],
+            ['field' => 'yieldRowids', 'current' => $current['yieldRowids'], 'next' => $next['yieldRowids'], 'changed' => $current['yieldRowids'] !== $next['yieldRowids']],
+            ['field' => 'skippedRowids', 'current' => $current['skippedRowids'], 'next' => $next['skippedRowids'], 'changed' => $current['skippedRowids'] !== $next['skippedRowids']],
+            ['field' => 'missingSeekRowids', 'current' => $current['missingSeekRowids'], 'next' => $next['missingSeekRowids'], 'changed' => $current['missingSeekRowids'] !== $next['missingSeekRowids']],
+            ['field' => 'yieldCount', 'current' => $current['yieldCount'], 'next' => $next['yieldCount'], 'changed' => $current['yieldCount'] !== $next['yieldCount']],
+            ['field' => 'currentSourcePinned', 'current' => $current['currentSourcePinned'], 'next' => $next['currentSourcePinned'], 'changed' => $current['currentSourcePinned'] !== $next['currentSourcePinned']],
+            ['field' => 'requiresSorter', 'current' => $current['requiresSorter'], 'next' => $next['requiresSorter'], 'changed' => $current['requiresSorter'] !== $next['requiresSorter']],
+            ['field' => 'estimatedRows', 'current' => $current['estimatedRows'], 'next' => $next['estimatedRows'], 'changed' => $current['estimatedRows'] !== $next['estimatedRows']],
+            ['field' => 'estimatedCost', 'current' => $current['estimatedCost'], 'next' => $next['estimatedCost'], 'changed' => $current['estimatedCost'] !== $next['estimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'cursorFingerprint', 'current' => $current['cursorFingerprint'], 'next' => $next['cursorFingerprint'], 'changed' => $current['cursorFingerprint'] !== $next['cursorFingerprint']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceCursorReplanReasons171(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'cursorOpcode', 'currentSourcePinned' => 'json-table-generated-path-rowid-current-source-cursor-admission-changed',
+                'sourcePinKey', 'generatedPath' => 'json-table-generated-path-rowid-current-source-cursor-source-changed',
+                'argvColumns' => 'json-table-generated-path-rowid-current-source-cursor-argv-changed',
+                'seekRowids', 'yieldProgram', 'yieldRowids', 'skippedRowids', 'missingSeekRowids', 'yieldCount' => 'json-table-generated-path-rowid-current-source-cursor-rowset-changed',
+                'requiresSorter' => 'json-table-generated-path-rowid-current-source-cursor-sorter-changed',
+                'estimatedRows' => 'json-table-generated-path-rowid-current-source-cursor-row-estimate-changed',
+                'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-cursor-cost-changed',
+                'cursorFingerprint' => 'json-table-generated-path-rowid-current-source-cursor-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-current-source-cursor-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $yield
+     * @param array<string,mixed> $sourceCost
+     * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,yieldDecision:string,costClass:string,yieldRowids:list<int>,yieldPaths:list<string>,currentSourcePinned:bool,sourceFingerprint:string|null,costFingerprint:string|null,sourceFenceToken:string,resetGeneration:int,sourceResetRequired:bool,retainsCurrentRows:bool,staleYieldBlocked:bool,stableYieldKey:string}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceProfile172(array $yield, array $sourceCost): array
+    {
+        $rowids = array_values(array_filter($yield['yieldRowids'] ?? [], static fn (mixed $rowid): bool => is_int($rowid)));
+        $paths = array_values(array_filter($yield['yieldPaths'] ?? [], static fn (mixed $path): bool => is_string($path)));
+        $sourceFingerprint = is_string($sourceCost['sourceFingerprint'] ?? null) ? $sourceCost['sourceFingerprint'] : null;
+        $costFingerprint = is_string($sourceCost['costFingerprint'] ?? null) ? $sourceCost['costFingerprint'] : null;
+        $pinned = (bool) ($yield['currentSourcePinned'] ?? false);
+        $yieldDecision = (string) ($yield['yieldDecision'] ?? 'prepare-fresh-json-table-yield');
+        $retainsRows = $pinned && str_starts_with($yieldDecision, 'yield-current-source-') && $rowids !== [];
+        $sourceResetRequired = !$retainsRows;
+        $token = hash('sha256', json_encode([
+            $sourceFingerprint,
+            $costFingerprint,
+            $yield['sourceOptionId'] ?? null,
+            $yield['sourceRoot'] ?? null,
+            $yield['generatedPath'] ?? null,
+            $rowids,
+            $paths,
+            $yieldDecision,
+        ], JSON_THROW_ON_ERROR));
+        $stableYieldKey = hash('sha256', json_encode([
+            $token,
+            $yield['rowsetFingerprint'] ?? null,
+            $yield['planFingerprint'] ?? null,
+            $sourceResetRequired,
+        ], JSON_THROW_ON_ERROR));
+
+        return [
+            'sourceOptionId' => $yield['sourceOptionId'] ?? null,
+            'sourceOptionName' => $yield['sourceOptionName'] ?? null,
+            'sourceRoot' => $yield['sourceRoot'] ?? null,
+            'generatedPath' => $yield['generatedPath'] ?? null,
+            'yieldDecision' => $yieldDecision,
+            'costClass' => (string) ($yield['costClass'] ?? 'unrunnable-json-table'),
+            'yieldRowids' => $rowids,
+            'yieldPaths' => $paths,
+            'currentSourcePinned' => $pinned,
+            'sourceFingerprint' => $sourceFingerprint,
+            'costFingerprint' => $costFingerprint,
+            'sourceFenceToken' => $token,
+            'resetGeneration' => $sourceResetRequired ? 1 : 0,
+            'sourceResetRequired' => $sourceResetRequired,
+            'retainsCurrentRows' => $retainsRows,
+            'staleYieldBlocked' => $sourceResetRequired && !$pinned,
+            'stableYieldKey' => $stableYieldKey,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceTransitions172(array $current, array $next): array
+    {
+        return [
+            ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
+            ['field' => 'sourceRoot', 'current' => $current['sourceRoot'], 'next' => $next['sourceRoot'], 'changed' => $current['sourceRoot'] !== $next['sourceRoot']],
+            ['field' => 'generatedPath', 'current' => $current['generatedPath'], 'next' => $next['generatedPath'], 'changed' => $current['generatedPath'] !== $next['generatedPath']],
+            ['field' => 'yieldDecision', 'current' => $current['yieldDecision'], 'next' => $next['yieldDecision'], 'changed' => $current['yieldDecision'] !== $next['yieldDecision']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'yieldRowids', 'current' => $current['yieldRowids'], 'next' => $next['yieldRowids'], 'changed' => $current['yieldRowids'] !== $next['yieldRowids']],
+            ['field' => 'yieldPaths', 'current' => $current['yieldPaths'], 'next' => $next['yieldPaths'], 'changed' => $current['yieldPaths'] !== $next['yieldPaths']],
+            ['field' => 'currentSourcePinned', 'current' => $current['currentSourcePinned'], 'next' => $next['currentSourcePinned'], 'changed' => $current['currentSourcePinned'] !== $next['currentSourcePinned']],
+            ['field' => 'sourceFingerprint', 'current' => $current['sourceFingerprint'], 'next' => $next['sourceFingerprint'], 'changed' => $current['sourceFingerprint'] !== $next['sourceFingerprint']],
+            ['field' => 'costFingerprint', 'current' => $current['costFingerprint'], 'next' => $next['costFingerprint'], 'changed' => $current['costFingerprint'] !== $next['costFingerprint']],
+            ['field' => 'sourceFenceToken', 'current' => $current['sourceFenceToken'], 'next' => $next['sourceFenceToken'], 'changed' => $current['sourceFenceToken'] !== $next['sourceFenceToken']],
+            ['field' => 'resetGeneration', 'current' => $current['resetGeneration'], 'next' => $next['resetGeneration'], 'changed' => $current['resetGeneration'] !== $next['resetGeneration']],
+            ['field' => 'sourceResetRequired', 'current' => $current['sourceResetRequired'], 'next' => $next['sourceResetRequired'], 'changed' => $current['sourceResetRequired'] !== $next['sourceResetRequired']],
+            ['field' => 'retainsCurrentRows', 'current' => $current['retainsCurrentRows'], 'next' => $next['retainsCurrentRows'], 'changed' => $current['retainsCurrentRows'] !== $next['retainsCurrentRows']],
+            ['field' => 'staleYieldBlocked', 'current' => $current['staleYieldBlocked'], 'next' => $next['staleYieldBlocked'], 'changed' => $current['staleYieldBlocked'] !== $next['staleYieldBlocked']],
+            ['field' => 'stableYieldKey', 'current' => $current['stableYieldKey'], 'next' => $next['stableYieldKey'], 'changed' => $current['stableYieldKey'] !== $next['stableYieldKey']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceFenceReplanReasons172(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+            $reasons[] = match ($transition['field']) {
+                'sourceOptionId', 'sourceRoot', 'generatedPath', 'sourceFingerprint' => 'json-table-generated-path-rowid-source-fence-source-changed',
+                'yieldRowids', 'yieldPaths', 'costFingerprint' => 'json-table-generated-path-rowid-source-fence-rowset-changed',
+                'yieldDecision', 'currentSourcePinned', 'sourceResetRequired', 'retainsCurrentRows', 'staleYieldBlocked' => 'json-table-generated-path-rowid-source-fence-admission-changed',
+                'costClass' => 'json-table-generated-path-rowid-source-fence-cost-changed',
+                'sourceFenceToken', 'resetGeneration', 'stableYieldKey' => 'json-table-generated-path-rowid-source-fence-token-changed',
+                default => 'json-table-generated-path-rowid-source-fence-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $admission
+     * @param array<string,mixed> $filter
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBestIndexProfile173(
+        array $source,
+        string $generatedPathColumn,
+        array $currentSource,
+        array $admission,
+        array $filter,
+    ): array {
+        $generatedPath = $source[$generatedPathColumn] ?? null;
+        $argvColumns = array_values(array_map('strval', $filter['argvColumns'] ?? []));
+        $argvValues = array_values($filter['argvValues'] ?? []);
+        $omitColumns = array_values(array_map('strval', $admission['omitColumns'] ?? []));
+        $orderedRowids = array_values(array_map('intval', $filter['orderedOutputRowids'] ?? []));
+        $orderedPaths = array_values($filter['orderedOutputPaths'] ?? []);
+        $rowidScope = self::jsonTableGeneratedPathRowidCurrentSourceRowidScope173($argvColumns, $argvValues);
+        $generatedPathUsable = is_string($generatedPath)
+            && SQLiteJsonPath::isWellFormed($generatedPath)
+            && in_array('path', $argvColumns, true)
+            && in_array('path', $omitColumns, true);
+        $rowidUsable = in_array('id', $argvColumns, true) && in_array('id', $omitColumns, true);
+        $sourceReusable = (bool) ($currentSource['currentSourceReusable'] ?? false);
+        $pinned = (bool) ($filter['currentSourcePinned'] ?? false);
+        $eof = (bool) ($filter['eof'] ?? true);
+        $estimatedCost = (int) ($filter['estimatedCost'] ?? 1000000);
+        $estimatedRows = (int) ($filter['estimatedRows'] ?? 0);
+        $idxNum = self::jsonTableGeneratedPathRowidCurrentSourceIdxNum173($generatedPathUsable, $rowidUsable, $pinned, $eof);
+        $idxStr = implode('|', array_filter([
+            'generated-path-rowid-current-source-next173',
+            $generatedPathUsable ? 'path' : null,
+            $rowidUsable ? 'rowid' : null,
+            $pinned ? 'pinned' : 'reprepare',
+            $eof ? 'eof' : 'scan',
+        ], static fn (?string $part): bool => $part !== null));
+        $plannerCost = self::jsonTableGeneratedPathRowidCurrentSourcePlannerCost173(
+            $estimatedCost,
+            $generatedPathUsable,
+            $rowidUsable,
+            $pinned,
+            $eof,
+            count($orderedRowids),
+        );
+
+        return [
+            'sourceToken' => [
+                'option_id' => $source['option_id'] ?? null,
+                'option_name' => $source['option_name'] ?? null,
+                'generatedPath' => $generatedPath,
+                'sourcePinKey' => $currentSource['sourcePinKey'] ?? null,
+            ],
+            'generatedPathColumn' => $generatedPathColumn,
+            'generatedPath' => $generatedPath,
+            'generatedPathUsable' => $generatedPathUsable,
+            'rowidUsable' => $rowidUsable,
+            'sourceReusable' => $sourceReusable,
+            'currentSourcePinned' => $pinned,
+            'eof' => $eof,
+            'idxNum' => $idxNum,
+            'idxStr' => $idxStr,
+            'argvColumns' => $argvColumns,
+            'argvValues' => $argvValues,
+            'omitColumns' => $omitColumns,
+            'rowidScope' => $rowidScope,
+            'orderedOutputRowids' => $orderedRowids,
+            'orderedOutputPaths' => $orderedPaths,
+            'outputRowCount' => count($orderedRowids),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'plannerCost' => $plannerCost,
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceBestIndexCostClass173(
+                $generatedPathUsable,
+                $rowidUsable,
+                $pinned,
+                $eof,
+                count($orderedRowids),
+            ),
+            'bestIndexFingerprint' => hash('sha256', json_encode([
+                $idxNum,
+                $idxStr,
+                $generatedPath,
+                $argvColumns,
+                $argvValues,
+                $omitColumns,
+                $rowidScope,
+                $orderedRowids,
+                $orderedPaths,
+                $plannerCost,
+                $filter['filterFingerprint'] ?? null,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<string> $argvColumns
+     * @param list<mixed> $argvValues
+     * @return array{operator:string|null,value:mixed,kind:string,count:int}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidScope173(array $argvColumns, array $argvValues): array
+    {
+        $position = array_search('id', $argvColumns, true);
+        if ($position === false) {
+            return ['operator' => null, 'value' => null, 'kind' => 'unbounded', 'count' => 0];
+        }
+
+        $value = $argvValues[$position] ?? null;
+        if (is_array($value)) {
+            return ['operator' => 'IN', 'value' => array_values($value), 'kind' => 'in-list', 'count' => count($value)];
+        }
+
+        return ['operator' => '=', 'value' => $value, 'kind' => 'point', 'count' => $value === null ? 0 : 1];
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceIdxNum173(
+        bool $generatedPathUsable,
+        bool $rowidUsable,
+        bool $pinned,
+        bool $eof,
+    ): int {
+        $idxNum = 0;
+        if ($generatedPathUsable) {
+            $idxNum |= 1;
+        }
+        if ($rowidUsable) {
+            $idxNum |= 2;
+        }
+        if ($pinned) {
+            $idxNum |= 4;
+        }
+        if ($eof) {
+            $idxNum |= 8;
+        }
+
+        return $idxNum;
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourcePlannerCost173(
+        int $estimatedCost,
+        bool $generatedPathUsable,
+        bool $rowidUsable,
+        bool $pinned,
+        bool $eof,
+        int $rowCount,
+    ): int {
+        if ($eof) {
+            return 1000000;
+        }
+
+        $cost = max(1, $estimatedCost);
+        $cost = $generatedPathUsable ? max(1, $cost - 1) : $cost + 100;
+        $cost = $rowidUsable ? max(1, min($cost, max(1, $rowCount))) : $cost + 25;
+        if (!$pinned) {
+            $cost += 500;
+        }
+
+        return $cost;
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceBestIndexCostClass173(
+        bool $generatedPathUsable,
+        bool $rowidUsable,
+        bool $pinned,
+        bool $eof,
+        int $rowCount,
+    ): string {
+        if ($eof) {
+            return 'json-table-generated-path-rowid-bestindex-empty-current-source';
+        }
+        if (!$pinned) {
+            return 'json-table-generated-path-rowid-bestindex-reprepare-current-source';
+        }
+        if ($generatedPathUsable && $rowidUsable && $rowCount <= 1) {
+            return 'json-table-generated-path-rowid-bestindex-point-current-source';
+        }
+        if ($generatedPathUsable && $rowidUsable) {
+            return 'json-table-generated-path-rowid-bestindex-range-current-source';
+        }
+        if ($generatedPathUsable) {
+            return 'json-table-generated-path-bestindex-current-source';
+        }
+        if ($rowidUsable) {
+            return 'json-table-rowid-bestindex-current-source';
+        }
+
+        return 'json-table-bestindex-scan-current-source';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBestIndexTransitions173(array $current, array $next): array
+    {
+        return [
+            ['field' => 'sourceToken', 'current' => $current['sourceToken'], 'next' => $next['sourceToken'], 'changed' => $current['sourceToken'] !== $next['sourceToken']],
+            ['field' => 'generatedPathUsable', 'current' => $current['generatedPathUsable'], 'next' => $next['generatedPathUsable'], 'changed' => $current['generatedPathUsable'] !== $next['generatedPathUsable']],
+            ['field' => 'rowidUsable', 'current' => $current['rowidUsable'], 'next' => $next['rowidUsable'], 'changed' => $current['rowidUsable'] !== $next['rowidUsable']],
+            ['field' => 'idxNum', 'current' => $current['idxNum'], 'next' => $next['idxNum'], 'changed' => $current['idxNum'] !== $next['idxNum']],
+            ['field' => 'idxStr', 'current' => $current['idxStr'], 'next' => $next['idxStr'], 'changed' => $current['idxStr'] !== $next['idxStr']],
+            ['field' => 'argvValues', 'current' => $current['argvValues'], 'next' => $next['argvValues'], 'changed' => $current['argvValues'] !== $next['argvValues']],
+            ['field' => 'rowidScope', 'current' => $current['rowidScope'], 'next' => $next['rowidScope'], 'changed' => $current['rowidScope'] !== $next['rowidScope']],
+            ['field' => 'orderedOutputRowids', 'current' => $current['orderedOutputRowids'], 'next' => $next['orderedOutputRowids'], 'changed' => $current['orderedOutputRowids'] !== $next['orderedOutputRowids']],
+            ['field' => 'plannerCost', 'current' => $current['plannerCost'], 'next' => $next['plannerCost'], 'changed' => $current['plannerCost'] !== $next['plannerCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'bestIndexFingerprint', 'current' => $current['bestIndexFingerprint'], 'next' => $next['bestIndexFingerprint'], 'changed' => $current['bestIndexFingerprint'] !== $next['bestIndexFingerprint']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceBestIndexReplanReasons173(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceToken' => 'json-table-generated-path-rowid-bestindex-source-token-changed',
+                'generatedPathUsable', 'rowidUsable', 'idxNum', 'idxStr' => 'json-table-generated-path-rowid-bestindex-admission-changed',
+                'argvValues', 'rowidScope' => 'json-table-generated-path-rowid-bestindex-argv-changed',
+                'orderedOutputRowids' => 'json-table-generated-path-rowid-bestindex-rowset-changed',
+                'plannerCost', 'costClass' => 'json-table-generated-path-rowid-bestindex-cost-changed',
+                'bestIndexFingerprint' => 'json-table-generated-path-rowid-bestindex-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-bestindex-state-changed',
             };
         }
 

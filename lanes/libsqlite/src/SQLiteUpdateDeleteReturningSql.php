@@ -603,17 +603,34 @@ final class SQLiteUpdateDeleteReturningSql
             return static fn (): bool => true;
         }
 
-        $terms = self::splitWhereAnd($where);
+        $orGroups = array_map(
+            static fn (string $group): array => self::splitWhereAnd($group),
+            self::splitWhereOr($where),
+        );
 
-        return static function (array $row) use ($terms): ?bool {
-            foreach ($terms as $term) {
-                $value = self::evaluatePredicate(trim($term), $row);
-                if ($value !== true) {
-                    return $value;
+        return static function (array $row) use ($orGroups): ?bool {
+            $sawUnknown = false;
+            foreach ($orGroups as $terms) {
+                $group = true;
+                foreach ($terms as $term) {
+                    $value = self::evaluatePredicate(trim($term), $row);
+                    if ($value === false) {
+                        $group = false;
+                        break;
+                    }
+                    if ($value === null) {
+                        $group = null;
+                    }
+                }
+                if ($group === true) {
+                    return true;
+                }
+                if ($group === null) {
+                    $sawUnknown = true;
                 }
             }
 
-            return true;
+            return $sawUnknown ? null : false;
         };
     }
 
@@ -1188,6 +1205,53 @@ final class SQLiteUpdateDeleteReturningSql
                 $parts[] = trim($buffer);
                 $buffer = '';
                 $i += 2;
+                continue;
+            }
+            $buffer .= $char;
+        }
+        if (trim($buffer) !== '') {
+            $parts[] = trim($buffer);
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitWhereOr(string $sql): array
+    {
+        $parts = [];
+        $buffer = '';
+        $inString = false;
+        $depth = 0;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $buffer .= "'";
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $depth === 0 && self::keywordAt($sql, $i, 'OR')) {
+                $parts[] = trim($buffer);
+                $buffer = '';
+                $i++;
                 continue;
             }
             $buffer .= $char;
