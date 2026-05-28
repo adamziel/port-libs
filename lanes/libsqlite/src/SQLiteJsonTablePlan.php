@@ -977,6 +977,70 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathCostNext134(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        if ($generatedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path cost planner requires a generated path source column');
+        }
+
+        $plan = self::currentSourcePathOrderByCostNext131(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathCostProfile134(
+            $currentSource,
+            $generatedPathColumn,
+            $plan['currentPathOrderByCost'],
+            $plan['currentRows'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathCostProfile134(
+            $nextSource,
+            $generatedPathColumn,
+            $plan['nextPathOrderByCost'],
+            $plan['nextRows'],
+        );
+        $transitions = self::jsonTableGeneratedPathCostTransitions134($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathCostReplanReasons134($transitions);
+
+        $plan['generatedPathColumn'] = $generatedPathColumn;
+        $plan['currentGeneratedPathCost'] = $currentProfile;
+        $plan['nextGeneratedPathCost'] = $nextProfile;
+        $plan['generatedPathCostTransitions'] = $transitions;
+        $plan['next134ReplanReasons'] = array_values(array_unique(array_merge($plan['next131ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next134ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next134ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-cost-source-plan'
+            : 'prepare-next-json-table-generated-path-cost-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-cost-current-source-next134'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceNestedPathPlannerNext121(
         string $function,
         array $currentSource,
@@ -6356,6 +6420,243 @@ final class SQLiteJsonTablePlan
                 'costClass' => 'json-table-nested-path-rowid-cost-class-changed',
                 'matchedRowCount' => 'json-table-nested-path-rowid-count-changed',
                 default => 'json-table-nested-path-rowid-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $pathOrderCost
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathCostProfile134(
+        array $source,
+        string $generatedPathColumn,
+        array $pathOrderCost,
+        array $rows,
+    ): array {
+        if (!array_key_exists($generatedPathColumn, $source)) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path source column is missing');
+        }
+
+        $generatedPath = $source[$generatedPathColumn];
+        if ($generatedPath !== null && !is_string($generatedPath)) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path source column must be text or null');
+        }
+        if (is_string($generatedPath) && !SQLiteJsonPath::isWellFormed($generatedPath)) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path source column is not a well-formed path');
+        }
+
+        $selectedSignature = $pathOrderCost['selectedPathSignature'];
+        $pathConstraint = self::jsonTableGeneratedPathConstraintFromSignature134($selectedSignature);
+        $matched = $generatedPath !== null
+            && $pathConstraint !== null
+            && self::jsonTableGeneratedPathMatchesConstraint134($generatedPath, $pathConstraint);
+        $coveredRows = $matched ? self::jsonTableGeneratedPathCoveredRows134($generatedPath, $rows) : [];
+        $baseCost = (int) $pathOrderCost['effectiveEstimatedCost'];
+        if (($pathOrderCost['costClass'] ?? null) === 'unrunnable-json-table') {
+            $estimatedCost = 1000000;
+            $estimatedRows = 0;
+            $coverage = 'unrunnable-json-table';
+        } elseif ($generatedPath === null) {
+            $estimatedCost = $baseCost + 20;
+            $estimatedRows = (int) $pathOrderCost['pathRowCount'];
+            $coverage = 'missing-generated-path';
+        } elseif ($pathConstraint === null) {
+            $estimatedCost = $baseCost + 8;
+            $estimatedRows = (int) $pathOrderCost['pathRowCount'];
+            $coverage = 'generated-path-unconstrained';
+        } elseif ($matched) {
+            $estimatedRows = max(1, count($coveredRows));
+            $estimatedCost = max(1, min($baseCost, $estimatedRows));
+            $coverage = 'generated-path-covered';
+        } else {
+            $estimatedCost = $baseCost + 50;
+            $estimatedRows = 0;
+            $coverage = 'generated-path-mismatch';
+        }
+
+        return [
+            'generatedPathColumn' => $generatedPathColumn,
+            'generatedPath' => $generatedPath,
+            'selectedPathSignature' => $selectedSignature,
+            'pathConstraint' => $pathConstraint,
+            'coverage' => $coverage,
+            'generatedPathMatches' => $matched,
+            'generatedEstimatedRows' => $estimatedRows,
+            'generatedEstimatedCost' => $estimatedCost,
+            'baseEffectiveCost' => $baseCost,
+            'pathRowCount' => (int) $pathOrderCost['pathRowCount'],
+            'coveredPathTape' => self::jsonTablePathRowidTape126($coveredRows),
+            'firstCoveredPath' => $coveredRows === [] ? null : ($coveredRows[0]['path'] ?? null),
+            'lastCoveredPath' => $coveredRows === [] ? null : ($coveredRows[array_key_last($coveredRows)]['path'] ?? null),
+            'costClass' => self::jsonTableGeneratedPathCostClass134($coverage, $estimatedCost),
+        ];
+    }
+
+    /**
+     * @return array{operator:string,value:mixed}|null
+     */
+    private static function jsonTableGeneratedPathConstraintFromSignature134(mixed $signature): ?array
+    {
+        if (!is_string($signature)) {
+            return null;
+        }
+
+        $parts = explode(':', $signature, 4);
+        if (count($parts) !== 4 || $parts[1] !== 'path') {
+            return null;
+        }
+
+        return [
+            'operator' => strtoupper($parts[2]),
+            'value' => json_decode($parts[3], true),
+        ];
+    }
+
+    /**
+     * @param array{operator:string,value:mixed} $constraint
+     */
+    private static function jsonTableGeneratedPathMatchesConstraint134(string $generatedPath, array $constraint): bool
+    {
+        $value = $constraint['value'];
+
+        return match ($constraint['operator']) {
+            '=', 'IS', 'IS NOT DISTINCT FROM' => is_string($value) && $generatedPath === $value,
+            'LIKE' => is_string($value) && self::jsonTableGeneratedPathLike134($generatedPath, $value),
+            'IN' => is_array($value) && in_array($generatedPath, $value, true),
+            default => false,
+        };
+    }
+
+    private static function jsonTableGeneratedPathLike134(string $generatedPath, string $pattern): bool
+    {
+        if ($pattern === '%') {
+            return true;
+        }
+        if (str_ends_with($pattern, '%') && !str_contains(substr($pattern, 0, -1), '%') && !str_contains($pattern, '_')) {
+            return str_starts_with($generatedPath, substr($pattern, 0, -1));
+        }
+
+        $quoted = preg_quote($pattern, '/');
+        $regex = '/^' . str_replace(['%', '_'], ['.*', '.'], $quoted) . '$/u';
+
+        return preg_match($regex, $generatedPath) === 1;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function jsonTableGeneratedPathCoveredRows134(string $generatedPath, array $rows): array
+    {
+        $covered = [];
+        foreach ($rows as $row) {
+            $path = $row['path'] ?? null;
+            if (!is_string($path)) {
+                continue;
+            }
+            if ($path === $generatedPath || str_starts_with($path, $generatedPath . '[') || str_starts_with($path, $generatedPath . '.')) {
+                $covered[] = $row;
+            }
+        }
+
+        return $covered;
+    }
+
+    private static function jsonTableGeneratedPathCostClass134(string $coverage, int $estimatedCost): string
+    {
+        if ($coverage === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($coverage === 'generated-path-covered') {
+            return $estimatedCost <= 2 ? 'json-table-generated-path-point-cost' : 'json-table-generated-path-covered-cost';
+        }
+        if ($coverage === 'generated-path-mismatch') {
+            return 'json-table-generated-path-empty-cost';
+        }
+        if ($coverage === 'missing-generated-path') {
+            return 'json-table-generated-path-missing-cost';
+        }
+
+        return 'json-table-generated-path-unconstrained-cost';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathCostTransitions134(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'generatedPath',
+                'current' => $current['generatedPath'],
+                'next' => $next['generatedPath'],
+                'changed' => $current['generatedPath'] !== $next['generatedPath'],
+            ],
+            [
+                'field' => 'selectedPathSignature',
+                'current' => $current['selectedPathSignature'],
+                'next' => $next['selectedPathSignature'],
+                'changed' => $current['selectedPathSignature'] !== $next['selectedPathSignature'],
+            ],
+            [
+                'field' => 'coverage',
+                'current' => $current['coverage'],
+                'next' => $next['coverage'],
+                'changed' => $current['coverage'] !== $next['coverage'],
+            ],
+            [
+                'field' => 'generatedEstimatedCost',
+                'current' => $current['generatedEstimatedCost'],
+                'next' => $next['generatedEstimatedCost'],
+                'changed' => $current['generatedEstimatedCost'] !== $next['generatedEstimatedCost'],
+            ],
+            [
+                'field' => 'generatedEstimatedRows',
+                'current' => $current['generatedEstimatedRows'],
+                'next' => $next['generatedEstimatedRows'],
+                'changed' => $current['generatedEstimatedRows'] !== $next['generatedEstimatedRows'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'coveredPathTape',
+                'current' => $current['coveredPathTape'],
+                'next' => $next['coveredPathTape'],
+                'changed' => $current['coveredPathTape'] !== $next['coveredPathTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathCostReplanReasons134(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'generatedPath' => 'json-table-generated-path-source-changed',
+                'selectedPathSignature' => 'json-table-generated-path-constraint-changed',
+                'coverage' => 'json-table-generated-path-coverage-changed',
+                'generatedEstimatedCost', 'generatedEstimatedRows', 'costClass' => 'json-table-generated-path-cost-changed',
+                'coveredPathTape' => 'json-table-generated-path-output-changed',
+                default => 'json-table-generated-path-state-changed',
             };
         }
 

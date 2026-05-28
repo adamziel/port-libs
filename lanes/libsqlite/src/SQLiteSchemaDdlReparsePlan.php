@@ -405,6 +405,11 @@ final class SQLiteSchemaDdlReparsePlan
                 'dependent_reparse_count' => count($dependentReparse['records']),
                 'star_expansion_records' => $dependentReparse['star_expansion_records'],
                 'generated_column_view_records' => $dependentReparse['generated_column_view_records'],
+                'index_reparse_records' => $dependentReparse['index_reparse_records'],
+                'generated_column_index_records' => $dependentReparse['generated_column_index_records'],
+                'expression_index_reparse_records' => $dependentReparse['expression_index_reparse_records'],
+                'partial_index_reparse_records' => $dependentReparse['partial_index_reparse_records'],
+                'index_generated_column_references' => $dependentReparse['index_generated_column_references'],
                 'resolved_trigger_records' => $dependentReparse['resolved_trigger_records'],
                 'unresolved_trigger_records' => $dependentReparse['unresolved_trigger_records'],
                 'trigger_missing_references' => $dependentReparse['trigger_missing_references'],
@@ -535,6 +540,11 @@ final class SQLiteSchemaDdlReparsePlan
      *     records:list<string>,
      *     star_expansion_records:list<string>,
      *     generated_column_view_records:list<string>,
+     *     index_reparse_records:list<string>,
+     *     generated_column_index_records:list<string>,
+     *     expression_index_reparse_records:list<string>,
+     *     partial_index_reparse_records:list<string>,
+     *     index_generated_column_references:array<string,list<string>>,
      *     resolved_trigger_records:list<string>,
      *     unresolved_trigger_records:list<string>,
      *     trigger_missing_references:array<string,array{new:list<string>,old:list<string>}>
@@ -544,6 +554,11 @@ final class SQLiteSchemaDdlReparsePlan
     {
         $dependent = [];
         $generatedColumnViews = [];
+        $indexReparse = [];
+        $generatedColumnIndexes = [];
+        $expressionIndexes = [];
+        $partialIndexes = [];
+        $indexGeneratedReferences = [];
         foreach ($records as $record) {
             if (!in_array($record->type, ['index', 'trigger', 'view'], true)) {
                 continue;
@@ -554,6 +569,24 @@ final class SQLiteSchemaDdlReparsePlan
             }
             if ($record->type === 'view' && self::recordSqlReferencesName($record, $columnName)) {
                 $generatedColumnViews[] = 'view:' . $record->name;
+            }
+            if ($record->type !== 'index' || strcasecmp($record->tableName, $tableName) !== 0 || $record->sql === null) {
+                continue;
+            }
+
+            $entry = 'index:' . $record->name;
+            $indexReparse[] = $entry;
+            $terms = self::indexTerms($record->sql);
+            $generatedReferences = self::generatedColumnReferences($records, $tableName, $terms);
+            if ($generatedReferences !== []) {
+                $generatedColumnIndexes[] = $entry;
+                $indexGeneratedReferences[$record->name] = $generatedReferences;
+            }
+            if (array_filter($terms, static fn (string $term): bool => self::isExpressionIndexTerm($term)) !== []) {
+                $expressionIndexes[] = $entry;
+            }
+            if (self::hasTopLevelWhere($record->sql)) {
+                $partialIndexes[] = $entry;
             }
         }
 
@@ -585,6 +618,11 @@ final class SQLiteSchemaDdlReparsePlan
             'records' => $dependent,
             'star_expansion_records' => self::starExpansionRecordsForTable($records, $tableName),
             'generated_column_view_records' => $generatedColumnViews,
+            'index_reparse_records' => $indexReparse,
+            'generated_column_index_records' => $generatedColumnIndexes,
+            'expression_index_reparse_records' => $expressionIndexes,
+            'partial_index_reparse_records' => $partialIndexes,
+            'index_generated_column_references' => $indexGeneratedReferences,
             'resolved_trigger_records' => $resolvedTriggers,
             'unresolved_trigger_records' => $unresolvedTriggers,
             'trigger_missing_references' => $missingReferences,

@@ -124,7 +124,8 @@ final class SQLitePragmaForeignKeyIntegrity
     private static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?foreign_key_check\s*(?:\(\s*(?<target>.+?)\s*\))?$/i', $trimmed, $matches)) {
+        $identifier = self::identifierPattern();
+        if (!preg_match('/^pragma\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?foreign_key_check\s*(?:\(\s*(?<target>.+?)\s*\))?$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('Only PRAGMA foreign_key_check[(table)] is supported');
         }
 
@@ -135,7 +136,7 @@ final class SQLitePragmaForeignKeyIntegrity
         }
 
         return [
-            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
+            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? self::normalizeSchemaIdentifier($matches['schema']) : null,
             'target_schema' => $targetSchema,
             'target' => $target,
         ];
@@ -147,7 +148,8 @@ final class SQLitePragmaForeignKeyIntegrity
     private static function parseTableValuedPragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (!preg_match('/^(?:select\s+\*\s+from\s+)?(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?pragma_foreign_key_check\s*(?:\(\s*(?<target>.*?)\s*\))?$/i', $trimmed, $matches)) {
+        $identifier = self::identifierPattern();
+        if (!preg_match('/^(?:select\s+\*\s+from\s+)?(?:(?<schema>' . $identifier . ')\s*\.\s*)?pragma_foreign_key_check\s*(?:\(\s*(?<target>.*?)\s*\))?$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('Only pragma_foreign_key_check[(table)] table-valued calls are supported');
         }
 
@@ -158,7 +160,7 @@ final class SQLitePragmaForeignKeyIntegrity
         }
 
         return [
-            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
+            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? self::normalizeSchemaIdentifier($matches['schema']) : null,
             'target_schema' => $targetSchema,
             'target' => $target,
         ];
@@ -271,8 +273,24 @@ final class SQLitePragmaForeignKeyIntegrity
         return $identifier;
     }
 
+    private static function identifierPattern(): string
+    {
+        return '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+    }
+
+    private static function normalizeSchemaIdentifier(string $identifier): string
+    {
+        $schema = strtolower(self::unquoteIdentifier($identifier));
+        self::validateIdentifier($schema, 'target schema');
+
+        return $schema;
+    }
+
     private static function validateIdentifier(string $identifier, string $label): void
     {
+        if ($label === 'target schema' && preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)*$/', $identifier) === 1) {
+            return;
+        }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier) !== 1) {
             throw new InvalidArgumentException("SQLite foreign_key_check {$label} is malformed");
         }
