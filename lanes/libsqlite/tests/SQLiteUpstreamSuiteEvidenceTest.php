@@ -3775,4 +3775,147 @@ MD);
         $t->same(false, $record['counts_upstream_runner_release_countability_current_source_next121']);
         $t->contains('repair current-source next121 provenance', $record['next_gate']);
     },
+    'admits current-source next296 veryquick shard countability without release parity' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = '483323e72c0dc81d1e479309afb9cdc0cf8f649e';
+        $dashboardSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $statusSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $implementationSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $nextSource = '2962962962962962962962962962962962962962';
+        $focusedOutput = implode("\n", [
+            'Focused test run: 1 selected test files (root lock skipped)',
+            'PASS next296 veryquick-shard admits offset shard audit',
+            'PASS next296 veryquick-shard preserves zero-error guarded runner',
+            'PASS next296 veryquick-shard blocks release parity claim',
+            '1 test files, 96 assertions, 0 failures',
+        ]);
+
+        $record = $evidence->upstreamVeryquickShardCurrentSourceNext296(
+            [
+                [
+                    'unit' => 'suite-upstream-veryquick-shard-current-source-next296',
+                    'tier' => 'veryquick',
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'launcher_base_head' => $launcherBase,
+                    'dashboard_source_head' => $dashboardSource,
+                    'status_source_head' => $statusSource,
+                    'implementation_source_head' => $implementationSource,
+                    'source_head' => $nextSource,
+                    'artifact_path' => 'lanes/libsqlite/notes/suite-upstream-veryquick-shard-current-source-next296.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick --shard 296/384',
+                    'scripts' => ['select6.test', 'where.test', 'json103.test', 'wal2.test'],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'tests' => 96,
+                    'current_tests' => 0,
+                    'next_tests' => 96,
+                    'release_scope' => 'focused-current-source',
+                    'counts_release_parity' => false,
+                ],
+            ],
+            683,
+            137964,
+            $launcherBase,
+            $dashboardSource,
+            $statusSource,
+            $implementationSource,
+            $nextSource,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'next296 veryquick shard avoids accepted suite277-suite279 rows, JSON-table compatibility repair, and all release/all parity surfaces',
+            96,
+            ''
+        );
+
+        $t->same('current-source-next296-veryquick-shard-advanced', $record['status']);
+        $t->same(true, $record['countable']);
+        $t->same(683, $record['current_mapped']);
+        $t->same(684, $record['next_mapped']);
+        $t->same(1, $record['mapped_delta']);
+        $t->same(137964, $record['current_php_pass']);
+        $t->same(96, $record['php_pass_delta']);
+        $t->same(138060, $record['next_php_pass']);
+        $t->same(1, $record['admitted_count']);
+        $t->same(0, $record['blocked_count']);
+        $t->same(['suite-upstream-veryquick-shard-current-source-next296'], $record['admitted_units']);
+        $t->same(['json103.test', 'select6.test', 'wal2.test', 'where.test'], $record['target_scripts']);
+        $t->same(96, $record['tests_total_delta']);
+        $t->same(true, $record['counts_upstream_veryquick_shard_current_source_next296']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next279']);
+        $t->same(false, $record['counts_upstream_runner_full_suite_countability_current_source_next116']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->contains('focused PASS-line movement', $record['next_gate']);
+        $t->contains('no new support component needed', $record['dependency_closure']);
+    },
+    'blocks current-source next296 veryquick shard for stale provenance or active broad runner' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = '483323e72c0dc81d1e479309afb9cdc0cf8f649e';
+        $dashboardSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $statusSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $implementationSource = '9cbacde7b8c579a367d7e33fc5e5a0546a3a5d05';
+        $nextSource = '2962962962962962962962962962962962962962';
+        $focusedOutput = implode("\n", [
+            'Focused test run: 1 selected test files (root lock skipped)',
+            'PASS next296 veryquick-shard blocks stale row',
+            '1 test files, 12 assertions, 0 failures',
+        ]);
+        $processSnapshot = '421 1 S 00:04 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 4 --stop-on-error all';
+
+        $record = $evidence->upstreamVeryquickShardCurrentSourceNext296(
+            [
+                [
+                    'unit' => 'stale-suite-upstream-veryquick-shard-current-source-next296',
+                    'tier' => 'veryquick',
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'launcher_base_head' => $launcherBase,
+                    'dashboard_source_head' => 'wrong-dashboard-source',
+                    'status_source_head' => $statusSource,
+                    'implementation_source_head' => $implementationSource,
+                    'source_head' => 'stale-next-source',
+                    'artifact_path' => '/tmp/suite-upstream-veryquick-shard-current-source-next296.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 veryquick',
+                    'scripts' => [],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'tests' => 96,
+                    'current_tests' => 0,
+                    'next_tests' => 96,
+                    'release_scope' => 'focused-current-source',
+                    'counts_release_parity' => true,
+                ],
+            ],
+            683,
+            137964,
+            $launcherBase,
+            $dashboardSource,
+            $statusSource,
+            $implementationSource,
+            $nextSource,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'next296 blocked case keeps stale focused evidence and duplicate broad runners out of countability',
+            12,
+            $processSnapshot
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same(false, $record['countable']);
+        $t->same(683, $record['next_mapped']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(0, $record['php_pass_delta']);
+        $t->same(1, $record['row_count']);
+        $t->same(0, $record['admitted_count']);
+        $t->same(2, $record['blocked_count']);
+        $t->same(['stale-next-source'], $record['artifact_source_heads']);
+        $t->contains('dashboard-source-head-mismatch', $record['blockers'][0]['evidence']);
+        $t->contains('next-source-head-mismatch', $record['blockers'][0]['evidence']);
+        $t->contains('guarded-runner-command-missing', $record['blockers'][0]['evidence']);
+        $t->same('duplicate-broad-runner-active', $record['blockers'][1]['id']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next296']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->same('blocked-active-runner', $record['active_runner_status']);
+        $t->contains('repair current-source next296 provenance', $record['next_gate']);
+    },
 ];
