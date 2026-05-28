@@ -382,6 +382,8 @@ final class SQLiteSchemaDdlReparsePlan
                 $records[$table]->rowId,
             );
 
+            $dependentReparse = self::dependentReparseForAddColumn($records, $tableName, $addPlan['column']);
+
             return [
                 'kind' => 'alter_table_add_column',
                 'table' => $tableName,
@@ -390,8 +392,13 @@ final class SQLiteSchemaDdlReparsePlan
                 'checked_rows' => $addPlan['checked_rows'],
                 'current_row_count' => $addPlan['current_row_count'],
                 'generated' => $addPlan['generated'],
-                'dependent_reparse_records' => self::dependentReparseRecordsForAddColumn($records, $tableName, $addPlan['column']),
-                'star_expansion_records' => self::starExpansionRecordsForTable($records, $tableName),
+                'dependent_reparse_records' => $dependentReparse['records'],
+                'dependent_reparse_count' => count($dependentReparse['records']),
+                'star_expansion_records' => $dependentReparse['star_expansion_records'],
+                'generated_column_view_records' => $dependentReparse['generated_column_view_records'],
+                'resolved_trigger_records' => $dependentReparse['resolved_trigger_records'],
+                'unresolved_trigger_records' => $dependentReparse['unresolved_trigger_records'],
+                'trigger_missing_references' => $dependentReparse['trigger_missing_references'],
                 'changed' => true,
             ];
         }
@@ -515,11 +522,19 @@ final class SQLiteSchemaDdlReparsePlan
 
     /**
      * @param list<SQLiteSchemaRecord> $records
-     * @return list<string>
+     * @return array{
+     *     records:list<string>,
+     *     star_expansion_records:list<string>,
+     *     generated_column_view_records:list<string>,
+     *     resolved_trigger_records:list<string>,
+     *     unresolved_trigger_records:list<string>,
+     *     trigger_missing_references:array<string,array{new:list<string>,old:list<string>}>
+     * }
      */
-    private static function dependentReparseRecordsForAddColumn(array $records, string $tableName, string $columnName): array
+    private static function dependentReparseForAddColumn(array $records, string $tableName, string $columnName): array
     {
         $dependent = [];
+        $generatedColumnViews = [];
         foreach ($records as $record) {
             if (!in_array($record->type, ['index', 'trigger', 'view'], true)) {
                 continue;
@@ -528,9 +543,43 @@ final class SQLiteSchemaDdlReparsePlan
             if (strcasecmp($record->tableName, $tableName) === 0 || self::recordSqlReferencesName($record, $tableName) || self::recordSqlReferencesName($record, $columnName)) {
                 $dependent[] = $record->type . ':' . $record->name;
             }
+            if ($record->type === 'view' && self::recordSqlReferencesName($record, $columnName)) {
+                $generatedColumnViews[] = 'view:' . $record->name;
+            }
         }
 
-        return $dependent;
+        $resolvedTriggers = [];
+        $unresolvedTriggers = [];
+        $missingReferences = [];
+        foreach ($records as $record) {
+            if ($record->type !== 'trigger') {
+                continue;
+            }
+            if (!in_array('trigger:' . $record->name, $dependent, true)) {
+                continue;
+            }
+
+            $resolution = SQLiteViewTriggerNameResolution::resolveTrigger($records, $record->name);
+            if ($resolution['status'] === 'resolved') {
+                $resolvedTriggers[] = 'trigger:' . $record->name;
+                continue;
+            }
+
+            $unresolvedTriggers[] = 'trigger:' . $record->name;
+            $missingReferences[$record->name] = [
+                'new' => $resolution['missingNew'],
+                'old' => $resolution['missingOld'],
+            ];
+        }
+
+        return [
+            'records' => $dependent,
+            'star_expansion_records' => self::starExpansionRecordsForTable($records, $tableName),
+            'generated_column_view_records' => $generatedColumnViews,
+            'resolved_trigger_records' => $resolvedTriggers,
+            'unresolved_trigger_records' => $unresolvedTriggers,
+            'trigger_missing_references' => $missingReferences,
+        ];
     }
 
     /**

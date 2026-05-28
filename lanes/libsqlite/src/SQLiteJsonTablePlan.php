@@ -1331,6 +1331,60 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenGeneratedOrderNext132(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        array $generatedOrder = [],
+    ): array {
+        if ($generatedOrder === []) {
+            throw new \InvalidArgumentException('SQLite JSON table hidden generated order requires generated order terms');
+        }
+
+        $plan = self::currentSourceIndexedHiddenOrderNext122(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableHiddenGeneratedOrderProfile132($plan['current'], $plan['currentIndexedHiddenOrder'], $generatedOrder);
+        $nextProfile = self::jsonTableHiddenGeneratedOrderProfile132($plan['next'], $plan['nextIndexedHiddenOrder'], $generatedOrder);
+        $transitions = self::jsonTableHiddenGeneratedOrderTransitions132($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenGeneratedOrderReplanReasons132($transitions);
+
+        $plan['currentHiddenGeneratedOrder'] = $currentProfile;
+        $plan['nextHiddenGeneratedOrder'] = $nextProfile;
+        $plan['hiddenGeneratedOrderTransitions'] = $transitions;
+        $plan['next132ReplanReasons'] = array_values(array_unique(array_merge($plan['next122ReplanReasons'], $reasons)));
+        $plan['replanRequired'] = $plan['next132ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-generated-order-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next132ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-generated-order-plan'
+            : 'prepare-next-json-table-hidden-generated-order-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-generated-order-current-source-next132'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceNestedHiddenCostNext129(
@@ -3443,6 +3497,227 @@ final class SQLiteJsonTablePlan
                 'rowHiddenKeys' => 'json-table-hidden-output-order-changed',
                 'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-order-cost-changed',
                 default => 'json-table-hidden-order-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $hiddenOrder
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array{generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,hasGeneratedOrder:bool,requiresGeneratedSorter:bool,generatedSortPenalty:int,hiddenSourceKey:list<mixed>,rowGeneratedKeys:list<list<mixed>>,orderedRowids:list<int|null>,firstGeneratedKey:list<mixed>,lastGeneratedKey:list<mixed>,generatedOutputTape:list<array{rowid:int|null,key:list<mixed>,fullkey:mixed}>,hiddenEffectiveCost:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
+     */
+    private static function jsonTableHiddenGeneratedOrderProfile132(array $plan, array $hiddenOrder, array $generatedOrder): array
+    {
+        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $rows = $plan['rows'];
+        $rowCount = count($rows);
+        $hiddenSourceKey = $hiddenOrder['sourceHiddenKey'] ?? [];
+        $rowEntries = [];
+        foreach ($rows as $row) {
+            $key = [];
+            foreach ($terms as $term) {
+                $key[] = self::generatedOrderValue132($row, $term);
+            }
+            $rowEntries[] = [
+                'rowid' => isset($row['id']) ? (int) $row['id'] : null,
+                'key' => $key,
+                'fullkey' => $row['fullkey'] ?? null,
+            ];
+        }
+
+        if ($terms !== []) {
+            usort(
+                $rowEntries,
+                static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms),
+            );
+        }
+
+        $generatedSortPenalty = $rowCount > 1 ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $hiddenEffectiveCost = (int) ($hiddenOrder['effectiveEstimatedCost'] ?? 1000000);
+        $effectiveEstimatedCost = $hiddenEffectiveCost >= 1000000
+            ? $hiddenEffectiveCost
+            : $hiddenEffectiveCost + $generatedSortPenalty;
+
+        return [
+            'generatedOrderBy' => $terms,
+            'hasGeneratedOrder' => $terms !== [],
+            'requiresGeneratedSorter' => $terms !== [] && $rowCount > 1,
+            'generatedSortPenalty' => $generatedSortPenalty,
+            'hiddenSourceKey' => $hiddenSourceKey,
+            'rowGeneratedKeys' => array_values(array_map(static fn (array $entry): array => $entry['key'], $rowEntries)),
+            'orderedRowids' => array_values(array_map(static fn (array $entry): ?int => $entry['rowid'], $rowEntries)),
+            'firstGeneratedKey' => $rowEntries[0]['key'] ?? [],
+            'lastGeneratedKey' => $rowEntries[$rowCount - 1]['key'] ?? [],
+            'generatedOutputTape' => $rowEntries,
+            'hiddenEffectiveCost' => $hiddenEffectiveCost,
+            'effectiveEstimatedCost' => $effectiveEstimatedCost,
+            'costClass' => self::jsonTableHiddenGeneratedOrderCostClass132($hiddenOrder, $terms, $terms !== [] && $rowCount > 1, $effectiveEstimatedCost),
+            'rowCount' => $rowCount,
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return list<array{name:string,source:string,path:string,direction:string}>
+     */
+    private static function normalizeGeneratedOrderTerms132(array $generatedOrder): array
+    {
+        $terms = [];
+        foreach ($generatedOrder as $term) {
+            $name = strtolower((string) ($term['name'] ?? ''));
+            $source = strtolower((string) ($term['source'] ?? 'value'));
+            $path = (string) ($term['path'] ?? '');
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if ($name === '' || $path === '') {
+                throw new \InvalidArgumentException('SQLite JSON table generated order terms require a name and path');
+            }
+            if (!in_array($source, ['value', 'json', 'atom'], true)) {
+                throw new \InvalidArgumentException('SQLite JSON table generated order source must be value, json, or atom');
+            }
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON table generated order direction must be ASC or DESC');
+            }
+            if (!SQLiteJsonPath::isWellFormed($path)) {
+                throw new \InvalidArgumentException('SQLite JSON table generated order path is not well-formed');
+            }
+
+            $terms[] = [
+                'name' => $name,
+                'source' => $source,
+                'path' => $path,
+                'direction' => $direction,
+            ];
+        }
+
+        return $terms;
+    }
+
+    /**
+     * @param array{name:string,source:string,path:string,direction:string} $term
+     */
+    private static function generatedOrderValue132(array $row, array $term): mixed
+    {
+        $source = self::rowColumnValue($row, $term['source']);
+        if ($source === null) {
+            return null;
+        }
+        if (!is_string($source) && !$source instanceof SQLiteBlobValue) {
+            $source = SQLiteJsonCanonical::encodeDecodedJson($source);
+        }
+
+        return SQLiteJsonExtract::extract($source, $term['path']);
+    }
+
+    /**
+     * @param list<array{name:string,source:string,path:string,direction:string}> $terms
+     */
+    private static function compareGeneratedOrderEntries132(array $left, array $right, array $terms): int
+    {
+        foreach ($terms as $index => $term) {
+            $comparison = self::compareResidualOrdered($left['key'][$index] ?? null, $right['key'][$index] ?? null);
+            if ($comparison !== 0) {
+                return $term['direction'] === 'DESC' ? -$comparison : $comparison;
+            }
+        }
+
+        return ((int) ($left['rowid'] ?? 0)) <=> ((int) ($right['rowid'] ?? 0));
+    }
+
+    /**
+     * @param array<string,mixed> $hiddenOrder
+     * @param list<array{name:string,source:string,path:string,direction:string}> $terms
+     */
+    private static function jsonTableHiddenGeneratedOrderCostClass132(array $hiddenOrder, array $terms, bool $requiresSorter, int $effectiveCost): string
+    {
+        if (($hiddenOrder['costClass'] ?? null) === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($requiresSorter) {
+            return 'json-table-hidden-generated-order-sort-required';
+        }
+        if ($terms !== []) {
+            return $effectiveCost <= 6 ? 'json-table-hidden-generated-order-narrow' : 'json-table-hidden-generated-order';
+        }
+
+        return (string) ($hiddenOrder['costClass'] ?? 'json-table-hidden-generated-order');
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenGeneratedOrderTransitions132(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'generatedOrderBy',
+                'current' => $current['generatedOrderBy'],
+                'next' => $next['generatedOrderBy'],
+                'changed' => $current['generatedOrderBy'] !== $next['generatedOrderBy'],
+            ],
+            [
+                'field' => 'hiddenSourceKey',
+                'current' => $current['hiddenSourceKey'],
+                'next' => $next['hiddenSourceKey'],
+                'changed' => $current['hiddenSourceKey'] !== $next['hiddenSourceKey'],
+            ],
+            [
+                'field' => 'rowGeneratedKeys',
+                'current' => $current['rowGeneratedKeys'],
+                'next' => $next['rowGeneratedKeys'],
+                'changed' => $current['rowGeneratedKeys'] !== $next['rowGeneratedKeys'],
+            ],
+            [
+                'field' => 'orderedRowids',
+                'current' => $current['orderedRowids'],
+                'next' => $next['orderedRowids'],
+                'changed' => $current['orderedRowids'] !== $next['orderedRowids'],
+            ],
+            [
+                'field' => 'requiresGeneratedSorter',
+                'current' => $current['requiresGeneratedSorter'],
+                'next' => $next['requiresGeneratedSorter'],
+                'changed' => $current['requiresGeneratedSorter'] !== $next['requiresGeneratedSorter'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenGeneratedOrderReplanReasons132(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'generatedOrderBy' => 'json-table-hidden-generated-order-terms-changed',
+                'hiddenSourceKey' => 'json-table-hidden-generated-source-changed',
+                'rowGeneratedKeys' => 'json-table-hidden-generated-keys-changed',
+                'orderedRowids' => 'json-table-hidden-generated-output-order-changed',
+                'requiresGeneratedSorter' => 'json-table-hidden-generated-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-generated-cost-changed',
+                default => 'json-table-hidden-generated-state-changed',
             };
         }
 

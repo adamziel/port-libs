@@ -51,7 +51,17 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false): array
+    public static function currentSourceNext131(array $operations, array $options = []): array
+    {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-uri-filecontrol-lock-current-source-next131', true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source requires operations');
@@ -170,9 +180,11 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                     $state,
                     $handleId,
                     self::lockName((string) $op['lock']),
+                    self::lockSpan($op['span'] ?? 1),
                     (string) $op['mode'],
                     self::connectionName($op['connection'] ?? null),
-                    $trackShmOwners
+                    $trackShmOwners,
+                    $trackShmRanges
                 );
                 $events[] = self::event('shm_lock', $status['status'], $source, $before, self::snapshot($state), $status + [
                     'handle' => $handleId,
@@ -315,6 +327,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
                 'control' => $operation['control'] ?? null,
                 'value' => $operation['value'] ?? null,
                 'lock' => $operation['lock'] ?? null,
+                'span' => $operation['span'] ?? $operation['n'] ?? $operation['count'] ?? 1,
                 'mode' => $operation['mode'] ?? 'exclusive',
                 'connection' => $operation['connection'] ?? null,
             ];
@@ -334,7 +347,10 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             return ['kind' => 'filecontrol', 'source' => null, 'control' => $matches['control'], 'value' => self::parseValue($matches['value'] ?? null)];
         }
         if (preg_match('/^shm_lock\s*\(\s*(?<lock>[A-Za-z0-9_ -]+)\s*(?:,\s*(?<mode>shared|exclusive|unlock))?\s*\)$/i', $trimmed, $matches) === 1) {
-            return ['kind' => 'shmlock', 'source' => 'shm', 'lock' => $matches['lock'], 'mode' => strtolower($matches['mode'] ?? 'exclusive'), 'connection' => null];
+            return ['kind' => 'shmlock', 'source' => 'shm', 'lock' => $matches['lock'], 'span' => 1, 'mode' => strtolower($matches['mode'] ?? 'exclusive'), 'connection' => null];
+        }
+        if (preg_match('/^shm_lock_range\s*\(\s*(?<lock>[A-Za-z0-9_ -]+)\s*,\s*(?<span>\d+)\s*(?:,\s*(?<mode>shared|exclusive|unlock))?\s*\)$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'shmlock', 'source' => 'shm', 'lock' => $matches['lock'], 'span' => (int) $matches['span'], 'mode' => strtolower($matches['mode'] ?? 'exclusive'), 'connection' => null];
         }
 
         throw new \InvalidArgumentException('SQLite VFS SHM file-control lock operation is unsupported');
@@ -418,63 +434,95 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function applyShmLock(array &$state, string $handleId, string $lock, string $mode, string $connection, bool $trackOwners): array
+    private static function applyShmLock(array &$state, string $handleId, string $lock, int $span, string $mode, string $connection, bool $trackOwners, bool $trackRanges = false): array
     {
         $handle = &$state['handles'][$handleId];
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['shared', 'exclusive', 'unlock'], true)) {
             throw new \InvalidArgumentException('SQLite SHM lock mode is unsupported');
         }
+        $locksToApply = self::lockRange($lock, $span);
         if ($handle['nolock']) {
             unset($handle);
-            return ['lock' => $lock, 'mode' => $mode, 'status' => 'blocked', 'reason' => 'nolock VFS disables SHM byte-range locking'];
+            return ['lock' => $lock, 'span' => $span, 'locks' => $locksToApply, 'mode' => $mode, 'status' => 'blocked', 'reason' => 'nolock VFS disables SHM byte-range locking'];
         }
         if ($handle['readonly'] && $mode === 'exclusive') {
             unset($handle);
-            return ['lock' => $lock, 'mode' => $mode, 'status' => 'blocked', 'reason' => 'readonly SHM handle cannot take exclusive locks'];
+            return ['lock' => $lock, 'span' => $span, 'locks' => $locksToApply, 'mode' => $mode, 'status' => 'blocked', 'reason' => 'readonly SHM handle cannot take exclusive locks'];
         }
 
         $locks = $handle['shm_locks'];
         $owners = is_array($handle['shm_lock_owners'] ?? null) ? $handle['shm_lock_owners'] : [];
-        $previous = $locks[$lock] ?? null;
-        $previousOwners = self::lockOwners($owners[$lock] ?? null);
-        $conflictingOwners = $trackOwners ? self::conflictingShmLockOwners($previous, $previousOwners, $mode, $connection) : [];
-        if ($conflictingOwners !== []) {
+        $previousByLock = [];
+        $ownersByLock = [];
+        $conflictsByLock = [];
+        foreach ($locksToApply as $lockName) {
+            $previousByLock[$lockName] = $locks[$lockName] ?? null;
+            $ownersByLock[$lockName] = self::lockOwners($owners[$lockName] ?? null);
+            $conflicts = $trackOwners ? self::conflictingShmLockOwners($previousByLock[$lockName], $ownersByLock[$lockName], $mode, $connection) : [];
+            if ($conflicts !== []) {
+                $conflictsByLock[$lockName] = $conflicts;
+            }
+            if (!$trackOwners && $mode === 'exclusive' && $previousByLock[$lockName] === 'shared') {
+                $conflictsByLock[$lockName] = ['shared'];
+            }
+        }
+        if ($conflictsByLock !== []) {
             unset($handle);
             return [
                 'lock' => $lock,
+                'span' => $span,
+                'locks' => $locksToApply,
                 'mode' => $mode,
                 'connection' => $connection,
                 'status' => 'busy',
-                'previous' => $previous,
-                'owners' => $previousOwners,
-                'blocking_connections' => $conflictingOwners,
+                'previous' => $previousByLock[$lock] ?? null,
+                'previous_locks' => $previousByLock,
+                'owners' => $ownersByLock[$lock] ?? [],
+                'owner_locks' => $ownersByLock,
+                'blocking_connections' => self::uniqueStrings(array_merge(...array_values($conflictsByLock))),
+                'blocking_locks' => $conflictsByLock,
                 'reason' => 'SHM lock is held by another connection',
             ];
         }
-        if ($mode === 'unlock') {
-            if ($trackOwners) {
-                $owners[$lock] = array_values(array_filter($previousOwners, static fn (string $owner): bool => $owner !== $connection));
-                if ($owners[$lock] === []) {
-                    unset($owners[$lock], $locks[$lock]);
-                } elseif (count($owners[$lock]) === 1) {
-                    $locks[$lock] = $previous === 'exclusive' ? 'exclusive' : 'shared';
+
+        $previous = $previousByLock[$lock] ?? null;
+        foreach ($locksToApply as $lockName) {
+            $previousOwners = $ownersByLock[$lockName] ?? [];
+            if ($mode === 'unlock') {
+                if ($trackOwners) {
+                    $owners[$lockName] = array_values(array_filter($previousOwners, static fn (string $owner): bool => $owner !== $connection));
+                    if ($owners[$lockName] === []) {
+                        unset($owners[$lockName], $locks[$lockName]);
+                    } elseif (count($owners[$lockName]) === 1) {
+                        $locks[$lockName] = ($previousByLock[$lockName] ?? null) === 'exclusive' ? 'exclusive' : 'shared';
+                    } else {
+                        $locks[$lockName] = 'shared';
+                    }
                 } else {
-                    $locks[$lock] = 'shared';
+                    unset($locks[$lockName]);
                 }
             } else {
-                unset($locks[$lock]);
-            }
-        } else {
-            if ($mode === 'exclusive' && $previous === 'shared') {
-                unset($handle);
-                return ['lock' => $lock, 'mode' => $mode, 'connection' => $connection, 'status' => 'busy', 'previous' => $previous, 'reason' => 'shared SHM lock must be released before exclusive lock'];
-            }
-            $locks[$lock] = $mode;
-            if ($trackOwners) {
-                $owners[$lock] = $mode === 'shared'
-                    ? self::uniqueStrings(array_merge($previousOwners, [$connection]))
-                    : [$connection];
+                if ($mode === 'exclusive' && ($previousByLock[$lockName] ?? null) === 'shared') {
+                    unset($handle);
+                    return [
+                        'lock' => $lock,
+                        'span' => $span,
+                        'locks' => $locksToApply,
+                        'mode' => $mode,
+                        'connection' => $connection,
+                        'status' => 'busy',
+                        'previous' => 'shared',
+                        'previous_locks' => $previousByLock,
+                        'reason' => 'shared SHM lock must be released before exclusive lock',
+                    ];
+                }
+                $locks[$lockName] = $mode;
+                if ($trackOwners) {
+                    $owners[$lockName] = $mode === 'shared'
+                        ? self::uniqueStrings(array_merge($previousOwners, [$connection]))
+                        : [$connection];
+                }
             }
         }
         $handle['shm_locks'] = $locks;
@@ -487,13 +535,63 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
 
         return [
             'lock' => $lock,
+            'span' => $span,
+            'locks' => $locksToApply,
             'mode' => $mode,
             'connection' => $connection,
             'status' => 'ok',
             'previous' => $previous,
+            'previous_locks' => $trackRanges ? $previousByLock : [],
             'owners' => $owners[$lock] ?? [],
+            'owner_locks' => $trackRanges ? array_intersect_key($owners, array_flip($locksToApply)) : [],
             'changed' => $previous !== ($mode === 'unlock' ? null : $mode),
+            'changed_locks' => $trackRanges ? self::changedLocks($previousByLock, $locks, $locksToApply, $mode) : [],
         ];
+    }
+
+    private static function lockSpan(mixed $span): int
+    {
+        if (is_int($span) || (is_string($span) && preg_match('/^\d+$/', trim($span)) === 1)) {
+            $int = (int) $span;
+            if ($int >= 1 && $int <= 8) {
+                return $int;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite SHM lock range span must be between 1 and 8');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function lockRange(string $lock, int $span): array
+    {
+        $ordered = ['checkpoint', 'recover', 'write', 'read0', 'read1', 'read2', 'read3', 'read4'];
+        $start = array_search($lock, $ordered, true);
+        if (!is_int($start) || $start + $span > count($ordered)) {
+            throw new \InvalidArgumentException('SQLite SHM lock range exceeds supported lock bytes');
+        }
+
+        return array_slice($ordered, $start, $span);
+    }
+
+    /**
+     * @param array<string,mixed> $previous
+     * @param array<string,mixed> $locks
+     * @param list<string> $locksToApply
+     * @return list<string>
+     */
+    private static function changedLocks(array $previous, array $locks, array $locksToApply, string $mode): array
+    {
+        $changed = [];
+        foreach ($locksToApply as $lock) {
+            $next = $mode === 'unlock' ? null : ($locks[$lock] ?? null);
+            if (($previous[$lock] ?? null) !== $next) {
+                $changed[] = $lock;
+            }
+        }
+
+        return $changed;
     }
 
     /**

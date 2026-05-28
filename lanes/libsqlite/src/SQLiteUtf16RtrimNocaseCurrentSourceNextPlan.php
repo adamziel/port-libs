@@ -22,6 +22,18 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
         $next = self::sourceRows($nextRows, $probe);
         $currentRowids = self::rowids($current['matches']);
         $nextRowids = self::rowids($next['matches']);
+        $changes = self::matchedSourceChanges($current['matches'], $next['matches']);
+        $reprepareReasons = self::reprepareReasons(
+            $currentSource,
+            $nextSource,
+            $currentRowids,
+            $nextRowids,
+            $current['errors'],
+            $next['errors'],
+            $changes['encodingChangedRowids'],
+            $changes['bytesChangedRowids'],
+            $changes['comparisonKeyChangedRowids'],
+        );
 
         return [
             'currentSource' => $currentSource,
@@ -41,6 +53,9 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
             'nextBytesHex' => self::bytesHex($next['valid']),
             'currentEncodings' => self::encodings($current['valid']),
             'nextEncodings' => self::encodings($next['valid']),
+            'retainedEncodingChangedRowids' => $changes['encodingChangedRowids'],
+            'retainedBytesChangedRowids' => $changes['bytesChangedRowids'],
+            'retainedComparisonKeyChangedRowids' => $changes['comparisonKeyChangedRowids'],
             'currentMalformedRowids' => array_keys($current['errors']),
             'nextMalformedRowids' => array_keys($next['errors']),
             'currentErrors' => $current['errors'],
@@ -48,9 +63,9 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
             'repairedRowids' => array_values(array_diff(array_keys($current['errors']), array_keys($next['errors']))),
             'newlyMalformedRowids' => array_values(array_diff(array_keys($next['errors']), array_keys($current['errors']))),
             'sourceChanged' => $currentSource !== $nextSource,
-            'reprepareRequired' => $currentSource !== $nextSource || $currentRowids !== $nextRowids || $current['errors'] !== $next['errors'],
-            'reprepareReasons' => self::reprepareReasons($currentSource, $nextSource, $currentRowids, $nextRowids, $current['errors'], $next['errors']),
-            'dependencies' => ['sqlite-utf16-decode', 'sqlite-rtrim-expression', 'sqlite-nocase-collation'],
+            'reprepareRequired' => $reprepareReasons !== [],
+            'reprepareReasons' => $reprepareReasons,
+            'dependencies' => ['sqlite-utf16-decode', 'sqlite-rtrim-expression', 'sqlite-nocase-collation', 'sqlite-current-source-byte-invalidation'],
         ];
     }
 
@@ -159,14 +174,68 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
     }
 
     /**
+     * @param list<array{rowid:int,key:string,bytes:string,encoding:string}> $currentRows
+     * @param list<array{rowid:int,key:string,bytes:string,encoding:string}> $nextRows
+     * @return array{encodingChangedRowids:list<int>,bytesChangedRowids:list<int>,comparisonKeyChangedRowids:list<int>}
+     */
+    private static function matchedSourceChanges(array $currentRows, array $nextRows): array
+    {
+        $current = [];
+        foreach ($currentRows as $row) {
+            $current[$row['rowid']] = $row;
+        }
+
+        $encodingChanged = [];
+        $bytesChanged = [];
+        $keyChanged = [];
+        foreach ($nextRows as $row) {
+            $rowid = $row['rowid'];
+            if (!isset($current[$rowid])) {
+                continue;
+            }
+            if ($current[$rowid]['encoding'] !== $row['encoding']) {
+                $encodingChanged[] = $rowid;
+            }
+            if ($current[$rowid]['bytes'] !== $row['bytes']) {
+                $bytesChanged[] = $rowid;
+            }
+            if ($current[$rowid]['key'] !== $row['key']) {
+                $keyChanged[] = $rowid;
+            }
+        }
+
+        sort($encodingChanged);
+        sort($bytesChanged);
+        sort($keyChanged);
+
+        return [
+            'encodingChangedRowids' => $encodingChanged,
+            'bytesChangedRowids' => $bytesChanged,
+            'comparisonKeyChangedRowids' => $keyChanged,
+        ];
+    }
+
+    /**
      * @param list<int> $currentRowids
      * @param list<int> $nextRowids
      * @param array<int,string> $currentErrors
      * @param array<int,string> $nextErrors
+     * @param list<int> $encodingChangedRowids
+     * @param list<int> $bytesChangedRowids
+     * @param list<int> $comparisonKeyChangedRowids
      * @return list<string>
      */
-    private static function reprepareReasons(string $currentSource, string $nextSource, array $currentRowids, array $nextRowids, array $currentErrors, array $nextErrors): array
-    {
+    private static function reprepareReasons(
+        string $currentSource,
+        string $nextSource,
+        array $currentRowids,
+        array $nextRowids,
+        array $currentErrors,
+        array $nextErrors,
+        array $encodingChangedRowids,
+        array $bytesChangedRowids,
+        array $comparisonKeyChangedRowids,
+    ): array {
         $reasons = [];
         if ($currentSource !== $nextSource) {
             $reasons[] = 'source-name';
@@ -176,6 +245,15 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
         }
         if ($currentRowids !== $nextRowids) {
             $reasons[] = 'matched-rowset';
+        }
+        if ($encodingChangedRowids !== []) {
+            $reasons[] = 'text-encoding';
+        }
+        if ($bytesChangedRowids !== []) {
+            $reasons[] = 'key-bytes';
+        }
+        if ($comparisonKeyChangedRowids !== []) {
+            $reasons[] = 'comparison-key';
         }
 
         return $reasons;

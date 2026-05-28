@@ -129,7 +129,7 @@ foreach ($cases as $name => [$probe, $path, $expected]) {
 }
 
 $tests['utf16 rtrim nocase current source next103 stable source only rowset reasons'] = static function (TestRunner $t) use ($plan): void {
-    $t->same(['malformed-text', 'matched-rowset'], $plan('plugin_cache', 'stable', 'stable')['reprepareReasons']);
+    $t->same(['malformed-text', 'matched-rowset', 'text-encoding', 'key-bytes'], $plan('plugin_cache', 'stable', 'stable')['reprepareReasons']);
 };
 
 $tests['utf16 rtrim nocase current source next103 stable unchanged eclair source has no reprepare'] = static function (TestRunner $t) use ($plan): void {

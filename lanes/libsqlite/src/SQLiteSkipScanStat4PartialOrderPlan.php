@@ -249,6 +249,99 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderByExpressions
+     * @param list<string> $neededColumns
+     * @param list<string> $neededExpressions
+     * @return array<string,mixed>
+     */
+    public static function expressionCoveringSkipScanCurrentSourceNext132(
+        array $preparedSource,
+        array $currentSource,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $orderByExpressions,
+        array $neededColumns,
+        array $neededExpressions,
+    ): array {
+        $neededExpressions = self::validatedExpressionList($neededExpressions, 'SQLite expression covering skip-scan projection');
+        $base = self::partialExpressionSkipScanCurrentSourceNext129(
+            $preparedSource,
+            $currentSource,
+            $partialPredicate,
+            $queryTerms,
+            $orderByExpressions,
+            $neededColumns,
+        );
+
+        $selectedOriginalSource = ($base['selectedSource'] ?? null) === 'current' ? $currentSource : $preparedSource;
+        $selectedPlan = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : null;
+        if ($selectedPlan === null) {
+            return array_replace($base, [
+                'status' => 'unusable',
+                'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source-next132'],
+                'dependency_closure' => 'no new support component needed; next132 reuses native PHP expression skip-scan materialization and covering-index cursor evidence',
+            ]);
+        }
+
+        $coveredExpressions = self::sourceExpressionList($selectedOriginalSource, 'coveringExpressions');
+        $rangeExpression = self::sourceString($selectedOriginalSource, 'rangeExpression');
+        if (!in_array($rangeExpression, $coveredExpressions, true)) {
+            $coveredExpressions[] = $rangeExpression;
+        }
+
+        $missing = [];
+        foreach ($neededExpressions as $expression) {
+            if (!self::expressionListContains($coveredExpressions, $expression)) {
+                $missing[] = $expression;
+            }
+        }
+
+        $expressionRows = self::expressionCoveringRowsForPlan($selectedPlan, $selectedOriginalSource, $neededExpressions);
+        $expressionColumns = [];
+        foreach ($neededExpressions as $expression) {
+            $expressionColumns[$expression] = self::expressionCoveringColumnName($selectedOriginalSource, $expression);
+        }
+
+        $expressionCovering = $missing === [];
+        $selectedPlan = array_replace($selectedPlan, [
+            'expressionCovering' => $expressionCovering,
+            'coveredExpressions' => $coveredExpressions,
+            'neededExpressions' => $neededExpressions,
+            'expressionCoveringColumns' => $expressionColumns,
+            'expressionCoveringRows' => $expressionRows,
+            'expressionCoveringRejected' => $missing,
+            'covering' => (bool) ($selectedPlan['covering'] ?? false) && $expressionCovering,
+            'tableSeekRequired' => (bool) ($selectedPlan['tableSeekRequired'] ?? false) || !$expressionCovering,
+            'deferredSeekOpcode' => ((bool) ($selectedPlan['tableSeekRequired'] ?? false) || !$expressionCovering) ? 'DeferredSeek' : null,
+            'coveringMode' => $expressionCovering
+                ? ($selectedPlan['coveringMode'] ?? 'covering-skipscan-expression') . '-expr-covering'
+                : 'skipscan-expression-covering-table-seek',
+            'cursorProgram' => self::cursorProgramWithExpressionColumns($selectedPlan, $expressionColumns),
+            'detail' => ($selectedPlan['detail'] ?? 'SEARCH USING SKIP-SCAN')
+                . ($expressionCovering ? ' USING COVERING EXPRESSIONS' : ' EXPRESSION PROJECTION NEEDS TABLE'),
+        ]);
+
+        return array_replace($base, [
+            'status' => $base['status'] ?? 'unusable',
+            'selectedPlan' => $selectedPlan,
+            'currentSourceFence' => array_replace(
+                is_array($base['currentSourceFence'] ?? null) ? $base['currentSourceFence'] : [],
+                [
+                    'coveringExpressionSignature' => self::expressionListSignature($coveredExpressions),
+                    'neededExpressionSignature' => self::expressionListSignature($neededExpressions),
+                ],
+            ),
+            'detail' => ($base['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
+                . ' expression-covering=' . ($expressionCovering ? 'yes' : 'no'),
+            'dependencies' => ['sqlite-sqlplanner-expression-covering-skipscan-current-source-next132'],
+            'dependency_closure' => 'no new support component needed; next132 reuses native PHP expression skip-scan materialization, current-source fences, and covering-index cursor evidence',
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
@@ -669,6 +762,24 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     }
 
     /**
+     * @param list<string> $expressions
+     * @return list<string>
+     */
+    private static function validatedExpressionList(array $expressions, string $context): array
+    {
+        if ($expressions === []) {
+            throw new \InvalidArgumentException($context . ' needs at least one expression');
+        }
+        foreach ($expressions as $expression) {
+            if (!is_string($expression) || trim($expression) === '') {
+                throw new \InvalidArgumentException($context . ' expressions must be non-empty strings');
+            }
+        }
+
+        return array_values($expressions);
+    }
+
+    /**
      * @param array<string,mixed> $row
      * @param list<string> $columns
      * @return array<string,mixed>
@@ -741,6 +852,141 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             'rows' => $rows,
             'coveringColumns' => $covering,
         ]);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $source
+     * @param list<string> $expressions
+     * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null}>
+     */
+    private static function expressionCoveringRowsForPlan(array $plan, array $source, array $expressions): array
+    {
+        $rowsByRowid = [];
+        foreach (self::sourceRows($source) as $row) {
+            $rowsByRowid[(int) ($row['rowid'] ?? 0)] = $row;
+        }
+
+        $pairs = [];
+        foreach (($plan['currentNextCoveringRows'] ?? []) as $pair) {
+            if (!is_array($pair) || !is_array($pair['current'] ?? null)) {
+                continue;
+            }
+            $current = self::expressionCoveringRowEvidence($pair['current'], $rowsByRowid, $expressions);
+            $next = is_array($pair['next'] ?? null)
+                ? self::expressionCoveringRowEvidence($pair['next'], $rowsByRowid, $expressions)
+                : null;
+            $pairs[] = ['current' => $current, 'next' => $next];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param array<string,mixed> $coveringRow
+     * @param array<int,array<string,mixed>> $rowsByRowid
+     * @param list<string> $expressions
+     * @return array<string,mixed>
+     */
+    private static function expressionCoveringRowEvidence(array $coveringRow, array $rowsByRowid, array $expressions): array
+    {
+        $rowid = (int) ($coveringRow['rowid'] ?? 0);
+        $row = $rowsByRowid[$rowid] ?? null;
+        if ($row === null) {
+            throw new \InvalidArgumentException('SQLite expression covering skip-scan rowid is not present in current source');
+        }
+
+        $payload = [];
+        foreach ($expressions as $expression) {
+            $payload[$expression] = self::evaluateExpression($expression, $row);
+        }
+
+        return [
+            'rowid' => $rowid,
+            'sourceOffset' => $coveringRow['sourceOffset'] ?? null,
+            'covering' => $coveringRow['covering'] ?? [],
+            'coveringExpressions' => $payload,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,string> $expressionColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function cursorProgramWithExpressionColumns(array $plan, array $expressionColumns): array
+    {
+        $program = $plan['cursorProgram'] ?? [];
+        if (!is_array($program)) {
+            return [];
+        }
+
+        foreach ($program as $offset => $opcode) {
+            if (!is_array($opcode) || ($opcode['opcode'] ?? null) !== 'Column') {
+                continue;
+            }
+            $columns = $opcode['columns'] ?? [];
+            if (!is_array($columns)) {
+                $columns = [];
+            }
+            $program[$offset]['expressionColumns'] = $expressionColumns;
+            $program[$offset]['columns'] = array_values(array_unique(array_merge($columns, array_values($expressionColumns))));
+        }
+
+        return $program;
+    }
+
+    private static function expressionCoveringColumnName(array $source, string $expression): string
+    {
+        if (self::normalizeExpression($expression) === self::normalizeExpression(self::sourceString($source, 'rangeExpression'))) {
+            return self::sourceString($source, 'rangeExpressionColumn');
+        }
+
+        return '__expr_' . substr(sha1(self::normalizeExpression($expression)), 0, 12);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function sourceExpressionList(array $source, string $key): array
+    {
+        $values = $source[$key] ?? [];
+        if (!is_array($values)) {
+            throw new \InvalidArgumentException('SQLite expression covering source list must be an array');
+        }
+        foreach ($values as $value) {
+            if (!is_string($value) || trim($value) === '') {
+                throw new \InvalidArgumentException('SQLite expression covering source list needs non-empty expression strings');
+            }
+        }
+
+        return array_values($values);
+    }
+
+    /**
+     * @param list<string> $expressions
+     */
+    private static function expressionListContains(array $expressions, string $needle): bool
+    {
+        $normalizedNeedle = self::normalizeExpression($needle);
+        foreach ($expressions as $expression) {
+            if (self::normalizeExpression($expression) === $normalizedNeedle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $expressions
+     */
+    private static function expressionListSignature(array $expressions): string
+    {
+        $normalized = array_map(static fn (string $expression): string => self::normalizeExpression($expression), $expressions);
+        sort($normalized);
+
+        return sha1(implode('|', $normalized));
     }
 
     /**
