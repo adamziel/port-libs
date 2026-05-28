@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 00:27 UTC):
+  Batch64 is integrated and verified from clean worktree
+  `.tmux-team/worktrees/integrate-libsqlite-yield-batch64-20260528T002419Z`.
+  Implementation source advanced to
+  `ffa8da9d8cb368712ff17b32cd975da3b45ec91e` (`Integrate libsqlite batch
+  64`). The accepted subset applied 10 current-next64 handoffs, excluded stale
+  lane-status/manifest prose, and kept mapped coverage unchanged because the
+  suite-denominator note explicitly avoids release/all parity or a new upstream
+  inventory unit. Coverage added ATTACH WAL/temp schema reprepare decisions,
+  B-tree pointer-map vacuum truncation boundaries, JSONB CHECK admission for
+  plugin rows, pager savepoint current/next WAL frame handling, PRAGMA
+  integrity pagination over pointer-map and foreign-key findings, recursive JSON
+  SELECT materialization with window metadata, trigger RETURNING savepoint
+  rollback/commit boundaries, VFS file-control current/next state, WAL
+  reader-pin restart/passive/truncate checkpoint handoff, and release-runner
+  suite-denominator admission evidence. Verification passed: focused batch64
+  tests `10 test files / 1632 assertions / 0 failures`; full libsqlite lane
+  `455 test files / 53089 assertions / 0 failures / 24610 PASS lines`; root
+  `668 test files / 77557 assertions / 0 failures / 27638 PASS lines`. This is
+  `+634` libsqlite PASS lines over the batch56 live count of `23976`; mapped
+  upstream coverage remains `463 / 1589`. The `main` tmux session was kept at
+  10 active libsqlite isolated workers during verification, with no long
+  sleepers. Next decision: publish dashboard/status for batch64, consume
+  batch64 handoffs, keep 10-11 libsqlite workers active, then integrate ready
+  batch65 outputs by PASS-line movement.
+
 - 2026-05-28 supervisor continuation (shell/live samples 00:22 UTC):
   Batch56 is integrated and verified from clean worktree
   `.tmux-team/worktrees/integrate-libsqlite-yield-batch56-20260528T001313Z`.
