@@ -43,10 +43,29 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 7.3G available, 99% used; `/tmp` has about 6.8G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite batch99 development workers with no long sleepers; keep refills bounded because disk remains critical.
+- Root filesystem: current sample reports `/` at 452G size with about 6.4G available, 99% used; `/tmp` has about 6.8G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite batch101 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell/live samples 04:35 UTC):
+  Batch99 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `bc3918f5711286518f625fff52d15ccd2ed586f1` (`Integrate libsqlite batch
+  99 subset`) accepted 11 current-source libsqlite handoffs. Full-suite
+  regression during intake exposed two stale JSON aggregate expression-order
+  rejection expectations; the integration updated those tests to the newly
+  accepted expression `ORDER BY` behavior before rerunning full/root gates.
+  Verification passed: php -l `36` changed/untracked PHP files, 10 changed
+  WordPress examples/self-tests with valid JSON, git diff --check, focused
+  changed/regression tests `16 test files / 2452 assertions / 0 failures /
+  877 PASS lines`, full libsqlite `699 test files / 81053 assertions /
+  0 failures / 39474 PASS lines`, and root `912 test files / 105521
+  assertions / 0 failures / 42502 PASS lines` with `memory_limit=512M`.
+  This is `+708` libsqlite PASS lines over batch97 (`38766 -> 39474`);
+  mapped coverage advances from `576 / 1589` to `587 / 1589`. A stuck
+  handoff-pile refiller scan was bypassed with bounded direct launches, and
+  tmux `main` is back to 11 isolated libsqlite Codex workers with 0 sleepers.
 
 - 2026-05-28 supervisor continuation (shell/live samples 04:28 UTC):
   Batch97 clean subset is integrated and root-verified in the rolling
