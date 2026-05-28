@@ -48,6 +48,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 00:52 UTC):
+  Batch68 remainder is integrated and verified in the rolling clean integration
+  worktree `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`
+  to avoid creating more scratch state under disk pressure. Implementation
+  source advanced to `21f1e38635e924df34f7be1aef3242b4b233710c` (`Integrate
+  libsqlite batch 68 remaining slices`). The accepted remainder applied 7
+  current-next68 handoffs: ATTACH WAL/temp rollback routing, JSONB CHECK
+  optional-path and SQL NULL-admission semantics, LIKE current/next cursor
+  ranges, recursive JSON SELECT materialization, accepted-head
+  suite-denominator admission, VFS file-control state transitions, and WAL
+  reader-pin restart/truncate handoff. Verification passed: focused batch68
+  remainder plus batch67 JSON regression tests `8 test files / 1153 assertions
+  / 0 failures`; full libsqlite lane `478 test files / 55864 assertions / 0
+  failures / 26014 PASS lines`; root `691 test files / 80332 assertions / 0
+  failures / 29042 PASS lines`, with zero stderr warnings in both full runs.
+  This is `+434` libsqlite PASS lines over the published batch68 pager subset
+  (`25580 -> 26014`) and mapped upstream coverage moves `463 -> 464 / 1589`
+  via accepted current-next68 suite-denominator evidence without claiming
+  release/all parity. Operationally, the live `main` tmux session was
+  underfilled at 5 active isolated libsqlite workers with no long sleepers, and
+  `/` was critically tight at about 3.8G free; next decision is to publish the
+  dashboard/status, consume the accepted remaining batch68 handoffs, then
+  restore 10-11 active libsqlite workers by reusing existing worktrees or
+  retiring only clean stale scratch state while preserving dirty output.
+
 - 2026-05-28 supervisor continuation (shell/live samples 00:44 UTC):
   Batch68 is integrated and verified by reusing the rolling clean integration
   worktree `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`
