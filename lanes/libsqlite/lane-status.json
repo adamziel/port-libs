@@ -12,6 +12,6 @@
     "blocker": "No blocker for the accepted batch199 expanded subset: focused, JSON table targeted, full libsqlite, and root suites are green. Remaining throughput work is intake automation and continuous handoff consumption without letting worker lanes drain.",
     "nextTask": "Commit and publish dashboard/status for batch199, consume accepted marker triplets, then integrate queued next225-next227 handoffs in another large verified batch while keeping 10-11 active libsqlite workers alive.",
     "wordpressScenarioLatest": "Batch199 expanded current-source subset adds WordPress-oriented coverage for next220-next224 B-tree vacuum pointer-map/freeblock behavior, compound SELECT window/recursive LIMIT behavior, JSON table generated-path/rowid cost behavior, pager master-journal reader-cache behavior, PRAGMA index_xinfo/foreign-key behavior, row-value UPDATE/DELETE RETURNING savepoint behavior, STAT4 expression partial planner behavior, trigger recursive/view RETURNING behavior, UTF-16 NOCASE/LIKE/RTRIM behavior, WAL hot-journal savepoint checkpoint behavior, plus suite220/suite222/suite224 veryquick-shard countability evidence.",
-    "latestCommit": "pending batch199 implementation commit",
-    "commit": "pending batch199 implementation commit"
+    "latestCommit": "98bf1ff95a27792f1ee90d913d8df8bd45589ce4 (Integrate libsqlite batch 199 expanded yield subset)",
+    "commit": "98bf1ff95a27792f1ee90d913d8df8bd45589ce4"
 }
