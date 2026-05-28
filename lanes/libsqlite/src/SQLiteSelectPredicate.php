@@ -476,13 +476,29 @@ final class SQLiteSelectPredicate
             return (string) $value;
         }
         if (is_float($value)) {
-            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+            return self::sqliteRealText($value);
         }
         if ($value instanceof SQLiteBlobValue) {
             return $value->bytes;
         }
 
         throw new \InvalidArgumentException("SQLite SELECT {$context} operand must be scalar text-coercible");
+    }
+
+    private static function sqliteRealText(float $value): string
+    {
+        $text = sprintf('%.15G', $value);
+        $text = preg_replace_callback(
+            '/E([+-])(\d+)$/',
+            static fn (array $matches): string => 'e' . $matches[1] . str_pad($matches[2], 2, '0', STR_PAD_LEFT),
+            $text,
+        ) ?? $text;
+
+        if (!str_contains($text, '.') && !str_contains($text, 'e')) {
+            $text .= '.0';
+        }
+
+        return $text;
     }
 
     private static function asciiLower(string $value): string

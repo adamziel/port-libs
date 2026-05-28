@@ -42,7 +42,7 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
             ];
         }
 
-        $foreignKeys = SQLitePragmaForeignKeyIntegrity::execute($foreignKeySql, $schemas, $catalog);
+        $foreignKeys = self::executeForeignKeySql($foreignKeySql, $schemas, $catalog);
         foreach ($foreignKeys['rows'] as $row) {
             $rows[] = [
                 'kind' => 'foreign_key_check',
@@ -128,6 +128,23 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         $rowid = $row['rowid'] === null ? 'NULL' : (string) $row['rowid'];
 
         return "foreign key mismatch in {$row['schema']}.{$row['table']} rowid {$rowid} references {$row['parent']} fkid {$row['fkid']}";
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{status:string,pragma:string,schema:string,target_schema:string,target:string|null,target_source:string,rows:list<array{schema:string,table:string,rowid:int|string|null,parent:string,fkid:int}>}
+     */
+    private static function executeForeignKeySql(string $sql, array $schemas, ?SQLiteAttachedSchemaCatalog $catalog): array
+    {
+        try {
+            return SQLitePragmaForeignKeyIntegrity::executeTableValued($sql, $schemas, $catalog);
+        } catch (InvalidArgumentException $tableValuedError) {
+            try {
+                return SQLitePragmaForeignKeyIntegrity::execute($sql, $schemas, $catalog);
+            } catch (InvalidArgumentException) {
+                throw $tableValuedError;
+            }
+        }
     }
 
     /**

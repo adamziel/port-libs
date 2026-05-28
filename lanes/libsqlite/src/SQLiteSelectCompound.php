@@ -216,6 +216,14 @@ final class SQLiteSelectCompound
         return implode("\0", $parts);
     }
 
+    /**
+     * @param list<mixed> $values
+     */
+    public static function rowValueKey(array $values): string
+    {
+        return implode("\0", array_map(static fn (mixed $value): string => self::valueKey($value), $values));
+    }
+
     private static function valueKey(mixed $value, string $collation = 'BINARY'): string
     {
         if ($value === null) {

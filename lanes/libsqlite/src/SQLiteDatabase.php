@@ -597,6 +597,11 @@ final class SQLiteDatabase
         return $this->withPageImages($pageImages);
     }
 
+    public function applyPageFreePlan(SQLiteFreelistFreePlan $freePlan): self
+    {
+        return $this->withPageImages($freePlan->pageImages());
+    }
+
     public function planOverflowPageAllocation(
         int $count,
         int $parentBtreePageNumber,

@@ -430,7 +430,10 @@ final class SQLiteSelectSql
             ],
         ];
         if ($orderSql !== null) {
-            $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, $arms[0]['select'] ?? []);
+            $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, array_map(
+                static fn (array $arm): array => isset($arm['select']) && is_array($arm['select']) ? $arm['select'] : [],
+                $arms,
+            ));
         }
         if ($limitSql !== null) {
             [$limit, $offset] = self::limitOffset($limitSql, $tables);
@@ -548,13 +551,13 @@ final class SQLiteSelectSql
     }
 
     /**
-     * @param list<array<string,mixed>> $select
+     * @param list<list<array<string,mixed>>> $selectArms
      * @return list<array{column:string,direction?:string,collation?:string,nulls?:string}>
      */
-    private static function compoundOrderBy(string $sql, array $select): array
+    private static function compoundOrderBy(string $sql, array $selectArms): array
     {
+        $select = $selectArms[0] ?? [];
         $columns = [];
-        $expressions = [];
         foreach ($select as $index => $term) {
             if (isset($term['alias']) && is_string($term['alias'])) {
                 $columns[$index + 1] = $term['alias'];
@@ -564,7 +567,6 @@ final class SQLiteSelectSql
             } else {
                 $columns[$index + 1] = 'expr' . ($index + 1);
             }
-            $expressions[$index + 1] = self::projectionExpressionForComparison($term);
         }
 
         $orderBy = [];
@@ -577,10 +579,9 @@ final class SQLiteSelectSql
                 }
                 $column = $columns[$ordinal];
             } else {
-                $matched = self::compoundOrderByMatchedColumn($expression, $columns, $expressions);
+                $matched = self::compoundOrderByMatchedColumn($expression, $columns, $selectArms);
                 if ($matched === null) {
-                    self::assertIdentifier($expression, 'SQLite SELECT SQL compound ORDER BY column');
-                    $column = $expression;
+                    throw new \InvalidArgumentException('SQLite SELECT SQL compound ORDER BY term does not match a result column');
                 } else {
                     $column = $matched;
                 }
@@ -604,14 +605,23 @@ final class SQLiteSelectSql
 
     /**
      * @param array<int,string> $columns
-     * @param array<int,array<string,mixed>> $expressions
+     * @param list<list<array<string,mixed>>> $selectArms
      */
-    private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $expressions): ?string
+    private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $selectArms): ?string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
-            foreach ($columns as $column) {
-                if ($column === $sql) {
-                    return $column;
+            foreach ($selectArms as $select) {
+                foreach ($select as $index => $term) {
+                    if (!is_array($term)) {
+                        continue;
+                    }
+                    $column = self::compoundArmOutputColumn($term, $index + 1);
+                    if ($column === $sql && isset($columns[$index + 1])) {
+                        return $columns[$index + 1];
+                    }
+                    if (str_contains($column, '.') && substr($column, strrpos($column, '.') + 1) === $sql && isset($columns[$index + 1])) {
+                        return $columns[$index + 1];
+                    }
                 }
             }
 
@@ -619,13 +629,33 @@ final class SQLiteSelectSql
         }
 
         $expression = self::valueExpression($sql);
-        foreach ($expressions as $index => $selectedExpression) {
-            if (self::compoundOrderByExpressionsMatch($expression, $selectedExpression)) {
-                return $columns[$index];
+        foreach ($selectArms as $select) {
+            foreach ($select as $index => $term) {
+                if (!is_array($term) || !isset($columns[$index + 1])) {
+                    continue;
+                }
+                if (self::compoundOrderByExpressionsMatch($expression, self::projectionExpressionForComparison($term))) {
+                    return $columns[$index + 1];
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function compoundArmOutputColumn(array $term, int $ordinal): string
+    {
+        if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
+            return $term['alias'];
+        }
+        if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
+            return $term['name'];
+        }
+
+        return 'expr' . $ordinal;
     }
 
     /**
@@ -1199,7 +1229,7 @@ final class SQLiteSelectSql
      */
     private static function recursiveRowKey(array $row): string
     {
-        return serialize(array_values($row));
+        return SQLiteSelectCompound::rowValueKey(array_values($row));
     }
 
     /**

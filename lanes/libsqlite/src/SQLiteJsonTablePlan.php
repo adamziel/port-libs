@@ -193,7 +193,7 @@ final class SQLiteJsonTablePlan
             'currentNext' => self::constraintCurrentNext($usage),
             'used' => $plan['used'],
             'residual' => $plan['residual'],
-            'orderByConsumed' => self::jsonTableOrderByConsumed($orderBy),
+            'orderByConsumed' => self::jsonTableOrderByConsumed($orderBy, $plan['used']),
             'estimatedCost' => $plan['estimatedCost'],
             'estimatedRows' => $plan['estimatedRows'],
         ];
@@ -913,6 +913,188 @@ final class SQLiteJsonTablePlan
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
             ['sqlite-json-table-constraint-cost-order-current-source-next113'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNestedPathPlannerNext121(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested path planner requires a JSON source column');
+        }
+        if ($baseRootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested path planner requires a base root column');
+        }
+        if ($nestedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table nested path planner requires a nested path column');
+        }
+
+        $currentRoot = self::composeNestedRootPath121($currentSource, $baseRootColumn, $nestedPathColumn, 'current');
+        $nextRoot = self::composeNestedRootPath121($nextSource, $baseRootColumn, $nestedPathColumn, 'next');
+        $current = $currentSource + ['__sqlite_json_table_nested_root_next121' => $currentRoot['root']];
+        $next = $nextSource + ['__sqlite_json_table_nested_root_next121' => $nextRoot['root']];
+        $plan = self::currentSourceConstraintCostOrderNext113(
+            $function,
+            $current,
+            $next,
+            $jsonColumn,
+            $constraints,
+            '__sqlite_json_table_nested_root_next121',
+            $orderBy,
+        );
+
+        $rootTransition = [
+            'current' => $currentRoot['root'],
+            'next' => $nextRoot['root'],
+            'changed' => $currentRoot['root'] !== $nextRoot['root'],
+        ];
+        $nestedPathTransition = [
+            'current' => $currentRoot['nestedPath'],
+            'next' => $nextRoot['nestedPath'],
+            'changed' => $currentRoot['nestedPath'] !== $nextRoot['nestedPath'],
+        ];
+        $baseRootTransition = [
+            'current' => $currentRoot['baseRoot'],
+            'next' => $nextRoot['baseRoot'],
+            'changed' => $currentRoot['baseRoot'] !== $nextRoot['baseRoot'],
+        ];
+
+        $nestedReasons = [];
+        if ($baseRootTransition['changed']) {
+            $nestedReasons[] = 'json-table-nested-base-root-changed';
+        }
+        if ($nestedPathTransition['changed']) {
+            $nestedReasons[] = 'json-table-nested-path-changed';
+        }
+        if ($rootTransition['changed']) {
+            $nestedReasons[] = 'json-table-nested-root-changed';
+        }
+        if (count($plan['currentRows']) !== count($plan['nextRows'])) {
+            $nestedReasons[] = 'json-table-nested-row-count-changed';
+        }
+
+        $plan['currentNestedPath'] = $currentRoot;
+        $plan['nextNestedPath'] = $nextRoot;
+        $plan['nestedPathTransitions'] = [
+            'baseRoot' => $baseRootTransition,
+            'nestedPath' => $nestedPathTransition,
+            'composedRoot' => $rootTransition,
+        ];
+        $plan['next121ReplanReasons'] = array_values(array_unique(array_merge($plan['next113ReplanReasons'], $nestedReasons)));
+        $plan['replanRequired'] = $plan['next121ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-nested-path-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next121ReplanReasons'] === []
+            ? 'reuse-current-json-table-nested-path-source-plan'
+            : 'prepare-next-json-table-nested-path-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-nested-path-planner-current-source-next121'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceIndexedHiddenOrderNext122(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceIndexedConstraintCostNext119(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableIndexedHiddenOrderProfile122($plan['current'], $plan['currentIndexedConstraintCost'], $orderBy);
+        $nextProfile = self::jsonTableIndexedHiddenOrderProfile122($plan['next'], $plan['nextIndexedConstraintCost'], $orderBy);
+        $transitions = self::jsonTableIndexedHiddenOrderTransitions122($currentProfile, $nextProfile);
+        $reasons = self::jsonTableIndexedHiddenOrderReplanReasons122($transitions);
+
+        $plan['currentIndexedHiddenOrder'] = $currentProfile;
+        $plan['nextIndexedHiddenOrder'] = $nextProfile;
+        $plan['indexedHiddenOrderTransitions'] = $transitions;
+        $plan['next122ReplanReasons'] = array_values(array_unique(array_merge($plan['next119ReplanReasons'], $reasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-indexed-hidden-order-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next122ReplanReasons'] === []
+            ? 'reuse-current-json-table-indexed-hidden-order-plan'
+            : 'prepare-next-json-table-indexed-hidden-order-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-indexed-hidden-order-current-source-next122'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceOrderByConstraintNext120(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceConstraintCostOrderNext113(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $plan['currentOrderConstraintCoverage'] = self::orderByConstraintCoverage120(
+            $plan['current']['used'],
+            $orderBy,
+        );
+        $plan['nextOrderConstraintCoverage'] = self::orderByConstraintCoverage120(
+            $plan['next']['used'],
+            $orderBy,
+        );
+        $plan['next120ReplanReasons'] = $plan['next113ReplanReasons'];
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-orderby-constraint-current-source-next120'],
         )));
 
         return $plan;
@@ -2068,6 +2250,8 @@ final class SQLiteJsonTablePlan
             'constraintUsage' => $indexPlan['constraintUsage'],
             'filterCurrentNext' => $indexPlan['filterCurrentNext'],
             'currentNext' => $indexPlan['currentNext'],
+            'used' => $indexPlan['used'],
+            'residual' => $indexPlan['residual'],
             'orderByConsumed' => $indexPlan['orderByConsumed'],
             'estimatedCost' => $indexPlan['estimatedCost'],
             'estimatedRows' => $indexPlan['estimatedRows'],
@@ -2075,6 +2259,60 @@ final class SQLiteJsonTablePlan
             'jsonValid' => $validatedPlan['jsonValid'],
             'jsonError' => $validatedPlan['jsonError'],
             'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return array{baseRoot:string,nestedPath:string,root:string,mode:string}
+     */
+    private static function composeNestedRootPath121(array $source, string $baseRootColumn, string $nestedPathColumn, string $side): array
+    {
+        if (!array_key_exists($baseRootColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table nested path {$side} source row is missing {$baseRootColumn}");
+        }
+        if (!array_key_exists($nestedPathColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table nested path {$side} source row is missing {$nestedPathColumn}");
+        }
+
+        $baseRoot = $source[$baseRootColumn];
+        $nestedPath = $source[$nestedPathColumn];
+        if (!is_string($baseRoot)) {
+            throw new \InvalidArgumentException('SQLite JSON table nested path base root must be text');
+        }
+        if (!is_string($nestedPath)) {
+            throw new \InvalidArgumentException('SQLite JSON table nested path fragment must be text');
+        }
+        if (!SQLiteJsonPath::isWellFormed($baseRoot)) {
+            throw new \InvalidArgumentException('SQLite JSON table nested path base root is not a well-formed path');
+        }
+
+        if ($nestedPath === '') {
+            $root = $baseRoot;
+            $mode = 'base-root';
+        } elseif ($nestedPath[0] === '$') {
+            $root = $nestedPath;
+            $mode = 'absolute-nested-root';
+        } elseif ($nestedPath[0] === '[') {
+            $root = $baseRoot . $nestedPath;
+            $mode = 'array-fragment';
+        } elseif ($nestedPath[0] === '.') {
+            $root = $baseRoot . $nestedPath;
+            $mode = 'object-fragment';
+        } else {
+            $root = $baseRoot . '.' . $nestedPath;
+            $mode = 'bare-label-fragment';
+        }
+
+        if (!SQLiteJsonPath::isWellFormed($root)) {
+            throw new \InvalidArgumentException('SQLite JSON table nested path composed root is not a well-formed path');
+        }
+
+        return [
+            'baseRoot' => $baseRoot,
+            'nestedPath' => $nestedPath,
+            'root' => $root,
+            'mode' => $mode,
         ];
     }
 
@@ -2462,6 +2700,190 @@ final class SQLiteJsonTablePlan
                 'indexedEstimatedCost', 'effectiveEstimatedCost', 'costClass' => 'json-table-indexed-cost-changed',
                 'rowCount' => 'json-table-indexed-row-count-changed',
                 default => 'json-table-indexed-constraint-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $indexedCost
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{hiddenOrderBy:list<array{column:string,direction:string}>,hasHiddenOrder:bool,requiresHiddenSorter:bool,sourceHiddenKey:list<mixed>,rowHiddenKeys:list<list<mixed>>,firstHiddenKey:list<mixed>,lastHiddenKey:list<mixed>,selectedSignature:string|null,indexedEffectiveCost:int,hiddenSortPenalty:int,effectiveEstimatedCost:int,costClass:string,rowCount:int}
+     */
+    private static function jsonTableIndexedHiddenOrderProfile122(array $plan, array $indexedCost, array $orderBy): array
+    {
+        $hiddenOrderBy = self::jsonTableHiddenOrderTerms122($orderBy);
+        $rows = $plan['rows'];
+        $rowCount = count($rows);
+        $hasHiddenOrder = $hiddenOrderBy !== [];
+        $requiresHiddenSorter = $hasHiddenOrder && $rowCount > 1;
+        $sourceHiddenKey = self::jsonTableHiddenOrderSourceKey122($plan, $hiddenOrderBy);
+        $rowHiddenKeys = [];
+        foreach ($rows as $row) {
+            $rowKey = $sourceHiddenKey;
+            if ($hasHiddenOrder) {
+                $rowKey[] = isset($row['id']) ? (int) $row['id'] : null;
+            }
+            $rowHiddenKeys[] = $rowKey;
+        }
+
+        $hiddenSortPenalty = $requiresHiddenSorter
+            ? self::jsonTableSortPenalty113($rowCount, $hiddenOrderBy)
+            : 0;
+        $indexedEffectiveCost = (int) $indexedCost['indexedEstimatedCost'];
+        $effectiveEstimatedCost = $indexedEffectiveCost >= 1000000
+            ? $indexedEffectiveCost
+            : $indexedEffectiveCost + $hiddenSortPenalty;
+
+        return [
+            'hiddenOrderBy' => $hiddenOrderBy,
+            'hasHiddenOrder' => $hasHiddenOrder,
+            'requiresHiddenSorter' => $requiresHiddenSorter,
+            'sourceHiddenKey' => $sourceHiddenKey,
+            'rowHiddenKeys' => $rowHiddenKeys,
+            'firstHiddenKey' => $rowHiddenKeys[0] ?? [],
+            'lastHiddenKey' => $rowHiddenKeys[$rowCount - 1] ?? [],
+            'selectedSignature' => $indexedCost['selectedSignature'],
+            'indexedEffectiveCost' => $indexedEffectiveCost,
+            'hiddenSortPenalty' => $hiddenSortPenalty,
+            'effectiveEstimatedCost' => $effectiveEstimatedCost,
+            'costClass' => self::jsonTableIndexedHiddenOrderCostClass122($indexedCost, $hasHiddenOrder, $requiresHiddenSorter, $effectiveEstimatedCost),
+            'rowCount' => $rowCount,
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array{column:string,direction:string}>
+     */
+    private static function jsonTableHiddenOrderTerms122(array $orderBy): array
+    {
+        $terms = [];
+        foreach (self::normalizeOrderByTerms113($orderBy) as $term) {
+            if ($term['column'] === 'json' || $term['column'] === 'root') {
+                $terms[] = $term;
+            }
+        }
+
+        return $terms;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<array{column:string,direction:string}> $hiddenOrderBy
+     * @return list<mixed>
+     */
+    private static function jsonTableHiddenOrderSourceKey122(array $plan, array $hiddenOrderBy): array
+    {
+        $key = [];
+        foreach ($hiddenOrderBy as $term) {
+            $value = $term['column'] === 'root' ? '$' : null;
+            if ($term['column'] === 'json' && array_key_exists('jsonValue', $plan)) {
+                $value = $plan['jsonValue'];
+            } elseif ($term['column'] === 'root' && array_key_exists('rootValue', $plan)) {
+                $value = $plan['rootValue'];
+            }
+            foreach ($plan['constraintSources'] ?? [] as $constraint) {
+                if (($constraint['column'] ?? null) === $term['column']) {
+                    $value = $constraint['value'] ?? null;
+                    break;
+                }
+            }
+            $key[] = $value;
+        }
+
+        return $key;
+    }
+
+    /**
+     * @param array<string,mixed> $indexedCost
+     */
+    private static function jsonTableIndexedHiddenOrderCostClass122(array $indexedCost, bool $hasHiddenOrder, bool $requiresHiddenSorter, int $effectiveCost): string
+    {
+        if (($indexedCost['scanStrategy'] ?? null) === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$hasHiddenOrder) {
+            return (string) $indexedCost['costClass'];
+        }
+        if ($requiresHiddenSorter) {
+            return 'json-table-indexed-hidden-order-sort-required';
+        }
+        if (($indexedCost['selected'] ?? null) !== null) {
+            return $effectiveCost <= 4 ? 'json-table-indexed-hidden-order-narrow' : 'json-table-indexed-hidden-order';
+        }
+
+        return 'json-table-hidden-order-full-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableIndexedHiddenOrderTransitions122(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'hiddenOrderBy',
+                'current' => $current['hiddenOrderBy'],
+                'next' => $next['hiddenOrderBy'],
+                'changed' => $current['hiddenOrderBy'] !== $next['hiddenOrderBy'],
+            ],
+            [
+                'field' => 'sourceHiddenKey',
+                'current' => $current['sourceHiddenKey'],
+                'next' => $next['sourceHiddenKey'],
+                'changed' => $current['sourceHiddenKey'] !== $next['sourceHiddenKey'],
+            ],
+            [
+                'field' => 'requiresHiddenSorter',
+                'current' => $current['requiresHiddenSorter'],
+                'next' => $next['requiresHiddenSorter'],
+                'changed' => $current['requiresHiddenSorter'] !== $next['requiresHiddenSorter'],
+            ],
+            [
+                'field' => 'rowHiddenKeys',
+                'current' => $current['rowHiddenKeys'],
+                'next' => $next['rowHiddenKeys'],
+                'changed' => $current['rowHiddenKeys'] !== $next['rowHiddenKeys'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableIndexedHiddenOrderReplanReasons122(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'hiddenOrderBy' => 'json-table-hidden-order-terms-changed',
+                'sourceHiddenKey' => 'json-table-hidden-order-source-changed',
+                'requiresHiddenSorter' => 'json-table-hidden-order-sorter-changed',
+                'rowHiddenKeys' => 'json-table-hidden-output-order-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-order-cost-changed',
+                default => 'json-table-hidden-order-state-changed',
             };
         }
 
@@ -3692,22 +4114,114 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array<string,mixed>> $used
      */
-    private static function jsonTableOrderByConsumed(array $orderBy): bool
+    private static function jsonTableOrderByConsumed(array $orderBy, array $used): bool
     {
         if ($orderBy === []) {
             return false;
         }
 
         foreach ($orderBy as $term) {
-            $column = strtolower($term['column']);
+            $column = self::normalizeConstraintColumn((string) $term['column']);
             $direction = strtoupper($term['direction'] ?? 'ASC');
-            if (!in_array($column, ['id', 'rowid', '_rowid_', 'oid'], true) || $direction !== 'ASC') {
-                return false;
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON table ORDER BY direction must be ASC or DESC');
             }
+            if ($column === 'id' && $direction === 'ASC') {
+                continue;
+            }
+            if (self::orderByTermIsConstantFromConstraint($column, $used)) {
+                continue;
+            }
+
+            return false;
         }
 
         return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $used
+     */
+    private static function orderByTermIsConstantFromConstraint(string $column, array $used): bool
+    {
+        foreach ($used as $constraint) {
+            if (self::usedConstraintFixesOrderByColumn($constraint, $column)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,mixed> $constraint
+     */
+    private static function usedConstraintFixesOrderByColumn(array $constraint, string $column): bool
+    {
+        if (($constraint['constraint'] ?? null) !== 'VISIBLE') {
+            return false;
+        }
+        if (self::normalizeConstraintColumn((string) $constraint['column']) !== $column) {
+            return false;
+        }
+
+        $operator = strtoupper((string) $constraint['operator']);
+        if (in_array($operator, ['=', 'IS', 'IS NULL', 'IS NOT DISTINCT FROM'], true)) {
+            return true;
+        }
+        if ($operator === 'IN' && is_array($constraint['value'] ?? null) && count($constraint['value']) === 1) {
+            return true;
+        }
+        if ($operator === 'BETWEEN' && is_array($constraint['value'] ?? null) && count($constraint['value']) === 2) {
+            $bounds = array_values($constraint['value']);
+
+            return self::valuesAreNotDistinct($bounds[0], $bounds[1]);
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $used
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array{column:string,direction:string,consumed:bool,reason:string,constraintOperator:string|null,constraintValue:mixed}>
+     */
+    private static function orderByConstraintCoverage120(array $used, array $orderBy): array
+    {
+        $coverage = [];
+        foreach (self::normalizeOrderByTerms113($orderBy) as $term) {
+            $column = $term['column'];
+            $reason = 'not-consumed';
+            $constraintOperator = null;
+            $constraintValue = null;
+            if ($column === 'id' && $term['direction'] === 'ASC') {
+                $reason = 'natural-json-rowid-order';
+            } else {
+                foreach ($used as $constraint) {
+                    if (!self::usedConstraintFixesOrderByColumn($constraint, $column)) {
+                        continue;
+                    }
+
+                    $reason = 'constant-visible-constraint';
+                    $constraintOperator = strtoupper((string) $constraint['operator']);
+                    $constraintValue = $constraint['value'] ?? null;
+                    break;
+                }
+            }
+
+            $coverage[] = [
+                'column' => $column,
+                'direction' => $term['direction'],
+                'consumed' => $reason !== 'not-consumed',
+                'reason' => $reason,
+                'constraintOperator' => $constraintOperator,
+                'constraintValue' => $constraintValue,
+            ];
+        }
+
+        return $coverage;
     }
 
     /**

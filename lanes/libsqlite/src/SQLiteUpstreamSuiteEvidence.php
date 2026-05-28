@@ -1630,6 +1630,14 @@ final class SQLiteUpstreamSuiteEvidence
             $errors = (int) $matches[1];
             $tests = (int) $matches[2];
         }
+        if (($errors === null || $tests === null) && preg_match('/\bAll\s+(\d+)\s+tests?\s+passed\b/i', $auditText . "\n" . $stdoutText, $matches) === 1) {
+            $errors = 0;
+            $tests = (int) $matches[1];
+        }
+        if (($errors === null || $tests === null) && preg_match('/\b(\d+)\s+tests?\s+passed,\s*0\s+errors?\b/i', $auditText . "\n" . $stdoutText, $matches) === 1) {
+            $errors = 0;
+            $tests = (int) $matches[1];
+        }
 
         $progress = $this->parseRunnerProgress($stdoutText);
         $failures = $this->extractRunnerFailures($auditText . "\n" . $stdoutText);
@@ -5009,6 +5017,281 @@ final class SQLiteUpstreamSuiteEvidence
             },
             'dependency_closure' => 'no new support component needed; current-source next116 full-suite countability composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite current-source next121 release countability requires at least one row');
+        }
+        foreach ([
+            'launcher base' => $launcherBaseHead,
+            'dashboard source' => $dashboardSourceHead,
+            'status source' => $statusSourceHead,
+            'implementation source' => $implementationSourceHead,
+            'next source' => $nextSourceHead,
+        ] as $label => $head) {
+            if (trim($head) === '') {
+                throw new \InvalidArgumentException("SQLite current-source next121 release countability requires {$label} HEAD");
+            }
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $admitted = [];
+        $preserved = [];
+        $blocked = [];
+        $entries = [];
+        $releaseTestsDelta = 0;
+        $releaseScripts = [];
+        $artifactHeads = [];
+
+        foreach ($rows as $index => $row) {
+            if (!is_array($row)) {
+                $blocked[] = [
+                    'id' => 'release-countability-row-invalid',
+                    'row' => $index,
+                    'evidence' => 'row is not an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : 'row-' . (string) $index;
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? strtolower($row['tier']) : 'unclassified';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $rowBlockers = [];
+
+            if (($row['launcher_base_head'] ?? null) !== $launcherBaseHead) {
+                $rowBlockers[] = 'launcher-base-head-mismatch';
+            }
+            if (($row['dashboard_source_head'] ?? null) !== $dashboardSourceHead) {
+                $rowBlockers[] = 'dashboard-source-head-mismatch';
+            }
+            if (($row['status_source_head'] ?? null) !== $statusSourceHead) {
+                $rowBlockers[] = 'status-source-head-mismatch';
+            }
+            if (($row['implementation_source_head'] ?? null) !== $implementationSourceHead) {
+                $rowBlockers[] = 'implementation-source-head-mismatch';
+            }
+            if (($row['source_head'] ?? null) !== $nextSourceHead) {
+                $rowBlockers[] = 'next-source-head-mismatch';
+            }
+            if (!in_array($tier, ['release', 'all'], true)) {
+                $rowBlockers[] = 'release-tier-required';
+            }
+            if (!is_string($row['artifact_path'] ?? null) || !str_starts_with($row['artifact_path'], 'lanes/libsqlite/')) {
+                $rowBlockers[] = 'artifact-path-not-lane-local';
+            }
+            $command = is_string($row['runner_command'] ?? null) ? $row['runner_command'] : '';
+            if (!str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl') || !str_contains($command, '--stop-on-error')) {
+                $rowBlockers[] = 'guarded-runner-command-missing';
+            }
+            $scripts = array_values(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && str_ends_with($script, '.test')
+            ));
+            if ($scripts === []) {
+                $rowBlockers[] = 'concrete-test-scripts-missing';
+            }
+            if ((int) ($row['exit'] ?? 1) !== 0 || (int) ($row['errors'] ?? 1) !== 0) {
+                $rowBlockers[] = 'runner-artifact-not-zero-error';
+            }
+            if (!$nextCountable && !$currentCountable) {
+                $rowBlockers[] = 'release-countability-not-admitted';
+            }
+            if (($row['release_scope'] ?? 'release-all') !== 'release-all') {
+                $rowBlockers[] = 'release-scope-not-release-all';
+            }
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+
+            foreach ($scripts as $script) {
+                $releaseScripts[$script] = true;
+            }
+            if (is_string($row['source_head'] ?? null)) {
+                $artifactHeads[$row['source_head']] = true;
+            }
+
+            $entry = [
+                'unit' => $unit,
+                'tier' => $tier,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'tests' => max(0, (int) ($row['tests'] ?? 0)),
+                'current_tests' => max(0, (int) ($row['current_tests'] ?? 0)),
+                'next_tests' => max(0, (int) ($row['next_tests'] ?? ($row['tests'] ?? 0))),
+                'artifact_path' => is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : null,
+                'blocker_ids' => array_values(array_unique($rowBlockers)),
+            ];
+
+            if ($rowBlockers !== []) {
+                $blocked[] = [
+                    'id' => $unit,
+                    'tier' => $tier,
+                    'evidence' => implode('; ', array_values(array_unique($rowBlockers))),
+                ];
+                $entries[] = $entry + ['movement' => 'blocked'];
+                continue;
+            }
+
+            if ($nextCountable && !$currentCountable) {
+                $admitted[] = $unit;
+                $releaseTestsDelta += max(0, $entry['next_tests'] - $entry['current_tests']);
+                $entries[] = $entry + ['movement' => 'next-source-admitted'];
+            } else {
+                $preserved[] = $unit;
+                $entries[] = $entry + ['movement' => 'current-source-preserved'];
+            }
+        }
+
+        if (($active['status'] ?? null) !== 'clear') {
+            $blocked[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blocked[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+        if ($expectedPassDelta !== null && (int) ($phpAdmission['assertion_delta'] ?? 0) !== $expectedPassDelta) {
+            $blocked[] = [
+                'id' => 'focused-php-pass-delta-mismatch',
+                'evidence' => 'focused PHP assertion delta did not match current-source next121 expected PASS movement',
+                'expected' => $expectedPassDelta,
+                'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            ];
+        }
+
+        ksort($releaseScripts);
+        ksort($artifactHeads);
+        sort($admitted, SORT_STRING);
+        sort($preserved, SORT_STRING);
+
+        $blockedNow = $blocked !== [];
+        $status = 'blocked';
+        if (!$blockedNow && $admitted !== []) {
+            $status = 'current-source-next121-release-countability-advanced';
+        } elseif (!$blockedNow && $preserved !== []) {
+            $status = 'current-source-next121-release-countability-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-source-next121-release-countability-advanced',
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $status === 'current-source-next121-release-countability-advanced' ? $currentMapped + count($admitted) : $currentMapped,
+            'mapped_delta' => $status === 'current-source-next121-release-countability-advanced' ? count($admitted) : 0,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockedNow ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => $blockedNow ? $currentPhpPass : (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'launcher_base_head' => $launcherBaseHead,
+            'dashboard_source_head' => $dashboardSourceHead,
+            'status_source_head' => $statusSourceHead,
+            'implementation_source_head' => $implementationSourceHead,
+            'next_source_head' => $nextSourceHead,
+            'artifact_source_heads' => array_keys($artifactHeads),
+            'row_count' => count($rows),
+            'admitted_count' => count($admitted),
+            'preserved_count' => count($preserved),
+            'blocked_count' => count($blocked),
+            'admitted_units' => $admitted,
+            'preserved_units' => $preserved,
+            'blockers' => $blocked,
+            'entries' => $entries,
+            'release_script_count' => count($releaseScripts),
+            'release_scripts' => array_keys($releaseScripts),
+            'release_tests_total_delta' => $blockedNow ? 0 : $releaseTestsDelta,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'counts_upstream_runner_release_countability_current_source_next121' => $status === 'current-source-next121-release-countability-advanced',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => match ($status) {
+                'current-source-next121-release-countability-advanced' => 'publish only the current-source next121 release/all countability row and exact focused PASS-line movement; release parity remains unclaimed until a complete zero-error broad artifact is accepted',
+                'current-source-next121-release-countability-preserved' => 'preserve already-counted current-source next121 release/all rows without mapped inflation',
+                default => 'repair current-source next121 provenance, guarded-runner, release-tier, duplicate-runner, or focused PHP admission blockers before counting the release/all row',
+            },
+            'dependency_closure' => 'no new support component needed; current-source next121 release countability composes lane-local release/all artifact rows, authoritative source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerRebaseGapCurrentSourceNext122(
+        array $rows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFullSuiteCountabilityCurrentSourceNext116(
+            $rows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $record['status'] = str_replace('next116-full-suite-countability', 'next122-rebase-gap', (string) $record['status']);
+        $record['counts_upstream_runner_rebase_gap_current_source_next122'] = $record['status'] !== 'blocked'
+            && ($record['admitted_count'] ?? 0) > 0;
+        $record['counts_upstream_runner_full_suite_countability_current_source_next116'] = false;
+        $record['counts_upstream_runner_suite_evidence_rebase_current_source_next108'] = false;
+        $record['next_gate'] = match ($record['status']) {
+            'current-source-next122-rebase-gap-advanced' => 'publish only the current-source next122 rebase-gap blocker-removal row and exact focused PASS-line movement; release/all parity remains unclaimed until a complete zero-error broad artifact is accepted',
+            'current-source-next122-rebase-gap-preserved' => 'preserve already-counted current-source rebase-gap rows without mapped inflation',
+            default => 'repair current-source next122 provenance, guarded-runner, duplicate-runner, or focused PHP admission blockers before counting the rebase-gap row',
+        };
+        $record['dependency_closure'] = 'no new support component needed; current-source next122 rebase-gap admission composes lane-local artifact rows, accepted source provenance, zero-error guarded-runner metadata, duplicate-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
     }
 
     /**

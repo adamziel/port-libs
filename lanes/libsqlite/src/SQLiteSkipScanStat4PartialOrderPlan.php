@@ -11,6 +11,106 @@ final class SQLiteSkipScanStat4PartialOrderPlan
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $coveringColumns
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>|null
+     */
+    public static function coveringCurrentSourcePlan(
+        array $rows,
+        string $indexName,
+        string $skippedColumn,
+        string $rangeColumn,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $stat4Samples,
+        array $orderBy,
+        array $coveringColumns,
+        array $neededColumns,
+        bool $upperInclusive = true,
+        string $collation = 'BINARY',
+    ): ?array {
+        $coveringColumns = self::validatedColumnList($coveringColumns, 'SQLite STAT4 skip-scan covering index');
+        $neededColumns = self::validatedColumnList($neededColumns, 'SQLite STAT4 skip-scan covering projection');
+
+        $plan = self::plan(
+            $rows,
+            $indexName,
+            $skippedColumn,
+            $rangeColumn,
+            $lowerInclusive,
+            $upperBound,
+            $partialPredicate,
+            $queryTerms,
+            $stat4Samples,
+            $orderBy,
+            $upperInclusive,
+            $collation,
+        );
+
+        if (($plan['status'] ?? null) !== 'usable') {
+            return null;
+        }
+
+        $coveringSet = array_fill_keys(array_map('strtolower', $coveringColumns), true);
+        $missing = [];
+        foreach ($neededColumns as $column) {
+            if (!isset($coveringSet[strtolower($column)])) {
+                $missing[] = $column;
+            }
+        }
+        if ($missing !== []) {
+            return $plan + [
+                'covering' => false,
+                'coveringRejectedColumns' => $missing,
+                'tableSeekRequired' => true,
+                'deferredSeekOpcode' => 'DeferredSeek',
+                'dependencies' => ['sqlite-stat4-skipscan-covering-current-source-next120'],
+            ];
+        }
+
+        $currentNextRows = [];
+        $matchRows = array_values($plan['rows'] ?? []);
+        foreach ($matchRows as $offset => $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite STAT4 skip-scan covering rows must be row arrays');
+            }
+            $currentNextRows[] = [
+                'current' => self::coveringRowEvidence($row, $neededColumns, $offset),
+                'next' => isset($matchRows[$offset + 1]) ? self::coveringRowEvidence($matchRows[$offset + 1], $neededColumns, $offset + 1) : null,
+            ];
+        }
+
+        $cursorProgram = [
+            ['opcode' => $plan['reverseScan'] ? 'LastPrefix' : 'RewindPrefix', 'source' => 'index', 'index' => $indexName],
+            ['opcode' => $plan['upperInclusive'] ? 'SeekGE' : 'SeekGT', 'column' => $rangeColumn, 'value' => $lowerInclusive],
+            ['opcode' => $plan['upperInclusive'] ? 'IdxGT' : 'IdxGE', 'column' => $rangeColumn, 'value' => $upperBound],
+            ['opcode' => 'Column', 'source' => 'index', 'columns' => $neededColumns],
+            ['opcode' => $plan['reverseScan'] ? 'Prev' : 'Next', 'target' => 'index'],
+        ];
+
+        return array_replace($plan, [
+            'covering' => true,
+            'coveringColumns' => $coveringColumns,
+            'neededColumns' => $neededColumns,
+            'coveringRejectedColumns' => [],
+            'tableSeekRequired' => false,
+            'deferredSeekOpcode' => null,
+            'currentNextCoveringRows' => $currentNextRows,
+            'coveredRowCount' => count($currentNextRows),
+            'cursorProgram' => $cursorProgram,
+            'coveringMode' => ($plan['blockSortRequired'] ?? false) ? 'covering-skipscan-block-sort' : 'covering-skipscan',
+            'dependencies' => ['sqlite-stat4-skipscan-covering-current-source-next120'],
+            'detail' => $plan['detail'] . ' USING COVERING INDEX',
+        ]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function plan(
@@ -306,5 +406,45 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     private static function key(mixed $value): string
     {
         return get_debug_type($value) . ':' . serialize($value);
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<string>
+     */
+    private static function validatedColumnList(array $columns, string $context): array
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException($context . ' needs at least one column');
+        }
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException($context . ' columns must be non-empty strings');
+            }
+        }
+
+        return array_values($columns);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function coveringRowEvidence(array $row, array $columns, int $sourceOffset): array
+    {
+        $covering = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite STAT4 skip-scan covering row is missing column {$column}");
+            }
+            $covering[$column] = $row[$column];
+        }
+
+        return [
+            'rowid' => (int) ($row['rowid'] ?? 0),
+            'sourceOffset' => $sourceOffset,
+            'covering' => $covering,
+        ];
     }
 }

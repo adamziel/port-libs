@@ -3570,4 +3570,209 @@ MD);
             @rmdir($root);
         }
     },
+    'admits current-source next121 release countability rows with focused phpPass evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = '6571c1279f77c2c00531492a7a2855a6f9e295a1';
+        $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $statusSource = '178c51ea36ed3508aafbb8913a32694e327e1da6';
+        $implementationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $nextSource = 'b121b121b121b121b121b121b121b121b121b121';
+        $focusedOutput = implode("\n", [
+            'Focused test run: 1 selected test files (root lock skipped)',
+            'PASS next121 release-countability admits one release artifact',
+            'PASS next121 release-countability admits all tier artifact',
+            'PASS next121 release-countability preserves existing release row',
+            '1 test files, 64 assertions, 0 failures',
+        ]);
+
+        $rows = [
+            [
+                'unit' => 'next121-release-runner',
+                'tier' => 'release',
+                'current_countable' => false,
+                'next_countable' => true,
+                'launcher_base_head' => $launcherBase,
+                'dashboard_source_head' => $dashboardSource,
+                'status_source_head' => $statusSource,
+                'implementation_source_head' => $implementationSource,
+                'source_head' => $nextSource,
+                'artifact_path' => 'lanes/libsqlite/notes/upstream-release-next121.md',
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release',
+                'scripts' => ['select1.test', 'wal.test', 'json101.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'tests' => 26014,
+                'current_tests' => 25000,
+                'next_tests' => 26014,
+                'release_scope' => 'release-all',
+                'counts_release_parity' => false,
+            ],
+            [
+                'unit' => 'next121-all-runner',
+                'tier' => 'all',
+                'current_countable' => false,
+                'next_countable' => true,
+                'launcher_base_head' => $launcherBase,
+                'dashboard_source_head' => $dashboardSource,
+                'status_source_head' => $statusSource,
+                'implementation_source_head' => $implementationSource,
+                'source_head' => $nextSource,
+                'artifact_path' => 'lanes/libsqlite/notes/upstream-all-next121.md',
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error all',
+                'scripts' => ['btree01.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'tests' => 312,
+                'current_tests' => 0,
+                'next_tests' => 312,
+                'release_scope' => 'release-all',
+                'counts_release_parity' => false,
+            ],
+            [
+                'unit' => 'current121-release-baseline',
+                'tier' => 'release',
+                'current_countable' => true,
+                'next_countable' => true,
+                'launcher_base_head' => $launcherBase,
+                'dashboard_source_head' => $dashboardSource,
+                'status_source_head' => $statusSource,
+                'implementation_source_head' => $implementationSource,
+                'source_head' => $nextSource,
+                'artifact_path' => 'lanes/libsqlite/notes/upstream-release-current121.md',
+                'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release',
+                'scripts' => ['pragma.test'],
+                'exit' => 0,
+                'errors' => 0,
+                'tests' => 24000,
+                'current_tests' => 24000,
+                'next_tests' => 24000,
+                'release_scope' => 'release-all',
+                'counts_release_parity' => false,
+            ],
+        ];
+
+        $record = $evidence->upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+            $rows,
+            604,
+            46412,
+            $launcherBase,
+            $dashboardSource,
+            $statusSource,
+            $implementationSource,
+            $nextSource,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'next121 suite countability avoids accepted next117 release gap burnup and next116 full-suite countability surfaces',
+            64,
+            ''
+        );
+
+        $t->same('current-source-next121-release-countability-advanced', $record['status']);
+        $t->same(true, $record['countable']);
+        $t->same(604, $record['current_mapped']);
+        $t->same(606, $record['next_mapped']);
+        $t->same(2, $record['mapped_delta']);
+        $t->same(46412, $record['current_php_pass']);
+        $t->same(64, $record['php_pass_delta']);
+        $t->same(46476, $record['next_php_pass']);
+        $t->same('admitted', $record['php_pass_admission']['status']);
+        $t->same(64, $record['php_pass_admission']['assertion_delta']);
+        $t->same(3, $record['row_count']);
+        $t->same(2, $record['admitted_count']);
+        $t->same(1, $record['preserved_count']);
+        $t->same(0, $record['blocked_count']);
+        $t->same(['next121-all-runner', 'next121-release-runner'], $record['admitted_units']);
+        $t->same(['current121-release-baseline'], $record['preserved_units']);
+        $t->same([], $record['blockers']);
+        $t->same(5, $record['release_script_count']);
+        $t->same(['btree01.test', 'json101.test', 'pragma.test', 'select1.test', 'wal.test'], $record['release_scripts']);
+        $t->same(1326, $record['release_tests_total_delta']);
+        $t->same('clear', $record['active_runner_status']);
+        $t->same(0, $record['active_runner_count']);
+        $t->same(true, $record['counts_upstream_runner_release_countability_current_source_next121']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->contains('release/all countability row', $record['next_gate']);
+        $t->contains('focused TestRunner PASS-line output', $record['dependency_closure']);
+        $t->same('next-source-admitted', $record['entries'][0]['movement']);
+        $t->same('next-source-admitted', $record['entries'][1]['movement']);
+        $t->same('current-source-preserved', $record['entries'][2]['movement']);
+    },
+    'blocks current-source next121 release countability for stale provenance and duplicate runners' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $launcherBase = '6571c1279f77c2c00531492a7a2855a6f9e295a1';
+        $dashboardSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $statusSource = '178c51ea36ed3508aafbb8913a32694e327e1da6';
+        $implementationSource = '8a447f445e5d2fd32fc9fd463117f585d1416551';
+        $nextSource = 'b121b121b121b121b121b121b121b121b121b121';
+        $focusedOutput = implode("\n", [
+            'Focused test run: 1 selected test files (root lock skipped)',
+            'PASS next121 release-countability blocked stale row',
+            '1 test files, 12 assertions, 0 failures',
+        ]);
+        $processSnapshot = '123 1 S 00:10 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release';
+
+        $record = $evidence->upstreamRunnerReleaseCountabilityCurrentSourceNext121(
+            [
+                [
+                    'unit' => 'stale-next121-release-runner',
+                    'tier' => 'veryquick',
+                    'current_countable' => false,
+                    'next_countable' => true,
+                    'launcher_base_head' => $launcherBase,
+                    'dashboard_source_head' => 'wrong-dashboard',
+                    'status_source_head' => $statusSource,
+                    'implementation_source_head' => $implementationSource,
+                    'source_head' => 'stale-source',
+                    'artifact_path' => '/tmp/upstream-release-next121.md',
+                    'runner_command' => './testfixture ../libsqlite/test/testrunner.tcl veryquick',
+                    'scripts' => [],
+                    'exit' => 0,
+                    'errors' => 0,
+                    'tests' => 91,
+                    'release_scope' => 'focused-current-source',
+                    'counts_release_parity' => true,
+                ],
+            ],
+            604,
+            46412,
+            $launcherBase,
+            $dashboardSource,
+            $statusSource,
+            $implementationSource,
+            $nextSource,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'next121 blocked case keeps stale focused or duplicate broad-runner evidence out of release countability',
+            12,
+            $processSnapshot
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same(false, $record['countable']);
+        $t->same(604, $record['next_mapped']);
+        $t->same(0, $record['mapped_delta']);
+        $t->same(0, $record['php_pass_delta']);
+        $t->same(46412, $record['next_php_pass']);
+        $t->same(1, $record['row_count']);
+        $t->same(0, $record['admitted_count']);
+        $t->same(0, $record['preserved_count']);
+        $t->same(2, $record['blocked_count']);
+        $t->same(['stale-source'], $record['artifact_source_heads']);
+        $t->same('blocked', $record['entries'][0]['movement']);
+        $t->same([
+            'dashboard-source-head-mismatch',
+            'next-source-head-mismatch',
+            'release-tier-required',
+            'artifact-path-not-lane-local',
+            'guarded-runner-command-missing',
+            'concrete-test-scripts-missing',
+            'release-scope-not-release-all',
+            'release-parity-claim-not-allowed',
+        ], $record['entries'][0]['blocker_ids']);
+        $t->same(['stale-next121-release-runner', 'duplicate-broad-runner-active'], array_column($record['blockers'], 'id'));
+        $t->same('blocked-active-runner', $record['active_runner_status']);
+        $t->same(1, $record['active_runner_count']);
+        $t->same(false, $record['counts_upstream_runner_release_countability_current_source_next121']);
+        $t->contains('repair current-source next121 provenance', $record['next_gate']);
+    },
 ];
