@@ -2830,6 +2830,80 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $xColumnProjection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext200(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        array $xColumnProjection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        ?int $yieldedRowid = null,
+        ?string $observedSourceGeneration = null,
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext194(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $xColumnProjection,
+            $yieldedRowid,
+            $observedSourceGeneration,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidXFilterArgvProfile200(
+            $plan['currentGeneratedPathRowidPinnedSource194'],
+            $jsonColumn,
+            $constraints,
+            false,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidXFilterArgvProfile200(
+            $plan['nextGeneratedPathRowidPinnedSource194'],
+            $jsonColumn,
+            $constraints,
+            $plan['next194ReplanReasons'] !== [],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidXFilterArgvTransitions200($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidXFilterArgvReplanReasons200($transitions);
+
+        $plan['currentGeneratedPathRowidXFilterArgv200'] = $currentProfile;
+        $plan['nextGeneratedPathRowidXFilterArgv200'] = $nextProfile;
+        $plan['generatedPathRowidXFilterArgv200Transitions'] = $transitions;
+        $plan['next200ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next194ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next200ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'emit-current-json-table-generated-path-rowid-xfilter-argv-next200';
+        $plan['nextReaderPolicy'] = $plan['next200ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-xfilter-argv-next200'
+            : 'reprepare-next-json-table-generated-path-rowid-xfilter-argv-next200';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next200'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $projection
      * @return array<string,mixed>
      */
@@ -19458,6 +19532,189 @@ final class SQLiteJsonTablePlan
                 'upstreamReplanRequired', 'yieldAccepted', 'sourcePinned', 'sourceDisposition', 'sourceOpcode' => 'json-table-generated-path-rowid-source-admission-changed-next194',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-source-cost-changed-next194',
                 default => 'json-table-generated-path-rowid-source-state-changed-next194',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $pinnedSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvProfile200(
+        array $pinnedSource,
+        string $jsonColumn,
+        array $constraints,
+        bool $upstreamReplanRequired,
+    ): array {
+        $rowidTerms = [];
+        foreach ($constraints as $constraint) {
+            $column = self::normalizeConstraintColumn((string) $constraint['column']);
+            $operator = strtoupper((string) $constraint['operator']);
+            if ($column !== 'id' || (($constraint['usable'] ?? true) === false)) {
+                continue;
+            }
+            if ($operator === '=') {
+                $rowidTerms[] = (int) $constraint['value'];
+                continue;
+            }
+            if ($operator === 'IN' && is_array($constraint['value'])) {
+                foreach ($constraint['value'] as $value) {
+                    $rowidTerms[] = (int) $value;
+                }
+            }
+        }
+        $rowidTerms = array_values(array_unique($rowidTerms));
+
+        $selectedRowids = array_values(array_map('intval', $pinnedSource['selectedRowids'] ?? []));
+        $acceptedRowids = array_values(array_intersect($selectedRowids, $rowidTerms === [] ? $selectedRowids : $rowidTerms));
+        $argv = [
+            ['argvIndex' => 1, 'column' => 'json', 'value' => $jsonColumn, 'omit' => true],
+            ['argvIndex' => 2, 'column' => 'root', 'value' => $pinnedSource['rootPath'] ?? '$', 'omit' => true],
+            ['argvIndex' => 3, 'column' => 'generated_path', 'value' => $pinnedSource['generatedPath'] ?? '$', 'omit' => true],
+            ['argvIndex' => 4, 'column' => 'rowid', 'value' => $acceptedRowids, 'omit' => true],
+        ];
+        $sourcePinned = (bool) ($pinnedSource['sourcePinned'] ?? false);
+        $argvReusable = $sourcePinned && !$upstreamReplanRequired && $acceptedRowids !== [];
+        $estimatedRows = $argvReusable ? count($acceptedRowids) : 0;
+        $estimatedCost = $argvReusable ? max(1, min((int) ($pinnedSource['estimatedCost'] ?? 1), max(1, $estimatedRows))) : 1000000;
+        $fingerprint = hash('sha256', json_encode([
+            $pinnedSource['sourceFingerprint'] ?? null,
+            $pinnedSource['yieldRowFingerprint'] ?? null,
+            $argv,
+        ], JSON_THROW_ON_ERROR));
+
+        return [
+            'argvOrder' => array_column($argv, 'column'),
+            'argv' => $argv,
+            'rowidTerms' => $rowidTerms,
+            'acceptedRowids' => $acceptedRowids,
+            'sourcePinned' => $sourcePinned,
+            'upstreamReplanRequired' => $upstreamReplanRequired,
+            'argvReusable' => $argvReusable,
+            'xFilterDisposition' => self::jsonTableGeneratedPathRowidXFilterArgvDisposition200($argvReusable, $sourcePinned, $upstreamReplanRequired, $acceptedRowids),
+            'xFilterOpcode' => self::jsonTableGeneratedPathRowidXFilterArgvOpcode200($argvReusable, $sourcePinned, $upstreamReplanRequired, $acceptedRowids),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidXFilterArgvCostClass200($argvReusable, $sourcePinned, $upstreamReplanRequired, $acceptedRowids),
+            'argvFingerprint' => $fingerprint,
+        ];
+    }
+
+    /**
+     * @param list<int> $acceptedRowids
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvDisposition200(bool $argvReusable, bool $sourcePinned, bool $upstreamReplanRequired, array $acceptedRowids): string
+    {
+        if ($argvReusable) {
+            return 'reuse-current-source-generated-path-rowid-xfilter-argv-next200';
+        }
+        if ($upstreamReplanRequired) {
+            return 'reprepare-upstream-generated-path-rowid-xfilter-argv-next200';
+        }
+        if ($acceptedRowids === []) {
+            return 'reject-empty-generated-path-rowid-xfilter-argv-next200';
+        }
+        if (!$sourcePinned) {
+            return 'reseek-unpinned-generated-path-rowid-xfilter-argv-next200';
+        }
+
+        return 'reprepare-generated-path-rowid-xfilter-argv-next200';
+    }
+
+    /**
+     * @param list<int> $acceptedRowids
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvOpcode200(bool $argvReusable, bool $sourcePinned, bool $upstreamReplanRequired, array $acceptedRowids): string
+    {
+        return match (self::jsonTableGeneratedPathRowidXFilterArgvDisposition200($argvReusable, $sourcePinned, $upstreamReplanRequired, $acceptedRowids)) {
+            'reuse-current-source-generated-path-rowid-xfilter-argv-next200' => 'OP_JsonTableReuseGeneratedPathRowidXFilterArgvNext200',
+            'reprepare-upstream-generated-path-rowid-xfilter-argv-next200' => 'OP_JsonTableReprepareGeneratedPathRowidXFilterArgvNext200',
+            'reseek-unpinned-generated-path-rowid-xfilter-argv-next200' => 'OP_JsonTableReseekGeneratedPathRowidXFilterArgvNext200',
+            'reject-empty-generated-path-rowid-xfilter-argv-next200' => 'OP_JsonTableRejectGeneratedPathRowidXFilterArgvNext200',
+            default => 'OP_JsonTableRestartGeneratedPathRowidXFilterArgvNext200',
+        };
+    }
+
+    /**
+     * @param list<int> $acceptedRowids
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvCostClass200(bool $argvReusable, bool $sourcePinned, bool $upstreamReplanRequired, array $acceptedRowids): string
+    {
+        if ($argvReusable && count($acceptedRowids) > 1) {
+            return 'json-table-generated-path-rowid-xfilter-argv-range-next200';
+        }
+        if ($argvReusable) {
+            return 'json-table-generated-path-rowid-xfilter-argv-point-next200';
+        }
+        if ($upstreamReplanRequired) {
+            return 'json-table-generated-path-rowid-xfilter-argv-reprepare-next200';
+        }
+        if ($acceptedRowids === []) {
+            return 'json-table-generated-path-rowid-xfilter-argv-empty-next200';
+        }
+        if (!$sourcePinned) {
+            return 'json-table-generated-path-rowid-xfilter-argv-unpinned-next200';
+        }
+
+        return 'json-table-generated-path-rowid-xfilter-argv-blocked-next200';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvTransitions200(array $current, array $next): array
+    {
+        $fields = [
+            'argvOrder',
+            'argv',
+            'rowidTerms',
+            'acceptedRowids',
+            'sourcePinned',
+            'upstreamReplanRequired',
+            'argvReusable',
+            'xFilterDisposition',
+            'xFilterOpcode',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'argvFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterArgvReplanReasons200(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'argvOrder', 'argv', 'rowidTerms' => 'json-table-generated-path-rowid-xfilter-argv-changed-next200',
+                'acceptedRowids' => 'json-table-generated-path-rowid-xfilter-rowset-changed-next200',
+                'sourcePinned', 'upstreamReplanRequired', 'argvReusable', 'xFilterDisposition', 'xFilterOpcode' => 'json-table-generated-path-rowid-xfilter-admission-changed-next200',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xfilter-cost-changed-next200',
+                'argvFingerprint' => 'json-table-generated-path-rowid-xfilter-fingerprint-changed-next200',
+                default => 'json-table-generated-path-rowid-xfilter-state-changed-next200',
             };
         }
 
