@@ -626,6 +626,229 @@ final class SQLiteVfsFileWriter
 
     /**
      * @param list<int> $pageNumbers
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $nextTransactions
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
+     */
+    public function applyWalHotJournalSavepointCheckpointCurrentSourceNext158(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databasePath,
+        array $pageNumbers,
+        array $nextTransactions,
+        int $readerEndFrame,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires a database path');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires reader pages');
+        }
+        if ($nextTransactions === []) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 requires next WAL transactions');
+        }
+
+        $databaseLocalPath = $this->localPath($databasePath);
+        $journalPath = $databasePath . '-journal';
+        $journalLocalPath = $this->localPath($journalPath);
+        $walPath = $databasePath . '-wal';
+        $walLocalPath = $this->localPath($walPath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 database is missing: {$databasePath}");
+        }
+        if (!is_file($journalLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 journal is missing: {$journalPath}");
+        }
+        if (!is_file($walLocalPath)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint current-source next158 WAL is missing: {$walPath}");
+        }
+
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader pages must be one-based integers');
+            }
+        }
+
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        $journalBytes = (string) file_get_contents($journalLocalPath);
+        $walBytes = (string) file_get_contents($walLocalPath);
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+        if ($readerEndFrame < 0 || $readerEndFrame > $wal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader frame is outside the original WAL frame range');
+        }
+
+        $hot = $journal->hotJournalRecoveryResult(
+            $databaseBytes,
+            $journalBytes,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $source = [
+            'database_path' => $databasePath,
+            'database_bytes' => strlen($databaseBytes),
+            'journal_path' => $journalPath,
+            'journal_bytes' => strlen($journalBytes),
+            'wal_path' => $walPath,
+            'wal_bytes' => strlen($walBytes),
+        ];
+        if (!$hot['recovered']) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => ['sqlite-rollback-journal-recovery', 'sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next158'],
+                'recovery' => ['hot_journal' => $hot],
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $rollback = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $truncatedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $truncatedWal = SQLiteWal::parse($truncatedWalBytes, $wal->header->pageSize, true);
+        if ($readerEndFrame > $truncatedWal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint current-source next158 reader frame must survive savepoint WAL rollback');
+        }
+
+        $readerRows = array_map(
+            static fn (int $pageNumber): array => $truncatedWal->readerSnapshotPageImage((string) $hot['database_bytes'], $pageNumber, $readerEndFrame),
+            $pageNumbers
+        );
+        $pinnedCheckpoint = $truncatedWal->durableCheckpointResult((string) $hot['database_bytes'], 'restart', $readerEndFrame);
+        $releasedCheckpoint = $truncatedWal->durableCheckpointResult((string) $hot['database_bytes'], 'restart');
+        $restartWal = SQLiteWal::parse((string) $releasedCheckpoint['wal_bytes'], $wal->header->pageSize, true);
+        $nextAppend = SQLiteWalAppendPlan::appendTransactions($restartWal, $databasePath, $nextTransactions);
+
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen((string) $hot['database_bytes']),
+                'durable' => false,
+                'reason' => 'restore_hot_journal_database_before_savepoint_checkpoint_next158',
+                'payload_key' => 'hot_database',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen((string) $hot['database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_hot_journal_database_before_savepoint_checkpoint_next158',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_hot_journal_database_before_savepoint_checkpoint_next158',
+            ],
+            [
+                'op' => 'delete',
+                'path' => $journalPath,
+                'durable' => false,
+                'reason' => 'delete_hot_journal_before_savepoint_checkpoint_next158',
+            ],
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen((string) $releasedCheckpoint['database_bytes']),
+                'durable' => false,
+                'reason' => 'apply_released_restart_checkpoint_database_next158',
+                'payload_key' => 'checkpoint_database',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen((string) $releasedCheckpoint['database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_released_restart_checkpoint_database_next158',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_released_restart_checkpoint_database_next158',
+            ],
+            [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen((string) $nextAppend['wal_bytes']),
+                'durable' => false,
+                'reason' => 'write_next_generation_wal_after_savepoint_checkpoint_next158',
+                'payload_key' => 'next_wal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen((string) $nextAppend['wal_bytes']),
+                'durable' => false,
+                'reason' => 'trim_next_generation_wal_after_savepoint_checkpoint_next158',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_next_generation_wal_after_savepoint_checkpoint_next158',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_hot_journal_savepoint_checkpoint_sidecars_next158',
+            ],
+        ];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            [
+                'hot_database' => (string) $hot['database_bytes'],
+                'checkpoint_database' => (string) $releasedCheckpoint['database_bytes'],
+                'next_wal' => (string) $nextAppend['wal_bytes'],
+            ],
+            array_values(array_unique(array_merge(
+                ['sqlite-wal-savepoint-byte-truncation'],
+                $pinnedCheckpoint['dependencies'],
+                $releasedCheckpoint['dependencies'],
+                $nextAppend['dependencies'],
+                ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next158']
+            )))
+        );
+        $applied['recovery'] = [
+            'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next158',
+            'hot_journal' => $hot,
+            'rollback' => $rollback,
+            'reader_rows' => $readerRows,
+            'reader_sources' => array_column($readerRows, 'source'),
+            'reader_frame_indexes' => array_column($readerRows, 'frame_index'),
+            'pinned_checkpoint' => $pinnedCheckpoint,
+            'released_checkpoint' => $releasedCheckpoint,
+            'next_append' => $nextAppend,
+            'truncated_wal_bytes_length' => strlen($truncatedWalBytes),
+            'reader_preserved_by_pinned_checkpoint' => (bool) $pinnedCheckpoint['busy'],
+            'next_generation_wal_bytes_length' => strlen((string) $nextAppend['wal_bytes']),
+            'dependency_closure' => 'no new support component needed; reuses native hot rollback-journal recovery, WAL savepoint truncation, restart checkpoint, append, and VFS file writer primitives',
+            'non_overlap' => 'avoids accepted hot-journal checkpoint reader, savepoint byte-truncation, VFS savepoint rollback, and rollback-journal commit paths by atomically applying the combined hot-journal plus savepoint rollback before a released restart checkpoint and next WAL generation',
+        ];
+        $applied['atomic'] = true;
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param array<int,string> $currentStatementSourcePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,journal_path:string,journal_bytes:int,wal_path:string,wal_bytes:int}}
      */
