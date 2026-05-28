@@ -463,9 +463,39 @@ final class SQLiteUpdateDeleteReturningSql
 
     private static function keywordPosition(string $sql, string $keyword): ?int
     {
-        $position = stripos($sql, $keyword);
+        $needle = strtolower($keyword);
+        $needleLength = strlen($needle);
+        $length = strlen($sql);
+        $inString = false;
+        $depth = 0;
 
-        return $position === false ? null : $position;
+        for ($i = 0; $i <= $length - $needleLength; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($inString || $depth !== 0) {
+                continue;
+            }
+            if (strtolower(substr($sql, $i, $needleLength)) === $needle) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     private static function minPosition(?int ...$positions): ?int
