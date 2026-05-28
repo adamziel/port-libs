@@ -31,7 +31,17 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function run(array $operations, array $options, bool $uriAware, string $dependency): array
+    public static function currentSourceNext90(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-filecontrol-locking-persistence-current-source-next90', true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(array $operations, array $options, bool $uriAware, string $dependency, bool $lockRequiredForWriteControl = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
@@ -72,9 +82,22 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 $control = self::controlName((string) $op['control']);
                 $value = self::controlValue($control, $op['value']);
                 $previous = $handle['controls'][$control] ?? null;
-                $status = ($handle['readonly'] && self::writeControl($control)) ? 'ignored' : 'ok';
+                $requiresWrite = self::writeControl($control);
+                $lockState = (string) $handle['lock_state'];
+                $reason = null;
+                $status = 'ok';
+                if ($handle['readonly'] && $requiresWrite) {
+                    $status = 'ignored';
+                    $reason = 'readonly_handle';
+                } elseif ($lockRequiredForWriteControl && $requiresWrite && !self::writeLockHeld($lockState)) {
+                    $status = 'blocked';
+                    $reason = 'requires_reserved_or_exclusive_lock';
+                }
                 if ($status === 'ok') {
                     $handle['controls'][$control] = $value;
+                    if ($lockRequiredForWriteControl && $requiresWrite && $handle['persistent']) {
+                        $handle['controls']['data_version'] = self::nextDataVersion($handle['controls']['data_version'] ?? null);
+                    }
                     if ($handle['persistent']) {
                         $state['persistent_controls'][$handle['source_key']] = self::persistentSubset($handle['controls']);
                     }
@@ -87,6 +110,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     'value' => $value,
                     'previous' => $previous,
                     'changed' => $status === 'ok' && $previous !== $value,
+                    'reason' => $reason,
+                    'lock_state' => $lockState,
                 ]);
                 continue;
             }
@@ -182,7 +207,10 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
     private static function openHandle(array $op, array $options, array &$state, bool $uriAware): array
     {
         $state['sequence']++;
-        $filename = (string) ($op['filename'] ?? $options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        $filename = (string) ($op['filename'] ?? '');
+        if ($filename === '') {
+            $filename = (string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        }
         $uri = self::openUri($filename, $uriAware);
         $path = (string) $uri['path'];
         $memory = $uri['mode'] === 'memory' || $path === ':memory:';
@@ -351,6 +379,18 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite'], true);
     }
 
+    private static function writeLockHeld(string $lockState): bool
+    {
+        return in_array($lockState, ['reserved', 'pending', 'exclusive'], true);
+    }
+
+    private static function nextDataVersion(mixed $previous): int
+    {
+        $current = is_int($previous) ? $previous : ((is_string($previous) && preg_match('/^\d+$/', $previous) === 1) ? (int) $previous : 1);
+
+        return max(1, $current) + 1;
+    }
+
     /**
      * @param array<string,mixed> $controls
      * @return array<string,mixed>
@@ -358,7 +398,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
     private static function persistentSubset(array $controls): array
     {
         $subset = [];
-        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout'] as $key) {
+        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout', 'data_version'] as $key) {
             if (array_key_exists($key, $controls)) {
                 $subset[$key] = $controls[$key];
             }

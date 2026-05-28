@@ -101,6 +101,8 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
      *   nextRowid:?int,
      *   currentText:?string,
      *   nextText:?string,
+     *   currentComparisonKey:?string,
+     *   nextComparisonKey:?string,
      *   currentBytesHex:?string,
      *   nextBytesHex:?string,
      *   inRange:?bool,
@@ -127,6 +129,8 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
             'nextRowid' => $next['rowid'] ?? null,
             'currentText' => $current['keyText'] ?? null,
             'nextText' => $next['keyText'] ?? null,
+            'currentComparisonKey' => $current === null ? null : $this->comparisonKey($current['keyText']),
+            'nextComparisonKey' => $next === null ? null : $this->comparisonKey($next['keyText']),
             'currentBytesHex' => $current === null ? null : bin2hex($current['keyBytes']),
             'nextBytesHex' => $next === null ? null : bin2hex($next['keyBytes']),
             'inRange' => $current === null ? null : $this->inUsableRange($current['keyText']),
@@ -265,10 +269,15 @@ final class SQLiteUtf16LikeGlobCurrentNextCursor
 
     private function compareText(string $left, string $right): int
     {
+        return strcmp($this->comparisonKey($left), $this->comparisonKey($right));
+    }
+
+    private function comparisonKey(string $text): string
+    {
         return match ($this->collation) {
-            'BINARY' => strcmp($left, $right),
-            'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+            'BINARY' => $text,
+            'NOCASE' => self::asciiLower($text),
+            'RTRIM' => rtrim($text, ' '),
         };
     }
 

@@ -3335,7 +3335,6 @@ final class SQLiteSelectSql
         $arguments = [];
         $distinct = false;
         $aggregateOrderBy = null;
-        $aggregateOrderDirection = 'ASC';
         if ($argumentSql !== '') {
             if (preg_match('/^distinct(?:\s+|$)(.+)$/is', $argumentSql, $distinctMatch) === 1) {
                 $distinct = true;
@@ -3354,7 +3353,7 @@ final class SQLiteSelectSql
                 if ($argumentSql === '' || $orderSql === '') {
                     throw new \InvalidArgumentException('SQLite SELECT SQL window aggregate ORDER BY needs value and order expression');
                 }
-                [$aggregateOrderBy, $aggregateOrderDirection] = self::aggregateOrderTerm($orderSql, $tables);
+                $aggregateOrderBy = self::aggregateOrderTerms($orderSql, $tables);
             }
             foreach (self::splitTopLevel($argumentSql, ',') as $argument) {
                 $arguments[] = trim($argument) === '*'
@@ -3419,10 +3418,7 @@ final class SQLiteSelectSql
             $expression['distinct'] = true;
         }
         if ($aggregateOrderBy !== null) {
-            $expression['aggregateOrderBy'] = [
-                'expression' => $aggregateOrderBy,
-                'direction' => $aggregateOrderDirection,
-            ];
+            $expression['aggregateOrderBy'] = $aggregateOrderBy;
         }
 
         return $expression;
@@ -3564,6 +3560,27 @@ final class SQLiteSelectSql
         }
 
         return [self::valueExpression($term, $tables), $direction];
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<array{expression:array<string,mixed>,direction:string}>
+     */
+    private static function aggregateOrderTerms(string $sql, array $tables): array
+    {
+        $terms = [];
+        foreach (self::splitTopLevel($sql, ',') as $term) {
+            [$expression, $direction] = self::aggregateOrderTerm($term, $tables);
+            $terms[] = [
+                'expression' => $expression,
+                'direction' => $direction,
+            ];
+        }
+        if ($terms === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL aggregate ORDER BY needs at least one term');
+        }
+
+        return $terms;
     }
 
     private static function unwrapParenthesizedExpression(string $sql): string

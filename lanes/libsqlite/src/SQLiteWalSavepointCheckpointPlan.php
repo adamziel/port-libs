@@ -969,6 +969,54 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,current_source_rows:list<array{page_number:int,before_source:string,current_source:string,next_source:string,before_frame:int|null,current_frame:int|null,next_frame:int|null,rollback_changed_current:bool,checkpoint_changed_next:bool,source_transition:string,current_label:string,next_label:string}>,current_sources:list<string>,next_sources:list<string>,source_transitions:list<string>,current_source_counts:array<string,int>,next_source_counts:array<string,int>,rolled_back_page_numbers:list<int>,rolled_back_frame_indexes:list<int>,current_uses_rollback_prefix:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,images_match:bool,yield_count:int,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},frame_source_rows:list<array{frame_index:int,page_number:int,commit_frame:bool,database_page_count_after_commit:int,image_sha256:string,source_offset:int,source_length:int,matched_current_wal:bool}>,commit_frame_indexes:list<int>,dependencies:list<string>}
+     */
+    public static function checkpointReaderSavepointCurrentSourceNext90(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $originalReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        self::assertCurrentWalSource($wal, $walBytes);
+
+        $plan = self::checkpointReaderSavepointCurrentSourceNext85(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $originalReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $retainedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $frameRows = self::exactWalFrameSourceRows($wal, $walBytes);
+
+        $plan['current_source_verified'] = true;
+        $plan['current_source'] = self::walSourceSummary($wal, strlen($walBytes));
+        $plan['retained_source'] = self::walSourceSummary($retainedWal, strlen($retainedWalBytes));
+        $plan['frame_source_rows'] = $frameRows;
+        $plan['commit_frame_indexes'] = array_values(array_map(
+            static fn (array $row): int => $row['frame_index'],
+            array_filter($frameRows, static fn (array $row): bool => $row['commit_frame'])
+        ));
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-wal-checkpoint-savepoint-reader-current-source-next90']
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
      */
     public static function releaseThenRollbackCheckpointCurrentNext(
@@ -1203,6 +1251,7 @@ final class SQLiteWalSavepointCheckpointPlan
         if ($source->frameCount() !== $wal->frameCount()) {
             throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source frame count mismatch');
         }
+        self::exactWalFrameSourceRows($wal, $walBytes);
     }
 
     /**
@@ -1218,6 +1267,44 @@ final class SQLiteWalSavepointCheckpointPlan
             'frame_count' => $wal->frameCount(),
             'wal_bytes_length' => $walBytesLength,
         ];
+    }
+
+    /**
+     * @return list<array{frame_index:int,page_number:int,commit_frame:bool,database_page_count_after_commit:int,image_sha256:string,source_offset:int,source_length:int,matched_current_wal:bool}>
+     */
+    private static function exactWalFrameSourceRows(SQLiteWal $wal, string $walBytes): array
+    {
+        $source = SQLiteWal::parse($walBytes, $wal->header->pageSize, $wal->checksumsValidated);
+        $pageSize = $wal->header->pageSize;
+        $frameSize = 24 + $pageSize;
+        $rows = [];
+
+        foreach ($source->frames as $index => $sourceFrame) {
+            $walFrame = $wal->frames[$index] ?? null;
+            if ($walFrame === null) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source frame count mismatch');
+            }
+            if (
+                $sourceFrame->pageNumber !== $walFrame->pageNumber
+                || $sourceFrame->databasePageCountAfterCommit !== $walFrame->databasePageCountAfterCommit
+                || $sourceFrame->pageImage !== $walFrame->pageImage
+            ) {
+                throw new \InvalidArgumentException("SQLite WAL savepoint checkpoint current source frame {$sourceFrame->index} mismatch");
+            }
+
+            $rows[] = [
+                'frame_index' => $sourceFrame->index,
+                'page_number' => $sourceFrame->pageNumber,
+                'commit_frame' => $sourceFrame->isCommitFrame(),
+                'database_page_count_after_commit' => $sourceFrame->databasePageCountAfterCommit,
+                'image_sha256' => hash('sha256', $sourceFrame->pageImage),
+                'source_offset' => 32 + ($index * $frameSize),
+                'source_length' => $frameSize,
+                'matched_current_wal' => true,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

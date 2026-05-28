@@ -134,10 +134,7 @@ final class SQLiteSelectQuery
         $filter = self::windowFilter($expression['filter'] ?? null);
         $aggregateOrderBy = null;
         if (array_key_exists('aggregateOrderBy', $expression)) {
-            if (!is_array($expression['aggregateOrderBy'])) {
-                throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY must be an expression');
-            }
-            $aggregateOrderBy = $expression['aggregateOrderBy'];
+            $aggregateOrderBy = self::windowAggregateOrderList($expression['aggregateOrderBy']);
         }
         $distinct = ($expression['distinct'] ?? false) === true;
 
@@ -324,33 +321,25 @@ final class SQLiteSelectQuery
      * @param list<mixed> $peerKeys
      * @param array{unit:string,preceding:int|float,following:int|float,exclude:string} $frame
      * @param array<string,mixed>|null $filter
-     * @param array<string,mixed>|null $aggregateOrderBy
+     * @param list<array{expression:array<string,mixed>,direction:string}>|null $aggregateOrderBy
      * @return list<string|SQLiteBlobValue>
      */
     private static function jsonAggregateWindowFrameValues(string $function, array $argument, array $orderedRows, array $peerKeys, array $frame, ?array $filter, ?array $aggregateOrderBy, bool $distinct): array
     {
-        $aggregateOrderExpression = null;
-        $aggregateOrderDirection = 'ASC';
-        if ($aggregateOrderBy !== null) {
-            if (array_key_exists('expression', $aggregateOrderBy)) {
-                if (!is_array($aggregateOrderBy['expression'])) {
-                    throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY expression is malformed');
-                }
-                $aggregateOrderExpression = $aggregateOrderBy['expression'];
-                $aggregateOrderDirection = strtoupper((string) ($aggregateOrderBy['direction'] ?? 'ASC'));
-                if ($aggregateOrderDirection !== 'ASC' && $aggregateOrderDirection !== 'DESC') {
-                    throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY direction must be ASC or DESC');
-                }
-            } else {
-                $aggregateOrderExpression = $aggregateOrderBy;
-            }
-        }
         $frameRows = [];
         foreach ($orderedRows as $index => $row) {
             $frameRows[] = [
                 'value' => SQLiteSelectExpression::evaluate($row, $argument),
                 'frameKey' => $peerKeys[$index],
-                'aggregateKey' => $aggregateOrderExpression === null ? $peerKeys[$index] : SQLiteSelectExpression::evaluate($row, $aggregateOrderExpression),
+                'aggregateKey' => $aggregateOrderBy === null
+                    ? [['value' => $peerKeys[$index], 'direction' => 'ASC']]
+                    : array_map(
+                        static fn (array $term): array => [
+                            'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),
+                            'direction' => $term['direction'],
+                        ],
+                        $aggregateOrderBy,
+                    ),
                 'filter' => $filter === null || SQLiteSelectPredicate::filter([$row], $filter) !== [],
                 'position' => $index,
             ];
@@ -359,13 +348,21 @@ final class SQLiteSelectQuery
         $frames = self::windowFrameRows($frameRows, $frame['unit'], $frame['preceding'], $frame['following'], $frame['exclude']);
         $result = [];
         foreach ($frames as $frameRows) {
-            usort($frameRows, static function (array $left, array $right) use ($aggregateOrderDirection): int {
-                $comparison = self::compareSqlValues($left['aggregateKey'], $right['aggregateKey']);
-                if ($comparison === 0) {
-                    return $left['position'] <=> $right['position'];
+            usort($frameRows, static function (array $left, array $right): int {
+                foreach ($left['aggregateKey'] as $index => $leftTerm) {
+                    $rightTerm = $right['aggregateKey'][$index] ?? null;
+                    if (!is_array($rightTerm) || !array_key_exists('value', $rightTerm)) {
+                        throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY keys are malformed');
+                    }
+                    $comparison = self::compareSqlValues($leftTerm['value'], $rightTerm['value']);
+                    if ($comparison === 0) {
+                        continue;
+                    }
+
+                    return $leftTerm['direction'] === 'DESC' ? -$comparison : $comparison;
                 }
 
-                return $aggregateOrderDirection === 'DESC' ? -$comparison : $comparison;
+                return $left['position'] <=> $right['position'];
             });
             $values = [];
             $seen = [];
@@ -417,8 +414,39 @@ final class SQLiteSelectQuery
     }
 
     /**
-     * @param list<array{value:mixed,frameKey:mixed,aggregateKey:mixed,filter:bool,position:int}> $rows
-     * @return list<list<array{value:mixed,frameKey:mixed,aggregateKey:mixed,filter:bool,position:int}>>
+     * @return list<array{expression:array<string,mixed>,direction:string}>
+     */
+    private static function windowAggregateOrderList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY must be a list');
+        }
+        $terms = array_is_list($value) ? $value : [$value];
+        if ($terms === []) {
+            throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY needs at least one term');
+        }
+
+        $orderBy = [];
+        foreach ($terms as $term) {
+            if (!is_array($term) || !isset($term['expression']) || !is_array($term['expression'])) {
+                throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY expression is malformed');
+            }
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY direction must be ASC or DESC');
+            }
+            $orderBy[] = [
+                'expression' => $term['expression'],
+                'direction' => $direction,
+            ];
+        }
+
+        return $orderBy;
+    }
+
+    /**
+     * @param list<array{value:mixed,frameKey:mixed,aggregateKey:list<array{value:mixed,direction:string}>,filter:bool,position:int}> $rows
+     * @return list<list<array{value:mixed,frameKey:mixed,aggregateKey:list<array{value:mixed,direction:string}>,filter:bool,position:int}>>
      */
     private static function windowFrameRows(array $rows, string $unit, int|float $preceding, int|float $following, string $exclude): array
     {

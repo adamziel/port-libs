@@ -928,6 +928,153 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $currentHostRows
+     * @param list<array<string,mixed>> $nextHostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,leftJoin:bool,dependencies:list<string>}
+     */
+    public static function lateralHiddenPlannerCurrentSourceNext90(
+        array $currentHostRows,
+        array $nextHostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        string $joinType = 'inner',
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden planner requires a host JSON column');
+        }
+        if ($rootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden planner root column must be non-empty when provided');
+        }
+
+        $function = self::normalizeFunction($function);
+        $joinType = strtolower($joinType);
+        if ($joinType !== 'inner' && $joinType !== 'left') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral hidden planner join type must be inner or left');
+        }
+
+        $count = max(count($currentHostRows), count($nextHostRows));
+        $current = [];
+        $next = [];
+        $transitions = [];
+        $reasons = [];
+        for ($index = 0; $index < $count; $index++) {
+            $currentRow = $currentHostRows[$index] ?? null;
+            $nextRow = $nextHostRows[$index] ?? null;
+            if ($currentRow !== null && !array_key_exists($jsonColumn, $currentRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral hidden current host row is missing {$jsonColumn}");
+            }
+            if ($nextRow !== null && !array_key_exists($jsonColumn, $nextRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral hidden next host row is missing {$jsonColumn}");
+            }
+            if ($rootColumn !== null) {
+                if ($currentRow !== null && !array_key_exists($rootColumn, $currentRow)) {
+                    throw new \InvalidArgumentException("SQLite JSON table lateral hidden current host row is missing {$rootColumn}");
+                }
+                if ($nextRow !== null && !array_key_exists($rootColumn, $nextRow)) {
+                    throw new \InvalidArgumentException("SQLite JSON table lateral hidden next host row is missing {$rootColumn}");
+                }
+            }
+
+            $pair = null;
+            if ($currentRow !== null && $nextRow !== null) {
+                $pair = self::currentSourceHiddenConstraintPlannerNext88(
+                    $function,
+                    $currentRow,
+                    $nextRow,
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralHiddenHostPlan90($index, $currentRow, $pair, 'current', $joinType);
+                $nextPlan = self::lateralHiddenHostPlan90($index, $nextRow, $pair, 'next', $joinType);
+            } elseif ($currentRow !== null) {
+                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                    $function,
+                    $currentRow,
+                    $currentRow,
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $currentPlan = self::lateralHiddenHostPlan90($index, $currentRow, $single, 'current', $joinType);
+                $nextPlan = null;
+            } else {
+                $single = self::currentSourceHiddenConstraintPlannerNext88(
+                    $function,
+                    $nextRow,
+                    $nextRow,
+                    $jsonColumn,
+                    $constraints,
+                    $rootColumn,
+                    $orderBy,
+                );
+                $currentPlan = null;
+                $nextPlan = self::lateralHiddenHostPlan90($index, $nextRow, $single, 'next', $joinType);
+            }
+
+            if ($currentPlan !== null) {
+                $current[] = $currentPlan;
+            }
+            if ($nextPlan !== null) {
+                $next[] = $nextPlan;
+            }
+
+            $reason = self::lateralHiddenTransitionReason90($currentPlan, $nextPlan, $pair);
+            if ($reason !== 'stable-lateral-hidden-json-plan') {
+                $reasons[$reason] = true;
+            }
+            if ($pair !== null) {
+                foreach ($pair['next88ReplanReasons'] as $pairReason) {
+                    if ($pairReason === 'hidden-residual-constraint-present') {
+                        continue;
+                    }
+                    $reasons[$pairReason] = true;
+                }
+            }
+
+            $transitions[] = [
+                'index' => $index,
+                'current' => $currentPlan,
+                'next' => $nextPlan,
+                'changed' => $reason !== 'stable-lateral-hidden-json-plan',
+                'reason' => $reason,
+                'currentRows' => $currentPlan['rowCount'] ?? 0,
+                'nextRows' => $nextPlan['rowCount'] ?? 0,
+                'rowCountChanged' => ($currentPlan['rowCount'] ?? 0) !== ($nextPlan['rowCount'] ?? 0),
+                'currentNullExtended' => $currentPlan['nullExtended'] ?? false,
+                'nextNullExtended' => $nextPlan['nullExtended'] ?? false,
+                'hiddenResidualChanged' => ($currentPlan['hiddenResidualColumns'] ?? []) !== ($nextPlan['hiddenResidualColumns'] ?? []),
+                'pairReplanReasons' => $pair['next88ReplanReasons'] ?? [],
+            ];
+        }
+
+        return [
+            'function' => $function,
+            'current' => $current,
+            'next' => $next,
+            'transitions' => $transitions,
+            'replanRequired' => $reasons !== [],
+            'replanReasons' => array_keys($reasons),
+            'currentReaderPolicy' => 'pin-current-lateral-hidden-json-source-until-host-row-advances',
+            'nextReaderPolicy' => $reasons === []
+                ? 'reuse-current-lateral-hidden-json-source-tape'
+                : 'prepare-next-lateral-hidden-json-source-tape',
+            'leftJoin' => $joinType === 'left',
+            'dependencies' => [
+                'sqlite-json-table-hidden-constraint-planner-current-source-next88',
+                'sqlite-json-table-lateral-hidden-planner-current-source-next90',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -1211,6 +1358,75 @@ final class SQLiteJsonTablePlan
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $hostRow
+     * @param array<string,mixed> $pair
+     * @return array<string,mixed>
+     */
+    private static function lateralHiddenHostPlan90(
+        int $hostIndex,
+        array $hostRow,
+        array $pair,
+        string $side,
+        string $joinType,
+    ): array {
+        $rows = $side === 'current' ? $pair['currentRows'] : $pair['nextRows'];
+        $sourcePlan = $side === 'current' ? $pair['current'] : $pair['next'];
+        $hiddenResiduals = $side === 'current' ? $pair['currentHiddenResiduals'] : $pair['nextHiddenResiduals'];
+        $nullExtended = $joinType === 'left' && $rows === [];
+
+        return [
+            'hostIndex' => $hostIndex,
+            'hostRow' => $hostRow,
+            'jsonValue' => $sourcePlan['jsonValue'],
+            'rootValue' => $sourcePlan['rootValue'],
+            'runnable' => $sourcePlan['runnable'],
+            'rowCount' => count($rows),
+            'nullExtended' => $nullExtended,
+            'idxStr' => $sourcePlan['idxStr'],
+            'filterArguments' => $sourcePlan['filterArguments'],
+            'hiddenResidualColumns' => array_column($hiddenResiduals, 'column'),
+            'hiddenResiduals' => $hiddenResiduals,
+            'orderByConsumed' => $sourcePlan['orderByConsumed'],
+            'estimatedRows' => $sourcePlan['estimatedRows'],
+            'jsonInputKind' => $sourcePlan['jsonInputKind'],
+            'jsonValid' => $sourcePlan['jsonValid'],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     * @param array<string,mixed>|null $pair
+     */
+    private static function lateralHiddenTransitionReason90(?array $current, ?array $next, ?array $pair): string
+    {
+        if ($current === null) {
+            return 'next-lateral-hidden-host-row-added';
+        }
+        if ($next === null) {
+            return 'current-lateral-hidden-host-row-removed';
+        }
+        $pairReasons = array_values(array_filter(
+            $pair['next88ReplanReasons'] ?? [],
+            static fn (string $reason): bool => $reason !== 'hidden-residual-constraint-present',
+        ));
+        if ($pairReasons !== []) {
+            return 'lateral-hidden-source-plan-changed';
+        }
+        if (($current['rowCount'] ?? 0) !== ($next['rowCount'] ?? 0)) {
+            return 'lateral-hidden-row-count-changed';
+        }
+        if (($current['nullExtended'] ?? false) !== ($next['nullExtended'] ?? false)) {
+            return 'lateral-hidden-null-extension-changed';
+        }
+        if (($current['hiddenResidualColumns'] ?? []) !== ($next['hiddenResidualColumns'] ?? [])) {
+            return 'lateral-hidden-residual-usage-changed';
+        }
+
+        return 'stable-lateral-hidden-json-plan';
     }
 
     /**

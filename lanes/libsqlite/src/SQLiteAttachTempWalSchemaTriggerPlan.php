@@ -312,6 +312,116 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
     }
 
     /**
+     * @param list<array{name:string, active?:bool, statement?:string}> $preparedTriggers
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext90(
+        SQLiteAttachedSchemaCatalog $current,
+        SQLiteAttachedSchemaCatalog $next,
+        array $preparedTriggers,
+        array $schemaStates = [],
+    ): array {
+        if ($preparedTriggers === []) {
+            throw new \InvalidArgumentException('SQLite attach temp WAL schema trigger current-source-next90 requires prepared triggers');
+        }
+
+        $plans = [];
+        $reprepare = [];
+        $stable = [];
+        $activeCurrent = [];
+        $resetSchema = [];
+        $nextStepSchema = [];
+        $invalidatedSchemas = [];
+        $walSchemas = [];
+        $tempSchemas = [];
+        $attachedSchemas = [];
+
+        foreach ($preparedTriggers as $index => $trigger) {
+            if (!isset($trigger['name']) || trim((string) $trigger['name']) === '') {
+                throw new \InvalidArgumentException("SQLite prepared trigger {$index} requires a name");
+            }
+
+            $name = trim((string) $trigger['name']);
+            $active = (bool) ($trigger['active'] ?? false);
+            $source = SQLiteAttachTempViewTriggerResolution::currentNextSourcePlan($current, $next, $name);
+            $requiresReprepare = (bool) $source['requiresReprepare'];
+
+            if ($requiresReprepare) {
+                $reprepare[] = $name;
+                $invalidatedSchemas = array_merge($invalidatedSchemas, $source['invalidatedSources']);
+                $walSchemas = array_merge($walSchemas, $source['walSchemas']);
+                $tempSchemas = array_merge($tempSchemas, $source['tempSchemas']);
+                $attachedSchemas = array_merge($attachedSchemas, $source['attachedSchemas']);
+                if ($active) {
+                    $action = 'finish_current_source_then_sqlite_schema_on_reset';
+                    $sqliteResult = 'SQLITE_OK';
+                    $activeCurrent[] = $name;
+                    $resetSchema[] = $name;
+                } else {
+                    $action = 'sqlite_schema_on_next_step';
+                    $sqliteResult = 'SQLITE_SCHEMA';
+                    $nextStepSchema[] = $name;
+                }
+            } else {
+                $stable[] = $name;
+                $action = 'reuse_prepared_trigger';
+                $sqliteResult = 'SQLITE_OK';
+            }
+
+            $plans[$name] = [
+                'active' => $active,
+                'statement' => (string) ($trigger['statement'] ?? ''),
+                'current' => $source['current'],
+                'next' => $source['next'],
+                'changed' => $source['changed'],
+                'changed_fields' => $source['changedFields'],
+                'requires_reprepare' => $requiresReprepare,
+                'current_step_result' => $sqliteResult,
+                'next_step_action' => $action,
+                'current_source_kept_until_reset' => $active && $requiresReprepare,
+                'invalidated_sources' => $source['invalidatedSources'],
+                'wal_schemas' => $source['walSchemas'],
+                'temp_schemas' => $source['tempSchemas'],
+                'attached_schemas' => $source['attachedSchemas'],
+            ];
+        }
+
+        $schemaCookies = self::schemaCookies($schemaStates);
+        $changedSchemas = self::orderedSchemaNames(array_merge(
+            $invalidatedSchemas,
+            $schemaCookies['changed_schemas'],
+        ));
+
+        return [
+            'status' => $reprepare === [] ? 'trigger_current_source_stable' : 'trigger_current_source_expired',
+            'operation' => 'attach-temp-wal-schema-trigger-current-source-next90',
+            'trigger_count' => count($preparedTriggers),
+            'active_trigger_count' => count(array_filter($preparedTriggers, static fn (array $trigger): bool => (bool) ($trigger['active'] ?? false))),
+            'triggers' => $plans,
+            'reprepare_triggers' => $reprepare,
+            'stable_triggers' => $stable,
+            'active_current_snapshot_triggers' => $activeCurrent,
+            'reset_schema_triggers' => $resetSchema,
+            'next_step_schema_triggers' => $nextStepSchema,
+            'requires_reprepare' => $reprepare !== [],
+            'changed_schemas' => $changedSchemas,
+            'wal_schemas' => self::orderedSchemaNames(array_merge($walSchemas, $schemaCookies['wal_sources'])),
+            'temp_schemas' => self::orderedSchemaNames($tempSchemas),
+            'attached_schemas' => self::orderedSchemaNames($attachedSchemas),
+            'schema_cookies_current' => $schemaCookies['current'],
+            'schema_cookies_next' => $schemaCookies['next'],
+            'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
+            'dependencies' => [
+                'sqlite-attach-temp-wal-schema-trigger-current-source-next90',
+                'sqlite-prepared-trigger-current-source-reset',
+                'sqlite-temp-trigger-shadow-resolution',
+                'sqlite-wal-page-one-schema-cookie',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $operations
      * @return list<array{operation_index:int,kind:string,schema:string,table:string,cookie_delta:int,journal:string,source:string}>
      */
@@ -491,5 +601,32 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         return strtolower($trimmed);
+    }
+
+    /**
+     * @param list<string> $schemas
+     * @return list<string>
+     */
+    private static function orderedSchemaNames(array $schemas): array
+    {
+        $unique = [];
+        foreach ($schemas as $schema) {
+            $name = self::normalizeName((string) $schema);
+            $unique[$name] = true;
+        }
+
+        $order = ['temp' => 0, 'main' => 1];
+        $names = array_keys($unique);
+        usort($names, static function (string $a, string $b) use ($order): int {
+            $rankA = $order[$a] ?? 2;
+            $rankB = $order[$b] ?? 2;
+            if ($rankA !== $rankB) {
+                return $rankA <=> $rankB;
+            }
+
+            return $a <=> $b;
+        });
+
+        return $names;
     }
 }

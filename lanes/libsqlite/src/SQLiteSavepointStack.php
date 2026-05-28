@@ -1084,6 +1084,127 @@ final class SQLiteSavepointStack
     }
 
     /**
+     * @param array<int,string> $currentPageImages
+     * @return array{released_savepoint:string,next_statement:string,page_size:int,current_source_verified:bool,current_source_page_numbers:list<int>,current_source_prefixes:array<int,string>,next_source_prefixes:array<int,string>,release_plan:array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool},discarded_statement_journals:list<string>,statement_journals_before_release:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_release:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,names_after_release:list<string>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,next_wal_start_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,released_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function releaseCurrentSourceAndBeginNextStatementJournal90(
+        string $savepointName,
+        string $nextStatementName,
+        string $currentDatabaseBytes,
+        array $currentPageImages,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        int $pageSize,
+        bool $commitFrame = false,
+    ): array {
+        if ($nextStatementName === '') {
+            throw new \InvalidArgumentException('SQLite next statement journal name must not be empty');
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($currentDatabaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite savepoint release current source must be aligned to the page size');
+        }
+        if ($currentPageImages === []) {
+            throw new \InvalidArgumentException('SQLite savepoint release current source pages must not be empty');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+        if ($nextBeforeImage === '') {
+            throw new \InvalidArgumentException('SQLite statement journal page images must not be empty');
+        }
+        if (strlen($nextBeforeImage) !== $pageSize) {
+            throw new \InvalidArgumentException("SQLite statement journal image for page {$nextPageNumber} does not match the page size");
+        }
+
+        $sourcePageNumbers = [];
+        $currentSourcePrefixes = [];
+        foreach ($currentPageImages as $pageNumber => $expectedImage) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite savepoint release current source page numbers are one-based');
+            }
+            if (!is_string($expectedImage) || strlen($expectedImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint release current source image for page {$pageNumber} must match the page size");
+            }
+
+            $offset = ($pageNumber - 1) * $pageSize;
+            $actualImage = substr($currentDatabaseBytes, $offset, $pageSize);
+            if (strlen($actualImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite savepoint release current source page {$pageNumber} is outside the database image");
+            }
+            if ($actualImage !== $expectedImage) {
+                throw new \RuntimeException("SQLite savepoint release current source page {$pageNumber} is stale");
+            }
+
+            $sourcePageNumbers[] = $pageNumber;
+            $currentSourcePrefixes[$pageNumber] = rtrim(substr($actualImage, 0, min(48, $pageSize)), "\0");
+        }
+        sort($sourcePageNumbers, SORT_NUMERIC);
+        ksort($currentSourcePrefixes, SORT_NUMERIC);
+
+        $index = $this->findFrame($savepointName);
+        $discardedStatementJournals = [];
+        foreach ($this->statementJournals as $journal) {
+            if ($journal['frame_index'] >= $index) {
+                $discardedStatementJournals[] = $journal['name'];
+            }
+        }
+        sort($discardedStatementJournals, SORT_STRING);
+
+        $statementJournalsBeforeRelease = $this->statementJournalState();
+        $releasePlan = $this->releasePlan($savepointName);
+        $this->release($savepointName);
+        $statementJournalsAfterRelease = $this->statementJournalState();
+        $pendingPagesAfterRelease = $this->pendingPageNumbers();
+        $pendingWalAfterRelease = $this->pendingWalFrameIndexes();
+        $nextWalStartFrame = $this->maxWalFrame;
+        $nextFrameIndex = $nextWalStartFrame + 1;
+
+        $this->beginStatementJournal($nextStatementName);
+        $this->recordStatementPageImageWrite($nextStatementName, $nextPageNumber, $nextBeforeImage);
+        $this->recordStatementWalFrameWrite($nextStatementName, $nextFrameIndex, $nextPageNumber, $commitFrame);
+
+        $nextSourcePrefixes = [];
+        foreach ($sourcePageNumbers as $pageNumber) {
+            $offset = ($pageNumber - 1) * $pageSize;
+            $nextSourcePrefixes[$pageNumber] = rtrim(substr($currentDatabaseBytes, $offset, min(48, $pageSize)), "\0");
+        }
+
+        return [
+            'released_savepoint' => $savepointName,
+            'next_statement' => $nextStatementName,
+            'page_size' => $pageSize,
+            'current_source_verified' => true,
+            'current_source_page_numbers' => $sourcePageNumbers,
+            'current_source_prefixes' => $currentSourcePrefixes,
+            'next_source_prefixes' => $nextSourcePrefixes,
+            'release_plan' => $releasePlan,
+            'discarded_statement_journals' => $discardedStatementJournals,
+            'statement_journals_before_release' => $statementJournalsBeforeRelease,
+            'statement_journals_after_release' => $statementJournalsAfterRelease,
+            'statement_journals_after_next' => $this->statementJournalState(),
+            'names_after_release' => $this->names(),
+            'pending_page_numbers_after_release' => $pendingPagesAfterRelease,
+            'pending_wal_frame_indexes_after_release' => $pendingWalAfterRelease,
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'next_wal_start_frame' => $nextWalStartFrame,
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'released_savepoint_active_after' => $this->hasOpenFrame($savepointName),
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-pager-statement-journal-savepoint-current-source-next90',
+                'sqlite-savepoint-release-merges-current-pager-state',
+                'sqlite-statement-journal-next-after-release',
+            ],
+        ];
+    }
+
+    /**
      * @return array{statement:string,savepoint:string,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int}>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,transaction_active_after:bool,savepoint_active_after:bool,statement_journal_cleared:bool}
      */
     public function rollbackStatementOnErrorWithPlan(string $statementName, int $pageSize): array
