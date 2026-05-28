@@ -358,6 +358,7 @@ final class SQLiteSelectQuery
                         static fn (array $term): array => [
                             'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),
                             'direction' => $term['direction'],
+                            'nulls' => $term['nulls'] ?? null,
                         ],
                         $aggregateOrderBy,
                     ),
@@ -375,12 +376,12 @@ final class SQLiteSelectQuery
                     if (!is_array($rightTerm) || !array_key_exists('value', $rightTerm)) {
                         throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY keys are malformed');
                     }
-                    $comparison = self::compareSqlValues($leftTerm['value'], $rightTerm['value']);
+                    $comparison = self::compareAggregateOrderValues($leftTerm, $rightTerm);
                     if ($comparison === 0) {
                         continue;
                     }
 
-                    return $leftTerm['direction'] === 'DESC' ? -$comparison : $comparison;
+                    return $comparison;
                 }
 
                 return $left['position'] <=> $right['position'];
@@ -431,6 +432,7 @@ final class SQLiteSelectQuery
                         static fn (array $term): array => [
                             'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),
                             'direction' => $term['direction'],
+                            'nulls' => $term['nulls'] ?? null,
                         ],
                         $aggregateOrderBy,
                     ),
@@ -448,12 +450,12 @@ final class SQLiteSelectQuery
                     if (!is_array($rightTerm) || !array_key_exists('value', $rightTerm)) {
                         throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY keys are malformed');
                     }
-                    $comparison = self::compareSqlValues($leftTerm['value'], $rightTerm['value']);
+                    $comparison = self::compareAggregateOrderValues($leftTerm, $rightTerm);
                     if ($comparison === 0) {
                         continue;
                     }
 
-                    return $leftTerm['direction'] === 'DESC' ? -$comparison : $comparison;
+                    return $comparison;
                 }
 
                 return $left['position'] <=> $right['position'];
@@ -529,13 +531,48 @@ final class SQLiteSelectQuery
             if ($direction !== 'ASC' && $direction !== 'DESC') {
                 throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY direction must be ASC or DESC');
             }
+            $nulls = null;
+            if (isset($term['nulls'])) {
+                $nulls = strtoupper((string) $term['nulls']);
+                if ($nulls !== 'FIRST' && $nulls !== 'LAST') {
+                    throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY NULLS must be FIRST or LAST');
+                }
+            }
             $orderBy[] = [
                 'expression' => $term['expression'],
                 'direction' => $direction,
+                ...$nulls !== null ? ['nulls' => $nulls] : [],
             ];
         }
 
         return $orderBy;
+    }
+
+    /**
+     * @param array{value:mixed,direction:string,nulls?:string|null} $left
+     * @param array{value:mixed,direction:string,nulls?:string|null} $right
+     */
+    private static function compareAggregateOrderValues(array $left, array $right): int
+    {
+        if ($left['value'] === null || $right['value'] === null) {
+            if ($left['value'] === null && $right['value'] === null) {
+                return 0;
+            }
+            $nulls = $left['nulls'] ?? null;
+            if ($nulls === 'FIRST') {
+                return $left['value'] === null ? -1 : 1;
+            }
+            if ($nulls === 'LAST') {
+                return $left['value'] === null ? 1 : -1;
+            }
+        }
+
+        $comparison = self::compareSqlValues($left['value'], $right['value']);
+        if ($comparison === 0) {
+            return 0;
+        }
+
+        return $left['direction'] === 'DESC' ? -$comparison : $comparison;
     }
 
     /**

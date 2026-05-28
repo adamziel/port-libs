@@ -554,15 +554,17 @@ final class SQLiteSelectSql
     private static function compoundOrderBy(string $sql, array $select): array
     {
         $columns = [];
+        $expressions = [];
         foreach ($select as $index => $term) {
             if (isset($term['alias']) && is_string($term['alias'])) {
                 $columns[$index + 1] = $term['alias'];
-                continue;
-            }
-            if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name'])) {
+            } elseif (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name'])) {
                 $name = $term['name'];
                 $columns[$index + 1] = str_contains($name, '.') ? substr($name, strrpos($name, '.') + 1) : $name;
+            } else {
+                $columns[$index + 1] = 'expr' . ($index + 1);
             }
+            $expressions[$index + 1] = self::projectionExpressionForComparison($term);
         }
 
         $orderBy = [];
@@ -575,8 +577,13 @@ final class SQLiteSelectSql
                 }
                 $column = $columns[$ordinal];
             } else {
-                self::assertIdentifier($expression, 'SQLite SELECT SQL compound ORDER BY column');
-                $column = $expression;
+                $matched = self::compoundOrderByMatchedColumn($expression, $columns, $expressions);
+                if ($matched === null) {
+                    self::assertIdentifier($expression, 'SQLite SELECT SQL compound ORDER BY column');
+                    $column = $expression;
+                } else {
+                    $column = $matched;
+                }
             }
 
             $entry = ['column' => $column];
@@ -593,6 +600,88 @@ final class SQLiteSelectSql
         }
 
         return $orderBy;
+    }
+
+    /**
+     * @param array<int,string> $columns
+     * @param array<int,array<string,mixed>> $expressions
+     */
+    private static function compoundOrderByMatchedColumn(string $sql, array $columns, array $expressions): ?string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $sql) === 1) {
+            foreach ($columns as $column) {
+                if ($column === $sql) {
+                    return $column;
+                }
+            }
+
+            return null;
+        }
+
+        $expression = self::valueExpression($sql);
+        foreach ($expressions as $index => $selectedExpression) {
+            if (self::compoundOrderByExpressionsMatch($expression, $selectedExpression)) {
+                return $columns[$index];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @return array<string,mixed>
+     */
+    private static function projectionExpressionForComparison(array $expression): array
+    {
+        unset($expression['alias'], $expression['hiddenOrderColumn']);
+
+        return $expression;
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     */
+    private static function compoundOrderByExpressionsMatch(array $left, array $right): bool
+    {
+        return self::normalizedExpressionForComparison($left) === self::normalizedExpressionForComparison($right);
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @return array<string,mixed>
+     */
+    private static function normalizedExpressionForComparison(array $expression): array
+    {
+        unset($expression['alias'], $expression['hiddenOrderColumn']);
+        ksort($expression);
+        foreach ($expression as $key => $value) {
+            if (is_array($value)) {
+                $expression[$key] = self::normalizeExpressionArray($value);
+            }
+        }
+
+        return $expression;
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return array<mixed>
+     */
+    private static function normalizeExpressionArray(array $value): array
+    {
+        if (!array_is_list($value)) {
+            unset($value['alias'], $value['hiddenOrderColumn']);
+            ksort($value);
+        }
+        foreach ($value as $key => $nested) {
+            if (is_array($nested)) {
+                $value[$key] = self::normalizeExpressionArray($nested);
+            }
+        }
+
+        return $value;
     }
 
     /**
@@ -3634,6 +3723,11 @@ final class SQLiteSelectSql
     private static function aggregateOrderTerm(string $term, array $tables): array
     {
         $term = trim($term);
+        $nulls = null;
+        if (preg_match('/\s+NULLS\s+(FIRST|LAST)\s*$/i', $term, $match) === 1) {
+            $nulls = strtoupper($match[1]);
+            $term = trim(substr($term, 0, -strlen($match[0])));
+        }
         $direction = 'ASC';
         if (preg_match('/^(.+?)\s+(ASC|DESC)$/i', $term, $match) === 1) {
             $term = trim($match[1]);
@@ -3643,7 +3737,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL aggregate ORDER BY term cannot be empty');
         }
 
-        return [self::valueExpression($term, $tables), $direction];
+        return [self::valueExpression($term, $tables), $direction, $nulls];
     }
 
     /**
@@ -3654,11 +3748,15 @@ final class SQLiteSelectSql
     {
         $terms = [];
         foreach (self::splitTopLevel($sql, ',') as $term) {
-            [$expression, $direction] = self::aggregateOrderTerm($term, $tables);
-            $terms[] = [
+            [$expression, $direction, $nulls] = self::aggregateOrderTerm($term, $tables);
+            $orderTerm = [
                 'expression' => $expression,
                 'direction' => $direction,
             ];
+            if ($nulls !== null) {
+                $orderTerm['nulls'] = $nulls;
+            }
+            $terms[] = $orderTerm;
         }
         if ($terms === []) {
             throw new \InvalidArgumentException('SQLite SELECT SQL aggregate ORDER BY needs at least one term');
@@ -4018,6 +4116,7 @@ final class SQLiteSelectSql
                     static fn (array $orderTerm): array => [
                         'expression' => $orderTerm['expression'],
                         'direction' => $orderTerm['direction'],
+                        ...isset($orderTerm['nulls']) ? ['nulls' => $orderTerm['nulls']] : [],
                     ],
                     self::jsonAggregateOrderTerms($term, strtolower($term['name'])),
                 );
@@ -4052,6 +4151,7 @@ final class SQLiteSelectSql
                 $terms[] = [
                     'expression' => $orderTerm['expression'],
                     'direction' => strtoupper((string) ($orderTerm['direction'] ?? 'ASC')),
+                    ...isset($orderTerm['nulls']) ? ['nulls' => strtoupper((string) $orderTerm['nulls'])] : [],
                 ];
             }
 
@@ -4068,6 +4168,7 @@ final class SQLiteSelectSql
         return [[
             'expression' => $term['orderBy'],
             'direction' => strtoupper((string) ($term['orderDirection'] ?? 'ASC')),
+            ...isset($term['orderNulls']) ? ['nulls' => strtoupper((string) $term['orderNulls'])] : [],
         ]];
     }
 
@@ -4086,7 +4187,8 @@ final class SQLiteSelectSql
             $orderParts = [];
             foreach (self::jsonAggregateOrderTerms($term, strtolower((string) $term['name'])) as $orderTerm) {
                 $orderParts[] = self::jsonAggregateOrderTermLabel($orderTerm['expression'])
-                    . ($orderTerm['direction'] === 'DESC' ? 'Desc' : 'Asc');
+                    . ($orderTerm['direction'] === 'DESC' ? 'Desc' : 'Asc')
+                    . (isset($orderTerm['nulls']) ? 'Nulls' . ucfirst(strtolower((string) $orderTerm['nulls'])) : '');
             }
             $name .= 'OrderBy' . implode('_', $orderParts);
         }

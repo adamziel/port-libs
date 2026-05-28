@@ -13,6 +13,26 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
      */
     public static function plan(array $operations, array $options = []): array
     {
+        return self::run($operations, $options, false, 'vfs-lock-byte-uri-shm-current-source-next97');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext112(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-shm-lockbyte-filecontrol-current-source-next112');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(array $operations, array $options, bool $trackFileControls, string $dependency): array
+    {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS lock-byte URI SHM current-source next97 requires operations');
         }
@@ -55,6 +75,11 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                     'source' => $source,
                     'handle' => $state['source_handles'][$source],
                 ]);
+                continue;
+            }
+
+            if ($op['kind'] === 'filecontrol') {
+                $events[] = self::event('filecontrol', ...self::applyFileControl($state, $op, $before, $trackFileControls));
                 continue;
             }
 
@@ -109,13 +134,100 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'current' => $events[0]['current'],
             'next' => self::next($state),
             'events' => $events,
-            'dependencies' => [
+            'dependencies' => array_values(array_unique(array_merge([
                 'sqlite-file-uri',
                 'sqlite-lock-byte-range-current-next',
                 'sqlite-wal-shm-locks',
-                'vfs-lock-byte-uri-shm-current-source-next97',
-            ],
+                $dependency,
+            ], $trackFileControls ? ['vfs-current-source-file-control-data-version'] : []))),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @param array<string,mixed> $op
+     * @param array<string,mixed> $before
+     * @return array{0:string,1:array<string,mixed>,2:array<string,mixed>,3:array<string,mixed>}
+     */
+    private static function applyFileControl(array &$state, array $op, array $before, bool $trackFileControls): array
+    {
+        $source = self::sourceFor($state, $op['source'] ?? null);
+        $handle = self::handle($state, $source);
+        $owner = (string) $handle['owner'];
+        $control = self::controlName((string) ($op['control'] ?? ''));
+        $value = self::controlValue($control, $op['value'] ?? null);
+        $controls = is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : [];
+        $previous = $controls[$control] ?? null;
+        $generation = self::ownerGeneration($state, $owner);
+        $openedGeneration = (int) ($handle['source_generation'] ?? $generation);
+
+        if (!$trackFileControls) {
+            return ['unsupported', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'file_control' => $control,
+                'value' => $value,
+                'reason' => 'filecontrol requires currentSourceNext112',
+            ]];
+        }
+
+        if ($control === 'data_version' && ($op['value'] ?? null) === null) {
+            return ['ok', $before, self::snapshot($state), [
+                'source' => $source,
+                'handle' => $handle['id'],
+                'owner' => $owner,
+                'file_control' => $control,
+                'value' => $generation,
+                'previous' => $openedGeneration,
+                'changed' => false,
+                'routed_to' => 'database',
+                'source_generation' => $generation,
+                'opened_generation' => $openedGeneration,
+                'stale_current_source' => $openedGeneration !== $generation,
+                'stale_handles' => self::staleHandles($state, $owner),
+            ]];
+        }
+
+        $requiresWrite = self::writeControl($control);
+        $status = 'ok';
+        $reason = null;
+        if ((bool) ($handle['readonly'] ?? false) && $requiresWrite) {
+            $status = 'ignored';
+            $reason = 'readonly_handle';
+        } elseif ($requiresWrite && !self::ownerHasWriteByteLock($state, $owner)) {
+            $status = 'blocked';
+            $reason = 'requires_reserved_pending_or_exclusive_byte_lock';
+        }
+
+        if ($status === 'ok') {
+            $controls[$control] = $value;
+            if ($requiresWrite && $previous !== $value) {
+                $generation++;
+                $state['persistent_generations'][$owner] = $generation;
+                $controls['data_version'] = $generation;
+                if (isset($state['handles'][(string) $handle['id']])) {
+                    $state['handles'][(string) $handle['id']]['source_generation'] = $generation;
+                }
+            }
+            $state['persistent_controls'][$owner] = self::persistentControls($controls);
+        }
+        $state['owners'][$owner] = self::owner($state, $owner);
+
+        return [$status, $before, self::snapshot($state), [
+            'source' => $source,
+            'handle' => $handle['id'],
+            'owner' => $owner,
+            'file_control' => $control,
+            'value' => $value,
+            'previous' => $previous,
+            'changed' => $status === 'ok' && $previous !== $value,
+            'reason' => $reason,
+            'routed_to' => 'database',
+            'source_generation' => self::ownerGeneration($state, $owner),
+            'opened_generation' => $openedGeneration,
+            'stale_handles' => self::staleHandles($state, $owner),
+        ]];
     }
 
     /**
@@ -234,11 +346,13 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
                 'current_source' => null,
                 'handles' => [],
                 'source_handles' => [],
-                'owners' => [],
-                'lock_holders' => [],
-                'shared_slots' => [],
-                'shm_locks' => [],
-            ];
+            'owners' => [],
+            'lock_holders' => [],
+            'shared_slots' => [],
+            'shm_locks' => [],
+            'persistent_controls' => [],
+            'persistent_generations' => [],
+        ];
         }
 
         return [
@@ -250,6 +364,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'lock_holders' => is_array($current['lock_holders'] ?? null) ? $current['lock_holders'] : [],
             'shared_slots' => is_array($current['shared_slots'] ?? null) ? $current['shared_slots'] : [],
             'shm_locks' => is_array($current['shm_locks'] ?? null) ? $current['shm_locks'] : [],
+            'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
+            'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
         ];
     }
 
@@ -274,6 +390,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         $readonly = (bool) ($op['readonly'] ?? ($uri['mode'] === 'ro' || $uri['immutable'] === true));
         $nolock = (bool) ($uri['nolock'] ?? false);
         self::ensureOwner($state, $owner);
+        $controls = is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : [];
+        $generation = self::ownerGeneration($state, $owner);
 
         return [
             'id' => 'vfs97-' . $state['sequence'],
@@ -283,6 +401,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'owner' => $owner,
             'readonly' => $readonly,
             'nolock' => $nolock,
+            'controls' => $controls,
+            'source_generation' => $generation,
             'owner_had_main_open' => $ownerHadMainOpen,
             'uri' => [
                 'is_uri' => $uri['is_uri'],
@@ -336,6 +456,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'shm_locks' => self::sortedShm($state['shm_locks'][$owner] ?? self::emptyShmLocks()),
             'lock_count' => count($state['lock_holders'][$owner] ?? []),
             'shm_lock_count' => array_sum(array_map('count', $state['shm_locks'][$owner] ?? self::emptyShmLocks())),
+            'controls' => self::sortedMap(is_array($state['persistent_controls'][$owner] ?? null) ? $state['persistent_controls'][$owner] : []),
+            'generation' => self::ownerGeneration($state, $owner),
         ];
     }
 
@@ -427,6 +549,9 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         }
         if (preg_match('/^source\s*\(\s*(?<source>main|wal|shm)\s*\)$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'source', 'source' => strtolower($matches['source'])];
+        }
+        if (preg_match('/^file_control\s*\(\s*(?<control>[A-Za-z_][A-Za-z0-9_-]*)\s*(?:,\s*(?<value>.*))?\)$/i', $trimmed, $matches) === 1) {
+            return ['kind' => 'filecontrol', 'source' => null, 'control' => $matches['control'], 'value' => self::parseValue($matches['value'] ?? null)];
         }
         if (preg_match('/^close\s*(?:\((?<source>main|wal|shm)\))?$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'close', 'source' => strtolower($matches['source'] ?? '') ?: null];
@@ -637,6 +762,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
         ksort($state['lock_holders']);
         ksort($state['shared_slots']);
         ksort($state['shm_locks']);
+        ksort($state['persistent_controls']);
+        ksort($state['persistent_generations']);
 
         return $state;
     }
@@ -661,6 +788,8 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
             'handles' => $state['handles'],
             'lock_holder_count' => array_sum(array_map('count', $state['lock_holders'])),
             'shm_lock_count' => array_sum(array_map(static fn (array $locks): int => array_sum(array_map('count', $locks)), $state['shm_locks'])),
+            'persistent_control_count' => count($state['persistent_controls']),
+            'persistent_generation_count' => count($state['persistent_generations']),
         ];
     }
 
@@ -673,6 +802,131 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext97
     private static function event(string $op, string $status, array $current, array $next, array $extra): array
     {
         return ['op' => $op, 'status' => $status, 'current' => $current, 'next' => $next] + $extra;
+    }
+
+    private static function ownerGeneration(array $state, string $owner): int
+    {
+        $generation = $state['persistent_generations'][$owner] ?? null;
+        if (is_int($generation) && $generation > 0) {
+            return $generation;
+        }
+
+        return 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function staleHandles(array $state, string $owner): array
+    {
+        $generation = self::ownerGeneration($state, $owner);
+        $stale = [];
+        foreach ($state['handles'] as $id => $handle) {
+            if (($handle['owner'] ?? null) !== $owner) {
+                continue;
+            }
+            if ((int) ($handle['source_generation'] ?? $generation) !== $generation) {
+                $stale[] = (string) $id;
+            }
+        }
+
+        return $stale;
+    }
+
+    private static function ownerHasWriteByteLock(array $state, string $owner): bool
+    {
+        foreach (($state['lock_holders'][$owner] ?? []) as $level) {
+            if (in_array($level, ['reserved', 'pending', 'exclusive'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,mixed> $controls
+     * @return array<string,mixed>
+     */
+    private static function persistentControls(array $controls): array
+    {
+        $subset = [];
+        foreach (['persist_wal', 'chunk_size', 'mmap_size', 'powersafe_overwrite', 'reserve_bytes', 'lock_timeout', 'data_version'] as $key) {
+            if (array_key_exists($key, $controls)) {
+                $subset[$key] = $controls[$key];
+            }
+        }
+        ksort($subset);
+
+        return $subset;
+    }
+
+    private static function controlName(string $control): string
+    {
+        $control = strtolower(str_replace('-', '_', trim($control)));
+        if ($control === '') {
+            throw new \InvalidArgumentException('SQLite VFS current-source file-control name is required');
+        }
+
+        return $control;
+    }
+
+    private static function controlValue(string $control, mixed $value): mixed
+    {
+        return match ($control) {
+            'persist_wal', 'powersafe_overwrite' => self::boolean($value),
+            'chunk_size', 'mmap_size', 'size_hint', 'reserve_bytes', 'lock_timeout' => self::nonNegativeInt($value, $control),
+            default => $value,
+        };
+    }
+
+    private static function writeControl(string $control): bool
+    {
+        return in_array($control, ['chunk_size', 'size_hint', 'reserve_bytes', 'powersafe_overwrite', 'persist_wal'], true);
+    }
+
+    private static function parseValue(mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+        if (preg_match('/^\d+$/', $trimmed) === 1) {
+            return (int) $trimmed;
+        }
+        if ((str_starts_with($trimmed, "'") && str_ends_with($trimmed, "'")) || (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))) {
+            $quote = $trimmed[0];
+            return str_replace($quote . $quote, $quote, substr($trimmed, 1, -1));
+        }
+
+        return $trimmed;
+    }
+
+    private static function boolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value !== 0;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'on', 'yes'], true);
+    }
+
+    private static function nonNegativeInt(mixed $value, string $label): int
+    {
+        if (is_int($value) || (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1)) {
+            $int = (int) $value;
+            if ($int >= 0) {
+                return $int;
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite VFS file-control {$label} requires a non-negative integer");
     }
 
     /**

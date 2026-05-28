@@ -190,8 +190,25 @@ final class SQLiteUpdateDeleteReturningSql
     {
         $assignments = [];
         foreach (self::splitComma($sql) as $part) {
+            if (preg_match('/^\(([^()]+)\)\s*=\s*\((.*)\)$/s', trim($part), $match) === 1) {
+                $columns = self::rowValueColumns($match[1]);
+                $expressions = self::splitComma($match[2]);
+                if (count($columns) !== count($expressions)) {
+                    throw new \InvalidArgumentException('SQLite UPDATE row-value assignment arity mismatch');
+                }
+                foreach ($columns as $index => $column) {
+                    if (array_key_exists($column, $assignments)) {
+                        throw new \InvalidArgumentException("SQLite UPDATE assignment repeats column {$column}");
+                    }
+                    $assignments[$column] = trim($expressions[$index]);
+                }
+                continue;
+            }
             if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/s', trim($part), $match) !== 1) {
                 throw new \InvalidArgumentException('SQLite UPDATE RETURNING assignments must be column = expression pairs');
+            }
+            if (array_key_exists($match[1], $assignments)) {
+                throw new \InvalidArgumentException("SQLite UPDATE assignment repeats column {$match[1]}");
             }
             $assignments[$match[1]] = trim($match[2]);
         }
@@ -283,6 +300,28 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function evaluatePredicate(string $term, array $row): ?bool
     {
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $term, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $tuples = self::rowValueTupleList($match[3], $row);
+            $result = self::rowValueIn($left, $tuples);
+
+            return isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result;
+        }
+        if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $term, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $comparison = self::rowValueCompare($left, $right);
+
+            return match ($match[2]) {
+                '=' => $comparison === null ? null : $comparison === 0,
+                '<>', '!=' => $comparison === null ? null : $comparison !== 0,
+                '>' => $comparison === null ? null : $comparison > 0,
+                '>=' => $comparison === null ? null : $comparison >= 0,
+                '<' => $comparison === null ? null : $comparison < 0,
+                '<=' => $comparison === null ? null : $comparison <= 0,
+                default => false,
+            };
+        }
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL$/i', $term, $match) === 1) {
             $isNull = self::column($row, $match[1]) === null;
 
@@ -384,6 +423,122 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
+     * @return list<string>
+     */
+    private static function rowValueColumns(string $sql): array
+    {
+        $columns = [];
+        foreach (self::splitComma($sql) as $column) {
+            $column = trim($column);
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value columns must be identifiers');
+            }
+            $columns[] = $column;
+        }
+        if (count($columns) < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value expressions need at least two columns');
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return list<mixed>
+     */
+    private static function rowValue(array $row, array $columns): array
+    {
+        return array_map(static fn (string $column): mixed => self::column($row, $column), $columns);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return list<mixed>
+     */
+    private static function rowValueExpressions(string $sql, array $row): array
+    {
+        $values = array_map(
+            static fn (string $expression): mixed => self::evaluateExpression(trim($expression), $row),
+            self::splitComma($sql),
+        );
+        if (count($values) < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value expressions need at least two values');
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return list<list<mixed>>
+     */
+    private static function rowValueTupleList(string $sql, array $row): array
+    {
+        $tuples = [];
+        foreach (self::splitComma($sql) as $tuple) {
+            $tuple = trim($tuple);
+            if (!str_starts_with($tuple, '(') || !str_ends_with($tuple, ')')) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value IN list must contain row tuples');
+            }
+            $tuples[] = self::rowValueExpressions(substr($tuple, 1, -1), $row);
+        }
+
+        return $tuples;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<list<mixed>> $tuples
+     */
+    private static function rowValueIn(array $left, array $tuples): ?bool
+    {
+        $unknown = false;
+        foreach ($tuples as $right) {
+            $comparison = self::rowValueCompare($left, $right);
+            if ($comparison === 0) {
+                return true;
+            }
+            if ($comparison === null) {
+                $unknown = true;
+            }
+        }
+
+        return $unknown ? null : false;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function rowValueCompare(array $left, array $right): ?int
+    {
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value arity mismatch');
+        }
+        $unknown = false;
+        foreach ($left as $index => $leftValue) {
+            $rightValue = $right[$index];
+            if ($leftValue === null || $rightValue === null) {
+                $unknown = true;
+                continue;
+            }
+            if ($leftValue == $rightValue) {
+                continue;
+            }
+
+            return $leftValue <=> $rightValue;
+        }
+
+        return $unknown ? null : 0;
+    }
+
+    private static function negateNullable(?bool $value): ?bool
+    {
+        return $value === null ? null : !$value;
+    }
+
+    /**
      * @param array<string,mixed> $row
      */
     private static function column(array $row, string $column): mixed
@@ -418,6 +573,7 @@ final class SQLiteUpdateDeleteReturningSql
         $parts = [];
         $buffer = '';
         $inString = false;
+        $depth = 0;
         $length = strlen($sql);
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
@@ -431,7 +587,20 @@ final class SQLiteUpdateDeleteReturningSql
                 $inString = !$inString;
                 continue;
             }
-            if ($char === ',' && !$inString) {
+            if (!$inString && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                if ($depth < 0) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE SQL has unbalanced parentheses');
+                }
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === ',' && !$inString && $depth === 0) {
                 $parts[] = trim($buffer);
                 $buffer = '';
                 continue;
@@ -440,6 +609,9 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if ($inString) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE SQL has an unterminated string literal');
+        }
+        if ($depth !== 0) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE SQL has unbalanced parentheses');
         }
         if (trim($buffer) !== '') {
             $parts[] = trim($buffer);

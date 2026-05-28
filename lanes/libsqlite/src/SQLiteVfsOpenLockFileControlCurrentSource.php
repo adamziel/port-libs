@@ -81,6 +81,16 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext109(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-uri-current-source-next109', true, true, true, true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(
         array $operations,
         array $options,
@@ -90,7 +100,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         bool $persistWalRequiresWriteLock = false,
         bool $trackCurrentSourceGeneration = false,
         bool $trackDeviceCharacteristics = false,
-        bool $trackUriFileControl = false
+        bool $trackUriFileControl = false,
+        bool $sqliteUriHelperSemantics = false
     ): array {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
@@ -177,10 +188,11 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 }
                 if ($trackUriFileControl && in_array($control, ['uri_parameter', 'uri_boolean', 'uri_int'], true)) {
                     $parameter = self::uriFileControlParameter($op['value']);
+                    $default = $sqliteUriHelperSemantics ? self::uriFileControlDefault($op['value'], $control) : null;
                     $uriValues = self::uriParameterValues($handle, $parameter);
                     $value = match ($control) {
-                        'uri_boolean' => self::uriBooleanValue($uriValues),
-                        'uri_int' => self::uriIntValue($uriValues),
+                        'uri_boolean' => $sqliteUriHelperSemantics ? self::sqliteUriBooleanValue($uriValues, $default) : self::uriBooleanValue($uriValues),
+                        'uri_int' => $sqliteUriHelperSemantics ? self::sqliteUriIntValue($uriValues, $default) : self::uriIntValue($uriValues),
                         default => $uriValues[array_key_last($uriValues)] ?? null,
                     };
                     unset($handle);
@@ -191,6 +203,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                         'parameter' => $parameter,
                         'value' => $value,
                         'values' => $uriValues,
+                        'default' => $default,
                         'previous' => null,
                         'changed' => false,
                         'reason' => $uriValues === [] ? 'missing_uri_parameter' : null,
@@ -316,6 +329,9 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         }
         if ($trackUriFileControl) {
             $dependencies[] = 'vfs-uri-file-control';
+        }
+        if ($sqliteUriHelperSemantics) {
+            $dependencies[] = 'sqlite3-uri-helper-semantics';
         }
 
         return [
@@ -849,11 +865,29 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
 
     private static function uriFileControlParameter(mixed $value): string
     {
+        if (is_array($value)) {
+            $value = $value['parameter'] ?? $value['name'] ?? null;
+        }
         if (!is_string($value) || trim($value) === '' || str_contains($value, "\0")) {
             throw new \InvalidArgumentException('SQLite VFS URI file-control requires a non-empty parameter name');
         }
 
         return trim($value);
+    }
+
+    private static function uriFileControlDefault(mixed $value, string $control): mixed
+    {
+        if (!is_array($value) || !array_key_exists('default', $value)) {
+            return $control === 'uri_boolean' ? false : ($control === 'uri_int' ? 0 : null);
+        }
+
+        return match ($control) {
+            'uri_boolean' => self::boolean($value['default']),
+            'uri_int' => is_int($value['default']) || (is_string($value['default']) && preg_match('/^-?\d+$/', trim($value['default'])) === 1)
+                ? (int) $value['default']
+                : throw new \InvalidArgumentException('SQLite VFS URI integer default expects an integer'),
+            default => $value['default'],
+        };
     }
 
     /**
@@ -890,6 +924,25 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
     /**
      * @param list<string> $values
      */
+    private static function sqliteUriBooleanValue(array $values, mixed $default): bool
+    {
+        if ($values === []) {
+            return (bool) $default;
+        }
+        $value = strtolower($values[array_key_last($values)]);
+        if (in_array($value, ['yes', 'true', 'on'], true) || preg_match('/^[+-]?[1-9][0-9]*/', $value) === 1) {
+            return true;
+        }
+        if (in_array($value, ['no', 'false', 'off'], true) || preg_match('/^[+-]?0(?:\D|$)/', $value) === 1) {
+            return false;
+        }
+
+        return (bool) $default;
+    }
+
+    /**
+     * @param list<string> $values
+     */
     private static function uriIntValue(array $values): ?int
     {
         if ($values === []) {
@@ -898,6 +951,22 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         $value = $values[array_key_last($values)];
         if (preg_match('/^-?\d+$/', $value) !== 1) {
             throw new \InvalidArgumentException("SQLite VFS URI integer parameter expects an integer: {$value}");
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function sqliteUriIntValue(array $values, mixed $default): int
+    {
+        if ($values === []) {
+            return (int) $default;
+        }
+        $value = trim($values[array_key_last($values)]);
+        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+            return 0;
         }
 
         return (int) $value;

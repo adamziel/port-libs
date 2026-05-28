@@ -99,28 +99,34 @@ final class SQLiteSelectExpressionIndexPlan
                 ) {
                     continue;
                 }
-                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint, $terms)) {
+                if (!self::constraintCollationMatchesExpression($constraint, $expression)) {
                     continue;
                 }
-                if (!self::constraintCompatibleWithType($constraint, $expression->collation)) {
+                $matchedConstraint = self::constraintWithExpressionCollation($constraint, $expression);
+                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $matchedConstraint, $terms)) {
+                    continue;
+                }
+                if (!self::constraintCompatibleWithType($matchedConstraint, $expression->collation)) {
                     continue;
                 }
 
-                $estimated = self::estimatedRows($index, $constraint);
+                $estimated = self::estimatedRows($index, $matchedConstraint);
                 $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
-                $orderCompatible = self::orderCompatible($expression, $constraint['type'], $trailingColumns, $constraint, $orderBy);
-                $covering = self::covering($index, $expression, $constraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
+                $orderCompatible = self::orderCompatible($expression, $matchedConstraint['type'], $trailingColumns, $matchedConstraint, $orderBy);
+                $covering = self::covering($index, $expression, $matchedConstraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
 
                 $plans[] = [
                     'usable' => true,
                     'rootPage' => $index['rootPage'] ?? null,
                     'name' => $index['name'] ?? null,
-                    'type' => $constraint['type'],
+                    'type' => $matchedConstraint['type'],
                     'column' => $expression->columnName,
                     'operator' => 'range-bounded',
-                    'values' => $constraint['values'],
-                    'path' => $constraint['path'] ?? null,
+                    'values' => $matchedConstraint['values'],
+                    'path' => $matchedConstraint['path'] ?? null,
                     'collation' => $expression->collation,
+                    'queryCollation' => $matchedConstraint['collation'],
+                    'collationMatched' => strcasecmp($matchedConstraint['collation'], $expression->collation) === 0,
                     'descending' => $expression->descending,
                     'partial' => $expression->partial,
                     'residualPredicateRequired' => true,
@@ -134,7 +140,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'stat4RangeCurrentNext' => $estimated['stat4RangeCurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
-                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
+                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $matchedConstraint['type'], $neededExpressions),
                     'trailingColumns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $trailingColumns),
                     'legacyPlansUnaffected' => true,
                 ];
@@ -147,6 +153,101 @@ final class SQLiteSelectExpressionIndexPlan
         });
 
         return $plans;
+    }
+
+    /**
+     * Preview the current-source covering row stream selected by STAT4
+     * expression-index evidence. This is intentionally additive: it does not
+     * alter the existing planner ranking path.
+     *
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,string>> $orderBy
+     * @param list<string> $neededColumns
+     * @param list<array<string,string>> $neededExpressions
+     * @return null|array<string,mixed>
+     */
+    public static function stat4ExpressionCoveringCurrentSourcePlan(array $indexDefinitions, array $predicate, array $currentRows, array $orderBy = [], array $neededColumns = [], array $neededExpressions = []): ?array
+    {
+        $plan = self::chooseLowestCost($indexDefinitions, $predicate, $orderBy, $neededColumns, $neededExpressions);
+        if ($plan === null || !$plan['stat4Used'] || !$plan['covering']) {
+            return null;
+        }
+
+        $matchedKeys = [];
+        foreach ($plan['stat4MatchedCurrentNext'] as $pair) {
+            if (!is_array($pair) || !isset($pair['current']) || !is_array($pair['current']) || !array_key_exists('key', $pair['current'])) {
+                continue;
+            }
+            $matchedKeys[self::stat4KeySignature($pair['current']['key'])] = $pair['current']['key'];
+        }
+        if ($matchedKeys === []) {
+            return null;
+        }
+
+        $rows = [];
+        foreach ($currentRows as $offset => $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index current-source rows must be arrays');
+            }
+            if (!self::currentSourceRowSatisfiesPredicate($predicate, $row)) {
+                continue;
+            }
+
+            $key = self::currentSourceExpressionValue($plan, $row);
+            if (!array_key_exists(self::stat4KeySignature($key), $matchedKeys)) {
+                continue;
+            }
+
+            $rows[] = [
+                'sourceOffset' => $offset,
+                'rowid' => $row['rowid'] ?? $row['_rowid_'] ?? null,
+                'key' => $key,
+                'covering' => self::currentSourceCoveringPayload($row, $neededColumns),
+                'coveringExpressions' => self::currentSourceCoveringExpressionPayload($plan, $row, $neededExpressions),
+            ];
+        }
+
+        usort($rows, static function (array $left, array $right) use ($plan): int {
+            $comparison = self::compareStat4Keys($left['key'], $right['key']);
+            if ((bool) ($plan['descending'] ?? false)) {
+                $comparison *= -1;
+            }
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+
+            return ((int) ($left['rowid'] ?? $left['sourceOffset'])) <=> ((int) ($right['rowid'] ?? $right['sourceOffset']));
+        });
+
+        $currentNextRows = [];
+        foreach ($rows as $offset => $row) {
+            $currentNextRows[] = [
+                'current' => $row,
+                'next' => $rows[$offset + 1] ?? null,
+            ];
+        }
+
+        return [
+            'usable' => true,
+            'name' => $plan['name'] ?? null,
+            'rootPage' => $plan['rootPage'] ?? null,
+            'type' => $plan['type'],
+            'column' => $plan['column'],
+            'path' => $plan['path'] ?? null,
+            'operator' => $plan['operator'],
+            'values' => $plan['values'],
+            'estimatedRows' => $plan['estimatedRows'],
+            'stat4Estimate' => $plan['stat4Estimate'],
+            'stat4MatchedSamples' => $plan['stat4MatchedSamples'],
+            'stat4MatchedCurrentNext' => $plan['stat4MatchedCurrentNext'],
+            'orderBySatisfied' => $plan['orderBySatisfied'],
+            'covering' => true,
+            'coveredRowCount' => count($rows),
+            'currentNextRows' => $currentNextRows,
+            'dependencies' => ['sqlite-stat4-expression-covering-current-source-next109'],
+        ];
     }
 
     /**
@@ -350,33 +451,39 @@ final class SQLiteSelectExpressionIndexPlan
                 ) {
                     continue;
                 }
-                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $constraint, $terms)) {
+                if (!self::constraintCollationMatchesExpression($constraint, $expression)) {
                     continue;
                 }
-                if (!self::constraintCompatibleWithType($constraint, $expression->collation)) {
+                $matchedConstraint = self::constraintWithExpressionCollation($constraint, $expression);
+                if ($expression->partial && !self::constraintImpliesPartialPredicate($expression->partialPredicate, $matchedConstraint, $terms)) {
+                    continue;
+                }
+                if (!self::constraintCompatibleWithType($matchedConstraint, $expression->collation)) {
                     continue;
                 }
 
-                $estimated = self::estimatedRows($index, $constraint);
+                $estimated = self::estimatedRows($index, $matchedConstraint);
                 $estimatedRows = $estimated['rows'];
                 $trailingColumns = SQLiteCreateIndex::columnsAfterFirstExpression($sql);
-                $orderCompatible = self::orderCompatible($expression, $constraint['type'], $trailingColumns, $constraint, $orderBy);
-                $covering = self::covering($index, $expression, $constraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
-                $estimatedCost = self::estimatedCost($constraint, $estimatedRows, $expression->partial, $orderCompatible, $covering);
+                $orderCompatible = self::orderCompatible($expression, $matchedConstraint['type'], $trailingColumns, $matchedConstraint, $orderBy);
+                $covering = self::covering($index, $expression, $matchedConstraint['type'], $neededColumns, $neededExpressions, $trailingColumns);
+                $estimatedCost = self::estimatedCost($matchedConstraint, $estimatedRows, $expression->partial, $orderCompatible, $covering);
 
                 $plans[] = [
                     'usable' => true,
                     'rootPage' => $index['rootPage'] ?? null,
                     'name' => $index['name'] ?? null,
-                    'type' => $constraint['type'],
+                    'type' => $matchedConstraint['type'],
                     'column' => $expression->columnName,
-                    'operator' => $constraint['operator'],
-                    'values' => $constraint['values'],
-                    'path' => $constraint['path'] ?? null,
+                    'operator' => $matchedConstraint['operator'],
+                    'values' => $matchedConstraint['values'],
+                    'path' => $matchedConstraint['path'] ?? null,
                     'collation' => $expression->collation,
+                    'queryCollation' => $matchedConstraint['collation'],
+                    'collationMatched' => strcasecmp($matchedConstraint['collation'], $expression->collation) === 0,
                     'descending' => $expression->descending,
                     'partial' => $expression->partial,
-                    'residualPredicateRequired' => $constraint['residualPredicateRequired'],
+                    'residualPredicateRequired' => $matchedConstraint['residualPredicateRequired'],
                     'estimatedRows' => $estimatedRows,
                     'estimatedCost' => $estimatedCost,
                     'stat4Used' => $estimated['stat4Used'],
@@ -387,7 +494,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'stat4RangeCurrentNext' => $estimated['stat4RangeCurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
-                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
+                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $matchedConstraint['type'], $neededExpressions),
                     'trailingColumns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $trailingColumns),
                 ];
             }
@@ -447,10 +554,12 @@ final class SQLiteSelectExpressionIndexPlan
                 $constraint['type'],
                 strtolower($constraint['column']),
                 (string) ($constraint['path'] ?? ''),
+                strtoupper((string) ($constraint['collation'] ?? '')),
             ]);
             $groups[$key]['type'] = $constraint['type'];
             $groups[$key]['column'] = $constraint['column'];
             $groups[$key]['path'] = $constraint['path'] ?? null;
+            $groups[$key]['collation'] = $constraint['collation'] ?? null;
             if ($constraint['operator'] === 'range->' || $constraint['operator'] === 'range->=') {
                 if (
                     !isset($groups[$key]['lower'])
@@ -478,7 +587,7 @@ final class SQLiteSelectExpressionIndexPlan
                 continue;
             }
 
-            $comparison = self::compareStat4Keys($left['values'], $right['values']);
+            $comparison = self::compareStat4Keys($left['values'], $right['values'], (string) ($group['collation'] ?? 'BINARY'));
             if ($comparison > 0) {
                 continue;
             }
@@ -490,6 +599,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'type' => $group['type'],
                 'column' => $group['column'],
                 'path' => $group['path'],
+                'collation' => $group['collation'],
                 'operator' => 'range-bounded',
                 'values' => [
                     'lower' => $left['values'],
@@ -510,7 +620,7 @@ final class SQLiteSelectExpressionIndexPlan
      */
     private static function lowerBoundIsTighter(array $candidate, array $current): bool
     {
-        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values'], (string) ($candidate['collation'] ?? 'BINARY'));
         if ($comparison !== 0) {
             return $comparison > 0;
         }
@@ -524,7 +634,7 @@ final class SQLiteSelectExpressionIndexPlan
      */
     private static function upperBoundIsTighter(array $candidate, array $current): bool
     {
-        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values'], (string) ($candidate['collation'] ?? 'BINARY'));
         if ($comparison !== 0) {
             return $comparison < 0;
         }
@@ -533,7 +643,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @return null|array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool}
+     * @return null|array{type:string,column:string,operator:string,values:mixed,collation?:string,residualPredicateRequired:bool}
      */
     private static function constraintFromPredicate(array $predicate): ?array
     {
@@ -557,6 +667,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'path' => $left['path'] ?? null,
                 'operator' => 'IN',
                 'values' => self::literalList($values),
+                'collation' => $left['collation'] ?? null,
                 'residualPredicateRequired' => true,
             ];
         }
@@ -575,6 +686,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'lower' => self::literalValue($predicate['lower']),
                     'upper' => self::literalValue($predicate['upper']),
                 ],
+                'collation' => $left['collation'] ?? null,
                 'residualPredicateRequired' => true,
             ];
         }
@@ -583,7 +695,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @return null|array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool}
+     * @return null|array{type:string,column:string,operator:string,values:mixed,collation?:string,residualPredicateRequired:bool}
      */
     private static function binaryConstraint(array $predicate, string $operator): ?array
     {
@@ -596,6 +708,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'path' => $left['path'] ?? null,
                 'operator' => $operator,
                 'values' => self::literalValue($predicate['right']),
+                'collation' => $left['collation'] ?? null,
                 'residualPredicateRequired' => true,
             ];
         }
@@ -606,6 +719,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'path' => $right['path'] ?? null,
                 'operator' => self::reverseRangeOperator($operator),
                 'values' => self::literalValue($predicate['left']),
+                'collation' => $right['collation'] ?? null,
                 'residualPredicateRequired' => true,
             ];
         }
@@ -614,7 +728,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @return null|array{type:string,column:string,path?:string}
+     * @return null|array{type:string,column:string,path?:string,collation?:string}
      */
     private static function expressionOperand(mixed $operand): ?array
     {
@@ -629,16 +743,39 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return match ($function) {
-            'lower' => ['type' => 'lower', 'column' => $column],
-            'upper' => ['type' => 'upper', 'column' => $column],
-            'length' => ['type' => 'length', 'column' => $column],
-            'cast_integer' => ['type' => 'integer-cast', 'column' => $column],
-            'json_extract' => self::jsonPathOperand($operand, 'json-extract', $column),
-            'jsonb_extract' => self::jsonPathOperand($operand, 'jsonb-extract', $column),
-            'json_text_operator' => self::jsonPathOperand($operand, 'json-text-operator', $column),
-            'json_value_operator' => self::jsonPathOperand($operand, 'json-value-operator', $column),
+            'lower' => self::collatedExpressionOperand(['type' => 'lower', 'column' => $column], $operand),
+            'upper' => self::collatedExpressionOperand(['type' => 'upper', 'column' => $column], $operand),
+            'length' => self::collatedExpressionOperand(['type' => 'length', 'column' => $column], $operand),
+            'cast_integer' => self::collatedExpressionOperand(['type' => 'integer-cast', 'column' => $column], $operand),
+            'json_extract' => self::collatedExpressionOperand(self::jsonPathOperand($operand, 'json-extract', $column), $operand),
+            'jsonb_extract' => self::collatedExpressionOperand(self::jsonPathOperand($operand, 'jsonb-extract', $column), $operand),
+            'json_text_operator' => self::collatedExpressionOperand(self::jsonPathOperand($operand, 'json-text-operator', $column), $operand),
+            'json_value_operator' => self::collatedExpressionOperand(self::jsonPathOperand($operand, 'json-value-operator', $column), $operand),
             default => null,
         };
+    }
+
+    /**
+     * @param null|array{type:string,column:string,path?:string,collation?:string} $expression
+     * @return null|array{type:string,column:string,path?:string,collation?:string}
+     */
+    private static function collatedExpressionOperand(?array $expression, array $operand): ?array
+    {
+        if ($expression === null) {
+            return null;
+        }
+
+        $collation = $operand['collation'] ?? null;
+        if ($collation === null) {
+            return $expression;
+        }
+        if (!is_string($collation) || $collation === '') {
+            return null;
+        }
+
+        $expression['collation'] = strtoupper($collation);
+
+        return $expression;
     }
 
     /**
@@ -680,7 +817,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     * @param array{type:string,column:string,operator:string,values:mixed,collation?:string,residualPredicateRequired:bool} $constraint
      */
     private static function constraintCompatibleWithType(array $constraint, string $collation): bool
     {
@@ -712,6 +849,33 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return $collation !== '';
+    }
+
+    /**
+     * @param array{collation?:string} $constraint
+     */
+    private static function constraintCollationMatchesExpression(array $constraint, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression): bool
+    {
+        $queryCollation = $constraint['collation'] ?? null;
+        if ($queryCollation === null) {
+            return true;
+        }
+        if (!is_string($queryCollation) || $queryCollation === '') {
+            return false;
+        }
+
+        return strcasecmp($queryCollation, $expression->collation) === 0;
+    }
+
+    /**
+     * @param array<string,mixed> $constraint
+     * @return array<string,mixed>
+     */
+    private static function constraintWithExpressionCollation(array $constraint, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression): array
+    {
+        $constraint['collation'] = strtoupper((string) ($constraint['collation'] ?? $expression->collation));
+
+        return $constraint;
     }
 
     /**
@@ -803,18 +967,19 @@ final class SQLiteSelectExpressionIndexPlan
     {
         $lookupName = self::constraintLookupName($constraint);
         if ($constraint['operator'] === 'point') {
-            return $predicate->isImpliedByPointLookup($lookupName, $constraint['values'])
-                || $predicate->isExpressionInListImpliedByPointLookup($lookupName, $constraint['values']);
+            return $predicate->isImpliedByPointLookup($lookupName, $constraint['values'], (string) ($constraint['collation'] ?? 'BINARY'))
+                || $predicate->isExpressionInListImpliedByPointLookup($lookupName, $constraint['values'], (string) ($constraint['collation'] ?? 'BINARY'));
         }
         if ($constraint['operator'] === 'IN' && is_array($constraint['values'])) {
-            return $predicate->isImpliedByInListLookup($lookupName, $constraint['values']);
+            return $predicate->isImpliedByInListLookup($lookupName, $constraint['values'], (string) ($constraint['collation'] ?? 'BINARY'));
         }
         if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
             return $predicate->isImpliedByRangeLookup(
                 $lookupName,
                 $constraint['values']['lower'] ?? null,
                 $constraint['values']['upper'] ?? null,
-                true
+                true,
+                (string) ($constraint['collation'] ?? 'BINARY')
             );
         }
         if ($constraint['operator'] === 'range-bounded' && is_array($constraint['values'])) {
@@ -822,15 +987,16 @@ final class SQLiteSelectExpressionIndexPlan
                 $lookupName,
                 $constraint['values']['lower'] ?? null,
                 $constraint['values']['upper'] ?? null,
-                (bool) ($constraint['values']['upperInclusive'] ?? false)
+                (bool) ($constraint['values']['upperInclusive'] ?? false),
+                (string) ($constraint['collation'] ?? 'BINARY')
             );
         }
         if (str_starts_with($constraint['operator'], 'range-')) {
             return match ($constraint['operator']) {
-                'range->' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, false),
-                'range->=' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, true),
-                'range-<' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], false),
-                'range-<=' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], true),
+                'range->' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, false, (string) ($constraint['collation'] ?? 'BINARY')),
+                'range->=' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, true, (string) ($constraint['collation'] ?? 'BINARY')),
+                'range-<' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], false, (string) ($constraint['collation'] ?? 'BINARY')),
+                'range-<=' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], true, (string) ($constraint['collation'] ?? 'BINARY')),
                 default => false,
             };
         }
@@ -1196,17 +1362,18 @@ final class SQLiteSelectExpressionIndexPlan
             ];
         }
 
-        usort($normalized, static fn (array $left, array $right): int => self::compareStat4Keys($left['key'], $right['key']));
+        $collation = (string) ($constraint['collation'] ?? 'BINARY');
+        usort($normalized, static fn (array $left, array $right): int => self::compareStat4Keys($left['key'], $right['key'], $collation));
         $currentNext = self::stat4CurrentNext($normalized);
         $matched = [];
         $operator = $constraint['operator'];
         $values = $constraint['values'];
 
         if ($operator === 'point') {
-            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values, $collation);
 
             return [
-                'rows' => self::stat4EqualityRows($normalized, $values, $baseRows),
+                'rows' => self::stat4EqualityRows($normalized, $values, $baseRows, $collation),
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
@@ -1225,9 +1392,9 @@ final class SQLiteSelectExpressionIndexPlan
                     continue;
                 }
                 $seen[$key] = true;
-                $rows += self::stat4EqualityRows($normalized, $value, $baseRows);
+                $rows += self::stat4EqualityRows($normalized, $value, $baseRows, $collation);
             }
-            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values, $collation);
 
             return [
                 'rows' => max(1, min($baseRows, $rows)),
@@ -1240,16 +1407,16 @@ final class SQLiteSelectExpressionIndexPlan
         if ($operator === 'BETWEEN' && is_array($values)) {
             $lower = $values['lower'] ?? null;
             $upper = $values['upper'] ?? null;
-            $rows = self::stat4LessThanRows($normalized, $upper, true, $baseRows)
-                - self::stat4LessThanRows($normalized, $lower, false, $baseRows);
-            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+            $rows = self::stat4LessThanRows($normalized, $upper, true, $baseRows, $collation)
+                - self::stat4LessThanRows($normalized, $lower, false, $baseRows, $collation);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values, $collation);
 
             return [
                 'rows' => max(1, min($baseRows, $rows)),
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
-                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, true, true),
+                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, true, true, $collation),
             ];
         }
         if ($operator === 'range-bounded' && is_array($values)) {
@@ -1257,35 +1424,35 @@ final class SQLiteSelectExpressionIndexPlan
             $upper = $values['upper'] ?? null;
             $lowerInclusive = (bool) ($values['lowerInclusive'] ?? false);
             $upperInclusive = (bool) ($values['upperInclusive'] ?? false);
-            $rows = self::stat4LessThanRows($normalized, $upper, $upperInclusive, $baseRows)
-                - self::stat4LessThanRows($normalized, $lower, !$lowerInclusive, $baseRows);
-            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+            $rows = self::stat4LessThanRows($normalized, $upper, $upperInclusive, $baseRows, $collation)
+                - self::stat4LessThanRows($normalized, $lower, !$lowerInclusive, $baseRows, $collation);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values, $collation);
 
             return [
                 'rows' => max(1, min($baseRows, $rows)),
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
-                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, $lowerInclusive, $upperInclusive),
+                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, $lowerInclusive, $upperInclusive, $collation),
             ];
         }
         if (str_starts_with($operator, 'range-')) {
             $rows = match ($operator) {
-                'range-<' => self::stat4LessThanRows($normalized, $values, false, $baseRows),
-                'range-<=' => self::stat4LessThanRows($normalized, $values, true, $baseRows),
-                'range->' => $baseRows - self::stat4LessThanRows($normalized, $values, true, $baseRows),
-                'range->=' => $baseRows - self::stat4LessThanRows($normalized, $values, false, $baseRows),
+                'range-<' => self::stat4LessThanRows($normalized, $values, false, $baseRows, $collation),
+                'range-<=' => self::stat4LessThanRows($normalized, $values, true, $baseRows, $collation),
+                'range->' => $baseRows - self::stat4LessThanRows($normalized, $values, true, $baseRows, $collation),
+                'range->=' => $baseRows - self::stat4LessThanRows($normalized, $values, false, $baseRows, $collation),
                 default => null,
             };
             if ($rows !== null) {
-                $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+                $matched = self::stat4MatchingSamples($normalized, $operator, $values, $collation);
 
                 return [
                     'rows' => max(1, min($baseRows, $rows)),
                     'matchedSamples' => count($matched),
                     'currentNext' => $currentNext,
                     'matchedCurrentNext' => self::stat4CurrentNext($matched),
-                    'rangeCurrentNext' => self::stat4SingleRangeCurrentNext($normalized, $operator, $values),
+                    'rangeCurrentNext' => self::stat4SingleRangeCurrentNext($normalized, $operator, $values, $collation),
                 ];
             }
         }
@@ -1312,22 +1479,22 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      */
-    private static function stat4MatchingSamples(array $samples, string $operator, mixed $values): array
+    private static function stat4MatchingSamples(array $samples, string $operator, mixed $values, string $collation = 'BINARY'): array
     {
         return array_values(array_filter(
             $samples,
-            static fn (array $sample): bool => self::stat4SampleMatches($sample['key'], $operator, $values),
+            static fn (array $sample): bool => self::stat4SampleMatches($sample['key'], $operator, $values, $collation),
         ));
     }
 
-    private static function stat4SampleMatches(mixed $key, string $operator, mixed $values): bool
+    private static function stat4SampleMatches(mixed $key, string $operator, mixed $values, string $collation = 'BINARY'): bool
     {
         if ($operator === 'point') {
-            return self::compareStat4Keys($key, $values) === 0;
+            return self::compareStat4Keys($key, $values, $collation) === 0;
         }
         if ($operator === 'IN' && is_array($values)) {
             foreach ($values as $value) {
-                if ($value !== null && self::compareStat4Keys($key, $value) === 0) {
+                if ($value !== null && self::compareStat4Keys($key, $value, $collation) === 0) {
                     return true;
                 }
             }
@@ -1335,28 +1502,28 @@ final class SQLiteSelectExpressionIndexPlan
             return false;
         }
         if ($operator === 'BETWEEN' && is_array($values)) {
-            return self::compareStat4Keys($key, $values['lower'] ?? null) >= 0
-                && self::compareStat4Keys($key, $values['upper'] ?? null) <= 0;
+            return self::compareStat4Keys($key, $values['lower'] ?? null, $collation) >= 0
+                && self::compareStat4Keys($key, $values['upper'] ?? null, $collation) <= 0;
         }
         if ($operator === 'range-bounded' && is_array($values)) {
-            $lowerComparison = self::compareStat4Keys($key, $values['lower'] ?? null);
-            $upperComparison = self::compareStat4Keys($key, $values['upper'] ?? null);
+            $lowerComparison = self::compareStat4Keys($key, $values['lower'] ?? null, $collation);
+            $upperComparison = self::compareStat4Keys($key, $values['upper'] ?? null, $collation);
             $lowerMatches = (bool) ($values['lowerInclusive'] ?? false) ? $lowerComparison >= 0 : $lowerComparison > 0;
             $upperMatches = (bool) ($values['upperInclusive'] ?? false) ? $upperComparison <= 0 : $upperComparison < 0;
 
             return $lowerMatches && $upperMatches;
         }
         if ($operator === 'range-<') {
-            return self::compareStat4Keys($key, $values) < 0;
+            return self::compareStat4Keys($key, $values, $collation) < 0;
         }
         if ($operator === 'range-<=') {
-            return self::compareStat4Keys($key, $values) <= 0;
+            return self::compareStat4Keys($key, $values, $collation) <= 0;
         }
         if ($operator === 'range->') {
-            return self::compareStat4Keys($key, $values) > 0;
+            return self::compareStat4Keys($key, $values, $collation) > 0;
         }
         if ($operator === 'range->=') {
-            return self::compareStat4Keys($key, $values) >= 0;
+            return self::compareStat4Keys($key, $values, $collation) >= 0;
         }
 
         return false;
@@ -1365,10 +1532,10 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      */
-    private static function stat4EqualityRows(array $samples, mixed $value, int $baseRows): int
+    private static function stat4EqualityRows(array $samples, mixed $value, int $baseRows, string $collation = 'BINARY'): int
     {
         foreach ($samples as $sample) {
-            if (self::compareStat4Keys($sample['key'], $value) === 0) {
+            if (self::compareStat4Keys($sample['key'], $value, $collation) === 0) {
                 return $sample['neq'];
             }
         }
@@ -1381,11 +1548,11 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      */
-    private static function stat4LessThanRows(array $samples, mixed $value, bool $inclusive, int $baseRows): int
+    private static function stat4LessThanRows(array $samples, mixed $value, bool $inclusive, int $baseRows, string $collation = 'BINARY'): int
     {
         $previous = 0;
         foreach ($samples as $sample) {
-            $comparison = self::compareStat4Keys($sample['key'], $value);
+            $comparison = self::compareStat4Keys($sample['key'], $value, $collation);
             if ($comparison > 0 || ($comparison === 0 && !$inclusive)) {
                 return max(0, min($baseRows, $sample['nlt']));
             }
@@ -1429,10 +1596,10 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      * @return array{lower:array<string,mixed>|null,upper:array<string,mixed>|null,lowerInclusive:bool,upperInclusive:bool,emptyGap:bool}
      */
-    private static function stat4RangeCurrentNext(array $samples, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): array
+    private static function stat4RangeCurrentNext(array $samples, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive, string $collation = 'BINARY'): array
     {
-        $lowerPair = self::stat4BoundaryCurrentNext($samples, $lower, 'lower');
-        $upperPair = self::stat4BoundaryCurrentNext($samples, $upper, 'upper');
+        $lowerPair = self::stat4BoundaryCurrentNext($samples, $lower, 'lower', $collation);
+        $upperPair = self::stat4BoundaryCurrentNext($samples, $upper, 'upper', $collation);
 
         return [
             'lower' => $lowerPair,
@@ -1443,7 +1610,7 @@ final class SQLiteSelectExpressionIndexPlan
                 && $upperPair !== null
                 && ($lowerPair['current']['key'] ?? null) === ($upperPair['current']['key'] ?? null)
                 && ($lowerPair['next']['key'] ?? null) === ($upperPair['next']['key'] ?? null)
-                && self::compareStat4Keys($lower, $upper) < 0,
+                && self::compareStat4Keys($lower, $upper, $collation) < 0,
         ];
     }
 
@@ -1451,13 +1618,13 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      * @return array{lower:array<string,mixed>|null,upper:array<string,mixed>|null,lowerInclusive:bool,upperInclusive:bool,emptyGap:bool}
      */
-    private static function stat4SingleRangeCurrentNext(array $samples, string $operator, mixed $value): array
+    private static function stat4SingleRangeCurrentNext(array $samples, string $operator, mixed $value, string $collation = 'BINARY'): array
     {
         return match ($operator) {
-            'range->' => self::stat4RangeCurrentNext($samples, $value, null, false, false),
-            'range->=' => self::stat4RangeCurrentNext($samples, $value, null, true, false),
-            'range-<' => self::stat4RangeCurrentNext($samples, null, $value, false, false),
-            'range-<=' => self::stat4RangeCurrentNext($samples, null, $value, false, true),
+            'range->' => self::stat4RangeCurrentNext($samples, $value, null, false, false, $collation),
+            'range->=' => self::stat4RangeCurrentNext($samples, $value, null, true, false, $collation),
+            'range-<' => self::stat4RangeCurrentNext($samples, null, $value, false, false, $collation),
+            'range-<=' => self::stat4RangeCurrentNext($samples, null, $value, false, true, $collation),
             default => ['lower' => null, 'upper' => null, 'lowerInclusive' => false, 'upperInclusive' => false, 'emptyGap' => false],
         };
     }
@@ -1466,7 +1633,7 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
      * @return array{current:array<string,mixed>|null,next:array<string,mixed>|null,side:string,value:mixed,exact:bool}|null
      */
-    private static function stat4BoundaryCurrentNext(array $samples, mixed $value, string $side): ?array
+    private static function stat4BoundaryCurrentNext(array $samples, mixed $value, string $side, string $collation = 'BINARY'): ?array
     {
         if ($value === null || $samples === []) {
             return null;
@@ -1474,7 +1641,7 @@ final class SQLiteSelectExpressionIndexPlan
 
         $previous = null;
         foreach ($samples as $offset => $sample) {
-            $comparison = self::compareStat4Keys($sample['key'], $value);
+            $comparison = self::compareStat4Keys($sample['key'], $value, $collation);
             if ($comparison >= 0) {
                 return [
                     'current' => $comparison === 0 ? self::stat4BoundarySample($sample) : ($previous === null ? null : self::stat4BoundarySample($previous)),
@@ -1512,13 +1679,157 @@ final class SQLiteSelectExpressionIndexPlan
         ];
     }
 
-    private static function compareStat4Keys(mixed $left, mixed $right): int
+    private static function compareStat4Keys(mixed $left, mixed $right, string $collation = 'BINARY'): int
     {
         if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
             return ((float) $left) <=> ((float) $right);
         }
 
+        if (strcasecmp($collation, 'NOCASE') === 0) {
+            return strcasecmp((string) $left, (string) $right);
+        }
+
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function stat4KeySignature(mixed $key): string
+    {
+        return get_debug_type($key) . ':' . serialize($key);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $row
+     */
+    private static function currentSourceExpressionValue(array $plan, array $row): mixed
+    {
+        $column = $plan['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index current-source plan needs an expression column');
+        }
+        if (!array_key_exists($column, $row)) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index current-source row is missing the expression column');
+        }
+
+        $value = $row[$column];
+
+        return match ($plan['type'] ?? null) {
+            'lower' => is_string($value) ? strtolower($value) : null,
+            'upper' => is_string($value) ? strtoupper($value) : null,
+            'length' => is_string($value) ? strlen($value) : null,
+            'integer-cast' => is_int($value) ? $value : (is_numeric($value) ? (int) $value : 0),
+            'jsonb-extract', 'json-extract', 'json-text-operator', 'json-value-operator' => self::currentSourceJsonValue($value, $plan['path'] ?? null),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression-index current-source plan has an unsupported expression type'),
+        };
+    }
+
+    private static function currentSourceJsonValue(mixed $json, mixed $path): mixed
+    {
+        if (!is_string($path) || $path === '' || !str_starts_with($path, '$.')) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index current-source JSON plan needs a simple object path');
+        }
+        if (!is_string($json)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        $value = $decoded;
+        foreach (explode('.', substr($path, 2)) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return null;
+            }
+            $value = $value[$segment];
+        }
+
+        return is_array($value) ? json_encode($value, JSON_UNESCAPED_SLASHES) : $value;
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     * @param array<string,mixed> $row
+     */
+    private static function currentSourceRowSatisfiesPredicate(array $predicate, array $row): bool
+    {
+        foreach (self::flattenAndTerms($predicate) as $term) {
+            $operator = strtoupper(self::requiredString($term, 'operator', 'SQLite SELECT expression-index current-source predicate'));
+            if ($operator !== '=' && $operator !== '==') {
+                continue;
+            }
+
+            $leftColumn = self::ordinaryColumnOperand($term['left'] ?? null);
+            $rightColumn = self::ordinaryColumnOperand($term['right'] ?? null);
+            if ($leftColumn !== null && $rightColumn === null && array_key_exists('right', $term)) {
+                if (($row[$leftColumn] ?? null) !== self::literalValue($term['right'])) {
+                    return false;
+                }
+                continue;
+            }
+            if ($rightColumn !== null && $leftColumn === null && array_key_exists('left', $term)) {
+                if (($row[$rightColumn] ?? null) !== self::literalValue($term['left'])) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static function ordinaryColumnOperand(mixed $operand): ?string
+    {
+        if (!is_array($operand) || array_key_exists('function', $operand)) {
+            return null;
+        }
+        $column = $operand['column'] ?? null;
+
+        return is_string($column) && $column !== '' ? $column : null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function currentSourceCoveringPayload(array $row, array $neededColumns): array
+    {
+        $payload = [];
+        foreach ($neededColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index current-source covering columns must be names');
+            }
+            $payload[$column] = $row[$column] ?? null;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $row
+     * @param list<array<string,string>> $neededExpressions
+     * @return array<string,mixed>
+     */
+    private static function currentSourceCoveringExpressionPayload(array $plan, array $row, array $neededExpressions): array
+    {
+        $payload = [];
+        foreach ($neededExpressions as $expression) {
+            $normalized = self::neededExpressionOperand($expression);
+            if ($normalized === null) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index current-source covering expressions must be supported expression operands');
+            }
+
+            $payload[self::expressionDisplayName($expression)] = self::currentSourceExpressionValue([
+                'type' => $normalized['type'],
+                'column' => $normalized['column'],
+                'path' => $normalized['path'] ?? null,
+            ], $row);
+        }
+
+        return $payload;
     }
 
     /**
@@ -1561,7 +1872,11 @@ final class SQLiteSelectExpressionIndexPlan
             return false;
         }
         $firstOrder = $orderBy[0] ?? null;
-        if (is_array($firstOrder) && self::orderTermMatchesExpression($firstOrder, $expression, $expressionType)) {
+        if (
+            is_array($firstOrder)
+            && self::orderTermMatchesExpression($firstOrder, $expression, $expressionType)
+            && self::orderTermCollationMatchesExpression($firstOrder, $expression)
+        ) {
             $direction = self::orderDirection($firstOrder);
             if ($expression->descending !== ($direction === 'DESC')) {
                 return false;
@@ -1605,6 +1920,22 @@ final class SQLiteSelectExpressionIndexPlan
         $column = $order['column'] ?? null;
 
         return is_string($column) && strcasecmp($column, $expression->columnName) === 0;
+    }
+
+    /**
+     * @param array<string,string> $order
+     */
+    private static function orderTermCollationMatchesExpression(array $order, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression): bool
+    {
+        $collation = $order['collation'] ?? null;
+        if ($collation === null) {
+            return true;
+        }
+        if (!is_string($collation) || $collation === '') {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index ORDER BY collation must be a collation name');
+        }
+
+        return strcasecmp($collation, $expression->collation) === 0;
     }
 
     /**
@@ -1749,10 +2080,13 @@ final class SQLiteSelectExpressionIndexPlan
         $first = [
             'type' => $expressionType,
             'column' => $expression->columnName,
+            'collation' => $expression->collation,
         ];
         if ($expression instanceof SQLiteJsonExtractIndexExpression) {
             $first['path'] = $expression->path;
         }
+        $available[self::expressionCoverageKey($first)] = true;
+        unset($first['collation']);
         $available[self::expressionCoverageKey($first)] = true;
 
         $extra = $index['coveringExpressions'] ?? [];
@@ -1778,7 +2112,10 @@ final class SQLiteSelectExpressionIndexPlan
      */
     private static function expressionCoverageKey(array $expression): string
     {
-        return strtolower($expression['type']) . ':' . strtolower($expression['column']) . ':' . (string) ($expression['path'] ?? '');
+        return strtolower($expression['type'])
+            . ':' . strtolower($expression['column'])
+            . ':' . (string) ($expression['path'] ?? '')
+            . ':' . strtoupper((string) ($expression['collation'] ?? ''));
     }
 
     private static function expressionDisplayName(array $operand): string

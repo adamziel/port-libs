@@ -3164,7 +3164,7 @@ MD);
             $t->same(['libsqlite-next93-wrong-manifest'], $record['missing_log_labels']);
             $t->same(91, $record['tests_total']);
             $t->same(0, $record['errors_total']);
-            $t->same(false, $record['counts_next_source']);
+            $t->same(true, $record['counts_next_source']);
             $t->contains('count only next-source zero-error artifacts', $record['next_gate']);
 
             $entries = [];
@@ -3183,6 +3183,166 @@ MD);
             $t->same(0, $missing['artifact_count']);
             $t->same(0, $missing['next_source_count']);
             $t->same(false, $missing['counts_next_source']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
+    'counts next-source artifacts while preserving blocked current-source evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-next112-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $currentHead = '67b9065fe584e293134a85272e27bb677a0554af';
+        $nextHead = '9019df6907db0bab95578ad10ff5d285936e1c48';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/next-json.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next112-jsonb-path
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next112-jsonb-path`
+- Log: `next-json.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `json101.test` `jsonb01.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 602 tests`
+- Parsed errors: `0`
+- Parsed tests: `602`
+MD);
+        file_put_contents($root . '/next-json.log', "00:03 tcl(602/602) r0\n");
+
+        file_put_contents($root . '/next-select.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next112-select
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next112-select`
+- Log: `next-select.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `select1.test` `select3.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 318 tests`
+- Parsed errors: `0`
+- Parsed tests: `318`
+MD);
+        file_put_contents($root . '/next-select.log', "00:02 tcl(318/318) r0\n");
+
+        file_put_contents($root . '/current-wal.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-current112-wal
+
+- Repository HEAD: `{$currentHead}`
+- Scratch: `/tmp/libsqlite-current112-wal`
+- Log: `current-wal.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `wal.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 144 tests`
+- Parsed errors: `0`
+- Parsed tests: `144`
+MD);
+        file_put_contents($root . '/current-wal.log', "00:01 tcl(144/144) r0\n");
+
+        file_put_contents($root . '/stale-runner.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-stale112-runner
+
+- Repository HEAD: `194673fba15d51a389ce428cfb9d10864076e3f4`
+- Scratch: `/tmp/libsqlite-stale112-runner`
+- Log: `stale-runner.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `pragma.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 58 tests`
+- Parsed errors: `0`
+- Parsed tests: `58`
+MD);
+        file_put_contents($root . '/stale-runner.log', "00:01 tcl(58/58) r0\n");
+
+        file_put_contents($root . '/missing-log.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next112-missing-log
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next112-missing-log`
+- Log: `missing.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `wrong-manifest`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `btree01.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 44 tests`
+- Parsed errors: `0`
+- Parsed tests: `44`
+MD);
+
+        try {
+            $record = $evidence->currentSourceNextArtifactDirectoryRecord($root, $currentHead, $nextHead);
+
+            $t->same('partially-next-source-countable', $record['status']);
+            $t->same(5, $record['artifact_count']);
+            $t->same(1, $record['current_source_count']);
+            $t->same(2, $record['next_source_count']);
+            $t->same(1, $record['stale_source_count']);
+            $t->same(2, $record['blocked_count']);
+            $t->same(1, $record['manifest_mismatch_count']);
+            $t->same(1, $record['missing_log_count']);
+            $t->same(['libsqlite-current112-wal'], $record['current_source_labels']);
+            $t->same(['libsqlite-next112-jsonb-path', 'libsqlite-next112-select'], $record['next_source_labels']);
+            $t->same(['libsqlite-stale112-runner'], $record['stale_source_labels']);
+            $t->same(['libsqlite-next112-missing-log', 'libsqlite-stale112-runner'], $record['blocked_labels']);
+            $t->same(['libsqlite-next112-missing-log'], $record['manifest_mismatch_labels']);
+            $t->same(['libsqlite-next112-missing-log'], $record['missing_log_labels']);
+            $t->same(920, $record['tests_total']);
+            $t->same(0, $record['errors_total']);
+            $t->same(true, $record['counts_next_source']);
+            $t->same(false, $record['counts_as_release_parity']);
+            $t->contains('count only next-source zero-error artifacts', $record['next_gate']);
+            $t->contains('bounded runner artifacts', $record['dependency_closure']);
+
+            $entries = [];
+            foreach ($record['entries'] as $entry) {
+                $entries[$entry['label']] = $entry;
+            }
+
+            $t->same('next-source-countable', $entries['libsqlite-next112-jsonb-path']['status']);
+            $t->same($nextHead, $entries['libsqlite-next112-jsonb-path']['repository_head']);
+            $t->same(602, $entries['libsqlite-next112-jsonb-path']['tests']);
+            $t->same(false, $entries['libsqlite-next112-jsonb-path']['missing_log']);
+            $t->same([], $entries['libsqlite-next112-jsonb-path']['blocker_ids']);
+            $t->same('next-source-countable', $entries['libsqlite-next112-select']['status']);
+            $t->same(318, $entries['libsqlite-next112-select']['tests']);
+            $t->same('current-source-countable', $entries['libsqlite-current112-wal']['status']);
+            $t->same($currentHead, $entries['libsqlite-current112-wal']['repository_head']);
+            $t->same(144, $entries['libsqlite-current112-wal']['tests']);
+            $t->same('stale-source-blocked', $entries['libsqlite-stale112-runner']['status']);
+            $t->true(in_array('repository-head-mismatch', $entries['libsqlite-stale112-runner']['blocker_ids'], true), 'Expected stale artifact to keep repository-head-mismatch blocker');
+            $t->same('blocked', $entries['libsqlite-next112-missing-log']['status']);
+            $t->same(true, $entries['libsqlite-next112-missing-log']['missing_log']);
+            $t->true(in_array('sqlite-manifest-uuid-mismatch', $entries['libsqlite-next112-missing-log']['blocker_ids'], true), 'Expected mismatched missing-log artifact to stay blocked');
         } finally {
             foreach (glob($root . '/*') ?: [] as $file) {
                 unlink($file);

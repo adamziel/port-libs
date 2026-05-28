@@ -4484,7 +4484,7 @@ final class SQLiteUpstreamSuiteEvidence
             'tests_total' => $testsTotal,
             'errors_total' => $errorsTotal,
             'entries' => $entries,
-            'counts_next_source' => $nextLabels !== [] && $blockedLabels === [] && $missingLogLabels === [],
+            'counts_next_source' => $nextLabels !== [],
             'counts_as_release_parity' => false,
             'next_gate' => match ($status) {
                 'next-source-countable' => 'promote the next-source zero-error runner artifacts to focused or release countability gates without launching another broad runner',

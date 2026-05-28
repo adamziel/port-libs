@@ -22894,8 +22894,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter([['option_name' => []]], ['operator' => '=', 'left' => ['column' => 'option_name'], 'right' => 'siteurl']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter([['option_name' => 'siteurl']], ['operator' => '=', 'left' => ['column' => 'missing'], 'right' => 'siteurl']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'IN', 'left' => ['column' => 'option_name'], 'values' => 'siteurl']));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'LIKE', 'left' => ['column' => 'bytes'], 'right' => '%']));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'GLOB', 'left' => ['column' => 'bytes'], 'right' => '*']));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed', '_site_transient_update_plugins'], array_column(SQLiteSelectPredicate::filter($options, ['operator' => 'LIKE', 'left' => ['column' => 'bytes'], 'right' => '%']), 'option_name'));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed', '_site_transient_update_plugins'], array_column(SQLiteSelectPredicate::filter($options, ['operator' => 'GLOB', 'left' => ['column' => 'bytes'], 'right' => '*']), 'option_name'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'AND', 'terms' => []]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'MATCH', 'left' => ['column' => 'option_name'], 'right' => 'siteurl']));
     },

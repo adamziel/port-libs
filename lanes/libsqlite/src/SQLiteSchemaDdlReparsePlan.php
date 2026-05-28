@@ -280,6 +280,55 @@ final class SQLiteSchemaDdlReparsePlan
             return ['kind' => 'alter_table_rename', 'old_name' => $old, 'new_name' => $new, 'changed' => true];
         }
 
+        if (preg_match('/^alter\s+table\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+rename\s+column\s+(?<old>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+to\s+(?<new>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {
+            $tableName = self::unquoteIdentifier($matches['table']);
+            $old = self::unquoteIdentifier($matches['old']);
+            $new = self::unquoteIdentifier($matches['new']);
+            $table = self::findRecordIndex($records, 'table', $tableName);
+            if ($table === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot rename a column on missing table {$tableName}");
+            }
+
+            $columns = self::tableColumnNames($records, $tableName);
+            if (!self::hasColumn($columns, $old)) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot rename missing column {$old} on {$tableName}");
+            }
+            if (self::hasColumn($columns, $new)) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot rename {$old} to existing column {$new} on {$tableName}");
+            }
+
+            $rewritten = [];
+            foreach ($records as $offset => $record) {
+                if ($record->sql === null || !self::recordMayReferenceTable($record, $tableName)) {
+                    continue;
+                }
+
+                $nextSql = SQLiteAlterTableRenamePlan::renameColumnSql($record->sql, $tableName, $old, $new);
+                if ($nextSql === $record->sql) {
+                    continue;
+                }
+
+                $records[$offset] = new SQLiteSchemaRecord(
+                    $record->type,
+                    $record->name,
+                    $record->tableName,
+                    $record->rootPage,
+                    $nextSql,
+                    $record->rowId,
+                );
+                $rewritten[] = $record->type . ':' . $record->name;
+            }
+
+            return [
+                'kind' => 'alter_table_rename_column',
+                'table' => $tableName,
+                'old_name' => $old,
+                'new_name' => $new,
+                'rewritten_records' => $rewritten,
+                'changed' => true,
+            ];
+        }
+
         throw new InvalidArgumentException("Unsupported SQLite schema DDL reparse SQL: {$sql}");
     }
 
@@ -338,6 +387,48 @@ final class SQLiteSchemaDdlReparsePlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<string>
+     */
+    private static function tableColumnNames(array $records, string $tableName): array
+    {
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = $catalog->execute('PRAGMA table_xinfo("' . str_replace('"', '""', $tableName) . '")')['rows'];
+
+        return array_values(array_map(static fn (array $row): string => (string) $row['name'], $rows));
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function hasColumn(array $columns, string $column): bool
+    {
+        foreach ($columns as $candidate) {
+            if (strcasecmp($candidate, $column) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function recordMayReferenceTable(SQLiteSchemaRecord $record, string $tableName): bool
+    {
+        if (
+            ($record->type === 'table' && strcasecmp($record->name, $tableName) === 0)
+            || (in_array($record->type, ['index', 'trigger'], true) && strcasecmp($record->tableName, $tableName) === 0)
+        ) {
+            return true;
+        }
+
+        if ($record->sql === null) {
+            return false;
+        }
+
+        return preg_match('/(?<![A-Za-z0-9_$])' . preg_quote($tableName, '/') . '(?![A-Za-z0-9_$])/i', $record->sql) === 1;
     }
 
     /**
@@ -468,8 +559,11 @@ final class SQLiteSchemaDdlReparsePlan
                     $samples["index_list:{$table}"] = $catalog->execute("PRAGMA index_list(\"{$table}\")");
                 }
             }
-            if (($operation['kind'] ?? '') === 'create_table' || ($operation['kind'] ?? '') === 'alter_table_rename') {
+            if (($operation['kind'] ?? '') === 'create_table' || ($operation['kind'] ?? '') === 'alter_table_rename' || ($operation['kind'] ?? '') === 'alter_table_rename_column') {
                 $table = (string) (($operation['new_name'] ?? null) ?: ($operation['name'] ?? ''));
+                if (($operation['kind'] ?? '') === 'alter_table_rename_column') {
+                    $table = (string) ($operation['table'] ?? '');
+                }
                 if ($table !== '') {
                     $samples["table_xinfo:{$table}"] = $catalog->execute("PRAGMA table_xinfo(\"{$table}\")");
                 }

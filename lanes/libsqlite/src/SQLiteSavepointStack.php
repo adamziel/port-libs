@@ -1205,6 +1205,64 @@ final class SQLiteSavepointStack
     }
 
     /**
+     * @return array{released_savepoint:string,page_size:int,current_source_verified:bool,current_wal_frame_count:int,current_wal_checkpoint_sequence:int,current_wal_salt1:int,current_wal_salt2:int,release_plan:array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool},names_before_release:list<string>,names_after_release:list<string>,pending_page_numbers_after_release:list<int>,pending_wal_frame_indexes_after_release:list<int>,next_wal_start_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,released_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function releaseCurrentWalSourceAndAppendNextFrame110(
+        string $savepointName,
+        SQLiteWal $currentWal,
+        string $currentWalBytes,
+        int $nextPageNumber,
+        bool $commitFrame = false
+    ): array {
+        if ($currentWalBytes === '') {
+            throw new \InvalidArgumentException('SQLite savepoint WAL release current source requires WAL bytes');
+        }
+        if ($currentWal->toBytes() !== $currentWalBytes) {
+            throw new \InvalidArgumentException('SQLite savepoint WAL release current source bytes do not match the parsed WAL');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+
+        $namesBeforeRelease = $this->names();
+        $releasePlan = $this->releasePlan($savepointName);
+        $this->release($savepointName);
+        $pendingPagesAfterRelease = $this->pendingPageNumbers();
+        $pendingWalAfterRelease = $this->pendingWalFrameIndexes();
+        $nextFrameIndex = $this->maxWalFrame + 1;
+
+        $this->recordWalFrameWrite($nextFrameIndex, $nextPageNumber, $commitFrame);
+
+        return [
+            'released_savepoint' => $savepointName,
+            'page_size' => $currentWal->header->pageSize,
+            'current_source_verified' => true,
+            'current_wal_frame_count' => $currentWal->frameCount(),
+            'current_wal_checkpoint_sequence' => $currentWal->header->checkpointSequence,
+            'current_wal_salt1' => $currentWal->header->salt1,
+            'current_wal_salt2' => $currentWal->header->salt2,
+            'release_plan' => $releasePlan,
+            'names_before_release' => $namesBeforeRelease,
+            'names_after_release' => $this->names(),
+            'pending_page_numbers_after_release' => $pendingPagesAfterRelease,
+            'pending_wal_frame_indexes_after_release' => $pendingWalAfterRelease,
+            'next_wal_start_frame' => $nextFrameIndex - 1,
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'released_savepoint_active_after' => $this->hasOpenFrame($savepointName),
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-savepoint-release-current-wal-source-next110',
+                'sqlite-wal-release-current-source-next-frame',
+                'wordpress-import-release-savepoint-wal-current-source',
+            ],
+        ];
+    }
+
+    /**
      * @return array{statement:string,savepoint:string,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int}>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,transaction_active_after:bool,savepoint_active_after:bool,statement_journal_cleared:bool}
      */
     public function rollbackStatementOnErrorWithPlan(string $statementName, int $pageSize): array

@@ -305,8 +305,10 @@ final class SQLiteSelectPredicate
         if ($left === null || $right === null || $escape === null && array_key_exists('escape', $predicate) && $predicate['escape'] !== null) {
             return null;
         }
-        if (!is_string($left) || !is_string($right) || ($escape !== null && !is_string($escape))) {
-            throw new \InvalidArgumentException('SQLite SELECT LIKE predicate expects text operands');
+        $left = self::likeGlobTextOperand($left, 'LIKE left');
+        $right = self::likeGlobTextOperand($right, 'LIKE pattern');
+        if ($escape !== null) {
+            $escape = self::likeGlobTextOperand($escape, 'LIKE escape');
         }
 
         $matched = SQLiteDatabase::likeMatches($left, $right, $escape, (bool) ($predicate['caseSensitive'] ?? false));
@@ -325,9 +327,8 @@ final class SQLiteSelectPredicate
         if ($left === null || $right === null) {
             return null;
         }
-        if (!is_string($left) || !is_string($right)) {
-            throw new \InvalidArgumentException('SQLite SELECT GLOB predicate expects text operands');
-        }
+        $left = self::likeGlobTextOperand($left, 'GLOB left');
+        $right = self::likeGlobTextOperand($right, 'GLOB pattern');
 
         $matched = SQLiteDatabase::globMatches($left, $right);
 
@@ -458,9 +459,30 @@ final class SQLiteSelectPredicate
         return match (strtoupper($collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("Unsupported SQLite SELECT predicate collation: {$collation}"),
         };
+    }
+
+    private static function likeGlobTextOperand(mixed $value, string $context): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT {$context} operand must be scalar text-coercible");
     }
 
     private static function asciiLower(string $value): string
