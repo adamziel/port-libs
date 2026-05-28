@@ -438,6 +438,63 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,database_bytes:string,journal_bytes:string,journal?:SQLiteRollbackJournal,reserved_lock?:bool}> $databases
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
+     */
+    public function applyMasterJournalStatementRecovery(
+        string $superJournalPath,
+        ?string $superJournalBytes,
+        array $databases,
+        int $pageSize,
+        SQLiteSavepointStack $savepoints,
+        string $statementName,
+        string $nextStatementName,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        bool $nextCommitFrame = false,
+        ?string $primaryDatabasePath = null,
+    ): array {
+        $plan = SQLitePagerMasterJournalStatementRecoveryPlan::currentNext(
+            $superJournalPath,
+            $superJournalBytes,
+            $databases,
+            $pageSize,
+            $savepoints,
+            $statementName,
+            $nextStatementName,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $nextCommitFrame,
+            $primaryDatabasePath,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        if ($plan['status'] === 'blocked') {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => $plan['dependencies'],
+                'recovery' => $plan,
+                'atomic' => true,
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations($plan['operations'], $plan['payloads'], $plan['dependencies']);
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param array<int, string> $databasePages 1-indexed page numbers to page images.
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
      */

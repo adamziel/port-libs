@@ -92,6 +92,7 @@ final class SQLiteAnalyzeStatPlanner
                 'table' => $table,
                 'index' => $name,
                 'matchedColumns' => array_map(static fn (array $constraint): string => $constraint['column'], $matched),
+                'matchedConstraints' => $matched,
                 'estimatedRows' => $estimatedRows,
                 'estimatedCost' => $estimatedRows + max(1, count($matched)),
                 'stat' => implode(' ', $numbers),
@@ -180,12 +181,17 @@ final class SQLiteAnalyzeStatPlanner
     {
         $byColumn = [];
         foreach ($constraints as $constraint) {
-            $byColumn[strtolower(self::requiredString($constraint, 'column', 'SQLite ANALYZE planner constraint'))] = $constraint;
+            $column = strtolower(self::requiredString($constraint, 'column', 'SQLite ANALYZE planner constraint'));
+            if (!self::usableOperator($constraint['operator'] ?? null)) {
+                continue;
+            }
+
+            $byColumn[$column][] = $constraint;
         }
 
         $matched = [];
         foreach ($columns as $column) {
-            $constraint = $byColumn[strtolower($column)] ?? null;
+            $constraint = self::bestColumnConstraint($byColumn[strtolower($column)] ?? []);
             if ($constraint === null || !self::usableOperator($constraint['operator'] ?? null)) {
                 break;
             }
@@ -196,6 +202,90 @@ final class SQLiteAnalyzeStatPlanner
         }
 
         return $matched;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value?:mixed,values?:list<mixed>}> $constraints
+     * @return null|array{column:string,operator:string,value?:mixed,values?:list<mixed>,rangeConstraints?:list<array{operator:string,value?:mixed,values?:list<mixed>}>}
+     */
+    private static function bestColumnConstraint(array $constraints): ?array
+    {
+        $equalities = [];
+        $inLists = [];
+        $ranges = [];
+        foreach ($constraints as $constraint) {
+            $operator = strtoupper($constraint['operator']);
+            if (in_array($operator, ['=', '==', 'IS'], true)) {
+                $equalities[] = $constraint;
+                continue;
+            }
+            if ($operator === 'IN') {
+                $inLists[] = $constraint;
+                continue;
+            }
+            if (in_array($operator, ['>', '>=', '<', '<=', 'BETWEEN'], true)) {
+                $ranges[] = $constraint;
+            }
+        }
+
+        if ($equalities !== []) {
+            return self::normalizeOperator($equalities[0]);
+        }
+
+        if ($inLists !== []) {
+            return self::normalizeOperator($inLists[0]);
+        }
+
+        if ($ranges === []) {
+            return null;
+        }
+
+        $lower = null;
+        $upper = null;
+        $between = null;
+        foreach ($ranges as $range) {
+            $operator = strtoupper($range['operator']);
+            if ($operator === 'BETWEEN') {
+                $between = $range;
+                continue;
+            }
+            if ($operator === '>' || $operator === '>=') {
+                $lower = $range;
+                continue;
+            }
+            if ($operator === '<' || $operator === '<=') {
+                $upper = $range;
+            }
+        }
+
+        if ($lower !== null && $upper !== null) {
+            return [
+                'column' => self::requiredString($lower, 'column', 'SQLite ANALYZE planner range constraint'),
+                'operator' => 'BETWEEN',
+                'values' => [$lower['value'] ?? null, $upper['value'] ?? null],
+                'rangeConstraints' => [
+                    ['operator' => strtoupper($lower['operator']), 'value' => $lower['value'] ?? null],
+                    ['operator' => strtoupper($upper['operator']), 'value' => $upper['value'] ?? null],
+                ],
+            ];
+        }
+
+        if ($between !== null) {
+            return self::normalizeOperator($between);
+        }
+
+        return self::normalizeOperator($ranges[0]);
+    }
+
+    /**
+     * @param array{column:string,operator:string,value?:mixed,values?:list<mixed>} $constraint
+     * @return array{column:string,operator:string,value?:mixed,values?:list<mixed>}
+     */
+    private static function normalizeOperator(array $constraint): array
+    {
+        $constraint['operator'] = strtoupper($constraint['operator']);
+
+        return $constraint;
     }
 
     private static function usableOperator(mixed $operator): bool

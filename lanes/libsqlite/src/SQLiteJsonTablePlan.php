@@ -690,6 +690,166 @@ final class SQLiteJsonTablePlan
         return $joined;
     }
 
+    /**
+     * @param list<array<string,mixed>> $currentHostRows
+     * @param list<array<string,mixed>> $nextHostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function lateralConstraintPlannerCurrentNext75(
+        array $currentHostRows,
+        array $nextHostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral planner requires a host JSON column');
+        }
+        if ($rootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral planner root column must be non-empty when provided');
+        }
+
+        $function = self::normalizeFunction($function);
+        $current = self::lateralHostPlans($currentHostRows, $jsonColumn, $function, $constraints, $rootColumn, $orderBy);
+        $next = self::lateralHostPlans($nextHostRows, $jsonColumn, $function, $constraints, $rootColumn, $orderBy);
+        $count = max(count($current), count($next));
+        $transitions = [];
+        $replanReasons = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $currentPlan = $current[$index] ?? null;
+            $nextPlan = $next[$index] ?? null;
+            $reason = self::lateralTransitionReason($currentPlan, $nextPlan);
+            if ($reason !== 'stable-lateral-json-plan') {
+                $replanReasons[$reason] = true;
+            }
+
+            $transitions[] = [
+                'index' => $index,
+                'current' => $currentPlan,
+                'next' => $nextPlan,
+                'changed' => $reason !== 'stable-lateral-json-plan',
+                'reason' => $reason,
+                'currentFilterArguments' => $currentPlan['filterArguments'] ?? [],
+                'nextFilterArguments' => $nextPlan['filterArguments'] ?? [],
+                'argumentTransitions' => self::argumentTransitions(
+                    $currentPlan['filterArguments'] ?? [],
+                    $nextPlan['filterArguments'] ?? [],
+                ),
+            ];
+        }
+
+        return [
+            'function' => $function,
+            'current' => $current,
+            'next' => $next,
+            'transitions' => $transitions,
+            'replanRequired' => $replanReasons !== [],
+            'replanReasons' => array_keys($replanReasons),
+            'currentReaderPolicy' => 'keep-current-lateral-json-table-plan-until-host-row-advances',
+            'nextReaderPolicy' => $replanReasons === []
+                ? 'reuse-current-lateral-json-table-plan'
+                : 'prepare-next-lateral-json-table-plan-for-host-row',
+            'dependencies' => ['sqlite-json-table-lateral-planner-constraint-current-next75'],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $hostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array<string,mixed>>
+     */
+    private static function lateralHostPlans(
+        array $hostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints,
+        ?string $rootColumn,
+        array $orderBy,
+    ): array {
+        $plans = [];
+        foreach ($hostRows as $index => $hostRow) {
+            if (!array_key_exists($jsonColumn, $hostRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral host row is missing {$jsonColumn}");
+            }
+
+            $hostConstraints = [
+                ['column' => 'json', 'operator' => '=', 'value' => $hostRow[$jsonColumn]],
+            ];
+            if ($rootColumn !== null) {
+                if (!array_key_exists($rootColumn, $hostRow)) {
+                    throw new \InvalidArgumentException("SQLite JSON table lateral host row is missing {$rootColumn}");
+                }
+                if ($hostRow[$rootColumn] !== null) {
+                    $hostConstraints[] = ['column' => 'root', 'operator' => '=', 'value' => $hostRow[$rootColumn]];
+                }
+            }
+
+            $rowConstraints = array_merge($hostConstraints, $constraints);
+            $indexPlan = self::xBestIndexPlan($function, $rowConstraints, $orderBy);
+            $validatedPlan = self::validatedPlan($function, $rowConstraints);
+            if (!$validatedPlan['runnable'] || $validatedPlan['jsonInputKind'] === 'sql-null') {
+                $indexPlan['runnable'] = false;
+                $indexPlan['estimatedCost'] = 1000000;
+                $indexPlan['estimatedRows'] = 0;
+            }
+
+            $plans[] = [
+                'hostIndex' => $index,
+                'hostRow' => $hostRow,
+                'jsonValue' => $hostRow[$jsonColumn],
+                'rootValue' => $rootColumn === null ? '$' : ($hostRow[$rootColumn] ?? null),
+                'runnable' => $indexPlan['runnable'],
+                'idxNum' => $indexPlan['idxNum'],
+                'idxStr' => $indexPlan['idxStr'],
+                'filterArguments' => $indexPlan['filterArguments'],
+                'constraintUsage' => $indexPlan['constraintUsage'],
+                'filterCurrentNext' => $indexPlan['filterCurrentNext'],
+                'orderByConsumed' => $indexPlan['orderByConsumed'],
+                'estimatedCost' => $indexPlan['estimatedCost'],
+                'estimatedRows' => $indexPlan['estimatedRows'],
+                'jsonInputKind' => $validatedPlan['jsonInputKind'],
+                'jsonValid' => $validatedPlan['jsonValid'],
+                'jsonError' => $validatedPlan['jsonError'],
+            ];
+        }
+
+        return $plans;
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     */
+    private static function lateralTransitionReason(?array $current, ?array $next): string
+    {
+        if ($current === null) {
+            return 'next-host-row-added';
+        }
+        if ($next === null) {
+            return 'current-host-row-removed';
+        }
+        if (($current['runnable'] ?? false) !== ($next['runnable'] ?? false)) {
+            return ($next['runnable'] ?? false) ? 'next-lateral-plan-becomes-runnable' : 'next-lateral-plan-becomes-unrunnable';
+        }
+        if (($current['idxStr'] ?? '') !== ($next['idxStr'] ?? '')) {
+            return 'lateral-constraint-operator-tape-changed';
+        }
+        if (($current['filterArguments'] ?? []) !== ($next['filterArguments'] ?? [])) {
+            return 'lateral-filter-argument-tape-changed';
+        }
+        if (($current['orderByConsumed'] ?? false) !== ($next['orderByConsumed'] ?? false)) {
+            return 'lateral-orderby-consumption-changed';
+        }
+
+        return 'stable-lateral-json-plan';
+    }
+
     private static function normalizeFunction(string $function): string
     {
         if (strcasecmp($function, 'json_each') === 0) {

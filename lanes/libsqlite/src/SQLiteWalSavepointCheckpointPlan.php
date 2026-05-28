@@ -146,6 +146,74 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,crash_phase:string,rollback_to_frame:int,retained_frame_count:int,discarded_frame_count:int,discarded_wal_frames:list<array<string,mixed>>,current_wal_bytes:string,current_wal_bytes_length:int,checkpoint_recovery:array<string,mixed>,current_reader_sources:list<string|null>,next_reader_sources:list<string|null>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,next_uses_checkpoint_database:bool,next_replays_persisted_wal:bool,next_uses_reset_wal:bool,operations_applied:list<array<string,mixed>>,operations_pending:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function crashRecoveryCurrentNextAfterRollbackTo(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        array $pageNumbers,
+        string $mode = 'restart',
+        string $crashPhase = 'after_database_sync',
+        ?int $databasePageSize = null
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint crash recovery requires a savepoint name');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint crash recovery requires a database path');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint crash recovery requires at least one page number');
+        }
+
+        $truncation = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $pageSize = $databasePageSize ?? $wal->header->pageSize;
+        $recovery = SQLiteWalCheckpointCrashRecoveryPlan::recoverFromWalBytes(
+            $currentWalBytes,
+            $databaseBytes,
+            $databasePath,
+            $pageNumbers,
+            $mode,
+            $crashPhase,
+            $pageSize
+        );
+
+        return [
+            'status' => $recovery['status'],
+            'savepoint' => $savepoint,
+            'mode' => $recovery['mode'],
+            'crash_phase' => $recovery['crash_phase'],
+            'rollback_to_frame' => $truncation['rollback_to_frame'],
+            'retained_frame_count' => $truncation['retained_frame_count'],
+            'discarded_frame_count' => $truncation['discarded_frame_count'],
+            'discarded_wal_frames' => $truncation['discarded_wal_frames'],
+            'current_wal_bytes' => $currentWalBytes,
+            'current_wal_bytes_length' => strlen($currentWalBytes),
+            'checkpoint_recovery' => $recovery,
+            'current_reader_sources' => $recovery['current_reader_sources'],
+            'next_reader_sources' => $recovery['next_reader_sources'],
+            'current_reader_frame_indexes' => $recovery['current_reader_frame_indexes'],
+            'next_reader_frame_indexes' => $recovery['next_reader_frame_indexes'],
+            'images_match' => $recovery['images_match'],
+            'next_uses_checkpoint_database' => $recovery['next_uses_checkpoint_database'],
+            'next_replays_persisted_wal' => $recovery['next_replays_persisted_wal'],
+            'next_uses_reset_wal' => $recovery['next_uses_reset_wal'],
+            'operations_applied' => $recovery['operations_applied'],
+            'operations_pending' => $recovery['operations_pending'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $recovery['dependencies'],
+                ['sqlite-wal-savepoint-crash-recovery-checkpoint-current-next75']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<int|null> $currentReadMarks
      * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_read_marks:array<string,mixed>,next_read_marks:array<string,mixed>,current_reader_kept_wal_snapshot:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_preserved_wal:bool,images_match:bool,dependencies:list<string>}
      */

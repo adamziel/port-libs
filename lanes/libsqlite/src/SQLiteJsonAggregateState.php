@@ -191,6 +191,22 @@ final class SQLiteJsonAggregateState
         return SQLiteJsonAggregate::jsonGroupArrayWindowFrameRowsByUnitSqlFunction($function, $this->windowArrayFrameRows, $unit, $preceding, $following, $exclude);
     }
 
+    /**
+     * @return list<string|SQLiteBlobValue>
+     */
+    public function finalizeDistinctOrderedWindowFrameArray(int $preceding, int $following = 0, string $exclude = 'NO OTHERS', string $function = 'json_group_array'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayDistinctOrderByWindowFrameRowsSqlFunction($function, $this->windowArrayFrameRows, $preceding, $following, $exclude);
+    }
+
+    /**
+     * @return list<string|SQLiteBlobValue>
+     */
+    public function finalizeDistinctOrderedWindowFrameArrayByUnit(string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS', string $function = 'json_group_array'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayDistinctOrderByWindowFrameRowsByUnitSqlFunction($function, $this->windowArrayFrameRows, $unit, $preceding, $following, $exclude);
+    }
+
     public function finalizeObject(string $function = 'json_group_object'): string|SQLiteBlobValue
     {
         return SQLiteJsonAggregate::jsonGroupObjectSqlFunction($function, $this->objectPairs);
