@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 01:44:12 UTC",
-    "sourceCommit": "11a707b9c254756c267217912613ac4e9d9e7efc",
-    "sourceCommitShort": "11a707b9c254",
+    "generated": "2026-05-28 02:00:46 UTC",
+    "sourceCommit": "c761fabfee35e9807da1ab097fe2efcb9a1d4e76",
+    "sourceCommitShort": "c761fabfee35",
     "sourceBranch": "main",
-    "dashboardCommit": "11a707b9c254756c267217912613ac4e9d9e7efc",
-    "dashboardCommitShort": "11a707b9c254",
+    "dashboardCommit": "c761fabfee35e9807da1ab097fe2efcb9a1d4e76",
+    "dashboardCommitShort": "c761fabfee35",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "464",
             "coverage": "464 / 1589",
-            "php": "28917 pass / 0 fail",
+            "php": "29382 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch70/71 plus jsonagg73 clean subset coverin...",
-            "audit": "Batch70/71 plus jsonagg73 clean subset ac...",
-            "currentWork": "Accepted clean subset covering pager statement-journal rollback and hot-journal/super-jou...",
-            "nextTarget": "Publish dashboard/status for the batch70/71 plus jsonagg73 clean subset, consume accepted...",
-            "blocker": "No blocker for the accepted batch70/71 plus jsonagg73 clean subset: focus...",
-            "commit": "de71691"
+            "phase": "accepted batch74 clean subset covering B-tree delete/re...",
+            "audit": "Batch74 clean subset accepted in implemen...",
+            "currentWork": "Accepted clean batch74 subset covering B-tree freeblock/rebalance apply, malformed UTF GL...",
+            "nextTarget": "Publish dashboard/status for batch74, consume accepted batch74 marker triplets and inacti...",
+            "blocker": "No blocker for the accepted batch74 clean subset: focused, full libsqlite...",
+            "commit": "36bd7fd"
         },
         {
             "library": "LightningCSS",
