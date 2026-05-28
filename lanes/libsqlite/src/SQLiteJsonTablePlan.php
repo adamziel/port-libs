@@ -1502,6 +1502,59 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenRowidPathNext146(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceRowidHiddenPathNext138(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+        );
+
+        $currentProfile = self::hiddenRowidPathProfile146($currentSource, $plan['currentRowidHiddenPath'], $constraints);
+        $nextProfile = self::hiddenRowidPathProfile146($nextSource, $plan['nextRowidHiddenPath'], $constraints);
+        $transitions = self::hiddenRowidPathTransitions146($currentProfile, $nextProfile);
+        $reasons = self::hiddenRowidPathReplanReasons146($transitions);
+
+        $plan['currentHiddenRowidPathSource'] = $currentProfile;
+        $plan['nextHiddenRowidPathSource'] = $nextProfile;
+        $plan['hiddenRowidPathSourceTransitions'] = $transitions;
+        $plan['next146ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next138ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next146ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-rowid-path-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next146ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-rowid-path-source-plan'
+            : 'prepare-next-json-table-hidden-rowid-path-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-rowid-path-current-source-next146'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
@@ -9105,6 +9158,139 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-rowid-hidden-path-cost-changed',
                 'hiddenPathTape' => 'json-table-rowid-hidden-path-tape-changed',
                 default => 'json-table-rowid-hidden-path-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $rowidHiddenPath
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{sourceToken:array{option_id:mixed,option_name:mixed,root:string,nestedPath:string},root:string,baseRoot:string,nestedPath:string,pathConstraintSignature:string|null,rowidConstraintSignature:string|null,aliasColumns:list<string>,rowidAlias:string|null,pathAlias:string|null,pointSeekable:bool,matchedRowCount:int,pinnedRowids:list<int>,pinnedRelativeFullkeys:list<string>,rowidPathTape:list<array{rowid:int|null,relativeFullkey:string,pathMatched:bool,rowidMatched:bool,matched:bool}>,firstPinned:array{rowid:int,relativeFullkey:string}|null,lastPinned:array{rowid:int,relativeFullkey:string}|null,effectiveEstimatedCost:int,costClass:string}
+     */
+    private static function hiddenRowidPathProfile146(array $source, array $rowidHiddenPath, array $constraints): array
+    {
+        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $pathConstraint = self::firstHiddenPathConstraint138($constraints);
+        $rowidAlias = $rowidConstraint === null ? null : self::normalizeConstraintColumn((string) $rowidConstraint['column']);
+        $pathAlias = $pathConstraint === null ? null : strtolower((string) $pathConstraint['column']);
+        $aliasColumns = array_values(array_unique(array_filter([$rowidAlias, $pathAlias], static fn (?string $column): bool => $column !== null)));
+        $pinnedRowids = array_values(array_map('intval', $rowidHiddenPath['intersectedRowids'] ?? []));
+        $pinnedRelativeFullkeys = array_values(array_map('strval', $rowidHiddenPath['relativeFullkeys'] ?? []));
+        $tape = [];
+
+        foreach ($rowidHiddenPath['hiddenPathTape'] ?? [] as $entry) {
+            $tape[] = [
+                'rowid' => is_int($entry['rowid'] ?? null) ? $entry['rowid'] : null,
+                'relativeFullkey' => (string) ($entry['relativeFullkey'] ?? ''),
+                'pathMatched' => (bool) ($entry['pathMatched'] ?? false),
+                'rowidMatched' => (bool) ($entry['rowidMatched'] ?? false),
+                'matched' => (bool) ($entry['matched'] ?? false),
+            ];
+        }
+
+        $pointSeekable = (bool) ($rowidHiddenPath['pathScoped'] ?? false)
+            && (bool) ($rowidHiddenPath['rowidScoped'] ?? false)
+            && count($pinnedRowids) <= 1;
+
+        return [
+            'sourceToken' => [
+                'option_id' => $source['option_id'] ?? null,
+                'option_name' => $source['option_name'] ?? null,
+                'root' => (string) ($rowidHiddenPath['root'] ?? '$'),
+                'nestedPath' => (string) ($rowidHiddenPath['nestedPath'] ?? ''),
+            ],
+            'root' => (string) ($rowidHiddenPath['root'] ?? '$'),
+            'baseRoot' => (string) ($rowidHiddenPath['baseRoot'] ?? '$'),
+            'nestedPath' => (string) ($rowidHiddenPath['nestedPath'] ?? ''),
+            'pathConstraintSignature' => $rowidHiddenPath['pathConstraintSignature'] ?? null,
+            'rowidConstraintSignature' => $rowidHiddenPath['rowidConstraintSignature'] ?? null,
+            'aliasColumns' => $aliasColumns,
+            'rowidAlias' => $rowidAlias,
+            'pathAlias' => $pathAlias,
+            'pointSeekable' => $pointSeekable,
+            'matchedRowCount' => (int) ($rowidHiddenPath['matchedRowCount'] ?? 0),
+            'pinnedRowids' => $pinnedRowids,
+            'pinnedRelativeFullkeys' => $pinnedRelativeFullkeys,
+            'rowidPathTape' => $tape,
+            'firstPinned' => isset($pinnedRowids[0], $pinnedRelativeFullkeys[0])
+                ? ['rowid' => $pinnedRowids[0], 'relativeFullkey' => $pinnedRelativeFullkeys[0]]
+                : null,
+            'lastPinned' => $pinnedRowids === [] || $pinnedRelativeFullkeys === []
+                ? null
+                : ['rowid' => $pinnedRowids[array_key_last($pinnedRowids)], 'relativeFullkey' => $pinnedRelativeFullkeys[array_key_last($pinnedRelativeFullkeys)]],
+            'effectiveEstimatedCost' => (int) ($rowidHiddenPath['effectiveEstimatedCost'] ?? 1000000),
+            'costClass' => self::hiddenRowidPathCostClass146($rowidHiddenPath, $pointSeekable),
+        ];
+    }
+
+    private static function hiddenRowidPathCostClass146(array $rowidHiddenPath, bool $pointSeekable): string
+    {
+        $base = (string) ($rowidHiddenPath['costClass'] ?? 'unrunnable-json-table');
+        if ($base === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ((int) ($rowidHiddenPath['matchedRowCount'] ?? 0) === 0) {
+            return 'json-table-hidden-rowid-path-empty';
+        }
+        if ($pointSeekable) {
+            return 'json-table-hidden-rowid-path-point-current-source';
+        }
+        if (($rowidHiddenPath['pathScoped'] ?? false) && ($rowidHiddenPath['rowidScoped'] ?? false)) {
+            return 'json-table-hidden-rowid-path-intersection-current-source';
+        }
+        if ($rowidHiddenPath['rowidScoped'] ?? false) {
+            return 'json-table-hidden-rowid-path-rowid-current-source';
+        }
+        if ($rowidHiddenPath['pathScoped'] ?? false) {
+            return 'json-table-hidden-rowid-path-path-current-source';
+        }
+
+        return 'json-table-hidden-rowid-path-scan-current-source';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function hiddenRowidPathTransitions146(array $current, array $next): array
+    {
+        return [
+            ['field' => 'sourceToken', 'current' => $current['sourceToken'], 'next' => $next['sourceToken'], 'changed' => $current['sourceToken'] !== $next['sourceToken']],
+            ['field' => 'aliasColumns', 'current' => $current['aliasColumns'], 'next' => $next['aliasColumns'], 'changed' => $current['aliasColumns'] !== $next['aliasColumns']],
+            ['field' => 'pointSeekable', 'current' => $current['pointSeekable'], 'next' => $next['pointSeekable'], 'changed' => $current['pointSeekable'] !== $next['pointSeekable']],
+            ['field' => 'matchedRowCount', 'current' => $current['matchedRowCount'], 'next' => $next['matchedRowCount'], 'changed' => $current['matchedRowCount'] !== $next['matchedRowCount']],
+            ['field' => 'pinnedRowids', 'current' => $current['pinnedRowids'], 'next' => $next['pinnedRowids'], 'changed' => $current['pinnedRowids'] !== $next['pinnedRowids']],
+            ['field' => 'pinnedRelativeFullkeys', 'current' => $current['pinnedRelativeFullkeys'], 'next' => $next['pinnedRelativeFullkeys'], 'changed' => $current['pinnedRelativeFullkeys'] !== $next['pinnedRelativeFullkeys']],
+            ['field' => 'rowidPathTape', 'current' => $current['rowidPathTape'], 'next' => $next['rowidPathTape'], 'changed' => $current['rowidPathTape'] !== $next['rowidPathTape']],
+            ['field' => 'effectiveEstimatedCost', 'current' => $current['effectiveEstimatedCost'], 'next' => $next['effectiveEstimatedCost'], 'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function hiddenRowidPathReplanReasons146(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+            $reasons[] = match ($transition['field']) {
+                'sourceToken' => 'json-table-hidden-rowid-path-source-token-changed',
+                'aliasColumns' => 'json-table-hidden-rowid-path-alias-columns-changed',
+                'pointSeekable' => 'json-table-hidden-rowid-path-seekability-changed',
+                'matchedRowCount' => 'json-table-hidden-rowid-path-count-changed',
+                'pinnedRowids', 'pinnedRelativeFullkeys' => 'json-table-hidden-rowid-path-rowset-changed',
+                'rowidPathTape' => 'json-table-hidden-rowid-path-tape-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-rowid-path-cost-changed',
+                default => 'json-table-hidden-rowid-path-state-changed',
             };
         }
 
