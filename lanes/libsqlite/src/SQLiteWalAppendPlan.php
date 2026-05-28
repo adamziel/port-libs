@@ -630,6 +630,99 @@ final class SQLiteWalAppendPlan
     /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,mode:string,database_path:string,wal_path:string,first:array<string,mixed>,retry:array<string,mixed>,append:array<string,mixed>,current_reader_end_frame:int|null,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_reader_kept_snapshot:bool,retry_reset_ready:bool,next_uses_checkpoint_database:bool,next_uses_restarted_generation:bool,next_uses_appended_wal:bool,images_match:bool,frames_hidden_from_current:list<int>,frames_visible_to_next:list<int>,dependencies:list<string>}
+     */
+    public static function checkpointRestartAppendReaderCurrentNext(
+        SQLiteWal $wal,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $pageNumbers,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $releasedShm,
+        string $mode = 'restart',
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint restart append requires a database path');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint restart append current/next requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint restart append requires restart or truncate mode');
+        }
+
+        $first = $wal->restartReadMarkTransition($databaseBytes, $currentShm, $mode);
+        $retry = $wal->restartReadMarkTransition($databaseBytes, $releasedShm, $mode);
+        if ($retry['checkpoint']['busy']) {
+            throw new \RuntimeException('SQLite WAL checkpoint restart append requires released readers before appending');
+        }
+
+        $checkpointWal = self::walAfterCheckpoint($wal, $retry['checkpoint']);
+        $append = self::appendTransactions($checkpointWal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $nextWal = SQLiteWal::parse($append['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $append['last_commit_frame'] ?? $nextWal->frameCount();
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint restart append current/next pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $first['current_reader_end_frame'], true);
+            $next[] = self::safeReaderVisibility($nextWal, $retry['checkpoint']['database_bytes'], $pageNumber, $nextReaderEndFrame, true);
+        }
+
+        return [
+            'status' => $first['status'] === 'current-reader-pinned'
+                ? 'reader-pin-restart-append-current-next'
+                : 'restart-append-' . $first['status'],
+            'reason' => $append['committed_transaction_count'] > 0
+                ? 'released_reader_restart_checkpoint_then_append_advances_next_snapshot'
+                : 'released_reader_restart_checkpoint_append_has_no_committed_next_snapshot',
+            'mode' => $mode,
+            'database_path' => $databasePath,
+            'wal_path' => $databasePath . '-wal',
+            'first' => $first,
+            'retry' => $retry,
+            'append' => $append,
+            'current_reader_end_frame' => $first['current_reader_end_frame'],
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_reader_kept_snapshot' => $first['current_reader_kept_snapshot'],
+            'retry_reset_ready' => !$retry['checkpoint']['busy'] && in_array($retry['checkpoint']['wal_action'], ['restart_wal', 'truncate_wal'], true),
+            'next_uses_checkpoint_database' => true,
+            'next_uses_restarted_generation' => $retry['checkpoint']['wal_bytes'] !== '' || $retry['checkpoint']['wal_action'] === 'truncate_wal',
+            'next_uses_appended_wal' => $append['committed_transaction_count'] > 0,
+            'images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'frames_hidden_from_current' => $first['current_reader_end_frame'] !== null && $first['current_reader_end_frame'] < $wal->frameCount()
+                ? range($first['current_reader_end_frame'] + 1, $wal->frameCount())
+                : [],
+            'frames_visible_to_next' => $nextReaderEndFrame > 0 ? range(1, $nextReaderEndFrame) : [],
+            'dependencies' => array_values(array_unique(array_merge(
+                $first['dependencies'],
+                $retry['dependencies'],
+                $append['dependencies'],
+                ['sqlite-wal-reader-pin-restart-snapshot-current-next73']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,wal_path:string,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_database_page_count:int,next_database_page_count:int,appended_frame_count:int,committed_transaction_count:int,uncommitted_transaction_count:int,uncommitted_tail_visible:bool,images_match:bool,append:array<string,mixed>,dependencies:list<string>}
      */
     public static function readerWriterSnapshotBoundary(

@@ -670,6 +670,107 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<int> $visiblePages
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit_current:array<string, mixed>,atomic:bool}
+     */
+    public function applySavepointCommitCurrent(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        array $visiblePages,
+        string $mode = 'restart',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint commit-current VFS apply requires a database path');
+        }
+
+        $plan = SQLiteWalSavepointCheckpointPlan::commitCurrentAfterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $visiblePages,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $durable = $plan['current_durable'];
+        $walPath = $databasePath . '-wal';
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($durable['database_bytes']),
+                'durable' => false,
+                'reason' => 'apply_savepoint_commit_current_database_image',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($durable['database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_commit_current_database_image',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_commit_current_database',
+            ],
+            [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen($durable['wal_bytes']),
+                'durable' => false,
+                'reason' => 'apply_savepoint_commit_current_wal_state',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen($durable['wal_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_commit_current_wal_state',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_commit_current_wal',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_savepoint_commit_current_sidecars',
+            ],
+        ];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            [
+                $databasePath => $durable['database_bytes'],
+                $walPath => $durable['wal_bytes'],
+            ],
+            array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['sqlite-wal-savepoint-commit-current-vfs-apply72']
+            )))
+        );
+        $applied['commit_current'] = $plan;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array<string, mixed>> $operations
      * @param array<string, string> $payloads
      * @param list<string> $dependencies

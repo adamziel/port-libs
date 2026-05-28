@@ -9,7 +9,7 @@ final class SQLiteJsonPathIndexedUpdatePlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{name:string,path:string,column?:string,collation?:string,unique?:bool}> $indexes
-     * @param list<array{rowid:int|string,mutations:list<array{function:string,path:string,value:mixed}>}> $updates
+     * @param list<array{rowid:int|string,column?:string,mutations:list<array{function:string,path:string,value:mixed}>}> $updates
      * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,index_updates:list<array<string,mixed>>,changed_rows:list<array<string,mixed>>,changes:int}
      */
     public static function plan(array $rows, array $indexes, array $updates): array
@@ -32,7 +32,8 @@ final class SQLiteJsonPathIndexedUpdatePlan
 
             $position = $positions[(string) $rowid];
             $rowBefore = $after[$position];
-            $json = self::jsonColumn($rowBefore, 'option_value');
+            $mutationColumn = self::mutationColumn($update);
+            $json = self::jsonColumn($rowBefore, $mutationColumn);
             foreach ($update['mutations'] ?? [] as $mutation) {
                 $function = strtolower($mutation['function'] ?? '');
                 $path = $mutation['path'] ?? null;
@@ -46,7 +47,7 @@ final class SQLiteJsonPathIndexedUpdatePlan
             }
 
             $rowAfter = $rowBefore;
-            $rowAfter['option_value'] = $json;
+            $rowAfter[$mutationColumn] = $json;
             $after[$position] = $rowAfter;
             $changedRows[] = $rowAfter;
 
@@ -132,6 +133,19 @@ final class SQLiteJsonPathIndexedUpdatePlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string,mixed> $update
+     */
+    private static function mutationColumn(array $update): string
+    {
+        $column = $update['column'] ?? 'option_value';
+        if (!is_string($column) || $column === '') {
+            throw new \InvalidArgumentException('SQLite JSON indexed UPDATE mutation column must be text');
+        }
+
+        return $column;
     }
 
     /**

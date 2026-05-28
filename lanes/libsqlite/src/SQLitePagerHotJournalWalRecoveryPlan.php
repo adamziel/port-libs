@@ -7,6 +7,132 @@ namespace PortLibs\LibSqlite;
 final class SQLitePagerHotJournalWalRecoveryPlan
 {
     /**
+     * @param list<array{database_path:string,database_bytes:string,journal:SQLiteRollbackJournal,journal_bytes:string,wal_bytes:string,page_numbers:list<int>,database_page_size?:int,reserved_lock?:bool}> $databases
+     * @return array{status:string,reason:string,super_journal_path:string,super_journal_exists:bool,super_journal_members:list<string>,database_count:int,recovered_database_count:int,skipped_database_count:int,current_reader_sources:array<string,list<string>>,next_reader_sources:array<string,list<string>>,current_reader_frame_indexes:array<string,list<int|null>>,next_reader_frame_indexes:array<string,list<int|null>>,journal_actions:array<string,string>,super_journal_action:string,operations:list<array<string,mixed>>,databases:array<string,array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function masterSuperJournalCurrentNext73(
+        string $superJournalPath,
+        string $superJournalBytes,
+        array $databases,
+    ): array {
+        if ($superJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite pager hot-journal master/super current-next recovery requires a super-journal path');
+        }
+        if ($databases === []) {
+            throw new \InvalidArgumentException('SQLite pager hot-journal master/super current-next recovery requires at least one database');
+        }
+
+        $members = self::superJournalMembers($superJournalBytes);
+        $memberSet = array_fill_keys($members, true);
+        $plans = [];
+        $operations = [];
+        $currentSources = [];
+        $nextSources = [];
+        $currentFrames = [];
+        $nextFrames = [];
+        $journalActions = [];
+        $recovered = 0;
+        $skipped = 0;
+
+        foreach ($databases as $index => $database) {
+            $databasePath = isset($database['database_path']) ? (string) $database['database_path'] : '';
+            if ($databasePath === '') {
+                throw new \InvalidArgumentException("SQLite pager hot-journal master/super database {$index} requires a database path");
+            }
+            if (isset($plans[$databasePath])) {
+                throw new \InvalidArgumentException("SQLite pager hot-journal master/super duplicate database path: {$databasePath}");
+            }
+            if (!isset($database['journal']) || !$database['journal'] instanceof SQLiteRollbackJournal) {
+                throw new \InvalidArgumentException("SQLite pager hot-journal master/super database {$databasePath} requires a parsed rollback journal");
+            }
+            $pageNumbers = $database['page_numbers'] ?? [];
+            if (!is_array($pageNumbers) || $pageNumbers === []) {
+                throw new \InvalidArgumentException("SQLite pager hot-journal master/super database {$databasePath} requires page numbers");
+            }
+
+            $journalPath = $databasePath . '-journal';
+            $requiresSuper = true;
+            $superExistsForJournal = isset($memberSet[$journalPath]);
+            $visibility = self::currentNextVisibility(
+                $database['journal'],
+                (string) ($database['database_bytes'] ?? ''),
+                (string) ($database['journal_bytes'] ?? ''),
+                (string) ($database['wal_bytes'] ?? ''),
+                $databasePath,
+                array_values($pageNumbers),
+                isset($database['database_page_size']) ? (int) $database['database_page_size'] : null,
+                (bool) ($database['reserved_lock'] ?? false),
+                $requiresSuper,
+                $superExistsForJournal,
+            );
+
+            if ($visibility['hot_recovered']) {
+                $recovered++;
+            } else {
+                $skipped++;
+            }
+            $plans[$databasePath] = $visibility;
+            $currentSources[$databasePath] = $visibility['current_reader_sources'];
+            $nextSources[$databasePath] = $visibility['next_reader_sources'];
+            $currentFrames[$databasePath] = $visibility['current_reader_frame_indexes'];
+            $nextFrames[$databasePath] = $visibility['next_reader_frame_indexes'];
+            $journalActions[$journalPath] = $visibility['recovery']['journal_action'];
+            foreach ($visibility['recovery']['operations'] as $operation) {
+                $operations[] = $operation + ['database_path' => $databasePath];
+            }
+        }
+
+        $allMembersCleared = $members !== [];
+        foreach ($members as $member) {
+            if (($journalActions[$member] ?? null) !== 'delete_journal_after_recovery') {
+                $allMembersCleared = false;
+                break;
+            }
+        }
+
+        $superAction = $allMembersCleared ? 'delete_super_journal_after_named_hot_journals' : 'preserve_super_journal_until_named_journals_clear';
+        if ($allMembersCleared) {
+            $operations[] = [
+                'op' => 'delete',
+                'path' => $superJournalPath,
+                'durable' => false,
+                'reason' => $superAction,
+            ];
+            $operations[] = [
+                'op' => 'sync_directory',
+                'path' => dirname($superJournalPath),
+                'durable' => true,
+                'reason' => 'persist_super_journal_recovery_deletion',
+            ];
+        }
+
+        return [
+            'status' => $recovered > 0 ? 'super_journal_hot_recovery_current_next' : 'super_journal_no_hot_recovery_current_next',
+            'reason' => 'master_super_journal_members_gate_hot_journal_recovery',
+            'super_journal_path' => $superJournalPath,
+            'super_journal_exists' => $members !== [],
+            'super_journal_members' => $members,
+            'database_count' => count($databases),
+            'recovered_database_count' => $recovered,
+            'skipped_database_count' => $skipped,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'journal_actions' => $journalActions,
+            'super_journal_action' => $superAction,
+            'operations' => $operations,
+            'databases' => $plans,
+            'dependencies' => [
+                'sqlite-pager-hot-journal-master-super-current-next73',
+                'sqlite-pager-hot-journal-wal-current-next-visibility',
+                'sqlite-rollback-journal-recovery',
+                'sqlite-wal-transaction-recovery-boundary',
+            ],
+        ];
+    }
+
+    /**
      * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_images_match_next:bool,hot_recovered:bool,next_uses_hot_journal_database:bool,next_uses_wal_checkpoint_database:bool,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,recovery:array<string,mixed>,dependencies:list<string>}
      */
@@ -320,6 +446,26 @@ final class SQLitePagerHotJournalWalRecoveryPlan
         }
 
         return SQLiteHeader::parse($databaseBytes)->pageSize;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function superJournalMembers(string $superJournalBytes): array
+    {
+        $members = [];
+        foreach (preg_split('/\r?\n/', $superJournalBytes) ?: [] as $line) {
+            $member = trim($line);
+            if ($member === '') {
+                continue;
+            }
+            if (isset($members[$member])) {
+                continue;
+            }
+            $members[$member] = $member;
+        }
+
+        return array_values($members);
     }
 
     /**

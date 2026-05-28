@@ -705,6 +705,99 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,rollback_to_frame:int,retained_frame_count:int,discarded_frame_count:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,committed_frame_names:list<string>,committed_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,current_reader_kept_retained_wal:bool,next_reader_uses_checkpoint_database:bool,images_match:bool,current_durable:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function commitCurrentAfterRollbackTo(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint commit-current requires at least one page number');
+        }
+
+        $checkpoint = self::afterRollbackTo($savepoints, $savepoint, $wal, $walBytes, $databaseBytes, $mode, $currentReaderEndFrame);
+        $rollback = $savepoints->walRollbackToPlan($savepoint);
+        $currentWal = SQLiteWal::parse($checkpoint['current_wal_bytes'], $wal->header->pageSize, true);
+        $currentReaderEndFrame ??= $currentWal->frameCount();
+        if ($currentReaderEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint commit-current reader frame must be non-negative');
+        }
+
+        $working = clone $savepoints;
+        $working->rollbackTo($savepoint);
+        $commit = $working->commitWithPlan();
+
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame ??= $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint commit-current pages must be integers');
+            }
+
+            $current[] = $currentWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $currentFrames = self::visibilityColumn($current, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+
+        return [
+            'status' => $checkpoint['status'],
+            'savepoint' => $savepoint,
+            'mode' => $checkpoint['mode'],
+            'rollback_to_frame' => $rollback['rollback_to_frame'],
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'discarded_wal_frames' => $rollback['discarded_wal_frames'],
+            'committed_frame_names' => $commit['committed_frame_names'],
+            'committed_page_numbers' => $commit['committed_page_numbers'],
+            'released_savepoint_count' => $commit['released_savepoint_count'],
+            'transaction_active_after' => $commit['transaction_active_after'],
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'current_reader_images' => $currentImages,
+            'next_reader_images' => $nextImages,
+            'current_reader_kept_retained_wal' => in_array('wal', $currentSources, true),
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'images_match' => $currentImages === $nextImages,
+            'current_durable' => $durable,
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                ['sqlite-wal-savepoint-commit-current-next72', 'wordpress-import-savepoint-commit-current-next72']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<string> $sources
      * @param list<int|null> $frameIndexes
      * @param list<string> $images

@@ -78,7 +78,7 @@ final class SQLiteBTreeEmptyLeafBatchFreePlan
     }
 
     /**
-     * @return array{action:string,leaf_delete_count:int,leaf_deletes:list<array{leaf_page:int,leaf_page_type:string,deleted_rowids:list<int>,deleted_record_values:list<list<mixed>>,obsolete_overflow_pages:list<int>}>,freed_pages:list<int>,freelist_page_count:int,first_freelist_trunk_page:int,updated_page_numbers:list<int>,updated_pointer_map_page_numbers:list<int>,secure_delete_cleared_pages:list<int>}
+     * @return array{action:string,leaf_delete_count:int,leaf_deletes:list<array{leaf_page:int,leaf_page_type:string,deleted_rowids:list<int>,deleted_record_values:list<list<mixed>>,obsolete_overflow_pages:list<int>}>,freed_pages:list<int>,freelist_page_count:int,first_freelist_trunk_page:int,new_trunk_page_numbers:list<int>,leaf_page_numbers:list<int>,updated_page_numbers:list<int>,updated_freelist_page_numbers:list<int>,updated_pointer_map_page_numbers:list<int>,secure_delete_cleared_pages:list<int>,freed_pointer_map_entries:list<array{page_number:int,pointer_map_page:int,offset:int,type:int,type_name:string,parent_page_number:int}>}
      */
     public function toArray(): array
     {
@@ -89,9 +89,13 @@ final class SQLiteBTreeEmptyLeafBatchFreePlan
             'freed_pages' => $this->freedPageNumbers,
             'freelist_page_count' => $this->freePlan->freelistPageCount,
             'first_freelist_trunk_page' => $this->freePlan->firstFreelistTrunkPage,
+            'new_trunk_page_numbers' => $this->freePlan->newTrunkPageNumbers,
+            'leaf_page_numbers' => $this->freePlan->leafPageNumbers,
             'updated_page_numbers' => $this->updatedPageNumbers(),
+            'updated_freelist_page_numbers' => array_keys($this->freePlan->updatedFreelistPages),
             'updated_pointer_map_page_numbers' => array_keys($this->freePlan->updatedPointerMapPages),
             'secure_delete_cleared_pages' => $this->freePlan->clearedPageNumbers,
+            'freed_pointer_map_entries' => $this->freePlan->freedPointerMapEntries,
         ];
     }
 

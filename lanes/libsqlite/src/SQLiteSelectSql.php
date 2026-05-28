@@ -1263,6 +1263,11 @@ final class SQLiteSelectSql
             return $derivedTable;
         }
 
+        $joinGroup = self::parenthesizedJoinReference($sql, $tables, $jsonErrorBoundaryColumns, $outerRow);
+        if ($joinGroup !== null) {
+            return $joinGroup;
+        }
+
         $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
         if ($jsonTable !== null) {
             return $jsonTable;
@@ -1358,6 +1363,87 @@ final class SQLiteSelectSql
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $jsonErrorBoundaryColumns
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function parenthesizedJoinReference(string $sql, array $tables, array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): ?array
+    {
+        $sql = trim($sql);
+        if (!str_starts_with($sql, '(')) {
+            return null;
+        }
+
+        [$body, $offset] = self::consumeParenthesized($sql, 0);
+        $body = trim($body);
+        if (
+            $body === ''
+            || preg_match('/^(?:select|with|values)\s+/i', $body) === 1
+            || (self::firstJoinOffset($body) === null && count(self::splitTopLevel($body, ',')) < 2)
+        ) {
+            return null;
+        }
+
+        [$alias, $columns] = self::parenthesizedJoinAlias(trim(substr($sql, $offset)));
+        if ($columns !== []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized join column aliases are not supported');
+        }
+
+        $source = self::sourcePlan($body, $tables, [], $jsonErrorBoundaryColumns, $outerRow);
+        $rows = SQLiteSelectQuery::execute([
+            'from' => $source['from'],
+            'joins' => $source['joins'],
+        ]);
+
+        return [
+            'name' => 'join-group',
+            'alias' => $alias,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @return array{0:string,1:list<string>}
+     */
+    private static function parenthesizedJoinAlias(string $sql): array
+    {
+        if ($sql === '') {
+            return ['join_group', []];
+        }
+
+        if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized join alias is malformed');
+        }
+
+        $alias = $match[1];
+        self::assertBareIdentifier($alias, 'SQLite SELECT SQL parenthesized join alias');
+        $tail = trim($match[2]);
+        if ($tail === '') {
+            return [$alias, []];
+        }
+        if (!str_starts_with($tail, '(')) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized join alias is malformed');
+        }
+
+        [$columnSql, $offset] = self::consumeParenthesized($tail, 0);
+        if (trim(substr($tail, $offset)) !== '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized join alias is malformed');
+        }
+
+        $columns = [];
+        foreach (self::splitTopLevel($columnSql, ',') as $column) {
+            $column = trim($column);
+            self::assertBareIdentifier($column, 'SQLite SELECT SQL parenthesized join column alias');
+            $columns[] = $column;
+        }
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL parenthesized join column list cannot be empty');
+        }
+
+        return [$alias, $columns];
     }
 
     /**

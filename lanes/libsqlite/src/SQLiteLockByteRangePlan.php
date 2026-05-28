@@ -94,6 +94,50 @@ final class SQLiteLockByteRangePlan
     }
 
     /**
+     * @return array{status:string,path:string,connection:string|null,current:string,next:string,can_transition:bool,nolock:bool,current_ranges:list<array{name:string,offset:int,length:int,mode:string>>,next_ranges:list<array{name:string,offset:int,length:int,mode:string>>,retain:list<array{name:string,offset:int,length:int,mode:string>>,acquire:list<array{name:string,offset:int,length:int,mode:string>>,release:list<array{name:string,offset:int,length:int,mode:string>>,dependencies:list<string>,reason:string|null}
+     */
+    public static function transition(
+        string $path,
+        string $currentLevel,
+        string $nextLevel,
+        bool $nolock = false,
+        ?string $connection = null,
+        int $currentSharedSlot = 0,
+        ?int $nextSharedSlot = null
+    ): array {
+        $currentLevel = self::level($currentLevel);
+        $nextLevel = self::level($nextLevel);
+        $nextSharedSlot ??= $currentSharedSlot;
+
+        $current = self::forLevel($path, $currentLevel, false, $currentLevel === 'none' ? null : ($connection ?? 'transition'), $currentSharedSlot);
+        $next = self::forLevel($path, $nextLevel, $nolock, $connection, $nextSharedSlot);
+
+        if ($connection === null && $nextLevel !== 'none') {
+            throw new \InvalidArgumentException('SQLite lock byte-range transition requires a connection id for the next lock');
+        }
+
+        $currentRanges = $current['ranges'];
+        $nextRanges = $next['ranges'];
+
+        return [
+            'status' => $next['can_lock'] ? 'planned' : 'blocked',
+            'path' => $next['path'],
+            'connection' => $connection === null ? null : self::connection($connection),
+            'current' => $currentLevel,
+            'next' => $nextLevel,
+            'can_transition' => $next['can_lock'],
+            'nolock' => $nolock,
+            'current_ranges' => $currentRanges,
+            'next_ranges' => $nextRanges,
+            'retain' => self::rangeIntersection($currentRanges, $nextRanges),
+            'acquire' => self::rangeDifference($nextRanges, $currentRanges),
+            'release' => self::rangeDifference($currentRanges, $nextRanges),
+            'dependencies' => array_values(array_unique(array_merge($current['dependencies'], $next['dependencies'], ['sqlite-lock-byte-range-current-next']))),
+            'reason' => $next['reason'],
+        ];
+    }
+
+    /**
      * @return list<array{name:string,offset:int,length:int,mode:string}>
      */
     private static function ranges(string $level, int $sharedSlot): array
@@ -121,6 +165,46 @@ final class SQLiteLockByteRangePlan
                 ['name' => 'shared', 'offset' => self::SHARED_FIRST, 'length' => self::SHARED_SIZE, 'mode' => 'exclusive'],
             ],
         };
+    }
+
+    /**
+     * @param list<array{name:string,offset:int,length:int,mode:string}> $left
+     * @param list<array{name:string,offset:int,length:int,mode:string}> $right
+     * @return list<array{name:string,offset:int,length:int,mode:string}>
+     */
+    private static function rangeIntersection(array $left, array $right): array
+    {
+        return array_values(array_filter($left, static fn (array $range): bool => self::containsRange($right, $range)));
+    }
+
+    /**
+     * @param list<array{name:string,offset:int,length:int,mode:string}> $left
+     * @param list<array{name:string,offset:int,length:int,mode:string}> $right
+     * @return list<array{name:string,offset:int,length:int,mode:string}>
+     */
+    private static function rangeDifference(array $left, array $right): array
+    {
+        return array_values(array_filter($left, static fn (array $range): bool => !self::containsRange($right, $range)));
+    }
+
+    /**
+     * @param list<array{name:string,offset:int,length:int,mode:string}> $ranges
+     * @param array{name:string,offset:int,length:int,mode:string} $needle
+     */
+    private static function containsRange(array $ranges, array $needle): bool
+    {
+        foreach ($ranges as $range) {
+            if (
+                $range['name'] === $needle['name']
+                && $range['offset'] === $needle['offset']
+                && $range['length'] === $needle['length']
+                && $range['mode'] === $needle['mode']
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function level(string $level): string

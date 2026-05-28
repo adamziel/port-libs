@@ -199,6 +199,41 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $currentConstraints
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $nextConstraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,current:array<string,mixed>,next:array<string,mixed>,replanRequired:bool,replanReason:string,currentArguments:list<mixed>,nextArguments:list<mixed>,argumentTransitions:list<array{index:int,current:mixed,next:mixed,changed:bool}>,usageTransitions:list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function constraintPlannerCurrentNext72(
+        string $function,
+        array $currentConstraints,
+        array $nextConstraints,
+        array $orderBy = [],
+    ): array {
+        $current = self::xBestIndexPlan($function, $currentConstraints, $orderBy);
+        $next = self::xBestIndexPlan($function, $nextConstraints, $orderBy);
+        $argumentTransitions = self::argumentTransitions($current['filterArguments'], $next['filterArguments']);
+        $usageTransitions = self::usageTransitions($current['constraintUsage'], $next['constraintUsage']);
+
+        $replanRequired = self::jsonTablePlanSignature($current) !== self::jsonTablePlanSignature($next);
+
+        return [
+            'function' => $current['function'],
+            'current' => $current,
+            'next' => $next,
+            'replanRequired' => $replanRequired,
+            'replanReason' => self::jsonTableReplanReason($current, $next, $argumentTransitions, $usageTransitions),
+            'currentArguments' => $current['filterArguments'],
+            'nextArguments' => $next['filterArguments'],
+            'argumentTransitions' => $argumentTransitions,
+            'usageTransitions' => $usageTransitions,
+            'currentReaderPolicy' => 'keep-current-json-table-plan-until-statement-reset',
+            'nextReaderPolicy' => $replanRequired ? 'prepare-next-json-table-xbestindex-plan' : 'reuse-current-json-table-plan',
+            'dependencies' => ['sqlite-json-table-constraint-planner-current-next72'],
+        ];
+    }
+
+    /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array<string,mixed>>
      */
@@ -797,6 +832,106 @@ final class SQLiteJsonTablePlan
         }
 
         return $pairs;
+    }
+
+    /**
+     * @param list<mixed> $current
+     * @param list<mixed> $next
+     * @return list<array{index:int,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function argumentTransitions(array $current, array $next): array
+    {
+        $count = max(count($current), count($next));
+        $transitions = [];
+        for ($index = 0; $index < $count; $index++) {
+            $currentValue = $current[$index] ?? null;
+            $nextValue = $next[$index] ?? null;
+            $transitions[] = [
+                'index' => $index,
+                'current' => $currentValue,
+                'next' => $nextValue,
+                'changed' => $currentValue !== $nextValue || !array_key_exists($index, $current) || !array_key_exists($index, $next),
+            ];
+        }
+
+        return $transitions;
+    }
+
+    /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $current
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $next
+     * @return list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}>
+     */
+    private static function usageTransitions(array $current, array $next): array
+    {
+        $count = max(count($current), count($next));
+        $transitions = [];
+        for ($index = 0; $index < $count; $index++) {
+            $currentUsage = $current[$index] ?? null;
+            $nextUsage = $next[$index] ?? null;
+            $transitions[] = [
+                'index' => $index,
+                'current' => $currentUsage,
+                'next' => $nextUsage,
+                'changed' => $currentUsage !== $nextUsage,
+            ];
+        }
+
+        return $transitions;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return array<string,mixed>
+     */
+    private static function jsonTablePlanSignature(array $plan): array
+    {
+        return [
+            'runnable' => $plan['runnable'],
+            'idxNum' => $plan['idxNum'],
+            'idxStr' => $plan['idxStr'],
+            'arguments' => $plan['filterArguments'],
+            'orderByConsumed' => $plan['orderByConsumed'],
+            'estimatedRows' => $plan['estimatedRows'],
+            'estimatedCost' => $plan['estimatedCost'],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @param list<array{index:int,current:mixed,next:mixed,changed:bool}> $argumentTransitions
+     * @param list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}> $usageTransitions
+     */
+    private static function jsonTableReplanReason(array $current, array $next, array $argumentTransitions, array $usageTransitions): string
+    {
+        if ($current['runnable'] !== $next['runnable']) {
+            return $next['runnable'] ? 'next-plan-becomes-runnable' : 'next-plan-becomes-unrunnable';
+        }
+        if ($current['idxNum'] !== $next['idxNum']) {
+            return 'constraint-class-bits-changed';
+        }
+        if ($current['idxStr'] !== $next['idxStr']) {
+            return 'constraint-operator-tape-changed';
+        }
+        foreach ($argumentTransitions as $transition) {
+            if ($transition['changed']) {
+                return 'constraint-argument-tape-changed';
+            }
+        }
+        foreach ($usageTransitions as $transition) {
+            if ($transition['changed']) {
+                return 'constraint-usage-tape-changed';
+            }
+        }
+        if ($current['orderByConsumed'] !== $next['orderByConsumed']) {
+            return 'order-by-consumption-changed';
+        }
+        if ($current['estimatedRows'] !== $next['estimatedRows'] || $current['estimatedCost'] !== $next['estimatedCost']) {
+            return 'planner-estimate-changed';
+        }
+
+        return 'stable-current-next-plan';
     }
 
     /**

@@ -417,6 +417,54 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
+     * @param non-empty-list<string> $aggregateOrderColumns
+     * @param list<string>|string $aggregateOrderAffinities
+     * @param list<string> $aggregateOrderCollations
+     * @param list<bool> $aggregateOrderDescending
+     * @param list<string|null> $aggregateOrderNulls
+     * @return array{current:array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,orderedFrameRowids:list<mixed>,orderedValues:list<mixed>,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string},next:array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,orderedFrameRowids:list<mixed>,orderedValues:list<mixed>,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string}|null,advanced:bool,aggregateOrderColumns:non-empty-list<string>}
+     */
+    public function currentNextOrderedAggregateSummary(
+        array $aggregateOrderColumns,
+        string $rowidColumn = 'rowid',
+        mixed $separator = ',',
+        array|string $aggregateOrderAffinities = [],
+        array $aggregateOrderCollations = [],
+        array $aggregateOrderDescending = [],
+        array $aggregateOrderNulls = [],
+    ): array {
+        $this->requireCurrentRow();
+        self::assertColumnList($aggregateOrderColumns, false, 'aggregate order');
+
+        return [
+            'current' => $this->orderedAggregateSummaryAt(
+                $this->position,
+                $aggregateOrderColumns,
+                $rowidColumn,
+                $separator,
+                $aggregateOrderAffinities,
+                $aggregateOrderCollations,
+                $aggregateOrderDescending,
+                $aggregateOrderNulls
+            ),
+            'next' => $this->position + 1 < count($this->orderedRows)
+                ? $this->orderedAggregateSummaryAt(
+                    $this->position + 1,
+                    $aggregateOrderColumns,
+                    $rowidColumn,
+                    $separator,
+                    $aggregateOrderAffinities,
+                    $aggregateOrderCollations,
+                    $aggregateOrderDescending,
+                    $aggregateOrderNulls
+                )
+                : null,
+            'advanced' => false,
+            'aggregateOrderColumns' => $aggregateOrderColumns,
+        ];
+    }
+
+    /**
      * @return array{position:int,currentRowid:mixed,nextRowid:mixed,partitionKey:list<mixed>,orderKey:list<mixed>,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,nextSamePartition:bool,nextSamePeer:bool,rawFrameRowids:list<mixed>,frameRowids:list<mixed>,excludedRowids:list<mixed>,filteredRowids:list<mixed>,frameValues:list<mixed>,filteredValues:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,groupConcat:?string}
      */
     public function currentYieldSummary(string $rowidColumn = 'rowid', mixed $separator = ','): array
@@ -681,6 +729,64 @@ final class SQLiteVdbeWindowAggregateCursor
                 'firstValue' => $this->firstValue($valueFunctionsApplyFilter),
                 'lastValue' => $this->lastValue($valueFunctionsApplyFilter),
                 'nthValue' => $this->nthValue($nth, $valueFunctionsApplyFilter),
+            ];
+        });
+    }
+
+    /**
+     * @param non-empty-list<string> $aggregateOrderColumns
+     * @param list<string>|string $aggregateOrderAffinities
+     * @param list<string> $aggregateOrderCollations
+     * @param list<bool> $aggregateOrderDescending
+     * @param list<string|null> $aggregateOrderNulls
+     * @return array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,orderedFrameRowids:list<mixed>,orderedValues:list<mixed>,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string}
+     */
+    private function orderedAggregateSummaryAt(
+        int $position,
+        array $aggregateOrderColumns,
+        string $rowidColumn,
+        mixed $separator,
+        array|string $aggregateOrderAffinities,
+        array $aggregateOrderCollations,
+        array $aggregateOrderDescending,
+        array $aggregateOrderNulls,
+    ): array {
+        return $this->withPosition($position, function () use ($aggregateOrderColumns, $rowidColumn, $separator, $aggregateOrderAffinities, $aggregateOrderCollations, $aggregateOrderDescending, $aggregateOrderNulls): array {
+            $frameRows = $this->currentFrameRows(true);
+            foreach ($frameRows as $row) {
+                foreach ($aggregateOrderColumns as $column) {
+                    if (!array_key_exists($column, $row)) {
+                        throw new \InvalidArgumentException("SQLite VDBE window aggregate row is missing aggregate order column {$column}");
+                    }
+                    self::assertScalar($row[$column]);
+                }
+            }
+
+            $orderedRows = $frameRows === []
+                ? []
+                : SQLiteVdbeSortCompare::sortRows(
+                    $frameRows,
+                    $aggregateOrderColumns,
+                    $aggregateOrderAffinities,
+                    $aggregateOrderCollations,
+                    $aggregateOrderDescending,
+                    $aggregateOrderNulls
+                );
+            $values = array_map(fn (array $row): mixed => $row[$this->valueColumn], $orderedRows);
+
+            return [
+                'position' => $this->position,
+                'row' => $this->requireCurrentRow(),
+                'frameRowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $frameRows),
+                'orderedFrameRowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $orderedRows),
+                'orderedValues' => $values,
+                'countValue' => SQLiteNumericAggregate::countValue($values),
+                'sum' => SQLiteNumericAggregate::sum($values),
+                'total' => SQLiteNumericAggregate::total($values),
+                'avg' => SQLiteNumericAggregate::avg($values),
+                'min' => SQLiteNumericAggregate::min($values),
+                'max' => SQLiteNumericAggregate::max($values),
+                'groupConcat' => SQLiteTextAggregate::groupConcat($values, $separator),
             ];
         });
     }

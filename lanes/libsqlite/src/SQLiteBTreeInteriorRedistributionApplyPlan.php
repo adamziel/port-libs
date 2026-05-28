@@ -53,6 +53,47 @@ final class SQLiteBTreeInteriorRedistributionApplyPlan
         ]);
     }
 
+    public static function tableCurrentAndNext(
+        SQLiteDatabase $database,
+        int $parentPageNumber,
+        int $currentPageNumber,
+    ): self {
+        if ($parentPageNumber < 1 || $currentPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution page numbers must be positive');
+        }
+
+        $parentPage = $database->page($parentPageNumber);
+        $headerOffset = $parentPageNumber === 1 ? 100 : 0;
+        $header = SQLiteBTreePageHeader::parsePage($parentPage, $database->header->pageSize, $headerOffset);
+        if ($header->pageType !== 'table-interior' || $header->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution requires a table interior parent');
+        }
+
+        $cells = SQLiteTableInteriorCell::parsePageCells($parentPage, $header);
+        $children = array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $cells);
+        $children[] = $header->rightMostPointer;
+        $currentIndex = array_search($currentPageNumber, $children, true);
+        if (!is_int($currentIndex)) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution current child is not referenced by parent');
+        }
+        if ($currentIndex >= count($children) - 1) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution requires a next sibling to the right');
+        }
+
+        $divider = $cells[$currentIndex] ?? null;
+        if (!$divider instanceof SQLiteTableInteriorCell) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution could not resolve the parent divider');
+        }
+
+        return self::tableInterior(
+            $database,
+            $currentPageNumber,
+            $children[$currentIndex + 1],
+            $parentPageNumber,
+            $divider->key,
+        );
+    }
+
     public static function indexInterior(
         SQLiteDatabase $database,
         int $leftPageNumber,
@@ -84,6 +125,47 @@ final class SQLiteBTreeInteriorRedistributionApplyPlan
             'old_separator' => $oldValues,
             'new_separator' => $plan->newDividerValues,
         ]);
+    }
+
+    public static function indexCurrentAndNext(
+        SQLiteDatabase $database,
+        int $parentPageNumber,
+        int $currentPageNumber,
+    ): self {
+        if ($parentPageNumber < 1 || $currentPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution page numbers must be positive');
+        }
+
+        $parentPage = $database->page($parentPageNumber);
+        $headerOffset = $parentPageNumber === 1 ? 100 : 0;
+        $header = SQLiteBTreePageHeader::parsePage($parentPage, $database->header->pageSize, $headerOffset);
+        if ($header->pageType !== 'index-interior' || $header->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution requires an index interior parent');
+        }
+
+        $cells = SQLiteIndexCell::parsePageCells($parentPage, $header, $database->usablePageSize());
+        $children = array_map(static fn (SQLiteIndexCell $cell): int => $cell->leftChildPage ?? 0, $cells);
+        $children[] = $header->rightMostPointer;
+        $currentIndex = array_search($currentPageNumber, $children, true);
+        if (!is_int($currentIndex)) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution current child is not referenced by parent');
+        }
+        if ($currentIndex >= count($children) - 1) {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution requires a next sibling to the right');
+        }
+
+        $divider = $cells[$currentIndex] ?? null;
+        if (!$divider instanceof SQLiteIndexCell || $divider->payload === '') {
+            throw new \InvalidArgumentException('SQLite b-tree current/next interior redistribution could not resolve the parent divider');
+        }
+
+        return self::indexInterior(
+            $database,
+            $currentPageNumber,
+            $children[$currentIndex + 1],
+            $parentPageNumber,
+            $divider->payload,
+        );
     }
 
     /**

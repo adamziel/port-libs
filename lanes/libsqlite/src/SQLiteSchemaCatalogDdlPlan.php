@@ -270,24 +270,39 @@ final class SQLiteSchemaCatalogDdlPlan
             return null;
         }
         $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
+        $qualifiedIdentifier = '(?:' . $identifier . '\s*\.\s*)?' . $identifier;
 
-        if (preg_match('/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $identifier . ')\s*\(/i', $normalized, $matches) === 1) {
-            return ['action' => 'create', 'type' => 'table', 'name' => self::unquoteIdentifier($matches['name']), 'table' => null, 'if_not_exists' => ($matches[1] ?? '') !== ''];
+        if (preg_match('/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TABLE\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $qualifiedIdentifier . ')\s*\(/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+
+            return ['action' => 'create', 'type' => 'table', 'schema' => $name['schema'], 'name' => $name['name'], 'table' => null, 'if_not_exists' => ($matches[1] ?? '') !== ''];
         }
-        if (preg_match('/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $identifier . ')\s+ON\s+(?<table>' . $identifier . ')\s*\(/i', $normalized, $matches) === 1) {
-            return ['action' => 'create', 'type' => 'index', 'name' => self::unquoteIdentifier($matches['name']), 'table' => self::unquoteIdentifier($matches['table']), 'if_not_exists' => ($matches[1] ?? '') !== ''];
+        if (preg_match('/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $qualifiedIdentifier . ')\s+ON\s+(?<table>' . $qualifiedIdentifier . ')\s*\(/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+            $table = self::unquoteQualifiedIdentifier($matches['table']);
+
+            return ['action' => 'create', 'type' => 'index', 'schema' => $name['schema'], 'name' => $name['name'], 'table_schema' => $table['schema'], 'table' => $table['name'], 'if_not_exists' => ($matches[1] ?? '') !== ''];
         }
-        if (preg_match('/^CREATE\s+VIEW\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $identifier . ')\s+/i', $normalized, $matches) === 1) {
-            return ['action' => 'create', 'type' => 'view', 'name' => self::unquoteIdentifier($matches['name']), 'table' => null, 'if_not_exists' => ($matches[1] ?? '') !== ''];
+        if (preg_match('/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?VIEW\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $qualifiedIdentifier . ')\s+/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+
+            return ['action' => 'create', 'type' => 'view', 'schema' => $name['schema'], 'name' => $name['name'], 'table' => null, 'if_not_exists' => ($matches[1] ?? '') !== ''];
         }
-        if (preg_match('/^CREATE\s+TRIGGER\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $identifier . ')\s+/i', $normalized, $matches) === 1) {
-            return ['action' => 'create', 'type' => 'trigger', 'name' => self::unquoteIdentifier($matches['name']), 'table' => self::triggerTable($normalized), 'if_not_exists' => ($matches[1] ?? '') !== ''];
+        if (preg_match('/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TRIGGER\s+(IF\s+NOT\s+EXISTS\s+)?(?<name>' . $qualifiedIdentifier . ')\s+/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+            $target = self::triggerTable($normalized);
+
+            return ['action' => 'create', 'type' => 'trigger', 'schema' => $name['schema'], 'name' => $name['name'], 'table_schema' => $target['schema'], 'table' => $target['name'], 'if_not_exists' => ($matches[1] ?? '') !== ''];
         }
-        if (preg_match('/^DROP\s+(?<type>TABLE|INDEX|VIEW|TRIGGER)\s+(IF\s+EXISTS\s+)?(?<name>' . $identifier . ')\s*$/i', $normalized, $matches) === 1) {
-            return ['action' => 'drop', 'type' => strtolower($matches['type']), 'name' => self::unquoteIdentifier($matches['name']), 'if_exists' => ($matches[2] ?? '') !== ''];
+        if (preg_match('/^DROP\s+(?<type>TABLE|INDEX|VIEW|TRIGGER)\s+(IF\s+EXISTS\s+)?(?<name>' . $qualifiedIdentifier . ')\s*$/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+
+            return ['action' => 'drop', 'type' => strtolower($matches['type']), 'schema' => $name['schema'], 'name' => $name['name'], 'if_exists' => ($matches[2] ?? '') !== ''];
         }
-        if (preg_match('/^ALTER\s+TABLE\s+(?<name>' . $identifier . ')\s+RENAME\s+TO\s+(?<new>' . $identifier . ')\s*$/i', $normalized, $matches) === 1) {
-            return ['action' => 'rename_table', 'type' => 'table', 'name' => self::unquoteIdentifier($matches['name']), 'new_name' => self::unquoteIdentifier($matches['new'])];
+        if (preg_match('/^ALTER\s+TABLE\s+(?<name>' . $qualifiedIdentifier . ')\s+RENAME\s+TO\s+(?<new>' . $identifier . ')\s*$/i', $normalized, $matches) === 1) {
+            $name = self::unquoteQualifiedIdentifier($matches['name']);
+
+            return ['action' => 'rename_table', 'type' => 'table', 'schema' => $name['schema'], 'name' => $name['name'], 'new_name' => self::unquoteIdentifier($matches['new'])];
         }
 
         return null;
@@ -309,13 +324,18 @@ final class SQLiteSchemaCatalogDdlPlan
         return $dependencies;
     }
 
-    private static function triggerTable(string $sql): ?string
+    /**
+     * @return array{schema:?string,name:?string}
+     */
+    private static function triggerTable(string $sql): array
     {
-        if (preg_match('/\sON\s+(?<table>"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s/i', $sql, $matches) !== 1) {
-            return null;
+        $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
+        $qualifiedIdentifier = '(?:' . $identifier . '\s*\.\s*)?' . $identifier;
+        if (preg_match('/\sON\s+(?<table>' . $qualifiedIdentifier . ')\s/i', $sql, $matches) !== 1) {
+            return ['schema' => null, 'name' => null];
         }
 
-        return self::unquoteIdentifier($matches['table']);
+        return self::unquoteQualifiedIdentifier($matches['table']);
     }
 
     private static function rewriteCreateObjectName(?string $sql, string $oldName, string $newName): ?string
@@ -347,7 +367,7 @@ final class SQLiteSchemaCatalogDdlPlan
     private static function insideCreateTriggerBody(string $statement): bool
     {
         $normalized = preg_replace('/\s+/', ' ', self::stripLeadingComments($statement));
-        if (!is_string($normalized) || preg_match('/^CREATE\s+TRIGGER\s+/i', trim($normalized)) !== 1) {
+        if (!is_string($normalized) || preg_match('/^CREATE\s+(?:TEMP(?:ORARY)?\s+)?TRIGGER\s+/i', trim($normalized)) !== 1) {
             return false;
         }
 
@@ -411,6 +431,55 @@ final class SQLiteSchemaCatalogDdlPlan
         }
 
         return $identifier;
+    }
+
+    /**
+     * @return array{schema:?string,name:string}
+     */
+    private static function unquoteQualifiedIdentifier(string $identifier): array
+    {
+        $parts = self::splitQualifiedIdentifier($identifier);
+        if (count($parts) === 1) {
+            return ['schema' => null, 'name' => self::unquoteIdentifier($parts[0])];
+        }
+        if (count($parts) === 2) {
+            return ['schema' => self::unquoteIdentifier($parts[0]), 'name' => self::unquoteIdentifier($parts[1])];
+        }
+
+        throw new InvalidArgumentException('Schema object name has too many qualifiers');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitQualifiedIdentifier(string $identifier): array
+    {
+        $parts = [];
+        $start = 0;
+        $length = strlen($identifier);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $identifier[$i];
+            if ($char === '"' || $char === '`') {
+                $i = self::skipQuoted($identifier, $i, $char);
+                continue;
+            }
+            if ($char === '[') {
+                $end = strpos($identifier, ']', $i + 1);
+                if ($end === false) {
+                    throw new InvalidArgumentException('Unterminated bracket quoted identifier');
+                }
+                $i = $end;
+                continue;
+            }
+            if ($char !== '.') {
+                continue;
+            }
+            $parts[] = trim(substr($identifier, $start, $i - $start));
+            $start = $i + 1;
+        }
+        $parts[] = trim(substr($identifier, $start));
+
+        return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
     }
 
     /**

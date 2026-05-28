@@ -7538,6 +7538,255 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function suiteReleaseRunnerAdmissionCurrentNext72(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($artifactRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next72 release-runner admission requires at least one artifact row');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite current-next72 release-runner admission requires a non-negative current mapped count');
+        }
+        if (trim($currentAcceptedHead) === '' || trim($nextAcceptedHead) === '') {
+            throw new \InvalidArgumentException('SQLite current-next72 release-runner admission requires current and next accepted HEAD values');
+        }
+
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $currentAcceptedHead,
+            $currentAcceptedHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $admittedUnits = [];
+        $preservedUnits = [];
+        $blockedUnits = [];
+        $regressedUnits = [];
+        $categories = [];
+        $scripts = [];
+        $currentTestsTotal = 0;
+        $nextTestsTotal = 0;
+        $zeroErrorArtifacts = 0;
+
+        foreach ($artifactRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'current-next72-artifact-' . count($entries);
+            if (!is_array($row)) {
+                $blockedUnits[] = $fallbackUnit;
+                $blockers[] = [
+                    'id' => 'current-next72-artifact-row-invalid',
+                    'unit' => $fallbackUnit,
+                    'evidence' => 'release-runner artifact row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            $category = is_string($row['category'] ?? null) && $row['category'] !== '' ? $row['category'] : 'release-runner-admission';
+            $currentHead = is_string($row['current_head'] ?? null) ? trim($row['current_head']) : '';
+            $nextHead = is_string($row['next_head'] ?? null) ? trim($row['next_head']) : '';
+            $artifactPath = is_string($row['artifact_path'] ?? null) ? trim($row['artifact_path']) : '';
+            $command = is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'missing';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'missing';
+            $currentCountable = (bool) ($row['current_countable'] ?? in_array($currentStatus, ['countable', 'admitted', 'mapped'], true));
+            $nextCountable = (bool) ($row['next_countable'] ?? in_array($nextStatus, ['countable', 'admitted', 'mapped'], true));
+            $errors = max(0, $this->denominatorAuditInt($row, 'errors'));
+            $tests = max(0, $this->denominatorAuditInt($row, 'tests'));
+            $currentTests = max(0, $this->denominatorAuditInt($row, 'current_tests'));
+            $nextTests = max(0, $this->denominatorAuditInt($row, 'next_tests'));
+            $rowScripts = array_values(array_unique(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && str_ends_with($script, '.test')
+            )));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-release-runner-unit';
+            }
+            $seen[$unit] = true;
+            if ($currentHead !== $currentAcceptedHead) {
+                $rowBlockers[] = 'current-head-mismatch';
+            }
+            if ($nextHead !== $nextAcceptedHead) {
+                $rowBlockers[] = 'next-head-mismatch';
+            }
+            if ($artifactPath === '' || !str_starts_with($artifactPath, 'lanes/libsqlite/')) {
+                $rowBlockers[] = 'artifact-path-not-lane-local';
+            }
+            if ($command === '' || !str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl')) {
+                $rowBlockers[] = 'runner-command-missing';
+            }
+            if ($nextCountable && $rowScripts === []) {
+                $rowBlockers[] = 'countable-artifact-missing-test-scripts';
+            }
+            if ($nextCountable && $evidence === '') {
+                $rowBlockers[] = 'countable-artifact-missing-evidence';
+            }
+            if ($nextCountable && $errors !== 0) {
+                $rowBlockers[] = 'artifact-errors-not-zero';
+            }
+            if ($nextCountable && $tests < 1) {
+                $rowBlockers[] = 'artifact-tests-missing';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'countable-artifact-regressed';
+            }
+            if ($nextTests < $currentTests) {
+                $rowBlockers[] = 'artifact-test-count-regressed';
+            }
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $blocker) {
+                if (is_string($blocker) && $blocker !== '') {
+                    $rowBlockers[] = $blocker;
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blockedUnits[] = $unit;
+                if (in_array('countable-artifact-regressed', $rowBlockers, true) || in_array('artifact-test-count-regressed', $rowBlockers, true)) {
+                    $regressedUnits[] = $unit;
+                }
+                $blockers[] = [
+                    'id' => 'current-next72-artifact-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'admitted';
+                $admittedUnits[] = $unit;
+                $zeroErrorArtifacts++;
+            } elseif ($nextCountable) {
+                $movement = 'preserved';
+                $preservedUnits[] = $unit;
+                $zeroErrorArtifacts++;
+            }
+
+            if ($currentCountable) {
+                $currentTestsTotal += $currentTests;
+            }
+            if ($nextCountable) {
+                $nextTestsTotal += $nextTests > 0 ? $nextTests : $tests;
+            }
+            $categories[$category] = ($categories[$category] ?? 0) + 1;
+
+            $entries[] = [
+                'unit' => $unit,
+                'category' => $category,
+                'movement' => $movement,
+                'current_head' => $currentHead,
+                'next_head' => $nextHead,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'tests' => $tests,
+                'errors' => $errors,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'scripts' => $rowScripts,
+                'artifact_path' => $artifactPath,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-head gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        ksort($categories, SORT_STRING);
+        sort($admittedUnits, SORT_STRING);
+        sort($preservedUnits, SORT_STRING);
+        sort($blockedUnits, SORT_STRING);
+        sort($regressedUnits, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $mappedDelta = count($admittedUnits);
+        $blocked = $blockers !== [];
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-next72-release-runner-admitted';
+        } elseif (!$blocked) {
+            $status = 'current-next72-release-runner-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-next72-release-runner-admitted',
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $blocked ? $currentMapped : $currentMapped + $mappedDelta,
+            'mapped_delta' => $blocked ? 0 : $mappedDelta,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $blocked ? 0 : (int) ($phpAdmission['pass_delta'] ?? 0),
+            'next_php_pass' => $blocked ? $currentPhpPass : (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'row_count' => count($entries),
+            'category_count' => count($categories),
+            'categories' => $categories,
+            'zero_error_artifact_count' => $blocked ? 0 : $zeroErrorArtifacts,
+            'admitted_units' => $admittedUnits,
+            'preserved_units' => $preservedUnits,
+            'blocked_units' => $blockedUnits,
+            'regressed_units' => $regressedUnits,
+            'current_tests_total' => $currentTestsTotal,
+            'next_tests_total' => $nextTestsTotal,
+            'tests_total_delta' => $blocked ? 0 : max(0, $nextTestsTotal - $currentTestsTotal),
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_release_runner_admission_current_next72' => $status === 'current-next72-release-runner-admitted',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next72-release-runner-admitted'
+                ? 'publish only current-next72 release-runner artifact admission and exact focused PASS-line movement; release/all parity remains gated on a separate broad zero-error artifact'
+                : 'keep current-next72 admission uncounted until current/next heads, lane-local artifacts, zero-error runner output, duplicate-runner, and focused PASS-line gates are clear',
+            'dependency_closure' => 'no new support component needed; current-next72 release-runner admission composes lane-local artifact rows, guarded runner commands, zero-error result metadata, active-runner gates, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

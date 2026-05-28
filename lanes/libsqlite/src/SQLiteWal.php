@@ -886,6 +886,72 @@ final class SQLiteWal
 
     /**
      * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointTruncateCurrentNext72(string $databaseBytes, array $pageNumbers, ?int $currentReaderEndFrame = null): array
+    {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint truncate current/next requires at least one page number');
+        }
+
+        $currentEndFrame = $currentReaderEndFrame ?? $this->frameCount();
+        if ($currentEndFrame < 0 || $currentEndFrame > $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint truncate current/next reader frame is outside the WAL frame range');
+        }
+
+        $current = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint truncate current/next pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $currentEndFrame);
+        }
+
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, 'truncate', null);
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            $next[] = self::databasePageVisibilityOrError($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+        $checkpointPlan = $this->checkpointPlan($databaseBytes);
+
+        return [
+            'status' => $checkpoint['can_truncate'] ? 'truncate-checkpoint-drained-reader-next-database' : 'truncate-checkpoint-preserved-wal',
+            'reason' => $checkpoint['reason'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => 0,
+            'checkpoint' => $checkpoint,
+            'checkpoint_plan' => $checkpointPlan,
+            'wal_action' => $checkpoint['wal_action'],
+            'wal_bytes_length' => $checkpoint['wal_bytes_length'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_errors' => self::visibilityErrors($current),
+            'next_errors' => self::visibilityErrors($next),
+            'images_match' => $currentImages === $nextImages,
+            'next_uses_checkpoint_database' => $checkpoint['database_bytes'] !== $databaseBytes,
+            'checkpointed_frame_count' => $checkpoint['checkpointed_frame_count'],
+            'total_committable_frame_count' => $checkpoint['total_committable_frame_count'],
+            'remaining_committed_frame_count' => $checkpoint['remaining_committed_frame_count'],
+            'uncommitted_frame_count' => $checkpoint['uncommitted_frame_count'],
+            'database_page_count' => $checkpoint['database_page_count'],
+            'final_database_bytes' => $checkpoint['final_database_bytes'],
+            'dependencies' => array_values(array_unique(array_merge($checkpoint['dependencies'], [
+                'sqlite-wal-reader-checkpoint-truncate-current-next72',
+                'sqlite-wal-drained-reader-truncate-boundary',
+            ]))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,mode:string,reason:string,busy:bool,reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,dependencies:list<string>}
      */
     public function checkpointBusyReaderCurrentNext(string $databaseBytes, array $pageNumbers, string $mode = 'full', int $readerEndFrame = 0): array
