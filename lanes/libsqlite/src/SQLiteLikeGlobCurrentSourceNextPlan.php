@@ -30,7 +30,23 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
             $current['escape'],
             $current['caseSensitiveLike'],
         );
+        $currentCandidates = SQLiteEncodingCollationSourceCursor::wordpressOptionNameRangeScan(
+            $currentRows,
+            $current['pattern'],
+            $current['operator'],
+            $current['collation'],
+            $current['escape'],
+            $current['caseSensitiveLike'],
+        );
         $nextMatches = SQLiteEncodingCollationSourceCursor::wordpressOptionNameScan(
+            $nextRows,
+            $next['pattern'],
+            $next['operator'],
+            $next['collation'],
+            $next['escape'],
+            $next['caseSensitiveLike'],
+        );
+        $nextCandidates = SQLiteEncodingCollationSourceCursor::wordpressOptionNameRangeScan(
             $nextRows,
             $next['pattern'],
             $next['operator'],
@@ -41,6 +57,10 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
 
         $currentRowids = self::rowids($currentMatches);
         $nextRowids = self::rowids($nextMatches);
+        $currentCandidateRowids = self::rowids($currentCandidates);
+        $nextCandidateRowids = self::rowids($nextCandidates);
+        $currentFalsePositiveRowids = array_values(array_diff($currentCandidateRowids, $currentRowids));
+        $nextFalsePositiveRowids = array_values(array_diff($nextCandidateRowids, $nextRowids));
         $retained = array_values(array_intersect($currentRowids, $nextRowids));
         $exited = array_values(array_diff($currentRowids, $nextRowids));
         $entered = array_values(array_diff($nextRowids, $currentRowids));
@@ -49,19 +69,33 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
         $nextByRowid = self::byRowid($nextRows);
         $changedEncodings = [];
         $changedBytes = [];
+        $candidateChangedEncodings = [];
+        $candidateChangedBytes = [];
+        $candidateUniverse = array_unique(array_merge($currentCandidateRowids, $nextCandidateRowids));
         foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
-            if (!in_array($rowid, array_unique(array_merge($currentRowids, $nextRowids)), true)) {
-                continue;
+            $encodingChanged = $currentByRowid[$rowid]['text_encoding'] !== $nextByRowid[$rowid]['text_encoding'];
+            $bytesChanged = $currentByRowid[$rowid]['option_name_bytes'] !== $nextByRowid[$rowid]['option_name_bytes'];
+            if (in_array($rowid, array_unique(array_merge($currentRowids, $nextRowids)), true)) {
+                if ($encodingChanged) {
+                    $changedEncodings[] = $rowid;
+                }
+                if ($bytesChanged) {
+                    $changedBytes[] = $rowid;
+                }
             }
-            if ($currentByRowid[$rowid]['text_encoding'] !== $nextByRowid[$rowid]['text_encoding']) {
-                $changedEncodings[] = $rowid;
-            }
-            if ($currentByRowid[$rowid]['option_name_bytes'] !== $nextByRowid[$rowid]['option_name_bytes']) {
-                $changedBytes[] = $rowid;
+            if (in_array($rowid, $candidateUniverse, true)) {
+                if ($encodingChanged) {
+                    $candidateChangedEncodings[] = $rowid;
+                }
+                if ($bytesChanged) {
+                    $candidateChangedBytes[] = $rowid;
+                }
             }
         }
         sort($changedEncodings);
         sort($changedBytes);
+        sort($candidateChangedEncodings);
+        sort($candidateChangedBytes);
 
         $reasons = self::statementReasons($current, $next);
         if ($changedEncodings !== []) {
@@ -69,6 +103,12 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
         }
         if ($changedBytes !== []) {
             $reasons[] = 'key-bytes';
+        }
+        if ($candidateChangedEncodings !== [] && $candidateChangedEncodings !== $changedEncodings) {
+            $reasons[] = 'candidate-text-encoding';
+        }
+        if ($candidateChangedBytes !== [] && $candidateChangedBytes !== $changedBytes) {
+            $reasons[] = 'candidate-key-bytes';
         }
         if ($entered !== [] || $exited !== []) {
             $reasons[] = 'matched-rowset';
@@ -86,9 +126,13 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
                 'escape' => $current['escape'],
                 'caseSensitiveLike' => $current['caseSensitiveLike'],
                 'range' => self::range($current),
+                'candidateRowids' => $currentCandidateRowids,
+                'falsePositiveRowids' => $currentFalsePositiveRowids,
                 'rowids' => $currentRowids,
                 'encodings' => self::encodingMap($currentMatches),
+                'candidateEncodings' => self::encodingMap($currentCandidates),
                 'bytesHex' => self::bytesMap($currentMatches),
+                'candidateBytesHex' => self::bytesMap($currentCandidates),
             ],
             'next' => [
                 'source' => $next['source'],
@@ -98,19 +142,26 @@ final class SQLiteLikeGlobCurrentSourceNextPlan
                 'escape' => $next['escape'],
                 'caseSensitiveLike' => $next['caseSensitiveLike'],
                 'range' => self::range($next),
+                'candidateRowids' => $nextCandidateRowids,
+                'falsePositiveRowids' => $nextFalsePositiveRowids,
                 'rowids' => $nextRowids,
                 'encodings' => self::encodingMap($nextMatches),
+                'candidateEncodings' => self::encodingMap($nextCandidates),
                 'bytesHex' => self::bytesMap($nextMatches),
+                'candidateBytesHex' => self::bytesMap($nextCandidates),
             ],
             'retainedRowids' => $retained,
             'exitedRowids' => $exited,
             'enteredRowids' => $entered,
             'changedEncodingRowids' => $changedEncodings,
             'changedBytesRowids' => $changedBytes,
+            'candidateChangedEncodingRowids' => $candidateChangedEncodings,
+            'candidateChangedBytesRowids' => $candidateChangedBytes,
             'dependencies' => [
                 'sqlite-encoding-source-cursor',
                 'sqlite-like-glob-collation',
                 'sqlite-current-source-next-statement-reprepare',
+                'sqlite-like-glob-range-candidates',
             ],
         ];
     }

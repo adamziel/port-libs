@@ -158,14 +158,25 @@ final class SQLiteEncodingCollationSourceCursor
             if (!$this->matches($entry['key'])) {
                 continue;
             }
-            $rows[] = [
-                'rowid' => $entry['rowid'],
-                'key' => $entry['key'],
-                'keyBytesHex' => bin2hex($entry['keyBytes']),
-                'textEncoding' => self::encodingName($entry['textEncoding']),
-                'payload' => $entry['payload'],
-                'position' => $position,
-            ];
+            $rows[] = self::formatEntryRow($entry, $position);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int,residualMatch:bool}>
+     */
+    public function rangedRows(): array
+    {
+        $rows = [];
+        foreach ($this->entries as $position => $entry) {
+            if (!$this->inUsableRange($entry['key'])) {
+                continue;
+            }
+            $row = self::formatEntryRow($entry, $position);
+            $row['residualMatch'] = $this->matches($entry['key']);
+            $rows[] = $row;
         }
 
         return $rows;
@@ -203,6 +214,40 @@ final class SQLiteEncodingCollationSourceCursor
         }
 
         return (new self($entries, $pattern, $operator, $collation, $escape, $caseSensitiveLike))->matchedRows();
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int,residualMatch:bool}>
+     */
+    public static function wordpressOptionNameRangeScan(
+        array $rows,
+        string $pattern,
+        string $operator = 'LIKE',
+        string $collation = 'BINARY',
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+    ): array {
+        $entries = [];
+        foreach ($rows as $row) {
+            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
+                throw new \InvalidArgumentException('SQLite encoding source WordPress scan requires integer option_id');
+            }
+            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite encoding source WordPress scan requires option_name_bytes');
+            }
+            if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite encoding source WordPress scan requires integer text_encoding');
+            }
+            $entries[] = [
+                'keyBytes' => $row['option_name_bytes'],
+                'textEncoding' => $row['text_encoding'],
+                'rowid' => $row['option_id'],
+                'payload' => $row,
+            ];
+        }
+
+        return (new self($entries, $pattern, $operator, $collation, $escape, $caseSensitiveLike))->rangedRows();
     }
 
     public static function encodeText(string $text, int|string $encoding): string
@@ -253,6 +298,22 @@ final class SQLiteEncodingCollationSourceCursor
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
             'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
         };
+    }
+
+    /**
+     * @param array{key:string,keyBytes:string,textEncoding:int,rowid:int,payload:array<string,mixed>} $entry
+     * @return array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int}
+     */
+    private static function formatEntryRow(array $entry, int $position): array
+    {
+        return [
+            'rowid' => $entry['rowid'],
+            'key' => $entry['key'],
+            'keyBytesHex' => bin2hex($entry['keyBytes']),
+            'textEncoding' => self::encodingName($entry['textEncoding']),
+            'payload' => $entry['payload'],
+            'position' => $position,
+        ];
     }
 
     public static function decodeText(string $bytes, int $encoding): string

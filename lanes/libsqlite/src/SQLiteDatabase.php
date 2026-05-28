@@ -11353,6 +11353,18 @@ final class SQLiteDatabase
 
     private static function nextBinaryPrefixUpperBound(string $prefix): ?string
     {
+        if ($prefix !== '' && preg_match('//u', $prefix) === 1) {
+            $characters = self::sqlitePatternCharacters($prefix);
+            $last = array_pop($characters);
+            if ($last !== null) {
+                $codepoint = self::sqliteUtf8Codepoint($last);
+                if ($codepoint < 0x10ffff) {
+                    return implode('', $characters) . self::sqliteUtf8FromCodepoint($codepoint + 1);
+                }
+                return null;
+            }
+        }
+
         for ($offset = strlen($prefix) - 1; $offset >= 0; $offset--) {
             $byte = ord($prefix[$offset]);
             if ($byte === 0xff) {
@@ -11363,6 +11375,49 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    private static function sqliteUtf8Codepoint(string $character): int
+    {
+        $bytes = array_values(unpack('C*', $character) ?: []);
+        $length = count($bytes);
+        if ($length === 1) {
+            return $bytes[0];
+        }
+        if ($length === 2) {
+            return (($bytes[0] & 0x1f) << 6) | ($bytes[1] & 0x3f);
+        }
+        if ($length === 3) {
+            return (($bytes[0] & 0x0f) << 12) | (($bytes[1] & 0x3f) << 6) | ($bytes[2] & 0x3f);
+        }
+        if ($length === 4) {
+            return (($bytes[0] & 0x07) << 18) | (($bytes[1] & 0x3f) << 12) | (($bytes[2] & 0x3f) << 6) | ($bytes[3] & 0x3f);
+        }
+
+        throw new \InvalidArgumentException('SQLite UTF-8 prefix character must be well formed');
+    }
+
+    private static function sqliteUtf8FromCodepoint(int $codepoint): string
+    {
+        if ($codepoint < 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+            throw new \InvalidArgumentException('SQLite UTF-8 codepoint is outside Unicode scalar range');
+        }
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6)) . chr(0x80 | ($codepoint & 0x3f));
+        }
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3f))
+                . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return chr(0xf0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3f))
+            . chr(0x80 | (($codepoint >> 6) & 0x3f))
+            . chr(0x80 | ($codepoint & 0x3f));
     }
 
     private static function asciiUpper(string $value): string

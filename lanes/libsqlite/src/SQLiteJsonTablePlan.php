@@ -1759,6 +1759,74 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedRowidOrderNext147(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+        array $generatedOrder = [],
+    ): array {
+        if ($generatedOrder === []) {
+            throw new \InvalidArgumentException('SQLite JSON table generated rowid order planner requires generated order terms');
+        }
+
+        $plan = self::currentSourceGeneratedHiddenRowidCostNext142(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableGeneratedRowidOrderProfile147(
+            $plan['currentGeneratedHiddenRowidCost'],
+            $generatedOrder,
+        );
+        $nextProfile = self::jsonTableGeneratedRowidOrderProfile147(
+            $plan['nextGeneratedHiddenRowidCost'],
+            $generatedOrder,
+        );
+        $transitions = self::jsonTableGeneratedRowidOrderTransitions147($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedRowidOrderReplanReasons147($transitions);
+
+        $plan['currentGeneratedRowidOrder'] = $currentProfile;
+        $plan['nextGeneratedRowidOrder'] = $nextProfile;
+        $plan['generatedRowidOrderTransitions'] = $transitions;
+        $plan['next147ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next142ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next147ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-rowid-order-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next147ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-rowid-order-plan'
+            : 'prepare-next-json-table-generated-rowid-order-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-rowid-order-current-source-next147'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceNestedPathRowidNext133(
@@ -5771,6 +5839,138 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-path-rowid-cost-changed',
                 'generatedPathRowidTape' => 'json-table-generated-path-rowid-tape-changed',
                 default => 'json-table-generated-path-rowid-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $generatedRowid
+     * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
+     * @return array{root:string,rowidConstraintSignature:string|null,generatedOrderBy:list<array{name:string,source:string,path:string,direction:string}>,intersectedRowCount:int,orderedRowids:list<int|null>,orderedFullkeys:list<mixed>,orderedGeneratedKeys:list<list<mixed>>,generatedRowidOrderTape:list<array{rowid:int|null,fullkey:mixed,key:list<mixed>,matched:bool}>,firstOrderedRowid:int|null,lastOrderedRowid:int|null,rowidEffectiveCost:int,generatedSortPenalty:int,effectiveEstimatedCost:int,requiresGeneratedSorter:bool,costClass:string}
+     */
+    private static function jsonTableGeneratedRowidOrderProfile147(array $generatedRowid, array $generatedOrder): array
+    {
+        $terms = self::normalizeGeneratedOrderTerms132($generatedOrder);
+        $entries = [];
+        foreach ($generatedRowid['generatedRowidTape'] as $entry) {
+            if (($entry['matched'] ?? false) !== true) {
+                continue;
+            }
+
+            $key = [];
+            foreach ($terms as $term) {
+                $key[] = $entry['values'][$term['name']] ?? null;
+            }
+
+            $entries[] = [
+                'rowid' => is_int($entry['rowid'] ?? null) ? $entry['rowid'] : null,
+                'fullkey' => $entry['fullkey'] ?? null,
+                'key' => $key,
+                'matched' => true,
+            ];
+        }
+
+        usort($entries, static fn (array $left, array $right): int => self::compareGeneratedOrderEntries132($left, $right, $terms));
+
+        $rowCount = count($entries);
+        $requiresSorter = $rowCount > 1;
+        $sortPenalty = $requiresSorter ? self::jsonTableSortPenalty113($rowCount, $terms) : 0;
+        $rowidCost = (int) $generatedRowid['effectiveEstimatedCost'];
+        $effectiveCost = $rowidCost >= 1000000 ? 1000000 : $rowidCost + $sortPenalty;
+
+        return [
+            'root' => (string) $generatedRowid['root'],
+            'rowidConstraintSignature' => $generatedRowid['rowidConstraintSignature'],
+            'generatedOrderBy' => $terms,
+            'intersectedRowCount' => $rowCount,
+            'orderedRowids' => array_values(array_map(static fn (array $entry): ?int => $entry['rowid'], $entries)),
+            'orderedFullkeys' => array_values(array_map(static fn (array $entry): mixed => $entry['fullkey'], $entries)),
+            'orderedGeneratedKeys' => array_values(array_map(static fn (array $entry): array => $entry['key'], $entries)),
+            'generatedRowidOrderTape' => $entries,
+            'firstOrderedRowid' => $entries[0]['rowid'] ?? null,
+            'lastOrderedRowid' => $entries === [] ? null : $entries[array_key_last($entries)]['rowid'],
+            'rowidEffectiveCost' => $rowidCost,
+            'generatedSortPenalty' => $sortPenalty,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'requiresGeneratedSorter' => $requiresSorter,
+            'costClass' => self::jsonTableGeneratedRowidOrderCostClass147(
+                (string) $generatedRowid['costClass'],
+                $rowCount,
+                $requiresSorter,
+                $effectiveCost,
+            ),
+        ];
+    }
+
+    private static function jsonTableGeneratedRowidOrderCostClass147(
+        string $rowidCostClass,
+        int $rowCount,
+        bool $requiresSorter,
+        int $effectiveCost,
+    ): string {
+        if ($rowidCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($rowCount === 0) {
+            return 'json-table-generated-rowid-order-empty';
+        }
+        if (!$requiresSorter) {
+            return str_contains($rowidCostClass, 'point')
+                ? 'json-table-generated-rowid-order-point'
+                : 'json-table-generated-rowid-order-single';
+        }
+
+        return $effectiveCost <= 12
+            ? 'json-table-generated-rowid-order-narrow-sort'
+            : 'json-table-generated-rowid-order-sort';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedRowidOrderTransitions147(array $current, array $next): array
+    {
+        return [
+            ['field' => 'root', 'current' => $current['root'], 'next' => $next['root'], 'changed' => $current['root'] !== $next['root']],
+            ['field' => 'rowidConstraintSignature', 'current' => $current['rowidConstraintSignature'], 'next' => $next['rowidConstraintSignature'], 'changed' => $current['rowidConstraintSignature'] !== $next['rowidConstraintSignature']],
+            ['field' => 'generatedOrderBy', 'current' => $current['generatedOrderBy'], 'next' => $next['generatedOrderBy'], 'changed' => $current['generatedOrderBy'] !== $next['generatedOrderBy']],
+            ['field' => 'intersectedRowCount', 'current' => $current['intersectedRowCount'], 'next' => $next['intersectedRowCount'], 'changed' => $current['intersectedRowCount'] !== $next['intersectedRowCount']],
+            ['field' => 'orderedRowids', 'current' => $current['orderedRowids'], 'next' => $next['orderedRowids'], 'changed' => $current['orderedRowids'] !== $next['orderedRowids']],
+            ['field' => 'orderedGeneratedKeys', 'current' => $current['orderedGeneratedKeys'], 'next' => $next['orderedGeneratedKeys'], 'changed' => $current['orderedGeneratedKeys'] !== $next['orderedGeneratedKeys']],
+            ['field' => 'requiresGeneratedSorter', 'current' => $current['requiresGeneratedSorter'], 'next' => $next['requiresGeneratedSorter'], 'changed' => $current['requiresGeneratedSorter'] !== $next['requiresGeneratedSorter']],
+            ['field' => 'effectiveEstimatedCost', 'current' => $current['effectiveEstimatedCost'], 'next' => $next['effectiveEstimatedCost'], 'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'generatedRowidOrderTape', 'current' => $current['generatedRowidOrderTape'], 'next' => $next['generatedRowidOrderTape'], 'changed' => $current['generatedRowidOrderTape'] !== $next['generatedRowidOrderTape']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedRowidOrderReplanReasons147(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root' => 'json-table-generated-rowid-order-root-changed',
+                'rowidConstraintSignature' => 'json-table-generated-rowid-order-rowid-constraint-changed',
+                'generatedOrderBy' => 'json-table-generated-rowid-order-terms-changed',
+                'intersectedRowCount' => 'json-table-generated-rowid-order-row-count-changed',
+                'orderedRowids' => 'json-table-generated-rowid-order-output-changed',
+                'orderedGeneratedKeys' => 'json-table-generated-rowid-order-keys-changed',
+                'requiresGeneratedSorter' => 'json-table-generated-rowid-order-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-generated-rowid-order-cost-changed',
+                'generatedRowidOrderTape' => 'json-table-generated-rowid-order-tape-changed',
+                default => 'json-table-generated-rowid-order-state-changed',
             };
         }
 
