@@ -987,6 +987,122 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
+     * @param list<array{page_number:int,commit_page_count:int,page_image:string}> $appendFrames
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderPinAppendCurrentNext(
+        string $databaseBytes,
+        array $pageNumbers,
+        array $readMarks,
+        array $appendFrames,
+        string $mode = 'restart'
+    ): array {
+        if ($appendFrames === []) {
+            throw new \InvalidArgumentException('SQLite WAL reader-pin append requires at least one appended frame');
+        }
+
+        $base = $this->checkpointReaderPinCurrentNext($databaseBytes, $pageNumbers, $readMarks, $mode);
+        if (!$base['pin_blocks_reset']) {
+            throw new \RuntimeException('SQLite WAL reader-pin append requires a checkpoint pinned by a current reader');
+        }
+
+        $appendedWalBytes = self::appendFrameBytes($this->toBytes(), $this->header->pageSize, $appendFrames);
+        $appendedWal = self::parse($appendedWalBytes, $this->header->pageSize, $this->checksumsValidated);
+        $appendedReadMarks = array_values($readMarks);
+        $readMarkPlan = $base['read_mark_plan'];
+        $nextReaderSlot = self::nextReaderSlot($appendedReadMarks, $readMarkPlan);
+        if ($nextReaderSlot !== null) {
+            $appendedReadMarks[$nextReaderSlot] = $appendedWal->frameCount();
+        }
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL reader-pin append pages must be integers');
+            }
+
+            $current[] = $appendedWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $base['current_reader_end_frame']);
+            $next[] = $appendedWal->readerSnapshotPageImage($databaseBytes, $pageNumber);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'mode' => $base['mode'],
+            'status' => 'current-reader-pinned-next-writer-appended',
+            'checkpoint_reason' => $base['checkpoint_reason'],
+            'checkpoint_busy' => $base['checkpoint_busy'],
+            'wal_action' => $base['wal_action'],
+            'current_reader_end_frame' => $base['current_reader_end_frame'],
+            'next_reader_end_frame' => $appendedWal->frameCount(),
+            'appended_frame_count' => count($appendFrames),
+            'appended_wal_frame_count' => $appendedWal->frameCount(),
+            'appended_wal_bytes_length' => strlen($appendedWalBytes),
+            'next_reader_slot' => $nextReaderSlot,
+            'current_read_marks' => array_values($readMarks),
+            'next_read_marks' => $appendedReadMarks,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_images' => $currentImages,
+            'next_images' => $nextImages,
+            'current_stable' => $currentImages === self::visibilityImages($base['current_after']),
+            'next_sees_appended_commit' => $nextImages !== self::visibilityImages($base['next_after']),
+            'pin_blocks_reset' => $base['pin_blocks_reset'],
+            'base' => $base,
+            'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
+                'wal-reader-pin-current-next66',
+                'sqlite-wal-append-after-pinned-checkpoint',
+            ]))),
+        ];
+    }
+
+    /**
+     * @param list<array{page_number:int,commit_page_count:int,page_image:string}> $frames
+     */
+    private static function appendFrameBytes(string $walBytes, int $pageSize, array $frames): string
+    {
+        if (strlen($walBytes) < 32 || ((strlen($walBytes) - 32) % (24 + $pageSize)) !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL append requires complete WAL bytes');
+        }
+
+        $header = SQLiteWalHeader::parse($walBytes);
+        $seed = strlen($walBytes) === 32
+            ? self::checksumPair(substr($walBytes, 0, 24), $header->usesLittleEndianChecksums())
+            : array_values(unpack('N2', substr($walBytes, -($pageSize + 8), 8)));
+
+        /** @var array{0:int,1:int} $seed */
+        foreach ($frames as $frame) {
+            $pageNumber = $frame['page_number'];
+            $commitPageCount = $frame['commit_page_count'];
+            $pageImage = $frame['page_image'];
+            if ($pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL append page numbers must be one-based');
+            }
+            if ($commitPageCount < 0) {
+                throw new \InvalidArgumentException('SQLite WAL append commit page count must be non-negative');
+            }
+            if (strlen($pageImage) !== $pageSize) {
+                throw new \InvalidArgumentException('SQLite WAL append page image length must match the WAL page size');
+            }
+
+            $framePrefix = pack('N*', $pageNumber, $commitPageCount);
+            $saltBytes = substr($walBytes, 16, 8);
+            $seed = self::checksumPair($framePrefix . $pageImage, $header->usesLittleEndianChecksums(), $seed[0], $seed[1]);
+            $walBytes .= $framePrefix . $saltBytes . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        }
+
+        return $walBytes;
+    }
+
+    /**
      * @param list<int|null> $readMarks
      * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
      */

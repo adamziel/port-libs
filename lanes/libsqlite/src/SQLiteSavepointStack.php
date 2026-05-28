@@ -287,6 +287,85 @@ final class SQLiteSavepointStack
         ];
     }
 
+    /**
+     * @return array{savepoint:string,statement:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,discarded_statement_journals:list<string>,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,rollback_statement_restored_pages:list<int>,rollback_statement_to_frame:int,current_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function rollbackToCurrentAndBeginNextStatementJournal66(
+        string $name,
+        string $statementName,
+        int $nextPageNumber,
+        string $beforeImage,
+        int $pageSize,
+        bool $commitFrame = false,
+    ): array {
+        if ($statementName === '') {
+            throw new \InvalidArgumentException('SQLite statement journal name must not be empty');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+        if ($beforeImage === '') {
+            throw new \InvalidArgumentException('SQLite statement journal page images must not be empty');
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($beforeImage) !== $pageSize) {
+            throw new \InvalidArgumentException("SQLite statement journal image for page {$nextPageNumber} does not match the page size");
+        }
+
+        $index = $this->findFrame($name);
+        $discardedStatementJournals = [];
+        foreach ($this->statementJournals as $journal) {
+            if ($journal['frame_index'] >= $index) {
+                $discardedStatementJournals[] = $journal['name'];
+            }
+        }
+        sort($discardedStatementJournals, SORT_STRING);
+
+        $walPlan = $this->walRollbackToPlan($name);
+        $rollbackToFrame = $walPlan['rollback_to_frame'];
+        $retainedFrameNames = array_map(
+            static fn (array $frame): string => $frame['name'],
+            array_slice($this->frames, 0, $index + 1)
+        );
+        $nextFrameIndex = $rollbackToFrame + 1;
+
+        $this->rollbackTo($name);
+        $statementJournalsAfterRollback = $this->statementJournalState();
+        $this->beginStatementJournal($statementName);
+        $this->recordStatementPageImageWrite($statementName, $nextPageNumber, $beforeImage);
+        $this->recordStatementWalFrameWrite($statementName, $nextFrameIndex, $nextPageNumber, $commitFrame);
+        $statementRollbackPlan = $this->statementRollbackPlan($statementName, $pageSize);
+
+        return [
+            'savepoint' => $name,
+            'statement' => $statementName,
+            'found_index' => $index,
+            'rollback_to_frame' => $rollbackToFrame,
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'discarded_statement_journals' => $discardedStatementJournals,
+            'discarded_wal_frames' => $walPlan['discarded_wal_frames'],
+            'discarded_page_numbers' => $walPlan['discarded_page_numbers'],
+            'retained_frame_names' => $retainedFrameNames,
+            'statement_journals_after_rollback' => $statementJournalsAfterRollback,
+            'statement_journals_after_next' => $this->statementJournalState(),
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'rollback_statement_restored_pages' => $statementRollbackPlan['restored_page_numbers'],
+            'rollback_statement_to_frame' => $statementRollbackPlan['rollback_to_wal_frame'],
+            'current_savepoint_active_after' => $this->hasOpenFrame($name),
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                'sqlite-statement-journal-current-next66',
+                'sqlite-pager-savepoint-subjournal-current-next66',
+            ],
+        ];
+    }
+
     public function release(string $name): void
     {
         $index = $this->findFrame($name);

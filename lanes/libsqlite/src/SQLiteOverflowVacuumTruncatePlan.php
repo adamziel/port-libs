@@ -82,6 +82,48 @@ final class SQLiteOverflowVacuumTruncatePlan
         return $this->truncatePlan->freelistPageCount;
     }
 
+    public function materializedDatabase(): SQLiteDatabase
+    {
+        return $this->nextDatabase;
+    }
+
+    public function materializedBytes(): string
+    {
+        return $this->nextDatabase->toBytes();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function materializedPageImages(): array
+    {
+        $pages = [];
+        for ($pageNumber = 1; $pageNumber <= $this->finalDatabasePageCount(); $pageNumber++) {
+            $pages[$pageNumber] = $this->nextDatabase->page($pageNumber);
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return array{database_page_count:int,byte_length:int,first_freelist_trunk_page:int,freelist_page_count:int,freelist_page_numbers:list<int>,updated_page_numbers:list<int>,omitted_truncated_page_numbers:list<int>}
+     */
+    public function materializedApplySummary(): array
+    {
+        return [
+            'database_page_count' => $this->nextDatabase->pageCount(),
+            'byte_length' => strlen($this->materializedBytes()),
+            'first_freelist_trunk_page' => $this->nextDatabase->header->firstFreelistTrunkPage,
+            'freelist_page_count' => $this->nextDatabase->header->freelistPageCount,
+            'freelist_page_numbers' => $this->nextDatabase->freelistPageNumbers(),
+            'updated_page_numbers' => array_keys($this->pageImages),
+            'omitted_truncated_page_numbers' => array_values(array_filter(
+                $this->truncatedPageNumbers(),
+                fn (int $pageNumber): bool => $pageNumber > $this->nextDatabase->pageCount(),
+            )),
+        ];
+    }
+
     /**
      * @return list<int>
      */
@@ -202,6 +244,7 @@ final class SQLiteOverflowVacuumTruncatePlan
             'pointer_map_vacuum_transitions' => $this->pointerMapVacuumTransitions(),
             'surviving_freed_pointer_map_pages' => $this->survivingFreedPointerMapPages(),
             'truncated_freed_pointer_map_pages' => $this->truncatedFreedPointerMapPages(),
+            'materialized_apply' => $this->materializedApplySummary(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),

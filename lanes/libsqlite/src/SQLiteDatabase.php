@@ -37,6 +37,11 @@ final class SQLiteDatabase
         return intdiv(strlen($this->bytes), $this->header->pageSize);
     }
 
+    public function toBytes(): string
+    {
+        return $this->bytes;
+    }
+
     public function usablePageSize(): int
     {
         $usableSize = $this->header->pageSize - $this->header->reservedSpace;
