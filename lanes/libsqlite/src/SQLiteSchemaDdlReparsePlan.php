@@ -130,6 +130,50 @@ final class SQLiteSchemaDdlReparsePlan
             ];
         }
 
+        if (preg_match('/^create\s+(?:temp(?:orary)?\s+)?view\s+(?:if\s+not\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?=\s|$)/i', $trimmed, $matches)) {
+            $name = self::unquoteIdentifier($matches['name']);
+            if (self::findRecordIndex($records, 'view', $name) !== null) {
+                return ['kind' => 'create_view', 'name' => $name, 'changed' => false, 'reason' => 'view_already_exists'];
+            }
+
+            $record = new SQLiteSchemaRecord('view', $name, $name, 0, self::normalizeCreateSql($trimmed), $nextRowId++);
+            $records[] = $record;
+
+            return [
+                'kind' => 'create_view',
+                'name' => $name,
+                'rootpage' => 0,
+                'rowid' => $record->rowId,
+                'changed' => true,
+            ];
+        }
+
+        if (preg_match('/^create\s+(?:temp(?:orary)?\s+)?trigger\s+(?:if\s+not\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?=\s|$)(?<tail>.*)$/is', $trimmed, $matches)) {
+            $name = self::unquoteIdentifier($matches['name']);
+            if (self::findRecordIndex($records, 'trigger', $name) !== null) {
+                return ['kind' => 'create_trigger', 'name' => $name, 'changed' => false, 'reason' => 'trigger_already_exists'];
+            }
+            $table = self::parseTriggerTableName((string) $matches['tail']);
+            if ($table === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot determine trigger target for {$name}");
+            }
+            if (self::findSchemaObjectIndex($records, ['table', 'view'], $table) === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot create trigger {$name} on missing table or view {$table}");
+            }
+
+            $record = new SQLiteSchemaRecord('trigger', $name, $table, 0, self::normalizeCreateSql($trimmed), $nextRowId++);
+            $records[] = $record;
+
+            return [
+                'kind' => 'create_trigger',
+                'name' => $name,
+                'table' => $table,
+                'rootpage' => 0,
+                'rowid' => $record->rowId,
+                'changed' => true,
+            ];
+        }
+
         if (preg_match('/^drop\s+index\s+(?:if\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {
             $name = self::unquoteIdentifier($matches['name']);
             $index = self::findRecordIndex($records, 'index', $name);
@@ -143,6 +187,31 @@ final class SQLiteSchemaDdlReparsePlan
             return ['kind' => 'drop_index', 'name' => $name, 'table' => $record->tableName, 'freed_rootpage' => $record->rootPage, 'changed' => true];
         }
 
+        if (preg_match('/^drop\s+view\s+(?:if\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {
+            $name = self::unquoteIdentifier($matches['name']);
+            $index = self::findRecordIndex($records, 'view', $name);
+            if ($index === null) {
+                return ['kind' => 'drop_view', 'name' => $name, 'changed' => false, 'reason' => 'missing_view'];
+            }
+
+            array_splice($records, $index, 1);
+
+            return ['kind' => 'drop_view', 'name' => $name, 'changed' => true];
+        }
+
+        if (preg_match('/^drop\s+trigger\s+(?:if\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {
+            $name = self::unquoteIdentifier($matches['name']);
+            $index = self::findRecordIndex($records, 'trigger', $name);
+            if ($index === null) {
+                return ['kind' => 'drop_trigger', 'name' => $name, 'changed' => false, 'reason' => 'missing_trigger'];
+            }
+
+            $record = $records[$index];
+            array_splice($records, $index, 1);
+
+            return ['kind' => 'drop_trigger', 'name' => $name, 'table' => $record->tableName, 'changed' => true];
+        }
+
         if (preg_match('/^drop\s+table\s+(?:if\s+exists\s+)?(?<name>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/i', $trimmed, $matches)) {
             $name = self::unquoteIdentifier($matches['name']);
             $removed = [];
@@ -151,6 +220,7 @@ final class SQLiteSchemaDdlReparsePlan
                 if (
                     ($record->type === 'table' && strcasecmp($record->name, $name) === 0)
                     || ($record->type === 'index' && strcasecmp($record->tableName, $name) === 0)
+                    || ($record->type === 'trigger' && strcasecmp($record->tableName, $name) === 0)
                 ) {
                     $removed[] = $record;
                     continue;
@@ -166,7 +236,7 @@ final class SQLiteSchemaDdlReparsePlan
                 'kind' => 'drop_table',
                 'name' => $name,
                 'removed_records' => array_map(static fn (SQLiteSchemaRecord $record): string => $record->type . ':' . $record->name, $removed),
-                'freed_rootpages' => array_values(array_filter(array_map(static fn (SQLiteSchemaRecord $record): ?int => $record->rootPage, $removed), static fn (?int $page): bool => $page !== null)),
+                'freed_rootpages' => array_values(array_filter(array_map(static fn (SQLiteSchemaRecord $record): ?int => $record->rootPage, $removed), static fn (?int $page): bool => $page !== null && $page > 0)),
                 'changed' => true,
             ];
         }
@@ -248,6 +318,21 @@ final class SQLiteSchemaDdlReparsePlan
     {
         foreach ($records as $index => $record) {
             if ($record->type === $type && strcasecmp($record->name, $name) === 0) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @param list<string> $types
+     */
+    private static function findSchemaObjectIndex(array $records, array $types, string $name): ?int
+    {
+        foreach ($records as $index => $record) {
+            if (in_array($record->type, $types, true) && strcasecmp($record->name, $name) === 0) {
                 return $index;
             }
         }
@@ -356,6 +441,15 @@ final class SQLiteSchemaDdlReparsePlan
     private static function isIdentifierChar(string $char): bool
     {
         return ctype_alnum($char) || $char === '_';
+    }
+
+    private static function parseTriggerTableName(string $tail): ?string
+    {
+        if (!preg_match('/\bon\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s|$)/i', $tail, $matches)) {
+            return null;
+        }
+
+        return self::unquoteIdentifier($matches['table']);
     }
 
     /**

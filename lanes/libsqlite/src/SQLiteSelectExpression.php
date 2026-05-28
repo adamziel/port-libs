@@ -464,20 +464,47 @@ final class SQLiteSelectExpression
         if (!is_array($operandExpression)) {
             throw new \InvalidArgumentException('SQLite SELECT CAST expression needs an operand');
         }
-        $target = strtolower(self::requiredString($expression, 'target', 'CAST expression'));
+        $target = self::castAffinity(self::requiredString($expression, 'target', 'CAST expression'));
         $value = self::evaluate($row, $operandExpression);
         if ($value === null) {
             return null;
         }
 
         return match ($target) {
-            'int', 'integer' => self::integerOperand($value),
-            'real', 'float', 'double' => (float) self::numericOperand($value),
+            'integer' => self::integerOperand($value),
+            'real' => (float) self::numericOperand($value),
             'numeric' => self::numericOperand($value),
-            'text', 'char', 'clob', 'varchar' => self::textValue($value),
-            'blob', 'none' => new SQLiteBlobValue(self::textValue($value)),
+            'text' => self::textValue($value),
+            'none' => new SQLiteBlobValue(self::textValue($value)),
             default => throw new \InvalidArgumentException("SQLite SELECT CAST target {$target} is not supported"),
         };
+    }
+
+    private static function castAffinity(string $target): string
+    {
+        $normalized = strtoupper(trim($target));
+        if ($normalized === '') {
+            throw new \InvalidArgumentException('SQLite SELECT CAST target must not be empty');
+        }
+        $normalized = preg_replace('/\s+/', ' ', $normalized);
+        if (!is_string($normalized)) {
+            throw new \InvalidArgumentException('SQLite SELECT CAST target is malformed');
+        }
+
+        if (str_contains($normalized, 'INT')) {
+            return 'integer';
+        }
+        if (str_contains($normalized, 'CHAR') || str_contains($normalized, 'CLOB') || str_contains($normalized, 'TEXT')) {
+            return 'text';
+        }
+        if (str_contains($normalized, 'BLOB') || $normalized === 'NONE') {
+            return 'none';
+        }
+        if (str_contains($normalized, 'REAL') || str_contains($normalized, 'FLOA') || str_contains($normalized, 'DOUB')) {
+            return 'real';
+        }
+
+        return 'numeric';
     }
 
     /**

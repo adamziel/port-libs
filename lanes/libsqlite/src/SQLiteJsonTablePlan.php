@@ -279,6 +279,55 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,runnable:bool,idxNum:int,idxStr:string,filterArguments:list<mixed>,constraintUsage:list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>,filterCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,rowCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null,currentIndex:int,nextIndex:int|null,currentId:int|null,nextId:int|null,sameParent:bool,samePath:bool}>,estimatedCost:int,estimatedRows:int}
+     */
+    public static function currentNextConstraintPlan(string $function, array $constraints, array $orderBy = []): array
+    {
+        $indexPlan = self::xBestIndexPlan($function, $constraints, $orderBy);
+        $validatedPlan = self::validatedPlan($function, $constraints);
+        if (!$validatedPlan['runnable'] && ($validatedPlan['jsonInputKind'] === 'jsonb' || $validatedPlan['jsonInputKind'] === 'sql-null')) {
+            $rows = [];
+        } else {
+            $rows = $indexPlan['orderByConsumed']
+                ? self::filteredRows($function, $constraints)
+                : self::orderedRows($function, $constraints, $orderBy);
+        }
+
+        $rowPairs = [];
+        $count = count($rows);
+        for ($index = 0; $index < $count; $index++) {
+            $current = $rows[$index];
+            $next = $rows[$index + 1] ?? null;
+
+            $rowPairs[] = [
+                'current' => $current,
+                'next' => $next,
+                'currentIndex' => $index,
+                'nextIndex' => $next === null ? null : $index + 1,
+                'currentId' => isset($current['id']) ? (int) $current['id'] : null,
+                'nextId' => isset($next['id']) ? (int) $next['id'] : null,
+                'sameParent' => $next !== null && ($current['parent'] ?? null) === ($next['parent'] ?? null),
+                'samePath' => $next !== null && ($current['path'] ?? null) === ($next['path'] ?? null),
+            ];
+        }
+
+        return [
+            'function' => $indexPlan['function'],
+            'runnable' => $indexPlan['runnable'],
+            'idxNum' => $indexPlan['idxNum'],
+            'idxStr' => $indexPlan['idxStr'],
+            'filterArguments' => $indexPlan['filterArguments'],
+            'constraintUsage' => $indexPlan['constraintUsage'],
+            'filterCurrentNext' => $indexPlan['filterCurrentNext'],
+            'rowCurrentNext' => $rowPairs,
+            'estimatedCost' => $indexPlan['estimatedCost'],
+            'estimatedRows' => $indexPlan['estimatedRows'],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array<string,mixed>>
      */
     public static function orderedRows(string $function, array $constraints, array $orderBy, ?int $limit = null, int $offset = 0): array

@@ -651,10 +651,15 @@ final class SQLiteSelectQuery
             ? self::nullableString($groupBy, 'valueColumn', 'groupBy')
             : null;
 
+        $jsonAggregates = $groupBy['jsonAggregates'] ?? [];
+        if (!is_array($jsonAggregates) || !array_is_list($jsonAggregates)) {
+            throw new \InvalidArgumentException('SQLite SELECT query JSON aggregate plans must be a list');
+        }
+
         if ($groupColumn === []) {
-            $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn);
+            $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates);
         } else {
-            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
+            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn, $jsonAggregates);
         }
 
         if (array_key_exists('having', $groupBy)) {

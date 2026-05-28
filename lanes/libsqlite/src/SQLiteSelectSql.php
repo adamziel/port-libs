@@ -2780,12 +2780,28 @@ final class SQLiteSelectSql
             ];
         }
 
-        if (preg_match('/^cast\s*\((.+)\s+as\s+([A-Za-z][A-Za-z0-9]*)\)$/is', $sql, $match) === 1) {
+        if (preg_match('/^cast\s*\((.+)\s+as\s+([A-Za-z][A-Za-z0-9_\s]*(?:\([0-9\s,]+\))?)\)$/is', $sql, $match) === 1) {
             return [
                 'type' => 'cast',
                 'operand' => self::valueExpression($match[1], $tables),
-                'target' => $match[2],
+                'target' => trim($match[2]),
             ];
+        }
+
+        $filter = null;
+        $filterOffset = self::keywordOffset($sql, 'FILTER');
+        $filterTail = $filterOffset === null ? '' : ltrim(substr($sql, $filterOffset + strlen('FILTER')));
+        if ($filterOffset !== null && $filterOffset > 0 && str_starts_with($filterTail, '(')) {
+            $filterSql = trim(substr($sql, $filterOffset + strlen('FILTER')));
+            $sql = trim(substr($sql, 0, $filterOffset));
+            if (!str_starts_with($filterSql, '(') || !str_ends_with($filterSql, ')')) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL aggregate FILTER clause must be parenthesized');
+            }
+            $filterBody = self::unwrapParenthesizedExpression($filterSql);
+            if (preg_match('/^WHERE\s+(.+)$/is', $filterBody, $filterMatch) !== 1) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL aggregate FILTER clause needs WHERE');
+            }
+            $filter = self::predicate(trim($filterMatch[1]), $tables);
         }
 
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/s', $sql, $match) === 1) {
@@ -2798,6 +2814,20 @@ final class SQLiteSelectSql
                     throw new \InvalidArgumentException('SQLite SELECT SQL DISTINCT aggregate needs a value argument');
                 }
             }
+            $orderBy = null;
+            $orderParts = self::splitTopLevelByKeyword($argumentSql, 'ORDER BY');
+            if (count($orderParts) > 2) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL aggregate supports one ORDER BY clause');
+            }
+            if (count($orderParts) === 2) {
+                $argumentSql = trim($orderParts[0]);
+                $orderSql = trim($orderParts[1]);
+                if ($argumentSql === '' || $orderSql === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL aggregate ORDER BY needs value and order expression');
+                }
+                $orderBy = self::valueExpression($orderSql, $tables);
+            }
+
             if ($argumentSql === '*') {
                 $arguments = [['type' => 'wildcard']];
             } else {
@@ -2808,8 +2838,17 @@ final class SQLiteSelectSql
             if ($distinct) {
                 $function['distinct'] = true;
             }
+            if ($orderBy !== null) {
+                $function['orderBy'] = $orderBy;
+            }
+            if ($filter !== null) {
+                $function['filter'] = $filter;
+            }
 
             return $function;
+        }
+        if ($filter !== null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL FILTER clause needs an aggregate function');
         }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => (int) $sql];
@@ -3342,6 +3381,7 @@ final class SQLiteSelectSql
         return [
             'columns' => $columns,
             'valueColumn' => self::aggregateValueColumn($select),
+            'jsonAggregates' => self::jsonAggregateSpecs($select),
         ];
     }
 
@@ -3355,6 +3395,7 @@ final class SQLiteSelectSql
             'columns' => [],
             'implicitAggregate' => true,
             'valueColumn' => self::aggregateValueColumn($select, $having),
+            'jsonAggregates' => self::jsonAggregateSpecs($select),
         ];
     }
 
@@ -3489,6 +3530,23 @@ final class SQLiteSelectSql
             return null;
         }
 
+        if ($name === 'json_group_array' || $name === 'jsonb_group_array') {
+            if (($term['distinct'] ?? false) === true) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
+            }
+            if (count($arguments) !== 1 || (($arguments[0]['type'] ?? null) !== 'column') || !isset($arguments[0]['name']) || !is_string($arguments[0]['name'])) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs one column argument");
+            }
+            if (isset($term['orderBy']) && ((!is_array($term['orderBy'])) || (($term['orderBy']['type'] ?? null) !== 'column') || !isset($term['orderBy']['name']) || !is_string($term['orderBy']['name']))) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY needs one column expression");
+            }
+
+            return [
+                'summaryColumn' => self::jsonAggregateSummaryColumn($term),
+                'valueColumn' => null,
+            ];
+        }
+
         $distinct = ($term['distinct'] ?? false) === true;
         if ($distinct && $name !== 'count') {
             throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
@@ -3515,6 +3573,54 @@ final class SQLiteSelectSql
         }
 
         return ['summaryColumn' => $summaryColumn, 'valueColumn' => $arguments[0]['name']];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function jsonAggregateSpecs(array $select): array
+    {
+        $specs = [];
+        foreach ($select as $term) {
+            $aggregate = self::aggregateSummaryColumn($term, null);
+            if ($aggregate === null || (!str_starts_with($aggregate['summaryColumn'], 'jsonGroupArray') && !str_starts_with($aggregate['summaryColumn'], 'jsonbGroupArray'))) {
+                continue;
+            }
+            $arguments = $term['arguments'];
+            $spec = [
+                'summaryColumn' => $aggregate['summaryColumn'],
+                'function' => strtolower($term['name']),
+                'column' => $arguments[0]['name'],
+            ];
+            if (isset($term['orderBy'])) {
+                $spec['orderBy'] = $term['orderBy']['name'];
+            }
+            if (isset($term['filter'])) {
+                $spec['filter'] = $term['filter'];
+            }
+            $specs[] = $spec;
+        }
+
+        return $specs;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function jsonAggregateSummaryColumn(array $term): string
+    {
+        $arguments = $term['arguments'];
+        $column = str_replace(['.', '-'], '_', $arguments[0]['name']);
+        $name = strtolower($term['name']) === 'jsonb_group_array' ? 'jsonbGroupArray' : 'jsonGroupArray';
+        if (isset($term['orderBy'])) {
+            $name .= 'OrderBy' . str_replace(['.', '-'], '_', $term['orderBy']['name']);
+        }
+        if (isset($term['filter'])) {
+            $name .= 'Filter';
+        }
+
+        return $name . '_' . $column;
     }
 
     /**

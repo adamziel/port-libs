@@ -10,7 +10,7 @@ final class SQLiteGroupedAggregate
      * @param iterable<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn): array
+    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn, array $jsonAggregates = []): array
     {
         $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
@@ -62,6 +62,9 @@ final class SQLiteGroupedAggregate
             foreach ($group['groupValues'] as $column => $value) {
                 $summary[$column] = $value;
             }
+            foreach ($jsonAggregates as $aggregate) {
+                self::applyJsonAggregate($summary, $group['rows'], $aggregate);
+            }
             $summaries[] = $summary;
         }
 
@@ -72,7 +75,7 @@ final class SQLiteGroupedAggregate
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarizeAll(array $rows, ?string $valueColumn): array
+    public static function summarizeAll(array $rows, ?string $valueColumn, array $jsonAggregates = []): array
     {
         if ($valueColumn !== null) {
             foreach ($rows as $row) {
@@ -85,7 +88,7 @@ final class SQLiteGroupedAggregate
             $values = [];
         }
 
-        return [[
+        $summary = [
             'countAll' => SQLiteNumericAggregate::countAll($rows),
             'countValue' => SQLiteNumericAggregate::countValue($values),
             'countDistinct' => SQLiteNumericAggregate::countDistinct($values),
@@ -95,7 +98,56 @@ final class SQLiteGroupedAggregate
             'min' => SQLiteNumericAggregate::min($values),
             'max' => SQLiteNumericAggregate::max($values),
             'groupConcat' => SQLiteTextAggregate::groupConcat($values, '|'),
-        ]];
+        ];
+        foreach ($jsonAggregates as $aggregate) {
+            self::applyJsonAggregate($summary, $rows, $aggregate);
+        }
+
+        return [$summary];
+    }
+
+    /**
+     * @param array<string,mixed> $summary
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $aggregate
+     */
+    private static function applyJsonAggregate(array &$summary, array $rows, array $aggregate): void
+    {
+        $column = $aggregate['column'] ?? null;
+        $summaryColumn = $aggregate['summaryColumn'] ?? null;
+        $function = $aggregate['function'] ?? null;
+        if (!is_string($column) || !is_string($summaryColumn) || !is_string($function)) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate plan is malformed');
+        }
+
+        $filtered = [];
+        foreach ($rows as $position => $row) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite JSON aggregate row is missing column {$column}");
+            }
+            if (isset($aggregate['filter']) && is_array($aggregate['filter']) && SQLiteSelectPredicate::filter([$row], $aggregate['filter']) === []) {
+                continue;
+            }
+            $filtered[] = ['row' => $row, 'position' => $position];
+        }
+
+        if (isset($aggregate['orderBy'])) {
+            $orderColumn = $aggregate['orderBy'];
+            if (!is_string($orderColumn)) {
+                throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY column is malformed');
+            }
+            usort($filtered, static function (array $left, array $right) use ($orderColumn): int {
+                if (!array_key_exists($orderColumn, $left['row']) || !array_key_exists($orderColumn, $right['row'])) {
+                    throw new \InvalidArgumentException("SQLite JSON aggregate ORDER BY row is missing column {$orderColumn}");
+                }
+                $comparison = self::compareSqlValues($left['row'][$orderColumn], $right['row'][$orderColumn]);
+
+                return $comparison === 0 ? $left['position'] <=> $right['position'] : $comparison;
+            });
+        }
+
+        $values = array_map(static fn (array $entry): mixed => $entry['row'][$column], $filtered);
+        $summary[$summaryColumn] = SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $values);
     }
 
     /**

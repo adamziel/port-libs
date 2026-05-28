@@ -1009,6 +1009,69 @@ final class SQLiteSavepointStack
     }
 
     /**
+     * @return array{current_statement:string,next_statement:string,savepoint:string,page_size:int,rollback_to_wal_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,rollback_restored_page_numbers:list<int>,rollback_discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_rollback:list<int>,pending_wal_frame_indexes_after_rollback:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function rollbackStatementAndBeginNextStatementJournal70(
+        string $currentStatementName,
+        string $nextStatementName,
+        int $nextPageNumber,
+        string $beforeImage,
+        int $pageSize,
+        bool $commitFrame = false,
+    ): array {
+        if ($nextStatementName === '') {
+            throw new \InvalidArgumentException('SQLite next statement journal name must not be empty');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+        if ($beforeImage === '') {
+            throw new \InvalidArgumentException('SQLite statement journal page images must not be empty');
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($beforeImage) !== $pageSize) {
+            throw new \InvalidArgumentException("SQLite statement journal image for page {$nextPageNumber} does not match the page size");
+        }
+
+        $rollbackPlan = $this->rollbackStatementOnErrorWithPlan($currentStatementName, $pageSize);
+        $statementJournalsAfterRollback = $this->statementJournalState();
+        $pendingPagesAfterRollback = $this->pendingPageNumbers();
+        $pendingWalAfterRollback = $this->pendingWalFrameIndexes();
+        $nextFrameIndex = $rollbackPlan['rollback_to_wal_frame'] + 1;
+
+        $this->beginStatementJournal($nextStatementName);
+        $this->recordStatementPageImageWrite($nextStatementName, $nextPageNumber, $beforeImage);
+        $this->recordStatementWalFrameWrite($nextStatementName, $nextFrameIndex, $nextPageNumber, $commitFrame);
+
+        return [
+            'current_statement' => $currentStatementName,
+            'next_statement' => $nextStatementName,
+            'savepoint' => $rollbackPlan['savepoint'],
+            'page_size' => $pageSize,
+            'rollback_to_wal_frame' => $rollbackPlan['rollback_to_wal_frame'],
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'rollback_restored_page_numbers' => $rollbackPlan['restored_page_numbers'],
+            'rollback_discarded_wal_frames' => $rollbackPlan['discarded_wal_frames'],
+            'statement_journals_after_rollback' => $statementJournalsAfterRollback,
+            'statement_journals_after_next' => $this->statementJournalState(),
+            'pending_page_numbers_after_rollback' => $pendingPagesAfterRollback,
+            'pending_wal_frame_indexes_after_rollback' => $pendingWalAfterRollback,
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'savepoint_active_after' => $rollbackPlan['savepoint_active_after'],
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-statement-journal-rollback-current-next70',
+                'sqlite-pager-statement-subjournal-next70',
+            ],
+        ];
+    }
+
+    /**
      * @return list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>
      */
     public function statementJournalState(): array

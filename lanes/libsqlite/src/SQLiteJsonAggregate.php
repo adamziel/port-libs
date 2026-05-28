@@ -480,8 +480,17 @@ final class SQLiteJsonAggregate
      */
     public static function jsonGroupArrayWindowFrameRows(iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
     {
+        return self::jsonGroupArrayWindowFrameRowsByUnit($rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string>
+     */
+    public static function jsonGroupArrayWindowFrameRowsByUnit(iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
         $frames = [];
-        foreach (self::jsonWindowFrameRows($rows, $preceding, $following, $exclude, 'json_group_array() window frame rows must be [value, orderKey] or [value, orderKey, filter] tuples') as $frame) {
+        foreach (self::jsonWindowFrameRows($rows, $unit, $preceding, $following, $exclude, 'json_group_array() window frame rows must be [value, orderKey] or [value, orderKey, filter] tuples') as $frame) {
             $values = [];
             foreach ($frame as $row) {
                 $values[] = $row['value'];
@@ -498,7 +507,16 @@ final class SQLiteJsonAggregate
      */
     public static function jsonGroupArrayWindowFrameRowsSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
     {
-        $frames = self::jsonGroupArrayWindowFrameRows($rows, $preceding, $following, $exclude);
+        return self::jsonGroupArrayWindowFrameRowsByUnitSqlFunction($function, $rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupArrayWindowFrameRowsByUnitSqlFunction(string $function, iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        $frames = self::jsonGroupArrayWindowFrameRowsByUnit($rows, $unit, $preceding, $following, $exclude);
         if (strcasecmp($function, 'json_group_array') === 0) {
             return $frames;
         }
@@ -654,6 +672,15 @@ final class SQLiteJsonAggregate
      */
     public static function jsonGroupObjectWindowFrameRows(iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
     {
+        return self::jsonGroupObjectWindowFrameRowsByUnit($rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed,3?:mixed}> $rows
+     * @return list<string>
+     */
+    public static function jsonGroupObjectWindowFrameRowsByUnit(iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
         $windowRows = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row) || !array_key_exists(2, $row)) {
@@ -663,7 +690,7 @@ final class SQLiteJsonAggregate
         }
 
         $frames = [];
-        foreach (self::jsonWindowFrameRows($windowRows, $preceding, $following, $exclude, 'json_group_object() window frame rows must be [label, value, orderKey] or [label, value, orderKey, filter] tuples') as $frame) {
+        foreach (self::jsonWindowFrameRows($windowRows, $unit, $preceding, $following, $exclude, 'json_group_object() window frame rows must be [label, value, orderKey] or [label, value, orderKey, filter] tuples') as $frame) {
             $pairs = [];
             foreach ($frame as $row) {
                 $pairs[] = $row['value'];
@@ -680,7 +707,16 @@ final class SQLiteJsonAggregate
      */
     public static function jsonGroupObjectWindowFrameRowsSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0, string $exclude = 'NO OTHERS'): array
     {
-        $frames = self::jsonGroupObjectWindowFrameRows($rows, $preceding, $following, $exclude);
+        return self::jsonGroupObjectWindowFrameRowsByUnitSqlFunction($function, $rows, 'ROWS', $preceding, $following, $exclude);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed,3?:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupObjectWindowFrameRowsByUnitSqlFunction(string $function, iterable $rows, string $unit, int|float $preceding, int|float $following = 0, string $exclude = 'NO OTHERS'): array
+    {
+        $frames = self::jsonGroupObjectWindowFrameRowsByUnit($rows, $unit, $preceding, $following, $exclude);
         if (strcasecmp($function, 'json_group_object') === 0) {
             return $frames;
         }
@@ -810,9 +846,16 @@ final class SQLiteJsonAggregate
      * @param iterable<array{0:mixed,1:mixed,2?:mixed}> $rows
      * @return list<list<array{value:mixed,orderKey:mixed,position:int}>>
      */
-    private static function jsonWindowFrameRows(iterable $rows, int $preceding, int $following, string $exclude, string $rowError): array
+    private static function jsonWindowFrameRows(iterable $rows, string $unit, int|float $preceding, int|float $following, string $exclude, string $rowError): array
     {
         self::assertWindowBounds($preceding, $following);
+        $frameUnit = strtoupper(trim($unit));
+        if (!in_array($frameUnit, ['ROWS', 'GROUPS', 'RANGE'], true)) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate window frame unit must be ROWS, GROUPS, or RANGE');
+        }
+        if (($frameUnit === 'ROWS' || $frameUnit === 'GROUPS') && (!is_int($preceding) || !is_int($following))) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate ROWS and GROUPS frame bounds must be integers');
+        }
         $excludeMode = strtoupper(trim($exclude));
         if ($excludeMode === '') {
             $excludeMode = 'NO OTHERS';
@@ -844,11 +887,27 @@ final class SQLiteJsonAggregate
             return $comparison;
         });
 
+        $groupByIndex = [];
+        $groups = [];
+        foreach ($ordered as $index => $row) {
+            $lastGroup = count($groups) - 1;
+            if ($lastGroup < 0 || self::compareOrderKeys($row['orderKey'], $groups[$lastGroup]['orderKey']) !== 0) {
+                $groups[] = [
+                    'orderKey' => $row['orderKey'],
+                    'start' => $index,
+                    'end' => $index,
+                ];
+                $lastGroup++;
+            } else {
+                $groups[$lastGroup]['end'] = $index;
+            }
+            $groupByIndex[$index] = $lastGroup;
+        }
+
         $frames = [];
         $lastIndex = count($ordered) - 1;
         foreach ($ordered as $position => $current) {
-            $start = max(0, $position - $preceding);
-            $end = min($lastIndex, $position + $following);
+            [$start, $end] = self::jsonWindowFrameBounds($ordered, $groups, $groupByIndex, $frameUnit, $position, $preceding, $following, $lastIndex);
             $frame = [];
             for ($index = $start; $index <= $end; $index++) {
                 $candidate = $ordered[$index];
@@ -874,7 +933,53 @@ final class SQLiteJsonAggregate
         return $frames;
     }
 
-    private static function assertWindowBounds(int $preceding, int $following): void
+    /**
+     * @param list<array{value:mixed,orderKey:mixed,filter:mixed,position:int}> $ordered
+     * @param list<array{orderKey:mixed,start:int,end:int}> $groups
+     * @param array<int,int> $groupByIndex
+     * @return array{0:int,1:int}
+     */
+    private static function jsonWindowFrameBounds(array $ordered, array $groups, array $groupByIndex, string $unit, int $position, int|float $preceding, int|float $following, int $lastIndex): array
+    {
+        if ($unit === 'ROWS') {
+            return [max(0, $position - (int) $preceding), min($lastIndex, $position + (int) $following)];
+        }
+
+        if ($unit === 'GROUPS') {
+            $group = $groupByIndex[$position];
+            $startGroup = max(0, $group - (int) $preceding);
+            $endGroup = min(count($groups) - 1, $group + (int) $following);
+
+            return [$groups[$startGroup]['start'], $groups[$endGroup]['end']];
+        }
+
+        $current = $ordered[$position]['orderKey'];
+        if (!is_int($current) && !is_float($current)) {
+            $group = $groupByIndex[$position];
+
+            return [$groups[$group]['start'], $groups[$group]['end']];
+        }
+
+        $lower = $current - $preceding;
+        $upper = $current + $following;
+        $start = $position;
+        $end = $position;
+        foreach ($ordered as $index => $row) {
+            $key = $row['orderKey'];
+            if (!is_int($key) && !is_float($key)) {
+                continue;
+            }
+            if ($key < $lower || $key > $upper) {
+                continue;
+            }
+            $start = min($start, $index);
+            $end = max($end, $index);
+        }
+
+        return [$start, $end];
+    }
+
+    private static function assertWindowBounds(int|float $preceding, int|float $following): void
     {
         if ($preceding < 0 || $following < 0) {
             throw new \InvalidArgumentException('SQLite JSON aggregate window frame bounds must be non-negative');

@@ -7787,6 +7787,231 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function releaseShardCountabilityCurrentNext70(
+        array $artifactRows,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $evidenceRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($artifactRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next70 release shard countability requires at least one artifact row');
+        }
+
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $evidenceRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $advanced = [];
+        $preserved = [];
+        $blocked = [];
+        $regressed = [];
+        $suites = [];
+        $scripts = [];
+        $testsBefore = 0;
+        $testsAfter = 0;
+        $releaseShardDelta = 0;
+        $zeroErrorArtifacts = 0;
+
+        foreach ($artifactRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'current-next70-release-shard-' . count($entries);
+            if (!is_array($row)) {
+                $blocked[] = $fallbackUnit;
+                $blockers[] = [
+                    'id' => 'release-shard-row-invalid',
+                    'unit' => $fallbackUnit,
+                    'evidence' => 'release shard row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            $suite = is_string($row['suite'] ?? null) && $row['suite'] !== '' ? strtolower($row['suite']) : 'unknown';
+            $artifactHead = is_string($row['repository_head'] ?? null) ? trim($row['repository_head']) : '';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $testsCurrent = max(0, $this->denominatorAuditInt($row, 'current_tests'));
+            $testsNext = max(0, $this->denominatorAuditInt($row, 'next_tests'));
+            $errors = max(0, $this->denominatorAuditInt($row, 'errors'));
+            $command = is_string($row['command'] ?? null) ? trim($row['command']) : '';
+            $rowScripts = array_values(array_unique(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && (str_ends_with($script, '.test') || str_contains($script, '*.test'))
+            )));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-release-shard-unit';
+            }
+            $seen[$unit] = true;
+            if (!in_array($suite, ['release', 'all'], true)) {
+                $rowBlockers[] = 'unsupported-suite-tier';
+            }
+            if ($artifactHead !== $acceptedRepositoryHead) {
+                $rowBlockers[] = 'artifact-head-mismatch';
+            }
+            if (($row['artifact_path'] ?? '') === '') {
+                $rowBlockers[] = 'missing-artifact-path';
+            }
+            if ($command === '') {
+                $rowBlockers[] = 'missing-runner-command';
+            }
+            if ($errors > 0) {
+                $rowBlockers[] = 'runner-artifact-has-errors';
+            }
+            if ($testsNext <= 0) {
+                $rowBlockers[] = 'missing-runner-test-count';
+            }
+            if ($nextCountable && $rowScripts === []) {
+                $rowBlockers[] = 'countable-release-shard-missing-scripts';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'release-shard-countability-regressed';
+            }
+            if ($testsNext < $testsCurrent) {
+                $rowBlockers[] = 'release-shard-test-count-regressed';
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $rowBlocker) {
+                if (is_string($rowBlocker) && $rowBlocker !== '') {
+                    $rowBlockers[] = $rowBlocker;
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blocked[] = $unit;
+                if (in_array('release-shard-countability-regressed', $rowBlockers, true) || in_array('release-shard-test-count-regressed', $rowBlockers, true)) {
+                    $regressed[] = $unit;
+                }
+                $blockers[] = [
+                    'id' => 'release-shard-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'advanced';
+                $advanced[] = $unit;
+                $releaseShardDelta++;
+                $zeroErrorArtifacts++;
+            } elseif ($nextCountable) {
+                $movement = 'preserved';
+                $preserved[] = $unit;
+                $zeroErrorArtifacts++;
+            }
+
+            if ($currentCountable) {
+                $testsBefore += $testsCurrent;
+            }
+            if ($nextCountable) {
+                $testsAfter += $testsNext;
+            }
+            $suites[$suite] = ($suites[$suite] ?? 0) + 1;
+
+            $entries[] = [
+                'unit' => $unit,
+                'suite' => $suite,
+                'movement' => $movement,
+                'repository_head' => $artifactHead,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'current_tests' => $testsCurrent,
+                'next_tests' => $testsNext,
+                'errors' => $errors,
+                'command' => $command,
+                'scripts' => $rowScripts,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-head gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        ksort($suites, SORT_STRING);
+        sort($advanced, SORT_STRING);
+        sort($preserved, SORT_STRING);
+        sort($blocked, SORT_STRING);
+        sort($regressed, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $status = 'blocked';
+        if ($blockers === [] && $releaseShardDelta > 0) {
+            $status = 'current-next70-release-shards-countable';
+        } elseif ($blockers === []) {
+            $status = 'current-next70-release-shards-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-next70-release-shards-countable',
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'evidence_repository_head' => $evidenceRepositoryHead,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['pass_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'release_shard_delta' => $blockers === [] ? $releaseShardDelta : 0,
+            'zero_error_artifact_count' => $blockers === [] ? $zeroErrorArtifacts : 0,
+            'current_tests_total' => $testsBefore,
+            'next_tests_total' => $testsAfter,
+            'tests_total_delta' => $blockers === [] ? max(0, $testsAfter - $testsBefore) : 0,
+            'row_count' => count($entries),
+            'suite_count' => count($suites),
+            'suites' => $suites,
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'advanced_units' => $advanced,
+            'preserved_units' => $preserved,
+            'blocked_units' => $blocked,
+            'regressed_units' => $regressed,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next70-release-shards-countable'
+                ? 'publish current-next70 accepted-HEAD zero-error release/all shard countability while keeping full release/all parity gated on a complete broad artifact'
+                : 'keep current-next70 release shard countability uncounted until artifact provenance, zero-error output, duplicate-runner, and focused PHP admission blockers are clear',
+            'dependency_closure' => 'no new support component needed; current-next70 release shard countability composes accepted-HEAD runner artifacts, zero-error shard outputs, duplicate-runner gating, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

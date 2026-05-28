@@ -201,7 +201,7 @@ $tests = [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaDdlReparsePlan::apply($baseRecords(), ['CREATE INDEX bad ON missing_table(option_name)']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaDdlReparsePlan::apply($baseRecords(), ['ALTER TABLE missing RENAME TO next_missing']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaDdlReparsePlan::apply($baseRecords(), ['ALTER TABLE wp_options RENAME TO wp_options']));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaDdlReparsePlan::apply($baseRecords(), ['CREATE TRIGGER tr AFTER INSERT ON wp_options BEGIN SELECT 1; END']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSchemaDdlReparsePlan::apply($baseRecords(), ['CREATE VIRTUAL TABLE wp_options_search USING fts5(option_name)']));
     },
 ];
 

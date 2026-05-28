@@ -25,7 +25,10 @@ $jsonbFrames = $state->finalizeWindowFrameObject(0, 1, 'CURRENT ROW', 'jsonb_gro
 $summary = [
     'array_current_next' => $state->finalizeWindowFrameArray(0, 1),
     'array_exclude_ties' => $state->finalizeWindowFrameArray(0, 1, 'TIES'),
+    'array_groups_current_next' => $state->finalizeWindowFrameArrayByUnit('GROUPS', 0, 1),
+    'array_range_current_next' => $state->finalizeWindowFrameArrayByUnit('RANGE', 0, 10),
     'object_exclude_current_row' => $state->finalizeWindowFrameObject(0, 1, 'CURRENT ROW'),
+    'object_groups_exclude_group' => $state->finalizeWindowFrameObjectByUnit('GROUPS', 0, 1, 'GROUP'),
     'jsonb_object_exclude_current_row' => array_map(
         static fn (SQLiteBlobValue $frame): mixed => SQLiteJsonB::decode($frame->bytes),
         $jsonbFrames,
@@ -43,6 +46,14 @@ if (($argv[1] ?? null) === '--self-test') {
     }
     if ($summary['object_exclude_current_row'][0] !== '{"rules":{"plugin":"seo","autoload":true}}') {
         fwrite(STDERR, "unexpected object exclusion frame\n");
+        exit(1);
+    }
+    if ($summary['array_groups_current_next'][1] !== '[{"plugin":"seo","autoload":true},{"cache":"primed"}]') {
+        fwrite(STDERR, "unexpected GROUPS current-next array frame\n");
+        exit(1);
+    }
+    if ($summary['object_groups_exclude_group'][1] !== '{"cache":{"cache":"primed"}}') {
+        fwrite(STDERR, "unexpected GROUPS exclude-group object frame\n");
         exit(1);
     }
     if ($summary['jsonb_object_exclude_current_row'][2] !== ['cache' => ['cache' => 'primed']]) {
