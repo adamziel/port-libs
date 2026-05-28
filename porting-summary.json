@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 14:12:09 UTC",
-    "sourceCommit": "2bbdb50c2640d36761ad3cef8db55b84a1e30e36",
-    "sourceCommitShort": "2bbdb50c2640",
+    "generated": "2026-05-28 14:17:48 UTC",
+    "sourceCommit": "080b9654078adb908b0bd50bd8fc924e9b6257f4",
+    "sourceCommitShort": "080b9654078a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2bbdb50c2640d36761ad3cef8db55b84a1e30e36",
-    "dashboardCommitShort": "2bbdb50c2640",
+    "dashboardCommit": "080b9654078adb908b0bd50bd8fc924e9b6257f4",
+    "dashboardCommitShort": "080b9654078a",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "616",
-            "coverage": "616 / 1589",
-            "php": "90084 pass / 0 fail",
+            "mapped": "617",
+            "coverage": "617 / 1589",
+            "php": "90822 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch173 subset covering B-tree, compound SELE...",
-            "audit": "Implementation commit 78c99b640e2d407530d...",
-            "currentWork": "Accepted verified batch173 subset; public dashboard/status is being updated while the tmu...",
-            "nextTarget": "Publish dashboard/status for batch173, consume accepted next186 marker triplets, keep 10-...",
-            "blocker": "No blocker for the accepted batch173 subset: focused, full libsqlite, and...",
-            "commit": "78c99b6"
+            "phase": "accepted batch174 subset covering B-tree, compound SELE...",
+            "audit": "Implementation commit 502d1d55f42e0749b71...",
+            "currentWork": "Accepted verified batch174 subset; public dashboard/status is being updated while the tmu...",
+            "nextTarget": "Publish dashboard/status for batch174, consume accepted next187 marker triplets, keep 10-...",
+            "blocker": "No blocker for the accepted batch174 subset: focused, full libsqlite, and...",
+            "commit": "502d1d5"
         },
         {
             "library": "LightningCSS",
