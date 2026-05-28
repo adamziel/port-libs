@@ -1257,10 +1257,10 @@ final class SQLiteUpdateDeleteReturningSql
             [$limit, $offset] = self::parseLimit($limitSql);
             if ($limit !== null && $limit >= 0) {
                 $sourceRows = array_slice($sourceRows, $offset, $limit);
+            } elseif ($limit !== null && $limit < 0) {
+                $sourceRows = array_slice($sourceRows, $offset);
             } elseif ($limit === null) {
                 $sourceRows = array_slice($sourceRows, $offset);
-            } else {
-                $sourceRows = [];
             }
         }
 

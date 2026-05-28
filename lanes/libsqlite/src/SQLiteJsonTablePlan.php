@@ -3195,6 +3195,76 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext219(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext212(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitProfile219(
+            $plan['currentGeneratedPathRowidCurrentSourceXCurrent212'],
+            $plan['currentGeneratedPathRowidAliasOrder206'],
+            $limit,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitProfile219(
+            $plan['nextGeneratedPathRowidCurrentSourceXCurrent212'],
+            $plan['nextGeneratedPathRowidAliasOrder206'],
+            $limit,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitTransitions219($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitReasons219($transitions);
+
+        $plan['currentGeneratedPathRowidLimitAdmission219'] = $currentProfile;
+        $plan['nextGeneratedPathRowidLimitAdmission219'] = $nextProfile;
+        $plan['generatedPathRowidLimitAdmission219Transitions'] = $transitions;
+        $plan['next219ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next212ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next219ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'limit-admission-current-json-table-generated-path-rowid-next219';
+        $plan['nextReaderPolicy'] = $nextProfile['limitAdmissionReusable']
+            ? 'reuse-limit-admission-current-json-table-generated-path-rowid-next219'
+            : 'reprepare-limit-admission-next-json-table-generated-path-rowid-next219';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next219'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext209(
         string $function,
         array $currentSource,
@@ -21922,6 +21992,209 @@ final class SQLiteJsonTablePlan
                 'rangeReusable', 'upstreamReplanRequired', 'xCurrentReusable', 'xCurrentOpcode' => 'json-table-generated-path-rowid-xcurrent-admission-changed-next212',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xcurrent-cost-changed-next212',
                 default => 'json-table-generated-path-rowid-xcurrent-state-changed-next212',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $xCurrent212
+     * @param array<string,mixed> $aliasOrder206
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidLimitProfile219(
+        array $xCurrent212,
+        array $aliasOrder206,
+        ?int $limit,
+    ): array {
+        $orderedRowids = array_values(array_map('intval', $aliasOrder206['orderedRowids'] ?? []));
+        $activeRowid = is_int($xCurrent212['activeRowid'] ?? null) ? $xCurrent212['activeRowid'] : null;
+        $remainingRowids = array_values(array_map('intval', $xCurrent212['remainingRowids'] ?? []));
+        $boundedRowids = $limit === null ? $orderedRowids : array_slice($orderedRowids, 0, max(0, $limit));
+        $activeOrdinal = $activeRowid === null ? null : array_search($activeRowid, $orderedRowids, true);
+        $activeOrdinal = is_int($activeOrdinal) ? $activeOrdinal : null;
+        $activeWithinLimit = $activeRowid !== null && in_array($activeRowid, $boundedRowids, true);
+        $orderConsumed = (bool) ($aliasOrder206['orderByConsumed'] ?? false);
+        $aliasOrderReusable = (bool) ($aliasOrder206['aliasOrderReusable'] ?? false);
+        $xCurrentReusable = (bool) ($xCurrent212['xCurrentReusable'] ?? false);
+        $limitApplied = $limit !== null;
+        $limitAdmissionReusable = $xCurrentReusable && $aliasOrderReusable && $orderConsumed && $activeWithinLimit;
+        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitOpcode219(
+            $limitAdmissionReusable,
+            $xCurrentReusable,
+            $aliasOrderReusable,
+            $orderConsumed,
+            $activeRowid,
+            $activeWithinLimit,
+            $boundedRowids,
+        );
+        $estimatedRows = $limitAdmissionReusable ? 1 : 0;
+        $estimatedCost = $limitAdmissionReusable
+            ? max(1, min((int) ($xCurrent212['estimatedCost'] ?? 1), max(1, $activeOrdinal === null ? 1 : $activeOrdinal + 1)))
+            : 1000000;
+
+        return [
+            'function' => (string) ($xCurrent212['function'] ?? ''),
+            'root' => (string) ($xCurrent212['root'] ?? '$'),
+            'generatedPath' => (string) ($xCurrent212['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($xCurrent212['sourceGeneration'] ?? ''),
+            'sourceFingerprint' => (string) ($xCurrent212['sourceFingerprint'] ?? ''),
+            'xCurrentFingerprint' => (string) ($xCurrent212['xCurrentFingerprint'] ?? ''),
+            'aliasOrderFingerprint' => (string) ($aliasOrder206['aliasOrderFingerprint'] ?? ''),
+            'orderedRowids' => $orderedRowids,
+            'boundedRowids' => $boundedRowids,
+            'activeRowid' => $activeRowid,
+            'activeOrdinal' => $activeOrdinal,
+            'activeWithinLimit' => $activeWithinLimit,
+            'remainingRowids' => $remainingRowids,
+            'limit' => $limit,
+            'limitApplied' => $limitApplied,
+            'xCurrentReusable' => $xCurrentReusable,
+            'aliasOrderReusable' => $aliasOrderReusable,
+            'orderByConsumed' => $orderConsumed,
+            'limitAdmissionReusable' => $limitAdmissionReusable,
+            'limitOpcode' => $opcode,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceRowidLimitCostClass219($opcode, $limitApplied, $remainingRowids),
+            'limitFingerprint' => hash('sha256', json_encode([
+                $xCurrent212['xCurrentFingerprint'] ?? null,
+                $aliasOrder206['aliasOrderFingerprint'] ?? null,
+                $orderedRowids,
+                $boundedRowids,
+                $activeRowid,
+                $activeOrdinal,
+                $activeWithinLimit,
+                $remainingRowids,
+                $limit,
+                $limitAdmissionReusable,
+                $opcode,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<int> $boundedRowids
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidLimitOpcode219(
+        bool $limitAdmissionReusable,
+        bool $xCurrentReusable,
+        bool $aliasOrderReusable,
+        bool $orderConsumed,
+        ?int $activeRowid,
+        bool $activeWithinLimit,
+        array $boundedRowids,
+    ): string {
+        if ($limitAdmissionReusable) {
+            return 'OP_JsonTableGeneratedPathRowidLimitCurrentNext219';
+        }
+        if (!$xCurrentReusable) {
+            return 'OP_JsonTableGeneratedPathRowidLimitReprepareNext219';
+        }
+        if (!$aliasOrderReusable || !$orderConsumed) {
+            return 'OP_JsonTableGeneratedPathRowidLimitExternalOrderNext219';
+        }
+        if ($boundedRowids === []) {
+            return 'OP_JsonTableGeneratedPathRowidLimitEofNext219';
+        }
+        if ($activeRowid === null) {
+            return 'OP_JsonTableGeneratedPathRowidLimitNoCurrentNext219';
+        }
+        if (!$activeWithinLimit) {
+            return 'OP_JsonTableGeneratedPathRowidLimitSkipCurrentNext219';
+        }
+
+        return 'OP_JsonTableGeneratedPathRowidLimitBlockedNext219';
+    }
+
+    /**
+     * @param list<int> $remainingRowids
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidLimitCostClass219(
+        string $opcode,
+        bool $limitApplied,
+        array $remainingRowids,
+    ): string {
+        return match ($opcode) {
+            'OP_JsonTableGeneratedPathRowidLimitCurrentNext219' => $limitApplied
+                ? 'json-table-generated-path-rowid-limit-current-next219'
+                : ($remainingRowids === []
+                    ? 'json-table-generated-path-rowid-unbounded-point-next219'
+                    : 'json-table-generated-path-rowid-unbounded-range-next219'),
+            'OP_JsonTableGeneratedPathRowidLimitExternalOrderNext219' => 'json-table-generated-path-rowid-limit-external-order-next219',
+            'OP_JsonTableGeneratedPathRowidLimitEofNext219' => 'json-table-generated-path-rowid-limit-eof-next219',
+            'OP_JsonTableGeneratedPathRowidLimitNoCurrentNext219' => 'json-table-generated-path-rowid-limit-no-current-next219',
+            'OP_JsonTableGeneratedPathRowidLimitSkipCurrentNext219' => 'json-table-generated-path-rowid-limit-skip-current-next219',
+            default => 'json-table-generated-path-rowid-limit-reprepare-next219',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidLimitTransitions219(array $current, array $next): array
+    {
+        $fields = [
+            'function',
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'sourceFingerprint',
+            'xCurrentFingerprint',
+            'aliasOrderFingerprint',
+            'orderedRowids',
+            'boundedRowids',
+            'activeRowid',
+            'activeOrdinal',
+            'activeWithinLimit',
+            'remainingRowids',
+            'limit',
+            'limitApplied',
+            'xCurrentReusable',
+            'aliasOrderReusable',
+            'orderByConsumed',
+            'limitAdmissionReusable',
+            'limitOpcode',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'limitFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceRowidLimitReasons219(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'sourceFingerprint', 'xCurrentFingerprint', 'aliasOrderFingerprint', 'limitFingerprint' => 'json-table-generated-path-rowid-limit-source-changed-next219',
+                'orderedRowids', 'boundedRowids', 'activeRowid', 'activeOrdinal', 'remainingRowids' => 'json-table-generated-path-rowid-limit-rowset-changed-next219',
+                'limit', 'limitApplied' => 'json-table-generated-path-rowid-limit-boundary-changed-next219',
+                'activeWithinLimit', 'xCurrentReusable', 'aliasOrderReusable', 'orderByConsumed', 'limitAdmissionReusable', 'limitOpcode' => 'json-table-generated-path-rowid-limit-admission-changed-next219',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-limit-cost-changed-next219',
+                default => 'json-table-generated-path-rowid-limit-state-changed-next219',
             };
         }
 
