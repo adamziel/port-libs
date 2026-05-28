@@ -2121,6 +2121,197 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<int> $visiblePages
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,hot_journal:array<string, mixed>,savepoint_checkpoint:array<string, mixed>,reader_boundary:array<string, mixed>,atomic:bool}
+     */
+    public function applyHotJournalSavepointCheckpointCurrentSourceNext160(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databasePath,
+        array $visiblePages,
+        string $mode = 'truncate',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint checkpoint VFS apply next160 requires a database path');
+        }
+
+        $databaseLocal = $this->localPath($databasePath);
+        $journalPath = $databasePath . '-journal';
+        $walPath = $databasePath . '-wal';
+        $journalLocal = $this->localPath($journalPath);
+        $walLocal = $this->localPath($walPath);
+        if (!is_file($databaseLocal)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 database is missing: {$databasePath}");
+        }
+        if (!is_file($journalLocal)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 journal is missing: {$journalPath}");
+        }
+        if (!is_file($walLocal)) {
+            throw new \RuntimeException("SQLite WAL hot-journal savepoint checkpoint VFS apply next160 WAL is missing: {$walPath}");
+        }
+
+        $dirtyDatabaseBytes = (string) file_get_contents($databaseLocal);
+        $journalBytes = (string) file_get_contents($journalLocal);
+        $walBytes = (string) file_get_contents($walLocal);
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $wal = SQLiteWal::parse($walBytes, $journal->header->pageSize, true);
+        $hot = $journal->hotJournalRecoveryResult(
+            $dirtyDatabaseBytes,
+            $journalBytes,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+
+        if (!(bool) $hot['recovered']) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => [
+                    'sqlite-rollback-journal-hot-recovery',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply-next160',
+                ],
+                'hot_journal' => $hot,
+                'savepoint_checkpoint' => [],
+                'reader_boundary' => [],
+                'atomic' => true,
+            ];
+        }
+
+        $hotDatabaseBytes = (string) $hot['database_bytes'];
+        $checkpoint = SQLiteWalSavepointCheckpointPlan::afterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $hotDatabaseBytes,
+            $mode,
+            $currentReaderEndFrame
+        );
+        $boundary = SQLiteWalSavepointCheckpointPlan::readerBoundaryAfterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $hotDatabaseBytes,
+            $visiblePages,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $durable = $checkpoint['current_durable'];
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($hotDatabaseBytes),
+                'durable' => false,
+                'payload_key' => 'hot_database',
+                'reason' => 'restore_hot_journal_before_savepoint_checkpoint',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($hotDatabaseBytes),
+                'durable' => false,
+                'reason' => 'trim_hot_journal_before_savepoint_checkpoint',
+            ],
+            [
+                'op' => 'delete',
+                'path' => $journalPath,
+                'durable' => false,
+                'reason' => 'delete_hot_journal_before_savepoint_checkpoint',
+            ],
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen((string) $durable['database_bytes']),
+                'durable' => false,
+                'payload_key' => 'checkpoint_database',
+                'reason' => 'apply_savepoint_checkpoint_after_hot_journal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen((string) $durable['database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_checkpoint_after_hot_journal',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_checkpoint_database_after_hot_journal',
+            ],
+            [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen((string) $durable['wal_bytes']),
+                'durable' => false,
+                'payload_key' => 'checkpoint_wal',
+                'reason' => 'apply_savepoint_checkpoint_wal_after_hot_journal',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen((string) $durable['wal_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_checkpoint_wal_after_hot_journal',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_checkpoint_wal_after_hot_journal',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_hot_journal_savepoint_checkpoint_sidecars',
+            ],
+        ];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            [
+                'hot_database' => $hotDatabaseBytes,
+                'checkpoint_database' => (string) $durable['database_bytes'],
+                'checkpoint_wal' => (string) $durable['wal_bytes'],
+            ],
+            array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                $boundary['dependencies'],
+                [
+                    'sqlite-rollback-journal-hot-recovery',
+                    'sqlite-wal-hot-journal-savepoint-checkpoint-vfs-apply-next160',
+                ]
+            )))
+        );
+        $applied['hot_journal'] = $hot;
+        $applied['savepoint_checkpoint'] = $checkpoint;
+        $applied['reader_boundary'] = $boundary;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @param list<int> $visiblePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint_append:array<string, mixed>,atomic:bool}
