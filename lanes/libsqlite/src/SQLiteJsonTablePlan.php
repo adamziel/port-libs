@@ -2763,6 +2763,76 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext196(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext191(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile196(
+            $plan['currentGeneratedPathRowidXFilterRecheck191'],
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            $projection,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidXColumnCacheProfile196(
+            $plan['nextGeneratedPathRowidXFilterRecheck191'],
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            $projection,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidXColumnCacheTransitions196($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidXColumnCacheReplanReasons196($transitions);
+
+        $plan['currentGeneratedPathRowidXColumnCache196'] = $currentProfile;
+        $plan['nextGeneratedPathRowidXColumnCache196'] = $nextProfile;
+        $plan['generatedPathRowidXColumnCache196Transitions'] = $transitions;
+        $plan['next196ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next191ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next196ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'xcolumn-cache-current-json-table-generated-path-rowid-next196';
+        $plan['nextReaderPolicy'] = $nextProfile['cacheReusable']
+            ? 'reuse-xcolumn-cache-current-json-table-generated-path-rowid-next196'
+            : 'reprepare-xcolumn-cache-next-json-table-generated-path-rowid-next196';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next196'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext195(
         string $function,
         array $currentSource,
@@ -14079,6 +14149,190 @@ final class SQLiteJsonTablePlan
         }
         if (($next['missingRowids'] ?? []) !== []) {
             $reasons[] = 'json-table-generated-path-rowid-anchor-missing-next195';
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $filter191
+     * @param array<string,mixed> $resume185
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidXColumnCacheProfile196(
+        array $filter191,
+        array $resume185,
+        array $projection,
+    ): array {
+        $projection = self::jsonTableXColumnProjection181($projection);
+        $projectedRows = array_values(array_filter(
+            $resume185['projectedRows'] ?? [],
+            static fn (mixed $row): bool => is_array($row),
+        ));
+        $acceptedRowids = array_values(array_map('intval', $filter191['acceptedRowids'] ?? []));
+        $checkpointRowids = array_values(array_map('intval', $filter191['checkpointRowids'] ?? []));
+        $rowsByRowid = [];
+        foreach ($projectedRows as $row) {
+            $rowsByRowid[(int) ($row['rowid'] ?? 0)] = $row;
+        }
+
+        $xColumnTape = [];
+        $missingRowids = [];
+        foreach ($checkpointRowids as $rowid) {
+            $row = $rowsByRowid[$rowid] ?? null;
+            $accepted = in_array($rowid, $acceptedRowids, true);
+            $columns = [];
+            if ($accepted && is_array($row)) {
+                foreach ($projection as $column) {
+                    $columns[$column] = $row[$column] ?? null;
+                }
+            }
+            if ($accepted && !is_array($row)) {
+                $missingRowids[] = $rowid;
+            }
+
+            $xColumnTape[] = [
+                'rowid' => $rowid,
+                'accepted' => $accepted,
+                'materialized' => is_array($row),
+                'columns' => $columns,
+            ];
+        }
+
+        $cacheReusable = (bool) ($filter191['checkpointReusable'] ?? false)
+            && $acceptedRowids !== []
+            && $missingRowids === []
+            && $acceptedRowids === $checkpointRowids;
+        $estimatedRows = $cacheReusable ? count($acceptedRowids) : 0;
+        $estimatedCost = $cacheReusable ? max(1, count($projection) * max(1, $estimatedRows)) : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidXColumnCacheOpcode196($cacheReusable, $missingRowids, $acceptedRowids, $checkpointRowids);
+
+        return [
+            'function' => (string) ($filter191['function'] ?? ''),
+            'root' => (string) ($filter191['root'] ?? '$'),
+            'generatedPath' => (string) ($filter191['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($filter191['sourceGeneration'] ?? ''),
+            'resumeToken' => is_string($filter191['resumeToken'] ?? null) ? $filter191['resumeToken'] : null,
+            'filterFingerprint' => (string) ($filter191['filterFingerprint'] ?? ''),
+            'projection' => $projection,
+            'checkpointRowids' => $checkpointRowids,
+            'acceptedRowids' => $acceptedRowids,
+            'missingRowids' => $missingRowids,
+            'xColumnTape' => $xColumnTape,
+            'cacheReusable' => $cacheReusable,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'xColumnOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidXColumnCacheCostClass196($opcode, $estimatedRows),
+            'xColumnCacheFingerprint' => hash('sha256', json_encode([
+                $filter191['filterFingerprint'] ?? null,
+                $projection,
+                $checkpointRowids,
+                $acceptedRowids,
+                $missingRowids,
+                $xColumnTape,
+                $cacheReusable,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<int> $missingRowids
+     * @param list<int> $acceptedRowids
+     * @param list<int> $checkpointRowids
+     */
+    private static function jsonTableGeneratedPathRowidXColumnCacheOpcode196(
+        bool $cacheReusable,
+        array $missingRowids,
+        array $acceptedRowids,
+        array $checkpointRowids,
+    ): string {
+        if ($cacheReusable) {
+            return count($acceptedRowids) === 1
+                ? 'OP_JsonTableXColumnCachePointNext196'
+                : 'OP_JsonTableXColumnCacheRangeNext196';
+        }
+        if ($missingRowids !== []) {
+            return 'OP_JsonTableXColumnCacheMissingRowNext196';
+        }
+        if ($checkpointRowids !== [] && $acceptedRowids === []) {
+            return 'OP_JsonTableXColumnCacheRestartNext196';
+        }
+
+        return 'OP_JsonTableXColumnCacheReprepareNext196';
+    }
+
+    private static function jsonTableGeneratedPathRowidXColumnCacheCostClass196(string $opcode, int $estimatedRows): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableXColumnCachePointNext196' => 'json-table-generated-path-rowid-xcolumn-cache-point-next196',
+            'OP_JsonTableXColumnCacheRangeNext196' => 'json-table-generated-path-rowid-xcolumn-cache-range-next196',
+            'OP_JsonTableXColumnCacheMissingRowNext196' => 'json-table-generated-path-rowid-xcolumn-cache-missing-row-next196',
+            'OP_JsonTableXColumnCacheRestartNext196' => 'json-table-generated-path-rowid-xcolumn-cache-restart-next196',
+            default => $estimatedRows > 0
+                ? 'json-table-generated-path-rowid-xcolumn-cache-reprepare-range-next196'
+                : 'json-table-generated-path-rowid-xcolumn-cache-reprepare-next196',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidXColumnCacheTransitions196(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'resumeToken',
+            'filterFingerprint',
+            'projection',
+            'checkpointRowids',
+            'acceptedRowids',
+            'missingRowids',
+            'xColumnTape',
+            'cacheReusable',
+            'estimatedRows',
+            'estimatedCost',
+            'xColumnOpcode',
+            'costClass',
+            'xColumnCacheFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidXColumnCacheReplanReasons196(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'resumeToken', 'filterFingerprint', 'xColumnCacheFingerprint' => 'json-table-generated-path-rowid-xcolumn-cache-source-changed-next196',
+                'projection' => 'json-table-generated-path-rowid-xcolumn-cache-projection-changed-next196',
+                'checkpointRowids', 'acceptedRowids', 'missingRowids', 'xColumnTape' => 'json-table-generated-path-rowid-xcolumn-cache-rowset-changed-next196',
+                'cacheReusable' => 'json-table-generated-path-rowid-xcolumn-cache-reuse-changed-next196',
+                'estimatedRows', 'estimatedCost', 'xColumnOpcode', 'costClass' => 'json-table-generated-path-rowid-xcolumn-cache-cost-changed-next196',
+                default => 'json-table-generated-path-rowid-xcolumn-cache-state-changed-next196',
+            };
         }
 
         return array_values(array_unique($reasons));
