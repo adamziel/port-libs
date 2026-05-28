@@ -5312,3 +5312,21 @@ reuses lane-local JSON validity, JSONB, JSON subtype, and SELECT expression
 helpers. Follow-up should target non-overlapping JSON planner/JSONB behavior
 rather than accepted JSON subtype admission, JSON table cursor/source/hidden or
 visible constraints, or this `json_valid()` scalar/flag coercion boundary.
+## Pager Master-Journal Reader Cache Current Source Next255
+
+`examples/wordpress-pager-master-journal-reader-cache-current-source-next255.php`
+models a copied `wp_options` database after master-journal recovery. It keeps a
+schema cache page only when the reader page-map digest was computed from the
+recovered current source, reopens the stale options-root reader, and preserves
+the older reader-snapshot fence for `active_plugins`.
+
+Status delta 2026-05-28 isolated:
+`pager-master-journal-reader-cache-current-source-next255` adds
+`SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Plan`, 62 focused PASS
+assertions in `SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Test.php`,
+and the WordPress smoke. `lane-status.json` `phpPass` moves from `133054` to
+`133116`. Mapped upstream coverage is unchanged.
+
+Dependency closure: no new support component is needed; this reuses the
+lane-local pager master-journal reader-cache family and existing current-source
+snapshot/generation/provenance fences.
