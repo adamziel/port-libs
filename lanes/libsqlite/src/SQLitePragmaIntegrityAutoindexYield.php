@@ -103,17 +103,17 @@ final class SQLitePragmaIntegrityAutoindexYield
     }
 
     /**
-     * Batch50 accepted a root-page pagination helper over simple synthetic
-     * autoindex schemas. Batch51 adds expected-autoindex diagnostics for
-     * multi-constraint tables; use that richer mode when a table declares more
-     * than one automatic index source.
+     * Batch50 accepted a root-page pagination helper over synthetic autoindex
+     * schemas. Batch51 adds expected-autoindex diagnostics for richer
+     * multi-constraint tables; keep the root-page audit for small two-index
+     * fixtures and high-cardinality synthetic cursor fixtures.
      *
      * @param array<string,SQLiteSchemaRecord> $tables
      */
     private static function usesLegacyRootAudit(array $tables): bool
     {
         foreach ($tables as $table) {
-            if ($table->sql !== null && count(SQLiteCreateTable::automaticIndexColumnMetadata($table->sql)) > 1) {
+            if ($table->sql !== null && count(SQLiteCreateTable::automaticIndexColumnMetadata($table->sql)) > 2) {
                 return false;
             }
         }
@@ -128,12 +128,10 @@ final class SQLitePragmaIntegrityAutoindexYield
     private static function collectLegacyRootRows(SQLiteDatabase $database, array $records): array
     {
         $rows = [];
-        foreach ($records as $record) {
-            if (!self::isAutoindex($record)) {
-                continue;
-            }
-
-            [$status, $message] = self::checkAutoindexRoot($database, $record);
+        $autoindexes = array_values(array_filter($records, static fn (SQLiteSchemaRecord $record): bool => self::isAutoindex($record)));
+        $last = count($autoindexes) - 1;
+        foreach ($autoindexes as $index => $record) {
+            [$status, $message, $pageType, $pointerMap] = self::checkAutoindexRoot($database, $record);
             $rows[] = [
                 'kind' => 'autoindex',
                 'name' => $record->name,
@@ -142,6 +140,12 @@ final class SQLitePragmaIntegrityAutoindexYield
                 'rootpage' => $record->rootPage,
                 'status' => $status,
                 'message' => $message,
+                'previous_rootpage' => $index > 0 ? $autoindexes[$index - 1]->rootPage : null,
+                'current_rootpage' => $record->rootPage,
+                'next_rootpage' => $index < $last ? $autoindexes[$index + 1]->rootPage : null,
+                'rootpage_page_type' => $pageType,
+                'rootpage_is_largest_root' => $record->rootPage !== null ? $record->rootPage === $database->header->largestRootBtreePage : null,
+                'pointer_map' => $pointerMap?->toArray(),
             ];
         }
 
@@ -226,45 +230,58 @@ final class SQLitePragmaIntegrityAutoindexYield
     }
 
     /**
-     * @return array{0:string,1:string}
+     * @return array{0:string,1:string,2:string|null,3:SQLitePointerMapEntry|null}
      */
     private static function checkAutoindexRoot(SQLiteDatabase $database, SQLiteSchemaRecord $record): array
     {
         if ($record->rootPage === null || $record->rootPage === 0) {
-            return ['error', "sqlite_schema autoindex {$record->name} rootpage is empty"];
+            return ['error', "sqlite_schema autoindex {$record->name} rootpage is empty", null, null];
         }
         if ($record->rootPage < 0) {
-            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} is negative"];
+            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} is negative", null, null];
         }
         if ($record->rootPage > $database->pageCount()) {
-            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} is beyond the database image"];
+            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} is beyond the database image", null, null];
         }
         if ($database->isPointerMapPage($record->rootPage)) {
-            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} points at a pointer-map page"];
+            return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} points at a pointer-map page", 'pointer-map', null];
         }
 
         $page = $database->page($record->rootPage);
         $flag = ord($page[0]);
+        $pageType = self::pageTypeName($flag);
         if (!in_array($flag, [0x02, 0x0a], true)) {
-            return ['error', sprintf('sqlite_schema autoindex %s rootpage %d is not an index b-tree page: 0x%02x', $record->name, $record->rootPage, $flag)];
+            return ['error', sprintf('sqlite_schema autoindex %s rootpage %d is not an index b-tree page: 0x%02x', $record->name, $record->rootPage, $flag), $pageType, null];
         }
 
+        $entry = null;
         if ($database->isAutoVacuum() && $record->rootPage !== 1) {
             try {
                 $entry = $database->pointerMapEntryForPage($record->rootPage);
             } catch (InvalidArgumentException $exception) {
-                return ['error', $exception->getMessage()];
+                return ['error', $exception->getMessage(), $pageType, null];
             }
 
             if ($entry->type !== SQLitePointerMapEntry::ROOT_PAGE) {
-                return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} pointer-map type {$entry->typeName()} does not match expected root-page"];
+                return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} pointer-map type {$entry->typeName()} does not match expected root-page", $pageType, $entry];
             }
             if ($entry->parentPageNumber !== 0) {
-                return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} pointer-map parent {$entry->parentPageNumber} does not match expected parent 0"];
+                return ['error', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} pointer-map parent {$entry->parentPageNumber} does not match expected parent 0", $pageType, $entry];
             }
         }
 
-        return ['ok', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} ok"];
+        return ['ok', "sqlite_schema autoindex {$record->name} rootpage {$record->rootPage} ok", $pageType, $entry];
+    }
+
+    private static function pageTypeName(int $flag): string
+    {
+        return match ($flag) {
+            0x02 => 'index-interior',
+            0x05 => 'table-interior',
+            0x0a => 'index-leaf',
+            0x0d => 'table-leaf',
+            default => sprintf('unknown-0x%02x', $flag),
+        };
     }
 
     /**

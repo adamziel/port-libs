@@ -278,7 +278,9 @@ final class SQLiteSelectExpressionIndexPlan
                     'estimatedCost' => $estimatedCost,
                     'stat4Used' => $estimated['stat4Used'],
                     'stat4Estimate' => $estimated['stat4Estimate'],
+                    'stat4MatchedSamples' => $estimated['stat4MatchedSamples'],
                     'stat4CurrentNext' => $estimated['stat4CurrentNext'],
+                    'stat4MatchedCurrentNext' => $estimated['stat4MatchedCurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
                     'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
@@ -896,7 +898,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param array{estimatedRows?:int,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>} $index
      * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
-     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
+     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4MatchedSamples:int,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4MatchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
      */
     private static function estimatedRows(array $index, array $constraint): array
     {
@@ -912,7 +914,9 @@ final class SQLiteSelectExpressionIndexPlan
                 'rows' => $fallback,
                 'stat4Used' => false,
                 'stat4Estimate' => null,
+                'stat4MatchedSamples' => 0,
                 'stat4CurrentNext' => [],
+                'stat4MatchedCurrentNext' => [],
             ];
         }
 
@@ -920,14 +924,16 @@ final class SQLiteSelectExpressionIndexPlan
             'rows' => max(1, min($baseRows, $stat4['rows'])),
             'stat4Used' => true,
             'stat4Estimate' => $stat4['rows'],
+            'stat4MatchedSamples' => $stat4['matchedSamples'],
             'stat4CurrentNext' => $stat4['currentNext'],
+            'stat4MatchedCurrentNext' => $stat4['matchedCurrentNext'],
         ];
     }
 
     /**
      * @param mixed $samples
      * @param array{operator:string,values:mixed} $constraint
-     * @return null|array{rows:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
+     * @return null|array{rows:int,matchedSamples:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,matchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
      */
     private static function stat4Estimate(mixed $samples, array $constraint, int $baseRows): ?array
     {
@@ -959,11 +965,19 @@ final class SQLiteSelectExpressionIndexPlan
 
         usort($normalized, static fn (array $left, array $right): int => self::compareStat4Keys($left['key'], $right['key']));
         $currentNext = self::stat4CurrentNext($normalized);
+        $matched = [];
         $operator = $constraint['operator'];
         $values = $constraint['values'];
 
         if ($operator === 'point') {
-            return ['rows' => self::stat4EqualityRows($normalized, $values, $baseRows), 'currentNext' => $currentNext];
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+
+            return [
+                'rows' => self::stat4EqualityRows($normalized, $values, $baseRows),
+                'matchedSamples' => count($matched),
+                'currentNext' => $currentNext,
+                'matchedCurrentNext' => self::stat4CurrentNext($matched),
+            ];
         }
         if ($operator === 'IN') {
             $rows = 0;
@@ -979,16 +993,28 @@ final class SQLiteSelectExpressionIndexPlan
                 $seen[$key] = true;
                 $rows += self::stat4EqualityRows($normalized, $value, $baseRows);
             }
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
 
-            return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+            return [
+                'rows' => max(1, min($baseRows, $rows)),
+                'matchedSamples' => count($matched),
+                'currentNext' => $currentNext,
+                'matchedCurrentNext' => self::stat4CurrentNext($matched),
+            ];
         }
         if ($operator === 'BETWEEN' && is_array($values)) {
             $lower = $values['lower'] ?? null;
             $upper = $values['upper'] ?? null;
             $rows = self::stat4LessThanRows($normalized, $upper, true, $baseRows)
                 - self::stat4LessThanRows($normalized, $lower, false, $baseRows);
+            $matched = self::stat4MatchingSamples($normalized, $operator, $values);
 
-            return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+            return [
+                'rows' => max(1, min($baseRows, $rows)),
+                'matchedSamples' => count($matched),
+                'currentNext' => $currentNext,
+                'matchedCurrentNext' => self::stat4CurrentNext($matched),
+            ];
         }
         if (str_starts_with($operator, 'range-')) {
             $rows = match ($operator) {
@@ -999,7 +1025,14 @@ final class SQLiteSelectExpressionIndexPlan
                 default => null,
             };
             if ($rows !== null) {
-                return ['rows' => max(1, min($baseRows, $rows)), 'currentNext' => $currentNext];
+                $matched = self::stat4MatchingSamples($normalized, $operator, $values);
+
+                return [
+                    'rows' => max(1, min($baseRows, $rows)),
+                    'matchedSamples' => count($matched),
+                    'currentNext' => $currentNext,
+                    'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                ];
             }
         }
 
@@ -1020,6 +1053,51 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     */
+    private static function stat4MatchingSamples(array $samples, string $operator, mixed $values): array
+    {
+        return array_values(array_filter(
+            $samples,
+            static fn (array $sample): bool => self::stat4SampleMatches($sample['key'], $operator, $values),
+        ));
+    }
+
+    private static function stat4SampleMatches(mixed $key, string $operator, mixed $values): bool
+    {
+        if ($operator === 'point') {
+            return self::compareStat4Keys($key, $values) === 0;
+        }
+        if ($operator === 'IN' && is_array($values)) {
+            foreach ($values as $value) {
+                if ($value !== null && self::compareStat4Keys($key, $value) === 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        if ($operator === 'BETWEEN' && is_array($values)) {
+            return self::compareStat4Keys($key, $values['lower'] ?? null) >= 0
+                && self::compareStat4Keys($key, $values['upper'] ?? null) <= 0;
+        }
+        if ($operator === 'range-<') {
+            return self::compareStat4Keys($key, $values) < 0;
+        }
+        if ($operator === 'range-<=') {
+            return self::compareStat4Keys($key, $values) <= 0;
+        }
+        if ($operator === 'range->') {
+            return self::compareStat4Keys($key, $values) > 0;
+        }
+        if ($operator === 'range->=') {
+            return self::compareStat4Keys($key, $values) >= 0;
+        }
+
+        return false;
     }
 
     /**
@@ -1355,7 +1433,7 @@ final class SQLiteSelectExpressionIndexPlan
     {
         $function = strtolower($operand['function']);
         $name = $function . '(' . $operand['column'];
-        if (isset($operand['path'])) {
+        if (isset($operand['path']) && $function !== 'jsonb_extract') {
             $name .= ',' . $operand['path'];
         }
 

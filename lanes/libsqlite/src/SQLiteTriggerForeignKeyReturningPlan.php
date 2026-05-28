@@ -11,7 +11,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
      * @param list<array<string,mixed>> $children
      * @param array<string,mixed|callable(array<string,mixed>):mixed> $assignments
      * @param callable(array<string,mixed>):bool $where
-     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool} $foreignKey
+     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool,child_default?:mixed,child_defaults?:array<string,mixed>} $foreignKey
      * @param list<array<string,mixed>> $triggers
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,string):mixed>|null $returning
      * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,foreign_key_actions:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,changes:int}
@@ -81,7 +81,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @param callable(array<string,mixed>):bool $where
-     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool} $foreignKey
+     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool,child_default?:mixed,child_defaults?:array<string,mixed>} $foreignKey
      * @param list<array<string,mixed>> $triggers
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,string):mixed>|null $returning
      * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,yielded:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,foreign_key_actions:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,changes:int}
@@ -172,7 +172,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
     /**
      * @param list<array<string,mixed>> $children
      * @param list<array<string,mixed>> $triggers
-     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool} $spec
+     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed} $spec
      * @return array{row:array<string,mixed>,child:list<array<string,mixed>>,effects:list<array<string,mixed>>}
      */
     private static function fireTriggers(string $timing, string $event, array $old, array $new, array $children, array $triggers, array $spec): array
@@ -223,7 +223,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
 
     /**
      * @param list<array<string,mixed>> $children
-     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool} $spec
+     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed} $spec
      * @return array{child:list<array<string,mixed>>,actions:list<array<string,mixed>>}
      */
     private static function applyForeignKeyAction(string $event, array $old, ?array $new, array $children, array $spec): array
@@ -249,6 +249,9 @@ final class SQLiteTriggerForeignKeyReturningPlan
             } elseif ($mode === 'set null') {
                 $child[$spec['child_key']] = null;
                 $actions[] = ['event' => $event, 'action' => 'set-null', 'child_index' => $index, 'from' => $oldKey, 'to' => null];
+            } elseif ($mode === 'set default') {
+                $child[$spec['child_key']] = $spec['child_default'];
+                $actions[] = ['event' => $event, 'action' => 'set-default', 'child_index' => $index, 'from' => $oldKey, 'to' => $spec['child_default']];
             } elseif ($mode === 'restrict' || $mode === 'no action') {
                 $actions[] = ['event' => $event, 'action' => $mode, 'child_index' => $index, 'from' => $oldKey, 'to' => $newKey];
             } else {
@@ -263,7 +266,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
     /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
-     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool} $spec
+     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed} $spec
      * @return list<array<string,mixed>>
      */
     private static function foreignKeyViolations(array $parents, array $children, array $spec): array
@@ -356,7 +359,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
 
     /**
      * @param array<string,mixed> $template
-     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool} $spec
+     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed} $spec
      * @return array<string,mixed>
      */
     private static function project(array $template, array $old, array $new, array $spec): array
@@ -371,17 +374,20 @@ final class SQLiteTriggerForeignKeyReturningPlan
     }
 
     /**
-     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool} $foreignKey
-     * @return array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool}
+     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool,child_default?:mixed,child_defaults?:array<string,mixed>} $foreignKey
+     * @return array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed}
      */
     private static function foreignKeySpec(array $foreignKey): array
     {
+        $childKey = self::identifier((string) ($foreignKey['child_key'] ?? ''), 'child key');
+
         return [
             'parent_key' => self::identifier((string) ($foreignKey['parent_key'] ?? ''), 'parent key'),
-            'child_key' => self::identifier((string) ($foreignKey['child_key'] ?? ''), 'child key'),
+            'child_key' => $childKey,
             'on_update' => self::fkAction((string) ($foreignKey['on_update'] ?? 'no action')),
             'on_delete' => self::fkAction((string) ($foreignKey['on_delete'] ?? 'no action')),
             'deferred' => (bool) ($foreignKey['deferred'] ?? false),
+            'child_default' => self::childDefault($foreignKey, $childKey),
         ];
     }
 
@@ -390,6 +396,7 @@ final class SQLiteTriggerForeignKeyReturningPlan
         return match (strtolower(trim($action))) {
             'cascade' => 'cascade',
             'set null', 'set-null' => 'set null',
+            'set default', 'set-default' => 'set default',
             'restrict' => 'restrict',
             'no action', 'no-action' => 'no action',
             default => throw new \InvalidArgumentException('SQLite trigger/FK RETURNING foreign key action is unsupported'),
@@ -397,7 +404,27 @@ final class SQLiteTriggerForeignKeyReturningPlan
     }
 
     /**
-     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool} $spec
+     * @param array<string,mixed> $foreignKey
+     */
+    private static function childDefault(array $foreignKey, string $childKey): mixed
+    {
+        if (array_key_exists('child_defaults', $foreignKey)) {
+            if (!is_array($foreignKey['child_defaults'])) {
+                throw new \InvalidArgumentException('SQLite trigger/FK RETURNING child defaults are malformed');
+            }
+            if (array_key_exists($childKey, $foreignKey['child_defaults'])) {
+                return $foreignKey['child_defaults'][$childKey];
+            }
+        }
+        if (array_key_exists('child_default', $foreignKey)) {
+            return $foreignKey['child_default'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{parent_key:string,child_key:string,on_update:string,on_delete:string,deferred:bool,child_default:mixed} $spec
      */
     private static function value(mixed $value, array $old, array $new, array $spec): mixed
     {

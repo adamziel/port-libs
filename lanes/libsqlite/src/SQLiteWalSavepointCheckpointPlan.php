@@ -625,6 +625,86 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
+     */
+    public static function releaseThenRollbackCheckpointCurrentNext(
+        SQLiteSavepointStack $savepoints,
+        string $releasedSavepoint,
+        string $rollbackSavepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'truncate',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($releasedSavepoint === '' || $rollbackSavepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL release/checkpoint requires savepoint names');
+        }
+        if ($releasedSavepoint === $rollbackSavepoint) {
+            throw new \InvalidArgumentException('SQLite WAL release/checkpoint requires distinct savepoints');
+        }
+
+        $releasedWalPlan = $savepoints->walRollbackToPlan($releasedSavepoint);
+        $working = clone $savepoints;
+        $release = $working->releaseWithPlan($releasedSavepoint);
+        $boundary = self::readerBoundaryAfterRollbackTo(
+            $working,
+            $rollbackSavepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $rollback = $working->walRollbackToPlan($rollbackSavepoint);
+        $releasedNames = $release['released_frame_names'];
+        $releasedFrameIndexes = [];
+        $releasedPages = [];
+        $releasedWalFrameIndexes = [];
+        foreach ($releasedWalPlan['discarded_wal_frames'] as $frame) {
+            $releasedWalFrameIndexes[$frame['frame_index']] = true;
+        }
+        foreach ($rollback['discarded_wal_frames'] as $frame) {
+            if (!isset($releasedWalFrameIndexes[$frame['frame_index']])) {
+                continue;
+            }
+            $releasedFrameIndexes[] = $frame['frame_index'];
+            $releasedPages[$frame['page_number']] = true;
+        }
+
+        $releasedPageNumbers = array_keys($releasedPages);
+        sort($releasedPageNumbers, SORT_NUMERIC);
+
+        return [
+            'status' => $boundary['status'],
+            'released_savepoint' => $releasedSavepoint,
+            'rollback_savepoint' => $rollbackSavepoint,
+            'release' => $release,
+            'boundary' => $boundary,
+            'released_frame_names' => $releasedNames,
+            'merged_page_numbers' => $release['merged_page_numbers'],
+            'retained_frame_count' => $boundary['retained_frame_count'],
+            'discarded_frame_count' => $boundary['discarded_frame_count'],
+            'rolled_back_released_frames' => $releasedFrameIndexes,
+            'rolled_back_released_pages' => $releasedPageNumbers,
+            'current_reader_sources' => $boundary['current_reader_sources'],
+            'next_reader_sources' => $boundary['next_reader_sources'],
+            'current_reader_frame_indexes' => $boundary['current_reader_frame_indexes'],
+            'next_reader_frame_indexes' => $boundary['next_reader_frame_indexes'],
+            'images_match' => $boundary['images_match'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $boundary['dependencies'],
+                ['sqlite-wal-release-rollback-checkpoint-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<string> $sources
      * @param list<int|null> $frameIndexes
      * @param list<string> $images

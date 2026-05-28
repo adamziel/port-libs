@@ -401,6 +401,22 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
+     * @return array{current:array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,filteredFrameRowids:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed},next:array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,filteredFrameRowids:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}|null,advanced:bool}
+     */
+    public function currentNextAggregateSummary(string $rowidColumn = 'rowid', mixed $separator = ',', int $nth = 2, bool $valueFunctionsApplyFilter = false): array
+    {
+        $this->requireCurrentRow();
+
+        return [
+            'current' => $this->aggregateSummaryAt($this->position, $rowidColumn, $separator, $nth, $valueFunctionsApplyFilter),
+            'next' => $this->position + 1 < count($this->orderedRows)
+                ? $this->aggregateSummaryAt($this->position + 1, $rowidColumn, $separator, $nth, $valueFunctionsApplyFilter)
+                : null,
+            'advanced' => false,
+        ];
+    }
+
+    /**
      * @return array{position:int,currentRowid:mixed,nextRowid:mixed,partitionKey:list<mixed>,orderKey:list<mixed>,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,nextSamePartition:bool,nextSamePeer:bool,rawFrameRowids:list<mixed>,frameRowids:list<mixed>,excludedRowids:list<mixed>,filteredRowids:list<mixed>,frameValues:list<mixed>,filteredValues:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,groupConcat:?string}
      */
     public function currentYieldSummary(string $rowidColumn = 'rowid', mixed $separator = ','): array
@@ -635,6 +651,36 @@ final class SQLiteVdbeWindowAggregateCursor
                 'firstValue' => $this->firstValue(),
                 'lastValue' => $this->lastValue(),
                 'nthValue' => $this->nthValue(2),
+            ];
+        });
+    }
+
+    /**
+     * @return array{position:int,row:array<string,mixed>,frameRowids:list<mixed>,filteredFrameRowids:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,avg:float|null,min:mixed,max:mixed,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}
+     */
+    private function aggregateSummaryAt(int $position, string $rowidColumn, mixed $separator, int $nth, bool $valueFunctionsApplyFilter): array
+    {
+        return $this->withPosition($position, function () use ($rowidColumn, $separator, $nth, $valueFunctionsApplyFilter): array {
+            $frameRows = $this->currentFrameRows(false);
+            $filteredRows = $this->currentFrameRows(true);
+            $values = array_map(fn (array $row): mixed => $row[$this->valueColumn], $filteredRows);
+
+            return [
+                'position' => $this->position,
+                'row' => $this->requireCurrentRow(),
+                'frameRowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $frameRows),
+                'filteredFrameRowids' => array_map(static fn (array $row): mixed => $row[$rowidColumn] ?? null, $filteredRows),
+                'countAll' => SQLiteNumericAggregate::countAll($frameRows),
+                'countValue' => SQLiteNumericAggregate::countValue($values),
+                'sum' => SQLiteNumericAggregate::sum($values),
+                'total' => SQLiteNumericAggregate::total($values),
+                'avg' => SQLiteNumericAggregate::avg($values),
+                'min' => SQLiteNumericAggregate::min($values),
+                'max' => SQLiteNumericAggregate::max($values),
+                'groupConcat' => SQLiteTextAggregate::groupConcat($values, $separator),
+                'firstValue' => $this->firstValue($valueFunctionsApplyFilter),
+                'lastValue' => $this->lastValue($valueFunctionsApplyFilter),
+                'nthValue' => $this->nthValue($nth, $valueFunctionsApplyFilter),
             ];
         });
     }

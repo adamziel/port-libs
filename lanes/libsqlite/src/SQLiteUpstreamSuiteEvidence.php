@@ -5701,6 +5701,241 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamSuiteGapBurnupCurrentNext55(
+        string $currentArtifactDirectory,
+        string $nextArtifactDirectory,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $minimumFocusedAssertions = 40
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite current-next55 suite gap burnup requires current and next accepted HEAD values');
+        }
+        if ($currentArtifactDirectory === '' || $nextArtifactDirectory === '') {
+            throw new \InvalidArgumentException('SQLite current-next55 suite gap burnup requires current and next artifact directories');
+        }
+        if ($minimumFocusedAssertions < 1) {
+            throw new \InvalidArgumentException('SQLite current-next55 suite gap burnup minimum focused assertions must be at least 1');
+        }
+
+        $current = $this->boundedRunnerArtifactDirectoryRecord($currentArtifactDirectory, $currentAcceptedHead);
+        $next = $this->boundedRunnerArtifactDirectoryRecord($nextArtifactDirectory, $nextAcceptedHead);
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $currentEntries = $this->artifactDirectoryEntriesBySuiteKey($current['entries'] ?? []);
+        $nextEntries = $this->artifactDirectoryEntriesBySuiteKey($next['entries'] ?? []);
+        $keys = array_values(array_unique(array_merge(array_keys($currentEntries), array_keys($nextEntries))));
+        sort($keys);
+
+        $entries = [];
+        $blockers = [];
+        $advanced = [];
+        $preserved = [];
+        $regressed = [];
+        $open = [];
+        $tiers = [];
+        $currentCountable = 0;
+        $nextCountable = 0;
+        $currentTests = 0;
+        $nextTests = 0;
+
+        foreach ($keys as $key) {
+            $currentEntry = $currentEntries[$key] ?? null;
+            $nextEntry = $nextEntries[$key] ?? null;
+            $currentCounted = is_array($currentEntry) && (bool) ($currentEntry['countable'] ?? false);
+            $nextCounted = is_array($nextEntry) && (bool) ($nextEntry['countable'] ?? false);
+            $currentEntryTests = $currentCounted ? max(0, (int) ($currentEntry['tests'] ?? 0)) : 0;
+            $nextEntryTests = $nextCounted ? max(0, (int) ($nextEntry['tests'] ?? 0)) : 0;
+            $tier = $this->artifactEntryTier($nextEntry ?? $currentEntry ?? []);
+            $id = $this->artifactEntrySuiteId($nextEntry ?? $currentEntry ?? [], $key);
+
+            if ($currentCounted) {
+                $currentCountable++;
+                $currentTests += $currentEntryTests;
+            }
+            if ($nextCounted) {
+                $nextCountable++;
+                $nextTests += $nextEntryTests;
+            }
+
+            $entryBlockers = [];
+            foreach ([$currentEntry, $nextEntry] as $artifactEntry) {
+                if (!is_array($artifactEntry) || !is_array($artifactEntry['blocker_ids'] ?? null)) {
+                    continue;
+                }
+                foreach ($artifactEntry['blocker_ids'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $entryBlockers[] = $blocker;
+                    }
+                }
+            }
+
+            $movement = 'open';
+            if ($nextCounted && !$currentCounted) {
+                $movement = 'advanced';
+                $advanced[] = $id;
+            } elseif ($nextCounted && $currentCounted) {
+                $movement = $nextEntryTests >= $currentEntryTests ? 'preserved' : 'regressed';
+                if ($movement === 'preserved') {
+                    $preserved[] = $id;
+                } else {
+                    $regressed[] = $id;
+                    $entryBlockers[] = 'next-test-count-regressed';
+                }
+            } elseif (!$nextCounted && $currentCounted) {
+                $movement = 'regressed';
+                $regressed[] = $id;
+                $entryBlockers[] = 'next-countability-regressed';
+            } else {
+                $open[] = $id;
+            }
+
+            $entryBlockers = array_values(array_unique($entryBlockers));
+            if ($entryBlockers !== []) {
+                $blockers[] = [
+                    'id' => 'suite-artifact-blocked',
+                    'suite_id' => $id,
+                    'evidence' => implode('; ', $entryBlockers),
+                ];
+            }
+
+            if (!isset($tiers[$tier])) {
+                $tiers[$tier] = [
+                    'tier' => $tier,
+                    'rows' => 0,
+                    'current_countable' => 0,
+                    'next_countable' => 0,
+                    'advanced' => 0,
+                    'preserved' => 0,
+                    'regressed' => 0,
+                    'open' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 0,
+                ];
+            }
+            $tiers[$tier]['rows']++;
+            $tiers[$tier]['current_countable'] += $currentCounted ? 1 : 0;
+            $tiers[$tier]['next_countable'] += $nextCounted ? 1 : 0;
+            $tiers[$tier][$movement]++;
+            $tiers[$tier]['current_tests'] += $currentEntryTests;
+            $tiers[$tier]['next_tests'] += $nextEntryTests;
+
+            $entries[] = [
+                'id' => $id,
+                'suite_key' => $key,
+                'tier' => $tier,
+                'current_label' => is_array($currentEntry) ? (string) ($currentEntry['label'] ?? '') : null,
+                'next_label' => is_array($nextEntry) ? (string) ($nextEntry['label'] ?? '') : null,
+                'current_status' => is_array($currentEntry) ? (string) ($currentEntry['status'] ?? 'missing') : 'missing',
+                'next_status' => is_array($nextEntry) ? (string) ($nextEntry['status'] ?? 'missing') : 'missing',
+                'current_countable' => $currentCounted,
+                'next_countable' => $nextCounted,
+                'current_tests' => $currentEntryTests,
+                'next_tests' => $nextEntryTests,
+                'movement' => $movement,
+                'blockers' => $entryBlockers,
+            ];
+        }
+
+        ksort($tiers);
+        sort($advanced);
+        sort($preserved);
+        sort($regressed);
+        sort($open);
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        } elseif ((int) ($phpAdmission['assertion_delta'] ?? 0) < $minimumFocusedAssertions) {
+            $blockers[] = [
+                'id' => 'focused-php-pass-delta-below-minimum',
+                'evidence' => 'focused TestRunner assertion delta is below current-next55 suite gap burnup minimum',
+                'minimum' => $minimumFocusedAssertions,
+                'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            ];
+        }
+
+        if (($current['status'] ?? null) === 'blocked-missing-artifact-directory' || ($next['status'] ?? null) === 'blocked-missing-artifact-directory') {
+            $blockers[] = [
+                'id' => 'artifact-directory-missing',
+                'evidence' => 'current or next guarded bounded-runner artifact directory is missing',
+            ];
+        }
+
+        $countableDelta = $nextCountable - $currentCountable;
+        $testsDelta = $nextTests - $currentTests;
+        $status = 'blocked';
+        $criticalBlockerIds = ['focused-php-pass-admission-blocked', 'focused-php-pass-delta-below-minimum', 'artifact-directory-missing'];
+        $hasCriticalBlocker = count(array_intersect($criticalBlockerIds, array_column($blockers, 'id'))) > 0;
+        if ($blockers === [] && $countableDelta > 0) {
+            $status = 'next55-suite-gap-burnup-advanced';
+        } elseif ($blockers === [] && $countableDelta === 0 && $regressed === []) {
+            $status = 'next55-suite-gap-burnup-preserved';
+        } elseif (!$hasCriticalBlocker && $currentCountable > 0 && $regressed === []) {
+            $status = 'current-suite-gap-burnup-preserved-with-open-gaps';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'current_artifact_directory' => $currentArtifactDirectory,
+            'next_artifact_directory' => $nextArtifactDirectory,
+            'row_count' => count($entries),
+            'tier_count' => count($tiers),
+            'current_artifact_count' => (int) ($current['artifact_count'] ?? 0),
+            'next_artifact_count' => (int) ($next['artifact_count'] ?? 0),
+            'current_countable_count' => $currentCountable,
+            'next_countable_count' => $nextCountable,
+            'countable_delta' => $countableDelta,
+            'current_tests_total' => $currentTests,
+            'next_tests_total' => $nextTests,
+            'tests_total_delta' => $testsDelta,
+            'advanced_count' => count($advanced),
+            'preserved_count' => count($preserved),
+            'regressed_count' => count($regressed),
+            'open_count' => count($open),
+            'advanced_ids' => $advanced,
+            'preserved_ids' => $preserved,
+            'regressed_ids' => $regressed,
+            'open_ids' => $open,
+            'tiers' => array_values($tiers),
+            'entries' => $entries,
+            'current_directory_record' => $current,
+            'next_directory_record' => $next,
+            'php_pass_admission' => $phpAdmission,
+            'minimum_focused_assertions' => $minimumFocusedAssertions,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_next_suite_gap_burnup' => $status === 'next55-suite-gap-burnup-advanced',
+            'preserves_current_suite_gap_burnup' => in_array($status, ['next55-suite-gap-burnup-preserved', 'current-suite-gap-burnup-preserved-with-open-gaps'], true),
+            'counts_as_release_parity' => false,
+            'next_gate' => match ($status) {
+                'next55-suite-gap-burnup-advanced' => 'publish only accepted-HEAD zero-error next55 artifact burnup rows and keep release/all parity gaps explicit',
+                'next55-suite-gap-burnup-preserved' => 'record that current-next55 preserves countable artifact burnup without claiming release/all parity movement',
+                'current-suite-gap-burnup-preserved-with-open-gaps' => 'preserve current countable artifact rows while resolving open next-source guarded-runner blockers',
+                default => 'repair blocked, regressed, stale, failed, active, or under-threshold current-next55 suite gap burnup evidence before counting movement',
+            },
+            'dependency_closure' => 'no new support component needed; current-next55 suite gap burnup composes guarded artifact-directory countability and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */
@@ -6211,6 +6446,123 @@ final class SQLiteUpstreamSuiteEvidence
         $set = is_array($hydration['set'] ?? null) ? $hydration['set'] : [];
 
         return is_int($set['tests_total'] ?? null) ? $set['tests_total'] : 0;
+    }
+
+    /**
+     * @param mixed $entries
+     * @return array<string, array<string, mixed>>
+     */
+    private function artifactDirectoryEntriesBySuiteKey(mixed $entries): array
+    {
+        if (!is_array($entries)) {
+            return [];
+        }
+
+        $keyed = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $key = $this->artifactEntrySuiteKey($entry);
+            if ($key === '') {
+                continue;
+            }
+
+            if (!isset($keyed[$key]) || $this->artifactEntryRank($entry) > $this->artifactEntryRank($keyed[$key])) {
+                $keyed[$key] = $entry;
+            }
+        }
+
+        ksort($keyed);
+
+        return $keyed;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function artifactEntrySuiteKey(array $entry): string
+    {
+        $artifact = is_array($entry['gate']['artifact'] ?? null) ? $entry['gate']['artifact'] : [];
+        $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+        $testset = is_string($requested['testset'] ?? null) && $requested['testset'] !== ''
+            ? strtolower($requested['testset'])
+            : 'unknown';
+        $patterns = [];
+        if (is_array($requested['patterns'] ?? null)) {
+            foreach ($requested['patterns'] as $pattern) {
+                if (is_string($pattern) && $pattern !== '') {
+                    $patterns[] = $pattern;
+                }
+            }
+        }
+
+        sort($patterns);
+
+        return $testset . ':' . ($patterns === [] ? 'none' : implode(',', $patterns));
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function artifactEntrySuiteId(array $entry, string $fallback): string
+    {
+        $artifact = is_array($entry['gate']['artifact'] ?? null) ? $entry['gate']['artifact'] : [];
+        $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+        $testset = is_string($requested['testset'] ?? null) && $requested['testset'] !== ''
+            ? strtolower($requested['testset'])
+            : 'unknown';
+        $patterns = [];
+        if (is_array($requested['patterns'] ?? null)) {
+            foreach ($requested['patterns'] as $pattern) {
+                if (is_string($pattern) && $pattern !== '') {
+                    $patterns[] = preg_replace('/[^A-Za-z0-9_.-]+/', '-', $pattern) ?? $pattern;
+                }
+            }
+        }
+
+        sort($patterns);
+        if ($patterns === []) {
+            return $testset;
+        }
+
+        return $testset . '-' . implode('-', $patterns);
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function artifactEntryTier(array $entry): string
+    {
+        $artifact = is_array($entry['gate']['artifact'] ?? null) ? $entry['gate']['artifact'] : [];
+        $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+        $testset = is_string($requested['testset'] ?? null) && $requested['testset'] !== ''
+            ? strtolower($requested['testset'])
+            : 'unknown';
+        if (in_array($testset, ['all', 'release', 'mptest'], true)) {
+            return $testset;
+        }
+
+        return is_array($requested['patterns'] ?? null) && $requested['patterns'] !== [] ? 'focused' : $testset;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private function artifactEntryRank(array $entry): int
+    {
+        if ((bool) ($entry['countable'] ?? false)) {
+            return 4;
+        }
+
+        $status = is_string($entry['status'] ?? null) ? $entry['status'] : '';
+
+        return match ($status) {
+            'active' => 3,
+            'blocked' => 2,
+            default => 1,
+        };
     }
 
     /**
