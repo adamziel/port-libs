@@ -121,6 +121,87 @@ final class SQLiteShmIndex
     }
 
     /**
+     * @return array{status:string,reason:string,wal_mx_frame:int,last_commit_frame:int|null,headers_match:bool,salt_matches_wal:bool,backfilled_frame_count:int,next_read_marks:list<int|null>,next_checkpoint_plan:array<string,mixed>,preserved_slots:list<int>,discarded_slots:list<int>,next_reader_slot:int|null,next_reader_frame:int|null,current_reader_frames:list<int>,dependencies:list<string>}
+     */
+    public function recoverReadMarksFromWal(SQLiteWal $wal): array
+    {
+        $walMxFrame = $wal->frameCount();
+        $lastCommitFrame = $wal->lastCommitFrame()?->index;
+        $saltMatchesWal = ($this->header['salt'][0] ?? null) === $wal->header->salt1
+            && ($this->header['salt'][1] ?? null) === $wal->header->salt2;
+        $canPreserveReaders = $this->headersMatch && $saltMatchesWal && $lastCommitFrame !== null;
+        $preservedSlots = [];
+        $discardedSlots = [];
+        $nextReadMarks = [];
+        $currentReaderFrames = [];
+
+        foreach ($this->readMarks as $mark) {
+            $frame = $mark['frame'];
+            $preserve = $canPreserveReaders
+                && $mark['read_lock_held']
+                && $frame !== null
+                && $frame > 0
+                && $frame <= $lastCommitFrame;
+
+            if ($preserve) {
+                $nextReadMarks[] = $frame;
+                $preservedSlots[] = $mark['slot'];
+                $currentReaderFrames[] = $frame;
+            } else {
+                $nextReadMarks[] = null;
+                if ($frame !== null || $mark['read_lock_held']) {
+                    $discardedSlots[] = $mark['slot'];
+                }
+            }
+        }
+
+        if ($nextReadMarks === []) {
+            $nextReadMarks = array_fill(0, self::READER_COUNT, null);
+        }
+
+        if ($preservedSlots === []) {
+            $nextReadMarks[0] = 0;
+        }
+
+        $nextCheckpointPlan = $wal->readMarkPlan($nextReadMarks);
+        $nextReaderSlot = $nextCheckpointPlan['recommended_reader_slot'];
+        $nextReaderFrame = $nextReaderSlot === null ? null : ($lastCommitFrame ?? 0);
+        $reason = 'read_marks_recovered_from_matching_wal';
+        if (!$this->headersMatch) {
+            $reason = 'stale_shm_header_copy_rebuilt_from_wal';
+        } elseif (!$saltMatchesWal) {
+            $reason = 'shm_salt_mismatch_rebuilt_from_wal';
+        } elseif ($lastCommitFrame === null) {
+            $reason = 'wal_has_no_committed_frames';
+        } elseif ($preservedSlots === []) {
+            $reason = 'no_locked_read_marks_to_preserve';
+        }
+
+        return [
+            'status' => $preservedSlots === [] ? 'rebuilt' : 'recovered-with-readers',
+            'reason' => $reason,
+            'wal_mx_frame' => $walMxFrame,
+            'last_commit_frame' => $lastCommitFrame,
+            'headers_match' => $this->headersMatch,
+            'salt_matches_wal' => $saltMatchesWal,
+            'backfilled_frame_count' => min($this->backfilledFrameCount, $lastCommitFrame ?? 0),
+            'next_read_marks' => $nextReadMarks,
+            'next_checkpoint_plan' => $nextCheckpointPlan,
+            'preserved_slots' => $preservedSlots,
+            'discarded_slots' => $discardedSlots,
+            'next_reader_slot' => $nextReaderSlot,
+            'next_reader_frame' => $nextReaderFrame,
+            'current_reader_frames' => $currentReaderFrames,
+            'dependencies' => [
+                'sqlite-shm-index',
+                'wal-index-read-marks',
+                'sqlite-wal-frame-salt',
+                'wal-shm-readmark-recovery',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

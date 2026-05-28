@@ -230,57 +230,130 @@ final class SQLiteDatabase
      */
     public function freelistTrunkPages(): array
     {
+        $plan = $this->freelistTraversalPlan();
+        if (!$plan->isValid()) {
+            throw new \InvalidArgumentException($plan->errors[0]);
+        }
+
+        return $plan->trunkPages;
+    }
+
+    public function freelistTraversalPlan(): SQLiteFreelistTraversalPlan
+    {
         $expectedPageCount = $this->header->freelistPageCount;
         $firstTrunkPage = $this->header->firstFreelistTrunkPage;
+        $errors = [];
         if ($expectedPageCount === 0) {
             if ($firstTrunkPage !== 0) {
-                throw new \InvalidArgumentException('SQLite freelist header points at a trunk page but has zero free pages');
+                $errors[] = 'SQLite freelist header points at a trunk page but has zero free pages';
             }
 
-            return [];
+            return new SQLiteFreelistTraversalPlan(
+                $expectedPageCount,
+                $firstTrunkPage === 0 ? null : $firstTrunkPage,
+                [],
+                [],
+                [],
+                [],
+                [],
+                null,
+                [],
+                0,
+                $errors,
+            );
         }
         if ($firstTrunkPage < 2) {
-            throw new \InvalidArgumentException('SQLite freelist header has free pages but no valid first trunk page');
+            return new SQLiteFreelistTraversalPlan(
+                $expectedPageCount,
+                null,
+                [],
+                [],
+                [],
+                [],
+                [],
+                null,
+                [],
+                0,
+                ['SQLite freelist header has free pages but no valid first trunk page'],
+            );
         }
 
         $trunkPages = [];
+        $trunkPageNumbers = [];
+        $leafPageNumbers = [];
+        $pageNumbers = [];
+        $allocationOrder = [];
         $seenPages = [];
+        $path = [];
+        $cycleAtPage = null;
+        $cyclePath = [];
         $actualPageCount = 0;
         $pageNumber = $firstTrunkPage;
         while ($pageNumber !== 0) {
             if (isset($seenPages[$pageNumber])) {
-                throw new \InvalidArgumentException("SQLite freelist loops at page {$pageNumber}");
+                $cycleAtPage = $pageNumber;
+                $cycleStart = array_search($pageNumber, $path, true);
+                $cyclePath = $cycleStart === false ? [$pageNumber] : array_slice($path, $cycleStart);
+                $cyclePath[] = $pageNumber;
+                $errors[] = "SQLite freelist loops at page {$pageNumber}";
+                break;
             }
 
-            $trunkPage = SQLiteFreelistTrunkPage::parse(
-                $pageNumber,
-                $this->page($pageNumber),
-                $this->usablePageSize(),
-                $this->pageCount(),
-            );
+            $path[] = $pageNumber;
+            try {
+                $trunkPage = SQLiteFreelistTrunkPage::parse(
+                    $pageNumber,
+                    $this->page($pageNumber),
+                    $this->usablePageSize(),
+                    $this->pageCount(),
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $errors[] = $exception->getMessage();
+                break;
+            }
+
             $trunkPages[] = $trunkPage;
+            $trunkPageNumbers[] = $trunkPage->pageNumber;
+            $pageNumbers[] = $trunkPage->pageNumber;
+            array_push($allocationOrder, ...$trunkPage->allocationOrder());
             $seenPages[$pageNumber] = 'trunk';
             $actualPageCount++;
 
             foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
                 if (isset($seenPages[$leafPageNumber])) {
-                    throw new \InvalidArgumentException("SQLite freelist page {$leafPageNumber} appears more than once");
+                    $errors[] = "SQLite freelist page {$leafPageNumber} appears more than once";
+                    break 2;
                 }
                 $seenPages[$leafPageNumber] = 'leaf';
+                $leafPageNumbers[] = $leafPageNumber;
+                $pageNumbers[] = $leafPageNumber;
                 $actualPageCount++;
             }
             if ($actualPageCount > $expectedPageCount) {
-                throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
+                $errors[] = "SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}";
+                break;
             }
 
             $pageNumber = $trunkPage->nextTrunkPage ?? 0;
         }
 
-        if ($actualPageCount !== $expectedPageCount) {
-            throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
+        if ($errors === [] && $actualPageCount !== $expectedPageCount) {
+            $errors[] = "SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}";
         }
 
-        return $trunkPages;
+        return new SQLiteFreelistTraversalPlan(
+            $expectedPageCount,
+            $firstTrunkPage,
+            $trunkPages,
+            $trunkPageNumbers,
+            $leafPageNumbers,
+            $pageNumbers,
+            $allocationOrder,
+            $cycleAtPage,
+            $cyclePath,
+            $actualPageCount,
+            $errors,
+        );
     }
 
     /**

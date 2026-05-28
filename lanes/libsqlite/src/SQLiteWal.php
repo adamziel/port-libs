@@ -310,6 +310,86 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,salt_changed:bool,current_salt:array{0:int,1:int},next_salt:array{0:int,1:int},current:array<string,mixed>,next:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_valid_frame_count:int,next_valid_frame_count:int,current_committed_frame_count:int,next_committed_frame_count:int,next_discarded_corrupt_tail_frame_count:int,next_uses_checkpoint_database:bool,images_changed:bool,dependencies:list<string>}
+     */
+    public static function checksumSaltRecoveryCurrentNext70(
+        string $currentWalBytes,
+        string $nextWalBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        ?int $databasePageSize = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checksum salt recovery requires at least one page number');
+        }
+
+        $currentBoundary = self::transactionRecoveryBoundary($currentWalBytes, $databaseBytes, $databasePageSize);
+        $currentWal = $currentBoundary['committed_wal'];
+        $currentDatabaseBytes = $currentBoundary['checkpoint_database_bytes'] ?? $databaseBytes;
+        $nextBoundary = self::transactionRecoveryBoundary($nextWalBytes, $currentDatabaseBytes, $databasePageSize);
+        $nextWal = $nextBoundary['committed_wal'];
+        $nextDatabaseBytes = $nextBoundary['checkpoint_database_bytes'] ?? $currentDatabaseBytes;
+
+        $currentEndFrame = $currentBoundary['committed_frame_count'];
+        $nextEndFrame = $nextBoundary['committed_frame_count'];
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checksum salt recovery pages must be integers');
+            }
+
+            $current[] = $currentEndFrame === 0
+                ? self::databasePageVisibilityOrError($currentDatabaseBytes, $currentWal->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($currentWal, $currentDatabaseBytes, $pageNumber, $currentEndFrame);
+            $next[] = $nextEndFrame === 0
+                ? self::databasePageVisibilityOrError($nextDatabaseBytes, $nextWal->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $nextDatabaseBytes, $pageNumber, $nextEndFrame);
+        }
+
+        $currentSalt = [$currentWal->header->salt1, $currentWal->header->salt2];
+        $nextSalt = [$nextWal->header->salt1, $nextWal->header->salt2];
+        $saltChanged = $currentSalt !== $nextSalt;
+        $nextDiscardedCorruptTail = $nextBoundary['discarded_corrupt_tail_frame_count'];
+        $reason = $saltChanged
+            ? ($nextDiscardedCorruptTail > 0 ? 'next_wal_restarted_and_ignored_stale_salt_tail' : 'next_wal_restarted_with_new_salt')
+            : 'wal_salt_unchanged';
+
+        return [
+            'status' => $saltChanged ? 'salt-recovered-current-next' : 'same-salt-current-next',
+            'reason' => $reason,
+            'salt_changed' => $saltChanged,
+            'current_salt' => $currentSalt,
+            'next_salt' => $nextSalt,
+            'current' => $currentBoundary,
+            'next' => $nextBoundary,
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_valid_frame_count' => $currentBoundary['valid_frame_count'],
+            'next_valid_frame_count' => $nextBoundary['valid_frame_count'],
+            'current_committed_frame_count' => $currentBoundary['committed_frame_count'],
+            'next_committed_frame_count' => $nextBoundary['committed_frame_count'],
+            'next_discarded_corrupt_tail_frame_count' => $nextDiscardedCorruptTail,
+            'next_uses_checkpoint_database' => $nextBoundary['checkpoint_database_bytes'] !== null,
+            'images_changed' => self::visibilityImages($current) !== self::visibilityImages($next),
+            'dependencies' => array_values(array_unique(array_merge(
+                $currentBoundary['dependencies'],
+                $nextBoundary['dependencies'],
+                ['sqlite-wal-checksum-salt-recovery-current-next70']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     public static function checksumPair(string $bytes, bool $littleEndian, int $seed1 = 0, int $seed2 = 0): array

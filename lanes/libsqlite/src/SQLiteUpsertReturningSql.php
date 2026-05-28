@@ -38,7 +38,7 @@ final class SQLiteUpsertReturningSql
             'inserted_rows' => $result['inserted_rows'],
             'updated_rows' => $result['updated_rows'],
             'skipped_rows' => $result['skipped_rows'],
-            'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], self::returningProjection($parsed['returning'])),
+            'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], self::returningProjection($target, $parsed['returning'])),
             'changes' => $result['changes'],
         ];
     }
@@ -329,7 +329,7 @@ final class SQLiteUpsertReturningSql
     /**
      * @return list<string>|array<string,string>
      */
-    private static function returningProjection(string $sql): array
+    private static function returningProjection(string $target, string $sql): array
     {
         $projection = [];
         foreach (self::splitComma($sql) as $term) {
@@ -339,7 +339,19 @@ final class SQLiteUpsertReturningSql
                 continue;
             }
             if (preg_match('/^(?:(?:excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, and *');
+                if (preg_match('/^(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $term, $expressionMatch) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, and *');
+                }
+                $expression = trim($expressionMatch[1]);
+                $alias = $expressionMatch[2];
+                if (preg_match('/^excluded\./i', $expression) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $expression) === 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
+                }
+                $projection[$alias] = static fn (array $row): mixed => self::evaluateExpression($expression, $target, $row, $row);
+                continue;
+            }
+            if (isset($match[0]) && preg_match('/^excluded\./i', $match[0]) === 1) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
             }
             if (isset($match[2]) && $match[2] !== '') {
                 $projection[$match[2]] = $match[1];
@@ -599,20 +611,25 @@ final class SQLiteUpsertReturningSql
         $inString = false;
         $length = strlen($sql);
         $operatorLength = strlen($operator);
-        for ($i = $length - $operatorLength; $i >= 0; $i--) {
+        $matchOffset = null;
+        for ($i = 0; $i <= $length - $operatorLength; $i++) {
             $char = $sql[$i];
             if ($char === "'") {
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
                 $inString = !$inString;
                 continue;
             }
             if ($inString) {
                 continue;
             }
-            if ($char === ')') {
+            if ($char === '(') {
                 $depth++;
                 continue;
             }
-            if ($char === '(') {
+            if ($char === ')') {
                 $depth--;
                 continue;
             }
@@ -621,8 +638,11 @@ final class SQLiteUpsertReturningSql
                     continue;
                 }
 
-                return [trim(substr($sql, 0, $i)), trim(substr($sql, $i + $operatorLength))];
+                $matchOffset = $i;
             }
+        }
+        if ($matchOffset !== null) {
+            return [trim(substr($sql, 0, $matchOffset)), trim(substr($sql, $matchOffset + $operatorLength))];
         }
 
         return null;
