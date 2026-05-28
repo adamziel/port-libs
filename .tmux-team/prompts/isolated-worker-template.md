@@ -8,6 +8,30 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
+Current supervisor override, 2026-05-28 05:55 UTC:
+
+- The launcher-printed `Base accepted HEAD` is authoritative. The current
+  integration source for publication is
+  `8a447f445e5d2fd32fc9fd463117f585d1416551` (`Integrate libsqlite batch
+  109 113 subset`) with verified libsqlite `44622 pass / 0 fail`, mapped
+  coverage `604 / 1589`, and root `1002 test files / 113528 assertions /
+  0 failures`. Until the dashboard commit is live, workers may still launch
+  from the previous dashboard commit; treat the launcher base as source truth.
+- Avoid all accepted batch107/108 and batch109-113 surfaces, plus the queued
+  conflict/rebase items `runner106` and `jsonvt104`. The live pool owns
+  current-source next115/next116 slices including B-tree, JSON path/table, VFS,
+  WAL, planner, PRAGMA, ATTACH, window, and VDBE work. Do not duplicate those
+  exact surfaces.
+- New workers should produce one disjoint behavior-backed libsqlite patch with
+  focused passing `TestRunner` output and a WordPress smoke/example or a named
+  upstream runner/countability blocker removal. Prefer unclaimed WAL/pager
+  durability, DDL/schema reparse, expression/planner, compound SELECT,
+  encoding/collation, trigger/FK, JSON aggregate/operator, PRAGMA/integrity,
+  or release-runner admission behavior.
+- Work immediately and exit with a lane patch. Do not sleep, wait for other
+  lanes, wait for publication, or produce status-only/manifest-only/note-only
+  handoffs.
+
 Current supervisor override, 2026-05-28 00:55 UTC:
 
 - The launcher-printed `Base accepted HEAD` is authoritative. The current
