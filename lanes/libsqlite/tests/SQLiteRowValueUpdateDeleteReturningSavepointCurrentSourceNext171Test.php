@@ -97,7 +97,7 @@ $cases = [
     'savepoint changed table' => [static fn (): mixed => $releasedSavepoint()['changed_tables'], ['wp_options']],
     'savepoint dependency records OR current source' => [static fn (): mixed => in_array('sqlite-update-delete-returning-rowvalue-where-or-current-source-next171', $releasedSavepoint()['dependencies'], true), true],
     'malformed empty SQL still rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute('', $tables, 'option_id', $unique), InvalidArgumentException::class],
-    'malformed unsupported parenthesized OR term rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE ((blog_id, option_name) = (1, 'home')) OR option_id = 7 RETURNING option_id", $tables, 'option_id', $unique), InvalidArgumentException::class],
+    'supported parenthesized OR term selects tuple and scalar ids' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE ((blog_id, option_name) = (1, 'home')) OR option_id = 7 RETURNING option_id", $tables, 'option_id', $unique)['plan']->selectedIds, [2, 7]],
 ];
 
 $tests = [];

@@ -602,6 +602,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($where === null || $where === '') {
             return static fn (): bool => true;
         }
+        while (($stripped = self::stripEnclosingParentheses($where)) !== null) {
+            $where = $stripped;
+        }
 
         $orGroups = array_map(
             static fn (string $group): array => self::splitWhereAnd($group),
@@ -639,6 +642,11 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function evaluatePredicate(string $term, array $row): ?bool
     {
+        $stripped = self::stripEnclosingParentheses($term);
+        if ($stripped !== null) {
+            return self::evaluatePredicate($stripped, $row);
+        }
+
         $not = self::unwrapUnaryNot($term);
         if ($not !== null) {
             return self::negateNullable(self::evaluatePredicate($not, $row));
@@ -782,6 +790,11 @@ final class SQLiteUpdateDeleteReturningSql
     private static function evaluateReturningExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        $stripped = self::stripEnclosingParentheses($expression);
+        if ($stripped !== null) {
+            return self::evaluateReturningExpression($stripped, $row);
+        }
+
         $not = self::unwrapUnaryNot($expression);
         if ($not !== null) {
             $result = self::evaluatePredicate($not, $row);
