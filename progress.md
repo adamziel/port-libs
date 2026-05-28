@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 03:08 UTC):
+  Batch83/84 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit `6dff30ccbf405b91db7420ad44b77be63300a6ef` (`Integrate libsqlite batch
+  83-84 subset`) accepted 15 current-source libsqlite handoffs after splitting
+  out sqlplan83/sqlplan84 planner regressions and pragma84 PRAGMA regression
+  for rework. Verification passed: php -l `45` changed/untracked PHP files,
+  15 changed WordPress examples with valid JSON, conflict-marker scan, git
+  diff --check, focused changed tests `15 test files / 1130 assertions / 0
+  failures / 954 PASS lines`, planner/pragma regression `3 test files / 202
+  assertions / 0 failures / 197 PASS lines`, full libsqlite `594 test
+  files / 70308 assertions / 0 failures / 33161 PASS lines`, and root `807
+  test files / 94776 assertions / 0 failures / 36189 PASS lines`. Public
+  publication is next; mapped coverage is being advanced from `466 / 1589` to
+  `481 / 1589`. Rework/defer markers: jsonagg83, jsonvt83, suite83, suite84,
+  sqlplan83, sqlplan84, and pragma84. tmux `main` remains at 11 active
+  libsqlite workers with no long sleepers; bounded cleanup removed 60 inactive
+  old ready-handoff worktrees whose patches/metadata remain preserved, moving
+  `/home/claude` free space from about 384M to about 3.3G.
+
 - 2026-05-28 supervisor continuation (shell samples 02:40 UTC):
   Batch82 clean subset is integrated and root-verified in the rolling clean
   integration worktree while 11 batch83/batch84 workers continue in tmux
