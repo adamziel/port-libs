@@ -2545,6 +2545,72 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $xColumnProjection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext184(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        array $xColumnProjection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext181(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $xColumnProjection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidFinalCostProfile184(
+            $plan['currentGeneratedPathRowidXColumnSnapshot181'],
+            $plan['currentGeneratedPathRowidCurrentSourceCache175'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidFinalCostProfile184(
+            $plan['nextGeneratedPathRowidXColumnSnapshot181'],
+            $plan['nextGeneratedPathRowidCurrentSourceCache175'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidFinalCostTransitions184($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidFinalCostReplanReasons184($transitions);
+
+        $plan['currentGeneratedPathRowidFinalCost184'] = $currentProfile;
+        $plan['nextGeneratedPathRowidFinalCost184'] = $nextProfile;
+        $plan['generatedPathRowidFinalCost184Transitions'] = $transitions;
+        $plan['next184ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next181ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next184ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'admit-current-json-table-generated-path-rowid-final-cost-next184';
+        $plan['nextReaderPolicy'] = $plan['next184ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-final-cost-next184'
+            : 'reprepare-next-json-table-generated-path-rowid-final-cost-next184';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next184'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext182(
@@ -16576,6 +16642,203 @@ final class SQLiteJsonTablePlan
                 'generatedEstimatedCost', 'generatedEstimatedRows', 'costClass' => 'json-table-generated-path-cost-changed',
                 'coveredPathTape' => 'json-table-generated-path-output-changed',
                 default => 'json-table-generated-path-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $snapshot181
+     * @param array<string,mixed> $cache175
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidFinalCostProfile184(array $snapshot181, array $cache175): array
+    {
+        $rowids = array_values(array_map('intval', $snapshot181['rowids'] ?? []));
+        $missingRowids = array_values(array_map('intval', $snapshot181['missingRowids'] ?? []));
+        $projection = array_values(array_map('strval', $snapshot181['projection'] ?? []));
+        $residualColumns = [];
+        $xColumnReusable = (bool) ($snapshot181['xColumnReusable'] ?? false);
+        $currentSourcePinned = (bool) ($cache175['cacheReusable'] ?? false);
+        $staleAfterNextSource = (bool) ($snapshot181['staleAfterNextSource'] ?? false);
+        if (!$xColumnReusable && !$staleAfterNextSource && $missingRowids === [] && $rowids !== []) {
+            $missingRowids = $rowids;
+        }
+        $covering = $xColumnReusable
+            && $currentSourcePinned
+            && !$staleAfterNextSource
+            && $missingRowids === []
+            && $residualColumns === [];
+        $estimatedRows = $covering ? (int) ($snapshot181['estimatedRows'] ?? 0) : 0;
+        $estimatedCost = $covering
+            ? max(1, min((int) ($snapshot181['estimatedCost'] ?? 1000000), max(1, count($rowids))))
+            : 1000000;
+        $costClass = self::jsonTableGeneratedPathRowidFinalCostClass184(
+            $covering,
+            $staleAfterNextSource,
+            $missingRowids,
+            $residualColumns,
+            $estimatedRows,
+        );
+
+        return [
+            'sourceGeneration' => (string) ($snapshot181['sourceGeneration'] ?? ''),
+            'cacheKey' => $snapshot181['cacheKey'] ?? null,
+            'cursorGeneration' => $snapshot181['cursorGeneration'] ?? null,
+            'cacheDisposition' => $cache175['cacheDisposition'] ?? null,
+            'snapshotFingerprint' => $snapshot181['snapshotFingerprint'] ?? null,
+            'rowidAliasColumns' => ['rowid', '_rowid_', 'oid', 'id'],
+            'projection' => $projection,
+            'selectedRowids' => $rowids,
+            'selectedRowCount' => count($rowids),
+            'materializedRowCount' => count($snapshot181['materializedRows'] ?? []),
+            'missingRowids' => $missingRowids,
+            'residualConstraintColumns' => $residualColumns,
+            'currentSourcePinned' => $currentSourcePinned,
+            'xColumnReusable' => $xColumnReusable,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'coveringSnapshot' => $covering,
+            'cursorDisposition' => self::jsonTableGeneratedPathRowidFinalCostDisposition184($covering, $staleAfterNextSource, $missingRowids, $residualColumns, $estimatedRows),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => $costClass,
+            'finalCostFingerprint' => hash('sha256', json_encode([
+                $snapshot181['sourceGeneration'] ?? null,
+                $snapshot181['cacheKey'] ?? null,
+                $snapshot181['cursorGeneration'] ?? null,
+                $cache175['cacheDisposition'] ?? null,
+                $snapshot181['snapshotFingerprint'] ?? null,
+                $projection,
+                $rowids,
+                $missingRowids,
+                $residualColumns,
+                $covering,
+                $estimatedCost,
+                $costClass,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<int> $missingRowids
+     * @param list<string> $residualColumns
+     */
+    private static function jsonTableGeneratedPathRowidFinalCostDisposition184(
+        bool $covering,
+        bool $staleAfterNextSource,
+        array $missingRowids,
+        array $residualColumns,
+        int $estimatedRows,
+    ): string {
+        if ($covering) {
+            return $estimatedRows === 0
+                ? 'admit-empty-current-source-generated-path-rowid-snapshot'
+                : 'admit-covering-current-source-generated-path-rowid-snapshot';
+        }
+        if ($staleAfterNextSource) {
+            return 'reprepare-stale-next-source-generated-path-rowid-snapshot';
+        }
+        if ($missingRowids !== []) {
+            return 'reseek-missing-rowid-generated-path-rowid-snapshot';
+        }
+        if ($residualColumns !== []) {
+            return 'apply-residual-generated-path-rowid-snapshot';
+        }
+
+        return 'reprepare-generated-path-rowid-snapshot';
+    }
+
+    /**
+     * @param list<int> $missingRowids
+     * @param list<string> $residualColumns
+     */
+    private static function jsonTableGeneratedPathRowidFinalCostClass184(
+        bool $covering,
+        bool $staleAfterNextSource,
+        array $missingRowids,
+        array $residualColumns,
+        int $estimatedRows,
+    ): string {
+        if ($covering && $estimatedRows === 1) {
+            return 'json-table-generated-path-rowid-final-cost-covering-point-next184';
+        }
+        if ($covering && $estimatedRows > 1) {
+            return 'json-table-generated-path-rowid-final-cost-covering-range-next184';
+        }
+        if ($covering) {
+            return 'json-table-generated-path-rowid-final-cost-covering-empty-next184';
+        }
+        if ($staleAfterNextSource) {
+            return 'json-table-generated-path-rowid-final-cost-reprepare-next184';
+        }
+        if ($missingRowids !== []) {
+            return 'json-table-generated-path-rowid-final-cost-missing-rowid-next184';
+        }
+        if ($residualColumns !== []) {
+            return 'json-table-generated-path-rowid-final-cost-residual-next184';
+        }
+
+        return 'json-table-generated-path-rowid-final-cost-blocked-next184';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidFinalCostTransitions184(array $current, array $next): array
+    {
+        $fields = [
+            'sourceGeneration',
+            'cacheKey',
+            'cursorGeneration',
+            'cacheDisposition',
+            'snapshotFingerprint',
+            'projection',
+            'selectedRowids',
+            'materializedRowCount',
+            'missingRowids',
+            'residualConstraintColumns',
+            'coveringSnapshot',
+            'cursorDisposition',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'finalCostFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidFinalCostReplanReasons184(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceGeneration', 'cacheKey', 'cursorGeneration', 'cacheDisposition', 'snapshotFingerprint', 'finalCostFingerprint' => 'json-table-generated-path-rowid-final-cost-source-snapshot-changed-next184',
+                'projection' => 'json-table-generated-path-rowid-final-cost-projection-changed-next184',
+                'selectedRowids', 'materializedRowCount', 'missingRowids' => 'json-table-generated-path-rowid-final-cost-rowset-changed-next184',
+                'residualConstraintColumns' => 'json-table-generated-path-rowid-final-cost-residual-changed-next184',
+                'coveringSnapshot', 'cursorDisposition' => 'json-table-generated-path-rowid-final-cost-admission-changed-next184',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-final-cost-cost-changed-next184',
+                default => 'json-table-generated-path-rowid-final-cost-state-changed-next184',
             };
         }
 

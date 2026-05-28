@@ -1002,6 +1002,14 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function rowValueTupleList(string $sql, array $row): array
     {
+        $sql = trim($sql);
+        if (preg_match('/^VALUES\b(.*)$/is', $sql, $match) === 1) {
+            $sql = trim($match[1]);
+            if ($sql === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value VALUES list must contain row tuples');
+            }
+        }
+
         $tuples = [];
         foreach (self::splitComma($sql) as $tuple) {
             $tuple = trim($tuple);
