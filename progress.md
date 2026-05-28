@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 02:37 UTC):
+  Batch80/81 clean subset is integrated and root-verified in the rolling clean
+  integration worktree while 11 batch82 workers continue in tmux `main`.
+  Implementation source advanced to
+  `161753b157481a9aad91ee442fdd64f9903f7763` (`Integrate libsqlite batch
+  80 81 subset`). Accepted handoffs: btree80, pager80, vfs80, attach81,
+  jsonagg81, jsonvt81, pragma81, sqlplan81, suite81, and wal81. `encoding80`
+  was held because its UTF-16 LIKE/GLOB cursor file already exists from the
+  accepted current-source subset and needs duplicate/rework review.
+  Verification passed: `php -l` for 32 changed PHP files, 9 changed WordPress
+  examples with valid JSON, conflict-marker scan, `git diff --check`, focused
+  changed tests `10 test files / 11198 assertions / 0 failures / 947 PASS
+  lines`, full libsqlite `570 test files / 67167 assertions / 0 failures /
+  31557 PASS lines`, and root `783 test files / 91635 assertions / 0 failures
+  / 34585 PASS lines`. This is `+543` libsqlite PASS lines over the just
+  published batch76/77/79 subset (`31014 -> 31557`); mapped upstream coverage
+  remains `465 / 1589`. Next decision: publish status/dashboard, consume
+  accepted batch80/81 markers/worktrees, keep the batch82 pool at 10-11 active
+  lanes, and continue intake by verified PASS-line movement.
+
 - 2026-05-28 supervisor continuation (shell samples 02:31 UTC):
   Batch76/77/79 verified subset plus attach/encoding78 overlap is integrated
   and root-verified in the rolling clean integration worktree. Implementation
