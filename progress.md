@@ -43,10 +43,33 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 2.0G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 9-10 libsqlite batch78/batch79/batch80 development workers with no long sleepers; keep refills bounded because disk remains critical.
+- Root filesystem: current sample reports `/` at 452G size with about 1.4G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 libsqlite batch83/batch84 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 02:40 UTC):
+  Batch82 clean subset is integrated and root-verified in the rolling clean
+  integration worktree while 11 batch83/batch84 workers continue in tmux
+  `main`. Implementation source advanced to
+  `5f6cdc0611d9a369216d3d43b71a70183980079e` (`Integrate libsqlite batch 82
+  subset`). Accepted handoffs: attach82, btree82, encoding82, jsonagg82,
+  pager82, pragma82, suite82, vfs82, and wal82. The one full-suite failure was
+  resolved by verifying that the row-value HAVING subquery now returns
+  `siteurl` and `home`, matching `/usr/bin/sqlite3` 3.51.2 for the same
+  fixture; the old unsupported-exception expectation was updated to count the
+  new SQLite-parity behavior. Verification passed: `php -l` for 27
+  changed/untracked PHP files, 8 changed WordPress examples with valid JSON,
+  conflict-marker scan, `git diff --check`, focused changed tests plus the
+  row-value regression `10 test files / 1849 assertions / 0 failures / 595
+  PASS lines`, full libsqlite `579 test files / 69024 assertions /
+  0 failures / 32160 PASS lines`, and root `792 test files / 93492
+  assertions / 0 failures / 35188 PASS lines`. This is `+603` libsqlite PASS
+  lines over the published batch80/81 subset (`31557 -> 32160`); mapped
+  upstream coverage moved to `466 / 1589`. Next decision: publish
+  status/dashboard, consume accepted batch82 markers/worktrees, keep the
+  batch83/batch84 pool at 10-11 active lanes, and continue intake by verified
+  PASS-line movement.
 
 - 2026-05-28 supervisor continuation (shell samples 02:37 UTC):
   Batch80/81 clean subset is integrated and root-verified in the rolling clean
