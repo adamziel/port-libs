@@ -137,7 +137,7 @@ final class SQLiteUpdateDeleteReturningSql
         string $conflictAction,
         string $rowIdColumn,
     ): array {
-        $rows = $plan->resultRows;
+        $rows = $plan->inputRows;
         $inputById = self::rowsById($plan->inputRows, $rowIdColumn);
         $mutationById = self::rowsById($plan->mutationRows, $rowIdColumn);
         $returningRows = [];
@@ -152,6 +152,7 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             $row = $mutationById[$rowId];
+            $rows = self::replaceRowById($rows, $rowIdColumn, $rowId, $row);
             $conflict = self::firstRowConflict($row, $rows, $uniqueConstraints, $rowIdColumn);
             if ($conflict === null) {
                 $returningRows[] = self::projectReturningRow($row, $projection);

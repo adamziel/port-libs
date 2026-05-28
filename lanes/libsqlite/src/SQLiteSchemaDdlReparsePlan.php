@@ -100,7 +100,10 @@ final class SQLiteSchemaDdlReparsePlan
             }
 
             $record = new SQLiteSchemaRecord('index', $name, $table, $nextRootPage++, self::normalizeCreateSql($trimmed), $nextRowId++);
+            $indexTerms = self::indexTerms($trimmed);
+            self::assertIndexTermsReferenceKnownColumns($records, $table, $indexTerms, $name);
             $records[] = $record;
+            $generatedReferences = self::generatedColumnReferences($records, $table, $indexTerms);
 
             return [
                 'kind' => 'create_index',
@@ -110,6 +113,12 @@ final class SQLiteSchemaDdlReparsePlan
                 'rowid' => $record->rowId,
                 'unique' => isset($matches['unique']) && trim((string) $matches['unique']) !== '',
                 'partial' => self::hasTopLevelWhere($trimmed),
+                'terms' => $indexTerms,
+                'term_count' => count($indexTerms),
+                'expression_terms' => array_values(array_filter($indexTerms, static fn (string $term): bool => self::isExpressionIndexTerm($term))),
+                'generated_column_references' => $generatedReferences,
+                'generated_column_reference_count' => count($generatedReferences),
+                'current_source_reparse' => $generatedReferences !== [] || self::hasTopLevelWhere($trimmed),
                 'changed' => true,
             ];
         }
@@ -555,6 +564,185 @@ final class SQLiteSchemaDdlReparsePlan
         }
 
         return preg_match('/(?<![A-Za-z0-9_$])' . preg_quote($name, '/') . '(?![A-Za-z0-9_$])/i', $record->sql) === 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function indexTerms(string $createIndexSql): array
+    {
+        $open = strpos($createIndexSql, '(');
+        if ($open === false) {
+            return [];
+        }
+        $close = self::matchingParen($createIndexSql, $open);
+        if ($close === null || $close <= $open) {
+            return [];
+        }
+
+        return array_map(
+            static fn (string $term): string => trim((string) preg_replace('/\s+/', ' ', $term)),
+            self::splitTopLevel(substr($createIndexSql, $open + 1, $close - $open - 1))
+        );
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @param list<string> $terms
+     * @return list<string>
+     */
+    private static function generatedColumnReferences(array $records, string $tableName, array $terms): array
+    {
+        $generated = [];
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        foreach ($catalog->execute('PRAGMA table_xinfo("' . str_replace('"', '""', $tableName) . '")')['rows'] ?? [] as $row) {
+            if (($row['hidden'] ?? 0) !== 0) {
+                $generated[] = (string) $row['name'];
+            }
+        }
+        if ($generated === []) {
+            return [];
+        }
+
+        $references = [];
+        foreach ($terms as $term) {
+            foreach ($generated as $column) {
+                if (self::sqlReferencesIdentifier($term, $column) && !in_array($column, $references, true)) {
+                    $references[] = $column;
+                }
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @param list<string> $terms
+     */
+    private static function assertIndexTermsReferenceKnownColumns(array $records, string $tableName, array $terms, string $indexName): void
+    {
+        $columns = self::tableColumnNames($records, $tableName);
+        foreach ($terms as $term) {
+            $identifier = self::simpleIndexTermIdentifier($term);
+            if ($identifier === null) {
+                continue;
+            }
+            if (!self::hasColumn($columns, $identifier)) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot create index {$indexName} on missing column {$identifier}");
+            }
+        }
+    }
+
+    private static function simpleIndexTermIdentifier(string $term): ?string
+    {
+        $trimmed = trim((string) preg_replace('/\s+(?:collate\s+(?:"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?(?:\s+)?(?:asc|desc)?\s*$/i', '', trim($term)));
+        if (preg_match('/^(?:"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        return self::unquoteIdentifier($trimmed);
+    }
+
+    private static function isExpressionIndexTerm(string $term): bool
+    {
+        return self::simpleIndexTermIdentifier($term) === null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitTopLevel(string $sql): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                $buffer .= $char;
+                if ($char === $quote) {
+                    if ($i + 1 < $length && $sql[$i + 1] === $quote) {
+                        $buffer .= $sql[++$i];
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                $buffer .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth = max(0, $depth - 1);
+            } elseif ($char === ',' && $depth === 0) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return $parts;
+    }
+
+    private static function matchingParen(string $sql, int $open): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if (($sql[$i + 1] ?? null) === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'" || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                $quote = ']';
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function sqlReferencesIdentifier(string $sql, string $identifier): bool
+    {
+        return preg_match('/(?<![A-Za-z0-9_])' . preg_quote($identifier, '/') . '(?![A-Za-z0-9_])/i', $sql) === 1;
     }
 
     /**
