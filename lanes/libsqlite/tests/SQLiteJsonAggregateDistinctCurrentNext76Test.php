@@ -203,8 +203,10 @@ $tests['json aggregate distinct current next76 rejects distinct star'] = static 
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_array(DISTINCT *) AS names FROM wp_options', $tables));
 };
 
-$tests['json aggregate distinct current next76 still rejects non column order expression'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT json_group_array(DISTINCT option_name ORDER BY option_id + 1) AS names FROM wp_options', $tables));
+$tests['json aggregate distinct current next76 accepts expression order term'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute('SELECT json_group_array(DISTINCT option_name ORDER BY option_id + 1) AS names FROM wp_options', $tables);
+
+    $t->same('["siteurl","blogname","plugin_rules","plugin_queue","empty_option"]', $rows[0]['names']);
 };
 
 $tests['json aggregate distinct current next76 rejects missing distinct argument'] = static function (TestRunner $t) use ($tables): void {

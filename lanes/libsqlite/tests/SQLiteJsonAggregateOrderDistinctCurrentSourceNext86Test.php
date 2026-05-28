@@ -268,11 +268,13 @@ $tests['json aggregate order distinct current source next86 rejects malformed di
     ));
 };
 
-$tests['json aggregate order distinct current source next86 still rejects non column desc expression'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+$tests['json aggregate order distinct current source next86 accepts desc expression order term'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
         'SELECT json_group_array(DISTINCT option_name ORDER BY option_id + 1 DESC) AS names FROM wp_options',
         $tables,
-    ));
+    );
+
+    $t->same('["empty_option","plugin_rules","plugin_queue","siteurl","blogname"]', $rows[0]['names']);
 };
 
 return $tests;

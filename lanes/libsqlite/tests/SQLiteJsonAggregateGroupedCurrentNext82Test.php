@@ -185,11 +185,13 @@ $tests['json aggregate grouped current next82 malformed order aggregate expressi
     ));
 };
 
-$tests['json aggregate grouped current next82 malformed having aggregate order expression still rejects unsupported order'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
-        'SELECT autoload FROM wp_options GROUP BY autoload HAVING json_group_array(option_name ORDER BY option_id + 1) IS NOT NULL',
+$tests['json aggregate grouped current next82 having aggregate accepts expression order'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
+        'SELECT autoload FROM wp_options GROUP BY autoload HAVING json_group_array(option_name ORDER BY option_id + 1) IS NOT NULL ORDER BY autoload',
         $tables,
-    ));
+    );
+
+    $t->same(['no', 'yes'], array_column($rows, 'autoload'));
 };
 
 $tests['json aggregate grouped current next82 malformed having distinct star still rejects'] = static function (TestRunner $t) use ($tables): void {

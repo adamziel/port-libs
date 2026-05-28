@@ -169,6 +169,22 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
     }
 
     /**
+     * @param array<string,array{schema_cookie:int,wal_schema_cookie?:int|null,temp_schema_cookie?:int|null,wal_frames?:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables?:list<string>,next_tables?:list<string>|null,file?:string|null,temp?:bool}> $schemas
+     * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool}> $statements
+     * @return array<string,mixed>
+     */
+    public static function currentSourceNext99(array $schemas, array $statements, string $sourceSchema = 'main'): array
+    {
+        $plan = self::plan($schemas, $statements, $sourceSchema);
+        $plan['operation'] = 'attach-temp-wal-schema-cookie-current-source-next99';
+        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-current-source-next99';
+        $plan['dependencies'][] = 'sqlite-with-cte-schema-cookie-source-filter';
+        $plan['dependencies'][] = 'sqlite-recursive-cte-attach-temp-wal-source';
+
+        return $plan;
+    }
+
+    /**
      * @param array<string,array<string,mixed>> $schemas
      * @return array<string,array{schema_cookie:int,wal_schema_cookie:int|null,temp_schema_cookie:int|null,wal_frames:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables:list<string>,next_tables:list<string>|null,file:string|null,temp:bool}>
      */
@@ -345,6 +361,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
             throw new \InvalidArgumentException('SQLite prepared SQL statement cannot be empty');
         }
 
+        $cteNames = self::cteNames($normalized);
         $tables = [];
         $patterns = [
             '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)/i',
@@ -356,6 +373,9 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
             }
             foreach ($matches[1] as $match) {
                 $table = self::normalizeSqlName($match);
+                if (!str_contains($table, '.') && in_array($table, $cteNames, true)) {
+                    continue;
+                }
                 if (!in_array($table, $tables, true)) {
                     $tables[] = $table;
                 }
@@ -367,6 +387,58 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
         }
 
         return $tables;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function cteNames(string $sql): array
+    {
+        if (preg_match('/^\s*WITH\s+(?:RECURSIVE\s+)?/i', $sql, $match) !== 1) {
+            return [];
+        }
+
+        $offset = strlen($match[0]);
+        $names = [];
+        $length = strlen($sql);
+        while ($offset < $length) {
+            $remaining = substr($sql, $offset);
+            if (preg_match('/^\s*((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))/i', $remaining, $nameMatch) !== 1) {
+                break;
+            }
+            $name = self::plainName($nameMatch[1]);
+            if (!in_array($name, $names, true)) {
+                $names[] = $name;
+            }
+            $offset += strpos($remaining, $nameMatch[1]) + strlen($nameMatch[1]);
+            $afterName = substr($sql, $offset);
+            if (preg_match('/^(?:\s*\([^)]*\))?\s+AS\s*\(/i', $afterName, $asMatch) !== 1) {
+                break;
+            }
+            $offset += strlen($asMatch[0]) - 1;
+            $depth = 0;
+            for (; $offset < $length; ++$offset) {
+                $char = $sql[$offset];
+                if ($char === '(') {
+                    ++$depth;
+                } elseif ($char === ')') {
+                    --$depth;
+                    if ($depth === 0) {
+                        ++$offset;
+                        break;
+                    }
+                }
+            }
+            while ($offset < $length && ctype_space($sql[$offset])) {
+                ++$offset;
+            }
+            if (($sql[$offset] ?? '') !== ',') {
+                break;
+            }
+            ++$offset;
+        }
+
+        return $names;
     }
 
     private static function statementName(array $statement, int $index): string
@@ -381,6 +453,10 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
 
     private static function statementReadOnly(string $sql): bool
     {
+        if (preg_match('/^\s*WITH\b.*\b(?:INSERT|UPDATE|DELETE)\b/is', $sql) === 1) {
+            return false;
+        }
+
         return preg_match('/^\s*(?:SELECT|WITH|PRAGMA)\b/i', $sql) === 1;
     }
 

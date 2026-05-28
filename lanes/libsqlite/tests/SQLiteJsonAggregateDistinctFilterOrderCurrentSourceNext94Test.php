@@ -230,11 +230,13 @@ $tests['json aggregate distinct filter order current source next94 rejects malfo
     ));
 };
 
-$tests['json aggregate distinct filter order current source next94 rejects non column second order expression'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
+$tests['json aggregate distinct filter order current source next94 accepts expression second order term'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute(
         'SELECT json_group_array(DISTINCT option_name ORDER BY priority DESC, option_id + 1 ASC) FILTER (WHERE enabled) AS names FROM wp_options',
         $tables,
-    ));
+    );
+
+    $t->same('["plugin_rules","plugin_queue","siteurl","theme_mods","empty_option"]', $rows[0]['names']);
 };
 
 return $tests;

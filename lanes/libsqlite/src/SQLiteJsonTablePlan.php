@@ -1004,6 +1004,55 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceRowidHiddenConstraintPlannerNext99(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceHiddenRowidPlannerNext94(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentAliases = self::rowidAliasConstraintProvenance99($constraints, $plan['current']['constraintUsage']);
+        $nextAliases = self::rowidAliasConstraintProvenance99($constraints, $plan['next']['constraintUsage']);
+        $aliasTransition = [
+            'current' => array_column($currentAliases, 'originalColumn'),
+            'next' => array_column($nextAliases, 'originalColumn'),
+        ];
+        $aliasTransition['changed'] = $aliasTransition['current'] !== $aliasTransition['next'];
+
+        $plan['currentRowidAliasConstraints'] = $currentAliases;
+        $plan['nextRowidAliasConstraints'] = $nextAliases;
+        $plan['rowidAliasTransition'] = $aliasTransition;
+        $plan['next99ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next94ReplanReasons'],
+            $aliasTransition['changed'] ? ['hidden-rowid-alias-provenance-changed'] : [],
+        )));
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-rowid-hidden-constraint-current-source-next99'],
+        )));
+
+        return $plan;
+    }
+
+    /**
      * @param list<array<string,mixed>> $currentHostRows
      * @param list<array<string,mixed>> $nextHostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
@@ -1816,6 +1865,48 @@ final class SQLiteJsonTablePlan
         }
 
         return $rowid;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     * @return list<array{constraintIndex:int,originalColumn:string,normalizedColumn:string,operator:string,usable:bool,source:string}>
+     */
+    private static function rowidAliasConstraintProvenance99(array $constraints, array $usage): array
+    {
+        $aliases = [];
+        foreach ($constraints as $index => $constraint) {
+            $column = strtolower((string) ($constraint['column'] ?? ''));
+            if (!self::isRowIdAlias($column)) {
+                continue;
+            }
+
+            $aliases[] = [
+                'constraintIndex' => $index,
+                'originalColumn' => $column,
+                'normalizedColumn' => 'id',
+                'operator' => strtoupper((string) ($constraint['operator'] ?? '')),
+                'usable' => (bool) ($constraint['usable'] ?? true),
+                'source' => 'source-constraint',
+            ];
+        }
+
+        foreach ($usage as $entry) {
+            if (($entry['kind'] ?? null) !== 'residual' || !self::isRowIdAlias((string) ($entry['column'] ?? ''))) {
+                continue;
+            }
+
+            $aliases[] = [
+                'constraintIndex' => (int) $entry['constraintIndex'],
+                'originalColumn' => (string) $entry['column'],
+                'normalizedColumn' => 'id',
+                'operator' => (string) $entry['operator'],
+                'usable' => (bool) $entry['usable'],
+                'source' => 'xbestindex-residual',
+            ];
+        }
+
+        return $aliases;
     }
 
     /**

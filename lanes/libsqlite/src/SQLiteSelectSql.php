@@ -1978,6 +1978,7 @@ final class SQLiteSelectSql
         if (str_contains($column, '.')) {
             $column = substr($column, strrpos($column, '.') + 1);
         }
+        $originalColumn = $column;
         if ($column === 'rowid' || $column === '_rowid_' || $column === 'oid') {
             $column = 'id';
         }
@@ -1987,6 +1988,7 @@ final class SQLiteSelectSql
 
         return [
             'column' => $column,
+            'originalColumn' => $originalColumn,
             'operator' => '=',
             'value' => $literalExpression['value'],
             'usable' => true,
@@ -2244,6 +2246,7 @@ final class SQLiteSelectSql
                 'constraints' => array_map(
                     static fn (array $constraint): array => [
                         'column' => $constraint['column'],
+                        'originalColumn' => $constraint['originalColumn'] ?? $constraint['column'],
                         'operator' => '=',
                         'expression' => $constraint['sql'],
                     ],
@@ -2428,9 +2431,11 @@ final class SQLiteSelectSql
             return null;
         }
 
+        $originalColumn = self::jsonTableHiddenOriginalColumnName($predicate['left'], $alias);
         $column = self::jsonTableHiddenColumnName($predicate['left'], $alias);
         $expression = $predicate['right'];
         if ($column === null) {
+            $originalColumn = self::jsonTableHiddenOriginalColumnName($predicate['right'], $alias);
             $column = self::jsonTableHiddenColumnName($predicate['right'], $alias);
             $expression = $predicate['left'];
         }
@@ -2440,9 +2445,27 @@ final class SQLiteSelectSql
 
         return [
             'column' => $column,
+            'originalColumn' => $originalColumn ?? $column,
             'expression' => $expression,
             'sql' => self::expressionSql($expression),
         ];
+    }
+
+    private static function jsonTableHiddenOriginalColumnName(array $expression, string $alias): ?string
+    {
+        if (($expression['type'] ?? null) !== 'column' || !isset($expression['name']) || !is_string($expression['name'])) {
+            return null;
+        }
+
+        $name = strtolower($expression['name']);
+        $prefix = strtolower($alias) . '.';
+        if (!str_starts_with($name, $prefix)) {
+            return null;
+        }
+
+        $column = substr($name, strlen($prefix));
+
+        return in_array($column, ['json', 'root', 'rowid', '_rowid_', 'oid'], true) ? $column : null;
     }
 
     private static function removeJsonTableHiddenExpressionConstraintsForAlias(array $predicate, string $alias): ?array
@@ -3882,9 +3905,6 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs one column argument");
             }
             foreach (self::jsonAggregateOrderTerms($term, $name) as $orderTerm) {
-                if (($orderTerm['expression']['type'] ?? null) !== 'column' || !isset($orderTerm['expression']['name']) || !is_string($orderTerm['expression']['name'])) {
-                    throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY needs column expressions");
-                }
                 if (!in_array($orderTerm['direction'], ['ASC', 'DESC'], true)) {
                     throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY direction must be ASC or DESC");
                 }
@@ -3951,11 +3971,13 @@ final class SQLiteSelectSql
                 'column' => $arguments[0]['name'],
             ];
             if (isset($term['orderBy'])) {
-                $spec['orderBy'] = $term['orderBy']['name'];
+                if (($term['orderBy']['type'] ?? null) === 'column' && isset($term['orderBy']['name']) && is_string($term['orderBy']['name'])) {
+                    $spec['orderBy'] = $term['orderBy']['name'];
+                }
                 $spec['orderDirection'] = strtoupper((string) ($term['orderDirection'] ?? 'ASC'));
                 $spec['orderByTerms'] = array_map(
                     static fn (array $orderTerm): array => [
-                        'column' => $orderTerm['expression']['name'],
+                        'expression' => $orderTerm['expression'],
                         'direction' => $orderTerm['direction'],
                     ],
                     self::jsonAggregateOrderTerms($term, strtolower($term['name'])),
@@ -4024,7 +4046,7 @@ final class SQLiteSelectSql
         if (isset($term['orderBy'])) {
             $orderParts = [];
             foreach (self::jsonAggregateOrderTerms($term, strtolower((string) $term['name'])) as $orderTerm) {
-                $orderParts[] = str_replace(['.', '-'], '_', $orderTerm['expression']['name'])
+                $orderParts[] = self::jsonAggregateOrderTermLabel($orderTerm['expression'])
                     . ($orderTerm['direction'] === 'DESC' ? 'Desc' : 'Asc');
             }
             $name .= 'OrderBy' . implode('_', $orderParts);
@@ -4034,6 +4056,18 @@ final class SQLiteSelectSql
         }
 
         return $name . '_' . $column;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function jsonAggregateOrderTermLabel(array $expression): string
+    {
+        if (($expression['type'] ?? null) === 'column' && isset($expression['name']) && is_string($expression['name'])) {
+            return str_replace(['.', '-'], '_', $expression['name']);
+        }
+
+        return 'expr' . substr(sha1(json_encode($expression, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: serialize($expression)), 0, 12);
     }
 
     /**

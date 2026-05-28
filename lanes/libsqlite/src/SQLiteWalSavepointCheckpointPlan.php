@@ -1144,6 +1144,141 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function checkpointReaderSavepointCurrentSourceNext99(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $pinnedReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader checkpoint current-source next99 requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader checkpoint current-source next99 requires restart or truncate mode');
+        }
+
+        self::assertCurrentWalSource($wal, $walBytes);
+
+        $pinned = self::checkpointReaderSavepointCurrentSourceNext90(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $pinnedReaderEndFrame
+        );
+        $released = self::checkpointReaderSavepointReleaseCurrentSourceNext94(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $pinnedReaderEndFrame
+        );
+
+        $retainedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $retainedDurable = $retainedWal->durableCheckpointResult($databaseBytes, $mode, $pinned['current_reader_end_frame']);
+        $releasedDurable = $retainedWal->durableCheckpointResult($databaseBytes, $mode);
+
+        $rows = [];
+        foreach ($pinned['current_source_rows'] as $index => $row) {
+            $releasedRow = $released['current_source_rows'][$index];
+            $rows[] = [
+                'page_number' => (int) $row['page_number'],
+                'before_source' => (string) $row['before_source'],
+                'current_source' => (string) $row['current_source'],
+                'pinned_next_source' => (string) $row['next_source'],
+                'released_next_source' => (string) $releasedRow['released_next_source'],
+                'before_frame' => $row['before_frame'],
+                'current_frame' => $row['current_frame'],
+                'pinned_next_frame' => $row['next_frame'],
+                'released_next_frame' => $releasedRow['released_next_frame'],
+                'rollback_changed_current' => (bool) $row['rollback_changed_current'],
+                'pinned_checkpoint_changed_next' => (bool) $row['checkpoint_changed_next'],
+                'released_changed_from_pinned' => (bool) $releasedRow['released_changed_from_pinned'],
+                'source_transition' => $row['before_source'] . '>' . $row['current_source'] . '>' . $row['next_source'] . '>' . $releasedRow['released_next_source'],
+                'current_label' => (string) $row['current_label'],
+                'pinned_next_label' => (string) $row['next_label'],
+                'released_next_label' => (string) $releasedRow['released_label'],
+            ];
+        }
+
+        $pinnedNextSource = [
+            'kind' => $retainedDurable['wal_action'],
+            'checkpoint_sequence' => is_array($retainedDurable['wal_header']) ? $retainedDurable['wal_header']['checkpoint_sequence'] : null,
+            'salt1' => is_array($retainedDurable['wal_header']) ? $retainedDurable['wal_header']['salt1'] : null,
+            'salt2' => is_array($retainedDurable['wal_header']) ? $retainedDurable['wal_header']['salt2'] : null,
+            'page_size' => $wal->header->pageSize,
+            'frame_count' => $retainedDurable['wal_bytes'] === '' ? 0 : SQLiteWal::parse($retainedDurable['wal_bytes'], $wal->header->pageSize, true)->frameCount(),
+            'wal_bytes_length' => strlen((string) $retainedDurable['wal_bytes']),
+            'database_bytes_length' => strlen((string) $retainedDurable['database_bytes']),
+        ];
+
+        return [
+            'status' => $pinned['checkpoint_busy'] && !$released['released_checkpoint_busy']
+                ? 'reader-release-checkpoint-current-source-next99'
+                : 'reader-checkpoint-' . ($pinned['checkpoint_busy'] ? 'busy' : 'ready'),
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'pinned_checkpoint_busy' => $pinned['checkpoint_busy'],
+            'pinned_checkpoint_reason' => $pinned['checkpoint_reason'],
+            'pinned_wal_action' => $pinned['wal_action'],
+            'released_checkpoint_busy' => $released['released_checkpoint_busy'],
+            'released_checkpoint_reason' => $released['released_checkpoint_reason'],
+            'released_wal_action' => $released['released_wal_action'],
+            'original_reader_end_frame' => $pinned['original_reader_end_frame'],
+            'current_reader_end_frame' => $pinned['current_reader_end_frame'],
+            'pinned_next_reader_end_frame' => $pinned['next_reader_end_frame'],
+            'released_next_reader_end_frame' => $released['released_next_reader_end_frame'],
+            'retained_frame_count' => $pinned['retained_frame_count'],
+            'discarded_frame_count' => $pinned['discarded_frame_count'],
+            'current_source_verified' => true,
+            'current_source' => $pinned['current_source'] + ['wal_sha256' => hash('sha256', $walBytes)],
+            'retained_source' => $pinned['retained_source'] + ['wal_sha256' => hash('sha256', $retainedWalBytes)],
+            'pinned_next_source' => $pinnedNextSource,
+            'released_source' => $released['released_source'],
+            'frame_source_rows' => $pinned['frame_source_rows'],
+            'commit_frame_indexes' => $pinned['commit_frame_indexes'],
+            'current_source_rows' => $rows,
+            'current_sources' => $pinned['current_sources'],
+            'pinned_next_sources' => $pinned['next_sources'],
+            'released_next_sources' => $released['released_next_sources'],
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'pinned_next_source_counts' => array_count_values($pinned['next_sources']),
+            'released_next_source_counts' => array_count_values($released['released_next_sources']),
+            'rolled_back_page_numbers' => $pinned['rolled_back_page_numbers'],
+            'rolled_back_frame_indexes' => $pinned['rolled_back_frame_indexes'],
+            'current_uses_rollback_prefix' => $pinned['current_uses_rollback_prefix'],
+            'pinned_reader_preserves_wal' => $pinned['next_uses_preserved_wal'],
+            'released_reader_uses_checkpoint_database' => $released['released_reader_uses_checkpoint_database'],
+            'reader_release_unblocked_checkpoint' => $released['reader_release_unblocked_checkpoint'],
+            'pinned_images_match' => $pinned['images_match'],
+            'released_images_match' => $released['current_reader_preserved_by_pinned_checkpoint'],
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'yield_count' => $released['yield_count'] + count($pinned['frame_source_rows']),
+            'dependencies' => array_values(array_unique(array_merge(
+                $pinned['dependencies'],
+                $released['dependencies'],
+                ['sqlite-wal-savepoint-reader-checkpoint-current-source-next99']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
      */
     public static function releaseThenRollbackCheckpointCurrentNext(

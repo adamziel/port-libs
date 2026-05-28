@@ -51,13 +51,24 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext99(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-current-source-next99', true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function run(
         array $operations,
         array $options,
         bool $uriAware,
         string $dependency,
         bool $lockRequiredForWriteControl = false,
-        bool $persistWalRequiresWriteLock = false
+        bool $persistWalRequiresWriteLock = false,
+        bool $trackCurrentSourceGeneration = false
     ): array {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
@@ -71,7 +82,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($op, $options, $state, $uriAware);
+                $handle = self::openHandle($op, $options, $state, $uriAware, $trackCurrentSourceGeneration);
                 $state['handles'][$handle['id']] = $handle;
                 $state['last_open'] = $handle['id'];
                 $events[] = self::event('open', $handle['status'], $before, self::snapshot($state), [
@@ -98,6 +109,26 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                 $control = self::controlName((string) $op['control']);
                 $value = self::controlValue($control, $op['value']);
                 $previous = $handle['controls'][$control] ?? null;
+                if ($trackCurrentSourceGeneration && $control === 'data_version' && $op['value'] === null) {
+                    $sourceKey = (string) $handle['source_key'];
+                    $currentGeneration = self::sourceGeneration($state, $sourceKey);
+                    $openedGeneration = (int) ($handle['source_generation'] ?? $currentGeneration);
+                    unset($handle);
+
+                    $events[] = self::event('filecontrol', 'ok', $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'file_control' => $control,
+                        'value' => $currentGeneration,
+                        'previous' => $openedGeneration,
+                        'changed' => false,
+                        'reason' => null,
+                        'lock_state' => (string) ($before['handles'][$handleId]['lock_state'] ?? 'unlocked'),
+                        'source_generation' => $currentGeneration,
+                        'opened_generation' => $openedGeneration,
+                        'stale_current_source' => $openedGeneration !== $currentGeneration,
+                    ]);
+                    continue;
+                }
                 $requiresWrite = self::writeControl($control, $persistWalRequiresWriteLock);
                 $lockState = (string) $handle['lock_state'];
                 $reason = null;
@@ -116,10 +147,17 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     }
                     if ($handle['persistent']) {
                         $state['persistent_controls'][$handle['source_key']] = self::persistentSubset($handle['controls']);
+                        if ($trackCurrentSourceGeneration && $requiresWrite && $previous !== $value) {
+                            $state['persistent_generations'][$handle['source_key']] = self::sourceGeneration($state, (string) $handle['source_key']) + 1;
+                            $handle['source_generation'] = $state['persistent_generations'][$handle['source_key']];
+                        }
                     }
                 }
                 unset($handle);
 
+                $staleHandles = $trackCurrentSourceGeneration
+                    ? self::staleHandles($state, (string) ($before['handles'][$handleId]['source_key'] ?? ''))
+                    : [];
                 $events[] = self::event('filecontrol', $status, $before, self::snapshot($state), [
                     'handle' => $handleId,
                     'file_control' => $control,
@@ -128,6 +166,8 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
                     'changed' => $status === 'ok' && $previous !== $value,
                     'reason' => $reason,
                     'lock_state' => $lockState,
+                    'source_generation' => $trackCurrentSourceGeneration ? self::sourceGeneration($state, (string) ($before['handles'][$handleId]['source_key'] ?? '')) : null,
+                    'stale_handles' => $staleHandles,
                 ]);
                 continue;
             }
@@ -202,7 +242,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
     private static function normalizeCurrent(mixed $current): array
     {
         if (!is_array($current)) {
-            return ['sequence' => 0, 'last_open' => null, 'handles' => [], 'persistent_controls' => [], 'persistent_locks' => []];
+            return ['sequence' => 0, 'last_open' => null, 'handles' => [], 'persistent_controls' => [], 'persistent_locks' => [], 'persistent_generations' => []];
         }
 
         return [
@@ -211,6 +251,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
             'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
             'persistent_locks' => is_array($current['persistent_locks'] ?? null) ? $current['persistent_locks'] : [],
+            'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
         ];
     }
 
@@ -220,7 +261,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function openHandle(array $op, array $options, array &$state, bool $uriAware): array
+    private static function openHandle(array $op, array $options, array &$state, bool $uriAware, bool $trackCurrentSourceGeneration = false): array
     {
         $state['sequence']++;
         $filename = (string) ($op['filename'] ?? '');
@@ -233,6 +274,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         $sourceKey = $memory ? 'memory:db-' . $state['sequence'] : $path;
         $controls = $memory ? [] : ($state['persistent_controls'][$sourceKey] ?? []);
         $lock = $memory ? 'unlocked' : (string) ($state['persistent_locks'][$sourceKey] ?? 'unlocked');
+        $generation = $memory ? 1 : self::sourceGeneration($state, $sourceKey);
 
         if (!is_array($controls)) {
             $controls = [];
@@ -253,6 +295,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'lock_state' => $lock,
             'reused_controls' => $controls !== [],
             'reused_lock' => $lock !== 'unlocked',
+            'source_generation' => $trackCurrentSourceGeneration ? $generation : null,
         ];
     }
 
@@ -433,6 +476,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         ksort($state['handles']);
         ksort($state['persistent_controls']);
         ksort($state['persistent_locks']);
+        ksort($state['persistent_generations']);
 
         return $state;
     }
@@ -455,7 +499,45 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'open_paths' => $openPaths,
             'persistent_control_count' => count($state['persistent_controls']),
             'persistent_lock_count' => count(array_filter($state['persistent_locks'], static fn (mixed $level): bool => $level !== 'unlocked')),
+            'persistent_generation_count' => count($state['persistent_generations']),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function sourceGeneration(array $state, string $sourceKey): int
+    {
+        $generation = $state['persistent_generations'][$sourceKey] ?? null;
+        if (is_int($generation) && $generation > 0) {
+            return $generation;
+        }
+
+        return 1;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return list<string>
+     */
+    private static function staleHandles(array $state, string $sourceKey): array
+    {
+        if ($sourceKey === '') {
+            return [];
+        }
+
+        $generation = self::sourceGeneration($state, $sourceKey);
+        $stale = [];
+        foreach ($state['handles'] as $id => $handle) {
+            if (($handle['source_key'] ?? null) !== $sourceKey) {
+                continue;
+            }
+            if ((int) ($handle['source_generation'] ?? $generation) !== $generation) {
+                $stale[] = (string) $id;
+            }
+        }
+
+        return $stale;
     }
 
     /**

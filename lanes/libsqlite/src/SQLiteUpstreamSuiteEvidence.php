@@ -9173,6 +9173,91 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function suiteReleaseRunnerCountabilityCurrentSourceNext99(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextAcceptedHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $releaseBlockers = [];
+        foreach ($artifactRows as $label => $row) {
+            $unit = is_array($row) && is_string($row['unit'] ?? null) && $row['unit'] !== ''
+                ? $row['unit']
+                : (is_string($label) ? $label : 'current-source-next99-artifact');
+            $command = is_array($row) && is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            $scripts = is_array($row) && is_array($row['scripts'] ?? null) ? $row['scripts'] : [];
+            $hasReleaseCommand = preg_match('/(?:^|\s)release(?:\s|$)/', $command) === 1;
+            $hasReleaseScript = in_array('testrunner.test', $scripts, true);
+
+            if (!$hasReleaseCommand || !$hasReleaseScript) {
+                $releaseBlockers[] = [
+                    'id' => 'current-source-next99-release-runner-command-blocked',
+                    'unit' => $unit,
+                    'evidence' => 'current-source next99 countability admits only guarded release-runner artifacts with release command scope and testrunner.test provenance',
+                ];
+            }
+        }
+
+        $record = $this->suiteUpstreamRunnerAdmissionBurnupCurrentSourceNext94(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextAcceptedHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $blockers = array_merge($releaseBlockers, is_array($record['blockers'] ?? null) ? $record['blockers'] : []);
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && ($record['admitted_units'] ?? []) !== [] ? 1 : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next99-release-runner-countability-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next99-release-runner-countability-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next99-release-runner-countability-countable';
+        $record['blocker_count'] = count($blockers);
+        $record['blockers'] = $blockers;
+        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['counts_upstream_runner_admission_burnup_current_source_next94'] = false;
+        $record['counts_release_runner_countability_current_source_next99'] = $status === 'current-source-next99-release-runner-countability-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next99-release-runner-countability-countable'
+            ? 'publish only the current-source next99 release-runner countability row and exact focused PASS-line movement; release/all parity remains gated on a separate broad zero-error artifact'
+            : 'keep current-source next99 release-runner countability uncounted until source provenance, lane-local artifacts, guarded release runner rows, duplicate-runner, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next99 release-runner countability composes lane-local artifact rows, launcher Base accepted HEAD provenance, dashboard/status/implementation heads, guarded release-runner commands, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array

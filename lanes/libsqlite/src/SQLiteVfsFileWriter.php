@@ -1197,6 +1197,127 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param array<string,string> $statementJournalPaths statement journal name to VFS path.
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null,current_source:array<string, mixed>,statement_journals:array<string, mixed>,next_statement:array<string, mixed>,atomic:bool}
+     */
+    public function applySavepointRollbackAndBeginNextStatementFromCurrentSourceNext99(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databasePath,
+        int $pageSize,
+        string $nextStatementName,
+        string $nextStatementJournalPath,
+        int $nextPageNumber,
+        bool $commitFrame = false,
+        array $statementJournalPaths = [],
+        ?string $walPath = null,
+    ): array {
+        if ($nextStatementName === '') {
+            throw new \InvalidArgumentException('SQLite savepoint current-source next statement requires a statement name');
+        }
+        if ($nextStatementJournalPath === '') {
+            throw new \InvalidArgumentException('SQLite savepoint current-source next statement requires a journal path');
+        }
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite savepoint current-source next statement page numbers are one-based');
+        }
+
+        $databaseLocalPath = $this->localPath($databasePath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite savepoint current-source database is missing: {$databasePath}");
+        }
+
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        if ($pageSize < 1 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite savepoint current-source database bytes must be aligned to a positive page size');
+        }
+
+        $databaseImage = $savepoints->rollbackToDatabaseImage($savepoint, $databaseBytes, $pageSize);
+        $nextOffset = ($nextPageNumber - 1) * $pageSize;
+        $nextBeforeImage = substr($databaseImage, $nextOffset, $pageSize);
+        if (strlen($nextBeforeImage) !== $pageSize) {
+            throw new \InvalidArgumentException("SQLite savepoint current-source next statement page {$nextPageNumber} is outside the database image");
+        }
+
+        $transition = clone $savepoints;
+        $nextStatementPlan = $transition->rollbackToCurrentAndBeginNextStatementJournal66(
+            $savepoint,
+            $nextStatementName,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $pageSize,
+            $commitFrame
+        );
+
+        $applied = $this->applySavepointRollbackFromCurrentSourceNext94(
+            $savepoints,
+            $savepoint,
+            $databasePath,
+            $pageSize,
+            $statementJournalPaths,
+            $walPath
+        );
+
+        $statementOperations = [
+            [
+                'op' => 'write',
+                'path' => $nextStatementJournalPath,
+                'offset' => 0,
+                'bytes' => strlen($nextBeforeImage),
+                'durable' => false,
+                'reason' => 'write_next_statement_journal_after_current_source_savepoint_rollback',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $nextStatementJournalPath,
+                'durable' => true,
+                'reason' => 'sync_next_statement_journal_after_current_source_savepoint_rollback',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($nextStatementJournalPath),
+                'durable' => true,
+                'reason' => 'persist_next_statement_journal_after_current_source_savepoint_rollback',
+            ],
+        ];
+        $statementApplied = $this->applyAtomicOperations(
+            $statementOperations,
+            [$nextStatementJournalPath => $nextBeforeImage],
+            [
+                'sqlite-savepoint-journal-filehandle-current-source-next99',
+                'sqlite-statement-journal-current-next66',
+                'vfs-file-write-coordination',
+            ]
+        );
+
+        $applied['applied'] += $statementApplied['applied'];
+        $applied['bytes_written'] += $statementApplied['bytes_written'];
+        $applied['bytes_truncated'] += $statementApplied['bytes_truncated'];
+        $applied['files_deleted'] += $statementApplied['files_deleted'];
+        $applied['durable_syncs'] += $statementApplied['durable_syncs'];
+        $applied['directory_syncs'] += $statementApplied['directory_syncs'];
+        $applied['operations'] = array_values(array_merge($applied['operations'], $statementApplied['operations']));
+        $applied['dependencies'] = array_values(array_unique(array_merge(
+            $applied['dependencies'],
+            $statementApplied['dependencies'],
+            ['sqlite-savepoint-journal-filehandle-current-source-next99']
+        )));
+        $applied['next_statement'] = [
+            'name' => $nextStatementName,
+            'journal_path' => $nextStatementJournalPath,
+            'page_number' => $nextPageNumber,
+            'page_offset' => $nextOffset,
+            'bytes' => strlen($nextBeforeImage),
+            'source_prefix' => rtrim(substr($nextBeforeImage, 0, min(64, $pageSize)), "\0"),
+            'plan' => $nextStatementPlan,
+            'journal_apply' => $statementApplied,
+        ];
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<int> $visiblePages
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint:array<string, mixed>,reader_boundary:array<string, mixed>,atomic:bool}
      */
