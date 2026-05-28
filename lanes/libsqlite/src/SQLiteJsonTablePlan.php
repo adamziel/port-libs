@@ -2048,6 +2048,70 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenGeneratedCostNext148(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        if ($generatedConstraints === []) {
+            throw new \InvalidArgumentException('SQLite JSON table hidden generated cost planner requires generated constraints');
+        }
+
+        $plan = self::currentSourceHiddenPathGeneratedNext143(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableHiddenGeneratedCostProfile148(
+            $plan['currentHiddenPathGeneratedSource'],
+            $constraints,
+        );
+        $nextProfile = self::jsonTableHiddenGeneratedCostProfile148(
+            $plan['nextHiddenPathGeneratedSource'],
+            $constraints,
+        );
+        $transitions = self::jsonTableHiddenGeneratedCostTransitions148($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenGeneratedCostReplanReasons148($transitions);
+
+        $plan['currentHiddenGeneratedCost'] = $currentProfile;
+        $plan['nextHiddenGeneratedCost'] = $nextProfile;
+        $plan['hiddenGeneratedCostTransitions'] = $transitions;
+        $plan['next148ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next143ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next148ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-generated-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next148ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-generated-cost-plan'
+            : 'prepare-next-json-table-hidden-generated-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-generated-cost-current-source-next148'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceHiddenRowidOrderNext135(
@@ -8595,6 +8659,203 @@ final class SQLiteJsonTablePlan
                 'generatedValues', 'matchedValueFingerprint' => 'json-table-hidden-path-generated-value-changed',
                 'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-path-generated-cost-changed',
                 default => 'json-table-hidden-path-generated-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $generated
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{seekSignature:string|null,sourceKind:string,matched:bool,generatedMatched:bool,usableGeneratedConstraintCount:int,residualGeneratedConstraintCount:int,hiddenConstraintColumns:list<string>,constraintUsage:list<array<string,mixed>>,argvBindings:list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}>,omitColumns:list<string>,residualColumns:list<string>,estimatedRows:int,estimatedCost:int,costClass:string,matchedRowid:int|null,matchedFullkey:string|null,generatedValues:array<string,mixed>,planFingerprint:string}
+     */
+    private static function jsonTableHiddenGeneratedCostProfile148(array $generated, array $constraints): array
+    {
+        $constraintUsage = [];
+        $argvBindings = [];
+        $hiddenColumns = [];
+        $omitColumns = [];
+        $residualColumns = [];
+        $argvIndex = 1;
+
+        foreach ($constraints as $constraint) {
+            $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
+            if ($column === '') {
+                continue;
+            }
+            $operator = strtoupper((string) ($constraint['operator'] ?? '='));
+            $usable = (bool) ($constraint['usable'] ?? true);
+            $hidden = in_array($column, ['json', 'root', 'path', 'id'], true);
+            if ($hidden) {
+                $hiddenColumns[] = $column;
+            }
+            $omit = $usable && $hidden && in_array($operator, ['=', 'IS', 'IS NOT DISTINCT FROM'], true);
+            if ($omit) {
+                $omitColumns[] = $column;
+            } elseif ($usable) {
+                $residualColumns[] = $column;
+            }
+
+            $usage = [
+                'column' => $column,
+                'operator' => $operator,
+                'usable' => $usable,
+                'hidden' => $hidden,
+                'argvIndex' => $usable ? $argvIndex : null,
+                'omit' => $omit,
+            ];
+            $constraintUsage[] = $usage;
+            if ($usable) {
+                $argvBindings[] = [
+                    'argvIndex' => $argvIndex,
+                    'column' => $column,
+                    'operator' => $operator,
+                    'value' => $constraint['value'] ?? null,
+                    'omit' => $omit,
+                    'kind' => $hidden ? 'hidden' : 'visible',
+                ];
+                $argvIndex++;
+            }
+        }
+
+        $generatedTape = $generated['generatedTape'] ?? [];
+        $usableGenerated = array_values(array_filter(
+            $generatedTape,
+            static fn (array $entry): bool => (bool) ($entry['usable'] ?? true),
+        ));
+        $residualGenerated = array_values(array_filter(
+            $generatedTape,
+            static fn (array $entry): bool => !($entry['usable'] ?? true),
+        ));
+        $matched = (bool) ($generated['matched'] ?? false);
+        $generatedMatched = (bool) ($generated['generatedMatched'] ?? false);
+        $baseCost = (int) ($generated['effectiveEstimatedCost'] ?? 1000000);
+        $sourceKind = (string) ($generated['sourceKind'] ?? 'missing');
+        $estimatedRows = self::jsonTableHiddenGeneratedEstimatedRows148($matched, $generatedMatched, count($usableGenerated), count($residualGenerated));
+        $estimatedCost = self::jsonTableHiddenGeneratedEstimatedCost148($baseCost, $estimatedRows, count($usableGenerated), count($residualGenerated), $sourceKind);
+
+        return [
+            'seekSignature' => $generated['seekSignature'] ?? null,
+            'sourceKind' => $sourceKind,
+            'matched' => $matched,
+            'generatedMatched' => $generatedMatched,
+            'usableGeneratedConstraintCount' => count($usableGenerated),
+            'residualGeneratedConstraintCount' => count($residualGenerated),
+            'hiddenConstraintColumns' => array_values(array_unique($hiddenColumns)),
+            'constraintUsage' => $constraintUsage,
+            'argvBindings' => $argvBindings,
+            'omitColumns' => array_values(array_unique($omitColumns)),
+            'residualColumns' => array_values(array_unique($residualColumns)),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableHiddenGeneratedCostClass148($sourceKind, $matched, $generatedMatched, count($usableGenerated), count($residualGenerated)),
+            'matchedRowid' => $generated['matchedRowid'] ?? null,
+            'matchedFullkey' => $generated['matchedFullkey'] ?? null,
+            'generatedValues' => $generated['generatedValues'] ?? [],
+            'planFingerprint' => self::jsonTableHiddenGeneratedPlanFingerprint148($generated, $argvBindings, $estimatedRows, $estimatedCost),
+        ];
+    }
+
+    private static function jsonTableHiddenGeneratedEstimatedRows148(bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): int
+    {
+        if (!$matched || !$generatedMatched) {
+            return 0;
+        }
+
+        return max(1, 4 - min(3, $usableGenerated) + $residualGenerated);
+    }
+
+    private static function jsonTableHiddenGeneratedEstimatedCost148(int $baseCost, int $estimatedRows, int $usableGenerated, int $residualGenerated, string $sourceKind): int
+    {
+        if ($sourceKind === 'sql-null' || $baseCost >= 1000000) {
+            return 1000000;
+        }
+        if ($estimatedRows === 0) {
+            return min(12, max(3, $baseCost + $usableGenerated + $residualGenerated));
+        }
+
+        return max(1, $baseCost + $estimatedRows + $residualGenerated);
+    }
+
+    private static function jsonTableHiddenGeneratedCostClass148(string $sourceKind, bool $matched, bool $generatedMatched, int $usableGenerated, int $residualGenerated): string
+    {
+        if ($sourceKind === 'sql-null') {
+            return 'unrunnable-json-table';
+        }
+        if (!$matched) {
+            return 'json-table-hidden-generated-cost-miss';
+        }
+        if (!$generatedMatched) {
+            return 'json-table-hidden-generated-cost-filtered';
+        }
+        if ($usableGenerated >= 2 && $residualGenerated === 0) {
+            return 'json-table-hidden-generated-cost-covering-point';
+        }
+        if ($usableGenerated >= 1) {
+            return 'json-table-hidden-generated-cost-generated-filter';
+        }
+
+        return 'json-table-hidden-generated-cost-hidden-seek';
+    }
+
+    /**
+     * @param array<string,mixed> $generated
+     * @param list<array{argvIndex:int,column:string,operator:string,value:mixed,omit:bool,kind:string}> $argvBindings
+     */
+    private static function jsonTableHiddenGeneratedPlanFingerprint148(array $generated, array $argvBindings, int $estimatedRows, int $estimatedCost): string
+    {
+        return hash('sha256', json_encode([
+            $generated['seekSignature'] ?? null,
+            $generated['sourceKind'] ?? null,
+            $generated['generatedValues'] ?? [],
+            $argvBindings,
+            $estimatedRows,
+            $estimatedCost,
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenGeneratedCostTransitions148(array $current, array $next): array
+    {
+        return [
+            ['field' => 'seekSignature', 'current' => $current['seekSignature'], 'next' => $next['seekSignature'], 'changed' => $current['seekSignature'] !== $next['seekSignature']],
+            ['field' => 'sourceKind', 'current' => $current['sourceKind'], 'next' => $next['sourceKind'], 'changed' => $current['sourceKind'] !== $next['sourceKind']],
+            ['field' => 'generatedMatched', 'current' => $current['generatedMatched'], 'next' => $next['generatedMatched'], 'changed' => $current['generatedMatched'] !== $next['generatedMatched']],
+            ['field' => 'generatedValues', 'current' => $current['generatedValues'], 'next' => $next['generatedValues'], 'changed' => $current['generatedValues'] !== $next['generatedValues']],
+            ['field' => 'argvBindings', 'current' => $current['argvBindings'], 'next' => $next['argvBindings'], 'changed' => $current['argvBindings'] !== $next['argvBindings']],
+            ['field' => 'estimatedRows', 'current' => $current['estimatedRows'], 'next' => $next['estimatedRows'], 'changed' => $current['estimatedRows'] !== $next['estimatedRows']],
+            ['field' => 'estimatedCost', 'current' => $current['estimatedCost'], 'next' => $next['estimatedCost'], 'changed' => $current['estimatedCost'] !== $next['estimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'planFingerprint', 'current' => $current['planFingerprint'], 'next' => $next['planFingerprint'], 'changed' => $current['planFingerprint'] !== $next['planFingerprint']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenGeneratedCostReplanReasons148(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'seekSignature' => 'json-table-hidden-generated-cost-seek-changed',
+                'sourceKind' => 'json-table-hidden-generated-cost-source-kind-changed',
+                'generatedMatched', 'generatedValues' => 'json-table-hidden-generated-cost-values-changed',
+                'argvBindings' => 'json-table-hidden-generated-cost-argv-changed',
+                'estimatedRows' => 'json-table-hidden-generated-cost-row-estimate-changed',
+                'estimatedCost', 'costClass' => 'json-table-hidden-generated-cost-estimate-changed',
+                'planFingerprint' => 'json-table-hidden-generated-cost-fingerprint-changed',
+                default => 'json-table-hidden-generated-cost-state-changed',
             };
         }
 
