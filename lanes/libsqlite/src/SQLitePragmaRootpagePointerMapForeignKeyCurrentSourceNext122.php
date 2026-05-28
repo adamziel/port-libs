@@ -104,6 +104,10 @@ final class SQLitePragmaRootpagePointerMapForeignKeyCurrentSourceNext122
             $rows[] = [
                 'kind' => 'foreign_key_rootpage_pointer_map',
                 'source' => 'foreign_key',
+                'pragma_schema' => $foreignKeys['schema'],
+                'target_schema' => $foreignKeys['target_schema'],
+                'target' => $foreignKeys['target'],
+                'target_source' => $foreignKeys['target_source'],
                 'schema' => $row['schema'],
                 'table' => $row['table'],
                 'rowid' => $row['rowid'],

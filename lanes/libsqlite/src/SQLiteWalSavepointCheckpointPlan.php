@@ -1925,6 +1925,193 @@ final class SQLiteWalSavepointCheckpointPlan
     }
 
     /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $nextTransactions
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public static function readerCheckpointRestartSavepointCurrentSourceNext145(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        SQLiteShmIndex $activeReaderShm,
+        SQLiteShmIndex $releasedReaderShm,
+        string $databasePath,
+        array $nextTransactions,
+        array $pageNumbers
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires a savepoint name');
+        }
+        if ($databaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires database bytes');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires a database path');
+        }
+        if ($nextTransactions === []) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires next transactions');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires page numbers');
+        }
+
+        self::assertCurrentWalSource($wal, $walBytes);
+        self::assertShmMatchesWal($activeReaderShm, $wal, 'active reader');
+        self::assertShmMatchesWal($releasedReaderShm, $wal, 'released reader');
+
+        $activePlan = $activeReaderShm->checkpointPlan();
+        $releasedPlan = $releasedReaderShm->checkpointPlan();
+        $activeReaderEndFrame = $activePlan['checkpoint_pinned_frame'];
+        if (!is_int($activeReaderEndFrame) || $activeReaderEndFrame < 1) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires an active reader pin');
+        }
+        if ($releasedPlan['reset_blocked']) {
+            throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires a released-reader SHM image');
+        }
+
+        $rollback = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $retainedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $writerCurrentEndFrame = min($activeReaderEndFrame, $retainedWal->frameCount());
+        $activeCheckpoint = $retainedWal->durableCheckpointResult($databaseBytes, 'restart', $writerCurrentEndFrame);
+        $releasedCheckpoint = $retainedWal->durableCheckpointResult($databaseBytes, 'restart');
+        if (($releasedCheckpoint['wal_action'] ?? null) !== 'restart_wal' || ($releasedCheckpoint['wal_bytes'] ?? '') === '') {
+            throw new \RuntimeException('SQLite WAL reader checkpoint restart savepoint current-source next145 requires a released restart checkpoint');
+        }
+
+        $freshWal = self::freshWalAfterReleasedCheckpoint($retainedWal, $releasedCheckpoint);
+        $append = SQLiteWalAppendPlan::appendTransactions($freshWal, $databasePath, $nextTransactions);
+        $nextWal = SQLiteWal::parse((string) $append['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $append['last_commit_frame'] ?? $nextWal->frameCount();
+
+        $rows = [];
+        $activeReader = [];
+        $writerCurrent = [];
+        $releasedRestart = [];
+        $appendedNext = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite WAL reader checkpoint restart savepoint current-source next145 pages must be one-based integers');
+            }
+
+            $active = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $activeReaderEndFrame);
+            $current = $retainedWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $writerCurrentEndFrame);
+            $released = $freshWal->readerSnapshotPageImage((string) $releasedCheckpoint['database_bytes'], $pageNumber);
+            $next = $nextWal->readerSnapshotPageImage((string) $releasedCheckpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+
+            $activeReader[] = $active;
+            $writerCurrent[] = $current;
+            $releasedRestart[] = $released;
+            $appendedNext[] = $next;
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'active_reader_source' => (string) $active['source'],
+                'writer_current_source' => (string) $current['source'],
+                'released_restart_source' => (string) $released['source'],
+                'appended_next_source' => (string) $next['source'],
+                'active_reader_frame' => $active['frame_index'] ?? null,
+                'writer_current_frame' => $current['frame_index'] ?? null,
+                'released_restart_frame' => $released['frame_index'] ?? null,
+                'appended_next_frame' => $next['frame_index'] ?? null,
+                'active_reader_label' => rtrim(substr((string) $active['image'], 0, 72), ".\0"),
+                'writer_current_label' => rtrim(substr((string) $current['image'], 0, 72), ".\0"),
+                'released_restart_label' => rtrim(substr((string) $released['image'], 0, 72), ".\0"),
+                'appended_next_label' => rtrim(substr((string) $next['image'], 0, 72), ".\0"),
+                'active_reader_held_rolled_back_frame' => ($active['frame_index'] ?? 0) > $retainedWal->frameCount(),
+                'writer_rolled_back_reader_image' => $active['image'] !== $current['image'],
+                'released_matches_writer_current' => $released['image'] === $current['image'],
+                'appended_next_matches_writer_current' => $next['image'] === $current['image'],
+                'source_transition' => $active['source'] . '>' . $current['source'] . '>' . $released['source'] . '>' . $next['source'],
+            ];
+        }
+
+        $activeSources = self::visibilityColumn($activeReader, 'source');
+        $writerSources = self::visibilityColumn($writerCurrent, 'source');
+        $releasedSources = self::visibilityColumn($releasedRestart, 'source');
+        $nextSources = self::visibilityColumn($appendedNext, 'source');
+        $writerImages = self::visibilityColumn($writerCurrent, 'image');
+        $releasedImages = self::visibilityColumn($releasedRestart, 'image');
+
+        return [
+            'status' => $activeCheckpoint['busy']
+                && !$releasedCheckpoint['busy']
+                && $activeCheckpoint['wal_action'] === 'preserve_wal'
+                && $releasedCheckpoint['wal_action'] === 'restart_wal'
+                    ? 'reader-checkpoint-restart-savepoint-current-source-next145'
+                    : 'reader-checkpoint-restart-savepoint-current-source-next145-incomplete',
+            'reason' => 'active_current_source_reader_pins_savepoint_restart_until_release_then_next_writer_appends_to_restarted_generation',
+            'savepoint' => $savepoint,
+            'mode' => 'restart',
+            'database_path' => $databasePath,
+            'wal_path' => $databasePath . '-wal',
+            'current_source_verified' => true,
+            'shm_source_verified' => true,
+            'active_reader_end_frame' => $activeReaderEndFrame,
+            'writer_current_reader_end_frame' => $writerCurrentEndFrame,
+            'released_restart_reader_end_frame' => 0,
+            'appended_next_reader_end_frame' => $nextReaderEndFrame,
+            'retained_frame_count' => $retainedWal->frameCount(),
+            'discarded_frame_count' => $rollback['discarded_frame_count'],
+            'rolled_back_frame_indexes' => array_map(static fn (array $frame): int => $frame['frame_index'], $rollback['discarded_wal_frames']),
+            'rolled_back_page_numbers' => self::discardedPageNumbers($rollback['discarded_wal_frames']),
+            'active_checkpoint_busy' => $activeCheckpoint['busy'],
+            'active_checkpoint_reason' => $activeCheckpoint['reason'],
+            'active_wal_action' => $activeCheckpoint['wal_action'],
+            'active_wal_bytes_length' => strlen((string) $activeCheckpoint['wal_bytes']),
+            'released_checkpoint_busy' => $releasedCheckpoint['busy'],
+            'released_checkpoint_reason' => $releasedCheckpoint['reason'],
+            'released_wal_action' => $releasedCheckpoint['wal_action'],
+            'released_wal_bytes_length' => strlen((string) $releasedCheckpoint['wal_bytes']),
+            'released_database_sha256' => hash('sha256', (string) $releasedCheckpoint['database_bytes']),
+            'fresh_wal_checkpoint_sequence' => $freshWal->header->checkpointSequence,
+            'fresh_wal_salt' => [$freshWal->header->salt1, $freshWal->header->salt2],
+            'append_start_frame' => $append['start_frame'],
+            'append_end_frame' => $append['end_frame'],
+            'append_frame_count' => $append['appended_frame_count'],
+            'append_last_commit_frame' => $append['last_commit_frame'],
+            'append_wal_bytes_length' => $append['wal_bytes_length'],
+            'active_reader_sources' => $activeSources,
+            'writer_current_sources' => $writerSources,
+            'released_restart_sources' => $releasedSources,
+            'appended_next_sources' => $nextSources,
+            'active_reader_frame_indexes' => self::visibilityColumn($activeReader, 'frame_index'),
+            'writer_current_frame_indexes' => self::visibilityColumn($writerCurrent, 'frame_index'),
+            'released_restart_frame_indexes' => self::visibilityColumn($releasedRestart, 'frame_index'),
+            'appended_next_frame_indexes' => self::visibilityColumn($appendedNext, 'frame_index'),
+            'current_source_rows' => $rows,
+            'source_transitions' => array_column($rows, 'source_transition'),
+            'active_reader_keeps_original_wal' => in_array(true, array_column($rows, 'active_reader_held_rolled_back_frame'), true),
+            'writer_current_uses_retained_prefix' => in_array('wal', $writerSources, true) && $writerCurrentEndFrame === $retainedWal->frameCount(),
+            'active_reader_blocks_restart_reset' => $activeCheckpoint['busy'] && $activeCheckpoint['wal_action'] === 'preserve_wal',
+            'reader_release_unblocks_restart' => !$releasedCheckpoint['busy'],
+            'released_restart_keeps_header' => $releasedCheckpoint['wal_action'] === 'restart_wal' && strlen((string) $releasedCheckpoint['wal_bytes']) === 32,
+            'released_next_uses_checkpoint_database' => !in_array('wal', $releasedSources, true),
+            'released_next_matches_writer_current' => $releasedImages === $writerImages,
+            'appended_next_uses_restarted_generation' => $freshWal->frameCount() === 0 && in_array('wal', $nextSources, true),
+            'appended_next_separated_from_released_restart' => in_array('wal', $nextSources, true) && $append['start_frame'] === 1,
+            'append_operations' => $append['operations'],
+            'source_digest' => hash('sha256', implode('|', array_column($rows, 'source_transition'))),
+            'yield_count' => (4 * count($pageNumbers)) + count($rollback['discarded_wal_frames']) + (int) $append['appended_frame_count'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $activeCheckpoint['dependencies'],
+                $releasedCheckpoint['dependencies'],
+                $activePlan['dependencies'],
+                $releasedPlan['dependencies'],
+                $append['dependencies'],
+                [
+                    'sqlite-wal-reader-checkpoint-restart-savepoint-current-source-next145',
+                    'sqlite-wal-savepoint-current-prefix',
+                    'sqlite-wal-restart-fresh-generation',
+                ]
+            ))),
+            'dependency_closure' => 'no new support component needed; reuses native WAL parser/checkpoint/savepoint, SHM read-mark, and WAL append planning helpers',
+            'non_overlap' => 'avoids accepted next127 reader restart/savepoint without SHM release validation and next142 truncate reset by requiring active and released current-source SHM images around a RESTART checkpoint before appending the retry generation',
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $checkpoint
      */
     private static function freshWalAfterReleasedCheckpoint(SQLiteWal $wal, array $checkpoint): SQLiteWal
