@@ -2830,6 +2830,75 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext203(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $baseProjection = self::jsonTableGeneratedPathRowidAliasBaseProjection203($projection);
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext196(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $baseProjection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidAliasProjectionProfile203(
+            $plan['currentGeneratedPathRowidXColumnCache196'],
+            $projection,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidAliasProjectionProfile203(
+            $plan['nextGeneratedPathRowidXColumnCache196'],
+            $projection,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidAliasProjectionTransitions203($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidAliasProjectionReasons203($transitions);
+
+        $plan['currentGeneratedPathRowidAliasProjection203'] = $currentProfile;
+        $plan['nextGeneratedPathRowidAliasProjection203'] = $nextProfile;
+        $plan['generatedPathRowidAliasProjection203Transitions'] = $transitions;
+        $plan['next203ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next196ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next203ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'rowid-alias-xcolumn-current-json-table-generated-path-rowid-next203';
+        $plan['nextReaderPolicy'] = $nextProfile['aliasProjectionReusable']
+            ? 'reuse-rowid-alias-xcolumn-current-json-table-generated-path-rowid-next203'
+            : 'reprepare-rowid-alias-xcolumn-next-json-table-generated-path-rowid-next203';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next203'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
@@ -14406,6 +14475,215 @@ final class SQLiteJsonTablePlan
                 'cacheReusable' => 'json-table-generated-path-rowid-xcolumn-cache-reuse-changed-next196',
                 'estimatedRows', 'estimatedCost', 'xColumnOpcode', 'costClass' => 'json-table-generated-path-rowid-xcolumn-cache-cost-changed-next196',
                 default => 'json-table-generated-path-rowid-xcolumn-cache-state-changed-next196',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param list<string> $projection
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidAliasBaseProjection203(array $projection): array
+    {
+        $allowed = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'json', 'root', 'rowid', '_rowid_', 'oid'];
+        $base = [];
+        foreach ($projection as $column) {
+            $column = strtolower((string) $column);
+            if (!in_array($column, $allowed, true)) {
+                throw new \InvalidArgumentException("SQLite JSON table rowid alias xColumn cache next203 cannot project {$column}");
+            }
+            $base[] = self::isRowIdAlias($column) ? 'id' : $column;
+        }
+
+        return array_values(array_unique($base));
+    }
+
+    /**
+     * @param array<string,mixed> $cache196
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidAliasProjectionProfile203(array $cache196, array $projection): array
+    {
+        $normalized = [];
+        $aliasColumns = [];
+        foreach ($projection as $column) {
+            $column = strtolower((string) $column);
+            if (self::isRowIdAlias($column)) {
+                $aliasColumns[] = $column;
+                $normalized[] = $column;
+                continue;
+            }
+            $normalized[] = $column;
+        }
+        self::jsonTableGeneratedPathRowidAliasBaseProjection203($projection);
+        $normalized = array_values(array_unique($normalized));
+        $aliasColumns = array_values(array_unique($aliasColumns));
+
+        $aliasTape = [];
+        $missingAliasRowids = [];
+        foreach (($cache196['xColumnTape'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $rowid = isset($entry['rowid']) ? (int) $entry['rowid'] : null;
+            $accepted = (bool) ($entry['accepted'] ?? false);
+            $materialized = (bool) ($entry['materialized'] ?? false);
+            $columns = is_array($entry['columns'] ?? null) ? $entry['columns'] : [];
+            $id = $columns['id'] ?? $rowid;
+            $aliasValues = [];
+            foreach ($aliasColumns as $alias) {
+                $aliasValues[$alias] = $accepted && $materialized ? $id : null;
+            }
+            if ($accepted && $materialized && $aliasColumns !== [] && $id === null) {
+                $missingAliasRowids[] = $rowid;
+            }
+            $projected = [];
+            foreach ($normalized as $column) {
+                $projected[$column] = self::isRowIdAlias($column)
+                    ? ($aliasValues[$column] ?? null)
+                    : ($columns[$column] ?? null);
+            }
+
+            $aliasTape[] = [
+                'rowid' => $rowid,
+                'accepted' => $accepted,
+                'materialized' => $materialized,
+                'aliasValues' => $aliasValues,
+                'projectedColumns' => $projected,
+            ];
+        }
+
+        $cacheReusable = (bool) ($cache196['cacheReusable'] ?? false);
+        $aliasProjectionReusable = $cacheReusable && $missingAliasRowids === [];
+        $acceptedCount = count(array_values(array_filter(
+            $aliasTape,
+            static fn (array $entry): bool => ($entry['accepted'] ?? false) === true,
+        )));
+        $aliasWidth = count($aliasColumns);
+        $estimatedRows = $aliasProjectionReusable ? $acceptedCount : 0;
+        $estimatedCost = $aliasProjectionReusable
+            ? max(1, ((int) ($cache196['estimatedCost'] ?? 1)) + ($aliasWidth * max(1, $acceptedCount)))
+            : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidAliasProjectionOpcode203($aliasProjectionReusable, $aliasWidth, $acceptedCount);
+
+        return [
+            'function' => (string) ($cache196['function'] ?? ''),
+            'root' => (string) ($cache196['root'] ?? '$'),
+            'generatedPath' => (string) ($cache196['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($cache196['sourceGeneration'] ?? ''),
+            'baseProjection' => array_values(array_map('strval', $cache196['projection'] ?? [])),
+            'requestedProjection' => $normalized,
+            'rowidAliasColumns' => $aliasColumns,
+            'checkpointRowids' => array_values(array_map('intval', $cache196['checkpointRowids'] ?? [])),
+            'acceptedRowids' => array_values(array_map('intval', $cache196['acceptedRowids'] ?? [])),
+            'missingAliasRowids' => array_values(array_filter($missingAliasRowids, static fn (mixed $rowid): bool => is_int($rowid))),
+            'aliasTape' => $aliasTape,
+            'xColumnCacheFingerprint' => (string) ($cache196['xColumnCacheFingerprint'] ?? ''),
+            'aliasProjectionReusable' => $aliasProjectionReusable,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'aliasOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidAliasProjectionCostClass203($opcode, $aliasWidth, $acceptedCount),
+            'aliasProjectionFingerprint' => hash('sha256', json_encode([
+                $cache196['xColumnCacheFingerprint'] ?? null,
+                $normalized,
+                $aliasColumns,
+                $aliasTape,
+                $aliasProjectionReusable,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidAliasProjectionOpcode203(bool $reusable, int $aliasWidth, int $acceptedCount): string
+    {
+        if (!$reusable) {
+            return 'OP_JsonTableRowidAliasReprepareNext203';
+        }
+        if ($aliasWidth === 0) {
+            return 'OP_JsonTableRowidAliasBypassNext203';
+        }
+        if ($acceptedCount <= 1) {
+            return 'OP_JsonTableRowidAliasPointNext203';
+        }
+
+        return 'OP_JsonTableRowidAliasRangeNext203';
+    }
+
+    private static function jsonTableGeneratedPathRowidAliasProjectionCostClass203(string $opcode, int $aliasWidth, int $acceptedCount): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableRowidAliasBypassNext203' => 'json-table-generated-path-rowid-alias-bypass-next203',
+            'OP_JsonTableRowidAliasPointNext203' => $aliasWidth > 1
+                ? 'json-table-generated-path-rowid-alias-point-wide-next203'
+                : 'json-table-generated-path-rowid-alias-point-next203',
+            'OP_JsonTableRowidAliasRangeNext203' => $acceptedCount > 2
+                ? 'json-table-generated-path-rowid-alias-range-wide-next203'
+                : 'json-table-generated-path-rowid-alias-range-next203',
+            default => 'json-table-generated-path-rowid-alias-reprepare-next203',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidAliasProjectionTransitions203(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'baseProjection',
+            'requestedProjection',
+            'rowidAliasColumns',
+            'checkpointRowids',
+            'acceptedRowids',
+            'missingAliasRowids',
+            'aliasTape',
+            'xColumnCacheFingerprint',
+            'aliasProjectionReusable',
+            'estimatedRows',
+            'estimatedCost',
+            'aliasOpcode',
+            'costClass',
+            'aliasProjectionFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidAliasProjectionReasons203(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'xColumnCacheFingerprint', 'aliasProjectionFingerprint' => 'json-table-generated-path-rowid-alias-source-changed-next203',
+                'baseProjection', 'requestedProjection', 'rowidAliasColumns' => 'json-table-generated-path-rowid-alias-projection-changed-next203',
+                'checkpointRowids', 'acceptedRowids', 'missingAliasRowids', 'aliasTape' => 'json-table-generated-path-rowid-alias-rowset-changed-next203',
+                'aliasProjectionReusable' => 'json-table-generated-path-rowid-alias-reuse-changed-next203',
+                'estimatedRows', 'estimatedCost', 'aliasOpcode', 'costClass' => 'json-table-generated-path-rowid-alias-cost-changed-next203',
+                default => 'json-table-generated-path-rowid-alias-state-changed-next203',
             };
         }
 
