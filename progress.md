@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 00:44 UTC):
+  Batch68 is integrated and verified by reusing the rolling clean integration
+  worktree `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`
+  to conserve disk space. Implementation source advanced to
+  `8a69ae269e808f99c154e53d37d3c8f04289c3dd` (`Integrate libsqlite batch
+  68`). The accepted subset applied 1 current-next68 handoff, excluded stale
+  lane-status/manifest prose, and kept mapped coverage unchanged because no new
+  upstream inventory denominator row was accepted. Coverage added pager
+  savepoint release-next rollback/release/retry savepoint handling with WAL
+  frame prefix reuse. Verification passed: focused batch68 pager test `1 test
+  file / 64 assertions / 0 failures`; full libsqlite lane `471 test files /
+  54782 assertions / 0 failures / 25580 PASS lines`; root `684 test files /
+  79250 assertions / 0 failures / 28608 PASS lines`. This is `+64` libsqlite
+  PASS lines over the batch67 live count of `25516`; mapped upstream coverage
+  remains `463 / 1589`. The `main` tmux session was refilled during verification
+  and kept near the 10-11 active-worker target, with no long sleepers. Next
+  decision: publish dashboard/status for batch68, consume the accepted batch68
+  handoff, keep 10-11 libsqlite workers active, then integrate ready
+  batch68/batch69 outputs by PASS-line movement.
+
 - 2026-05-28 supervisor continuation (shell/live samples 00:40 UTC):
   Batch67 is integrated and verified by reusing the clean rolling integration
   worktree `.tmux-team/worktrees/integrate-libsqlite-yield-batch65-20260528T002848Z`
