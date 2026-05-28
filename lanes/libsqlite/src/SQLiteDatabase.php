@@ -605,10 +605,14 @@ final class SQLiteDatabase
         $freelistPages = array_fill_keys($this->freelistPageNumbers(), true);
         $truncatedPageNumbers = [];
         for ($pageNumber = $databasePageCount; $pageNumber >= 2 && count($truncatedPageNumbers) < $maxPages; $pageNumber--) {
-            if (!isset($freelistPages[$pageNumber])) {
+            if ($pageNumber === $this->pendingBytePageNumber()) {
                 break;
             }
-            if ($pageNumber === $this->pendingBytePageNumber() || ($this->isAutoVacuum() && $this->isPointerMapPage($pageNumber))) {
+            if ($this->isAutoVacuum() && $this->isPointerMapPage($pageNumber)) {
+                $truncatedPageNumbers[] = $pageNumber;
+                continue;
+            }
+            if (!isset($freelistPages[$pageNumber])) {
                 break;
             }
 
@@ -689,7 +693,14 @@ final class SQLiteDatabase
             unset($updatedFreelistPages[$removedTrunkPage]);
         }
 
-        $freelistPageCount = $this->header->freelistPageCount - count($truncatedPageNumbers);
+        $truncatedFreelistPageCount = 0;
+        foreach ($truncatedPageNumbers as $pageNumber) {
+            if (isset($freelistPages[$pageNumber])) {
+                $truncatedFreelistPageCount++;
+            }
+        }
+
+        $freelistPageCount = $this->header->freelistPageCount - $truncatedFreelistPageCount;
         if ($freelistPageCount < 0) {
             throw new \InvalidArgumentException('SQLite freelist tail truncation exceeds the freelist page count');
         }

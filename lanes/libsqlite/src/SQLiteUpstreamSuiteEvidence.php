@@ -6982,6 +6982,216 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $denominatorRows
+     * @return array<string, mixed>
+     */
+    public function suiteDenominatorCurrentNext65(
+        array $denominatorRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $evidenceRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($denominatorRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next65 denominator admission requires at least one row');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite current-next65 denominator admission needs a non-negative current mapped count');
+        }
+
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $evidenceRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $newUnits = [];
+        $preservedUnits = [];
+        $blockedUnits = [];
+        $regressedUnits = [];
+        $scripts = [];
+        $currentMappedRows = 0;
+        $nextMappedRows = 0;
+        $currentScriptRows = 0;
+        $nextScriptRows = 0;
+        $denominatorTotal = 0;
+        $categories = [];
+
+        foreach ($denominatorRows as $label => $row) {
+            $unit = is_string($label) ? $label : 'current-next65-' . count($entries);
+            if (!is_array($row)) {
+                $blockedUnits[] = $unit;
+                $blockers[] = [
+                    'id' => 'denominator-row-invalid',
+                    'unit' => $unit,
+                    'evidence' => 'denominator row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $unit;
+            $category = is_string($row['category'] ?? null) && $row['category'] !== '' ? $row['category'] : 'suite-denominator';
+            $currentRowMapped = max(0, $this->denominatorAuditInt($row, 'current_mapped'));
+            $nextRowMapped = max(0, $this->denominatorAuditInt($row, 'next_mapped'));
+            $currentScripts = max(0, $this->denominatorAuditInt($row, 'current_countable_scripts'));
+            $nextScripts = max(0, $this->denominatorAuditInt($row, 'next_countable_scripts'));
+            $total = max(0, $this->denominatorAuditInt($row, 'denominator_total'));
+            $rowScripts = array_values(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && str_ends_with($script, '.test')
+            ));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (($row['evidence'] ?? '') === '') {
+                $rowBlockers[] = 'missing-row-evidence';
+            }
+            if (($row['hydrated'] ?? true) !== true) {
+                $rowBlockers[] = 'denominator-row-not-hydrated';
+            }
+            if ($nextRowMapped < $currentRowMapped) {
+                $rowBlockers[] = 'mapped-count-regressed';
+            }
+            if ($nextScripts < $currentScripts) {
+                $rowBlockers[] = 'countable-script-count-regressed';
+            }
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'preserved';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blockedUnits[] = $unit;
+                if (in_array('mapped-count-regressed', $rowBlockers, true) || in_array('countable-script-count-regressed', $rowBlockers, true)) {
+                    $regressedUnits[] = $unit;
+                }
+                $blockers[] = [
+                    'id' => 'denominator-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextRowMapped > $currentRowMapped || $nextScripts > $currentScripts) {
+                $movement = 'advanced';
+                $newUnits[] = $unit;
+            } else {
+                $preservedUnits[] = $unit;
+            }
+
+            $categories[$category] = ($categories[$category] ?? 0) + 1;
+            $currentMappedRows += $currentRowMapped;
+            $nextMappedRows += $nextRowMapped;
+            $currentScriptRows += $currentScripts;
+            $nextScriptRows += $nextScripts;
+            $denominatorTotal += $total;
+
+            $entries[] = [
+                'unit' => $unit,
+                'category' => $category,
+                'movement' => $movement,
+                'current_mapped' => $currentRowMapped,
+                'next_mapped' => $nextRowMapped,
+                'mapped_delta' => $nextRowMapped - $currentRowMapped,
+                'current_countable_scripts' => $currentScripts,
+                'next_countable_scripts' => $nextScripts,
+                'script_delta' => $nextScripts - $currentScripts,
+                'denominator_total' => $total,
+                'scripts' => $rowScripts,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-head gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        ksort($categories, SORT_STRING);
+        sort($newUnits, SORT_STRING);
+        sort($preservedUnits, SORT_STRING);
+        sort($blockedUnits, SORT_STRING);
+        sort($regressedUnits, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $mappedDelta = max(0, $nextMappedRows - $currentMappedRows);
+        $scriptDelta = max(0, $nextScriptRows - $currentScriptRows);
+        $status = 'blocked';
+        if ($blockers === [] && ($mappedDelta > 0 || $scriptDelta > 0)) {
+            $status = 'current-next65-denominator-countable';
+        } elseif ($blockers === []) {
+            $status = 'current-next65-denominator-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-next65-denominator-countable',
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'evidence_repository_head' => $evidenceRepositoryHead,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $blockers === [] ? $currentMapped + $mappedDelta : $currentMapped,
+            'mapped_delta' => $blockers === [] ? $mappedDelta : 0,
+            'row_current_mapped_total' => $currentMappedRows,
+            'row_next_mapped_total' => $nextMappedRows,
+            'countable_script_delta' => $blockers === [] ? $scriptDelta : 0,
+            'current_countable_scripts' => $currentScriptRows,
+            'next_countable_scripts' => $nextScriptRows,
+            'denominator_total' => $denominatorTotal,
+            'row_count' => count($entries),
+            'category_count' => count($categories),
+            'categories' => $categories,
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'advanced_units' => $newUnits,
+            'preserved_units' => $preservedUnits,
+            'blocked_units' => $blockedUnits,
+            'regressed_units' => $regressedUnits,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['pass_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next65-denominator-countable'
+                ? 'publish only the current-next65 denominator/script movement with exact current-head focused PASS-line evidence; release/all parity remains gated'
+                : 'keep current-next65 denominator movement uncounted until row evidence, duplicate-runner, and focused PASS-line blockers are clear',
+            'dependency_closure' => 'no new support component needed; current-next65 denominator admission composes lane-local rows, active-runner gating, and current-head focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
      * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array
