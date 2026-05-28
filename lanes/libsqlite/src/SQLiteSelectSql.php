@@ -1779,27 +1779,65 @@ final class SQLiteSelectSql
 
         $aliasSql = trim(substr($sql, $offset));
         $alias = 'values';
+        $columns = [];
         if ($aliasSql !== '') {
-            $parts = preg_split('/\s+/', $aliasSql);
-            if ($parts === false || $parts === [] || count($parts) > 2) {
+            if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/is', $aliasSql, $match) !== 1) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
             }
-            if (count($parts) === 2) {
-                if (strcasecmp($parts[0], 'AS') !== 0) {
+            $alias = $match[1];
+            self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
+            $tail = trim($match[2]);
+            if ($tail !== '') {
+                if (!str_starts_with($tail, '(')) {
                     throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
                 }
-                $alias = $parts[1];
-            } else {
-                $alias = $parts[0];
+                [$columnSql, $columnOffset] = self::consumeParenthesized($tail, 0);
+                if (trim(substr($tail, $columnOffset)) !== '') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+                }
+                foreach (self::splitTopLevel($columnSql, ',') as $column) {
+                    $column = trim($column);
+                    self::assertBareIdentifier($column, 'SQLite SELECT SQL VALUES source column alias');
+                    $columns[] = $column;
+                }
+                if ($columns === []) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source column list cannot be empty');
+                }
             }
-            self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
+        }
+
+        $rows = self::executeValuesClause(trim($body));
+        if ($columns !== []) {
+            $rows = self::renameValuesTableColumns($rows, $columns, $alias);
         }
 
         return [
             'name' => 'values',
             'alias' => $alias,
-            'rows' => self::executeValuesClause(trim($body)),
+            'rows' => $columns === [] ? $rows : self::qualifiedRows($rows, $alias),
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function renameValuesTableColumns(array $rows, array $columns, string $alias): array
+    {
+        $renamed = [];
+        foreach ($rows as $row) {
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL VALUES source {$alias} column list does not match row width");
+            }
+            $combined = array_combine($columns, array_values($row));
+            if (!is_array($combined)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL VALUES source {$alias} column list does not match row width");
+            }
+            $renamed[] = $combined;
+        }
+
+        return $renamed;
     }
 
     /**

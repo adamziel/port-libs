@@ -11041,8 +11041,14 @@ final class SQLiteDatabase
     {
         $patternCharacters = self::sqlitePatternCharacters($pattern);
         $prefix = '';
-        foreach ($patternCharacters as $character) {
+        $count = count($patternCharacters);
+        for ($offset = 0; $offset < $count; $offset++) {
+            $character = $patternCharacters[$offset];
             if ($character === '*' || $character === '?' || $character === '[') {
+                if ($character === '[' && self::readGlobCharacterClass($patternCharacters, $offset) === null) {
+                    $prefix .= $character;
+                    continue;
+                }
                 break;
             }
             $prefix .= $character;
