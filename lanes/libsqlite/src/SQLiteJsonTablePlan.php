@@ -759,6 +759,68 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param list<array<string,mixed>> $currentHostRows
+     * @param list<array<string,mixed>> $nextHostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<string> $jsonColumns
+     * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function lateralRowidCurrentNext81(
+        array $currentHostRows,
+        array $nextHostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $jsonColumns = self::VISIBLE_COLUMNS,
+        string $joinType = 'inner',
+        string $jsonPrefix = 'json_',
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral rowid requires a host JSON column');
+        }
+        if ($rootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral rowid root column must be non-empty when provided');
+        }
+
+        $function = self::normalizeFunction($function);
+        $current = self::lateralRowidRows($currentHostRows, $jsonColumn, $function, $constraints, $rootColumn, $jsonColumns, $joinType, $jsonPrefix);
+        $next = self::lateralRowidRows($nextHostRows, $jsonColumn, $function, $constraints, $rootColumn, $jsonColumns, $joinType, $jsonPrefix);
+        $count = max(count($current), count($next));
+        $transitions = [];
+        for ($index = 0; $index < $count; $index++) {
+            $currentRow = $current[$index] ?? null;
+            $nextRow = $next[$index] ?? null;
+            $currentRowid = $currentRow[$jsonPrefix . 'rowid'] ?? null;
+            $nextRowid = $nextRow[$jsonPrefix . 'rowid'] ?? null;
+            $reason = self::lateralRowidTransitionReason($currentRow, $nextRow, $jsonPrefix);
+            $transitions[] = [
+                'index' => $index,
+                'current' => $currentRow,
+                'next' => $nextRow,
+                'currentRowid' => $currentRowid,
+                'nextRowid' => $nextRowid,
+                'rowidChanged' => $currentRowid !== $nextRowid,
+                'hostChanged' => ($currentRow['__host_index'] ?? null) !== ($nextRow['__host_index'] ?? null),
+                'changed' => $reason !== 'stable-lateral-json-rowid',
+                'reason' => $reason,
+            ];
+        }
+
+        return [
+            'function' => $function,
+            'current' => $current,
+            'next' => $next,
+            'transitions' => $transitions,
+            'currentReaderPolicy' => 'keep-current-lateral-json-rowid-until-host-row-advances',
+            'nextReaderPolicy' => self::lateralRowidRowsSignature($current, $jsonPrefix) === self::lateralRowidRowsSignature($next, $jsonPrefix)
+                ? 'reuse-current-lateral-json-rowid-tape'
+                : 'materialize-next-lateral-json-rowid-tape',
+            'dependencies' => ['sqlite-json-table-lateral-rowid-current-next81'],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -820,6 +882,151 @@ final class SQLiteJsonTablePlan
         }
 
         return $plans;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $hostRows
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<string> $jsonColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function lateralRowidRows(
+        array $hostRows,
+        string $jsonColumn,
+        string $function,
+        array $constraints,
+        ?string $rootColumn,
+        array $jsonColumns,
+        string $joinType,
+        string $jsonPrefix,
+    ): array {
+        if ($jsonColumns === []) {
+            throw new \InvalidArgumentException('SQLite JSON table lateral rowid projection must include at least one JSON column');
+        }
+        $joinType = strtolower($joinType);
+        if ($joinType !== 'inner' && $joinType !== 'left') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral rowid join type must be inner or left');
+        }
+        if ($jsonPrefix === '') {
+            throw new \InvalidArgumentException('SQLite JSON table lateral rowid prefix must be non-empty');
+        }
+
+        $rows = [];
+        $columns = array_values(array_unique(array_map(
+            static fn (string $column): string => strtolower($column),
+            array_merge($jsonColumns, ['rowid', '_rowid_', 'oid']),
+        )));
+        foreach ($hostRows as $hostIndex => $hostRow) {
+            if (!array_key_exists($jsonColumn, $hostRow)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral rowid host row is missing {$jsonColumn}");
+            }
+
+            $rowConstraints = [
+                ['column' => 'json', 'operator' => '=', 'value' => $hostRow[$jsonColumn]],
+            ];
+            if ($rootColumn !== null) {
+                if (!array_key_exists($rootColumn, $hostRow)) {
+                    throw new \InvalidArgumentException("SQLite JSON table lateral rowid host row is missing {$rootColumn}");
+                }
+                if ($hostRow[$rootColumn] !== null) {
+                    $rowConstraints[] = ['column' => 'root', 'operator' => '=', 'value' => $hostRow[$rootColumn]];
+                }
+            }
+            $rowConstraints = array_merge($rowConstraints, $constraints);
+            $plan = self::validatedPlan($function, $rowConstraints);
+            $jsonRows = $plan['runnable'] ? self::filteredRows($function, $rowConstraints) : [];
+            if ($jsonRows === [] && $joinType === 'left') {
+                $rows[] = self::lateralRowidJoinedRow($hostRow, $hostIndex, self::nullJsonProjection($columns), $jsonPrefix);
+                continue;
+            }
+
+            foreach ($jsonRows as $jsonRow) {
+                $rows[] = self::lateralRowidJoinedRow($hostRow, $hostIndex, self::projectJsonRowWithRowid($jsonRow, $columns), $jsonPrefix);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $hostRow
+     * @param array<string,mixed> $jsonRow
+     * @return array<string,mixed>
+     */
+    private static function lateralRowidJoinedRow(array $hostRow, int $hostIndex, array $jsonRow, string $jsonPrefix): array
+    {
+        $joined = $hostRow;
+        $joined['__host_index'] = $hostIndex;
+        foreach ($jsonRow as $column => $value) {
+            $joined[$jsonPrefix . $column] = $value;
+        }
+
+        return $joined;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function projectJsonRowWithRowid(array $row, array $columns): array
+    {
+        $projected = [];
+        foreach ($columns as $column) {
+            if ($column === 'rowid' || $column === '_rowid_' || $column === 'oid') {
+                $projected[$column] = $row['id'] ?? null;
+                continue;
+            }
+            if (!self::rowHasColumn($row, $column)) {
+                throw new \InvalidArgumentException("SQLite JSON table lateral rowid projection column {$column} is not available");
+            }
+
+            $projected[$column] = self::rowColumnValue($row, $column);
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{host:mixed,rowid:mixed,key:mixed,fullkey:mixed}>
+     */
+    private static function lateralRowidRowsSignature(array $rows, string $jsonPrefix): array
+    {
+        return array_map(
+            static fn (array $row): array => [
+                'host' => $row['__host_index'] ?? null,
+                'rowid' => $row[$jsonPrefix . 'rowid'] ?? null,
+                'key' => $row[$jsonPrefix . 'key'] ?? null,
+                'fullkey' => $row[$jsonPrefix . 'fullkey'] ?? null,
+            ],
+            $rows,
+        );
+    }
+
+    /**
+     * @param array<string,mixed>|null $current
+     * @param array<string,mixed>|null $next
+     */
+    private static function lateralRowidTransitionReason(?array $current, ?array $next, string $jsonPrefix): string
+    {
+        if ($current === null) {
+            return 'next-lateral-json-row-added';
+        }
+        if ($next === null) {
+            return 'current-lateral-json-row-removed';
+        }
+        if (($current['__host_index'] ?? null) !== ($next['__host_index'] ?? null)) {
+            return 'lateral-host-row-boundary-changed';
+        }
+        if (($current[$jsonPrefix . 'rowid'] ?? null) !== ($next[$jsonPrefix . 'rowid'] ?? null)) {
+            return 'lateral-json-rowid-changed';
+        }
+        if (($current[$jsonPrefix . 'fullkey'] ?? null) !== ($next[$jsonPrefix . 'fullkey'] ?? null)) {
+            return 'lateral-json-fullkey-changed';
+        }
+
+        return 'stable-lateral-json-rowid';
     }
 
     /**

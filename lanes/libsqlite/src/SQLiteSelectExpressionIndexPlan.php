@@ -131,6 +131,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'stat4MatchedSamples' => $estimated['stat4MatchedSamples'],
                     'stat4CurrentNext' => $estimated['stat4CurrentNext'],
                     'stat4MatchedCurrentNext' => $estimated['stat4MatchedCurrentNext'],
+                    'stat4RangeCurrentNext' => $estimated['stat4RangeCurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
                     'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
@@ -383,6 +384,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'stat4MatchedSamples' => $estimated['stat4MatchedSamples'],
                     'stat4CurrentNext' => $estimated['stat4CurrentNext'],
                     'stat4MatchedCurrentNext' => $estimated['stat4MatchedCurrentNext'],
+                    'stat4RangeCurrentNext' => $estimated['stat4RangeCurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
                     'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
@@ -1075,7 +1077,7 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param array{estimatedRows?:int,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>} $index
      * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
-     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4MatchedSamples:int,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4MatchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
+     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4MatchedSamples:int,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4MatchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4RangeCurrentNext:array<string,mixed>|null}
      */
     private static function estimatedRows(array $index, array $constraint): array
     {
@@ -1094,6 +1096,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'stat4MatchedSamples' => 0,
                 'stat4CurrentNext' => [],
                 'stat4MatchedCurrentNext' => [],
+                'stat4RangeCurrentNext' => null,
             ];
         }
 
@@ -1104,13 +1107,14 @@ final class SQLiteSelectExpressionIndexPlan
             'stat4MatchedSamples' => $stat4['matchedSamples'],
             'stat4CurrentNext' => $stat4['currentNext'],
             'stat4MatchedCurrentNext' => $stat4['matchedCurrentNext'],
+            'stat4RangeCurrentNext' => $stat4['rangeCurrentNext'],
         ];
     }
 
     /**
      * @param mixed $samples
      * @param array{operator:string,values:mixed} $constraint
-     * @return null|array{rows:int,matchedSamples:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,matchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>}
+     * @return null|array{rows:int,matchedSamples:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,matchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,rangeCurrentNext:array<string,mixed>|null}
      */
     private static function stat4Estimate(mixed $samples, array $constraint, int $baseRows): ?array
     {
@@ -1154,6 +1158,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                'rangeCurrentNext' => null,
             ];
         }
         if ($operator === 'IN') {
@@ -1177,6 +1182,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                'rangeCurrentNext' => null,
             ];
         }
         if ($operator === 'BETWEEN' && is_array($values)) {
@@ -1191,6 +1197,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, true, true),
             ];
         }
         if ($operator === 'range-bounded' && is_array($values)) {
@@ -1207,6 +1214,7 @@ final class SQLiteSelectExpressionIndexPlan
                 'matchedSamples' => count($matched),
                 'currentNext' => $currentNext,
                 'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $lower, $upper, $lowerInclusive, $upperInclusive),
             ];
         }
         if (str_starts_with($operator, 'range-')) {
@@ -1225,6 +1233,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'matchedSamples' => count($matched),
                     'currentNext' => $currentNext,
                     'matchedCurrentNext' => self::stat4CurrentNext($matched),
+                    'rangeCurrentNext' => self::stat4SingleRangeCurrentNext($normalized, $operator, $values),
                 ];
             }
         }
@@ -1362,6 +1371,93 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return $pairs;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return array{lower:array<string,mixed>|null,upper:array<string,mixed>|null,lowerInclusive:bool,upperInclusive:bool,emptyGap:bool}
+     */
+    private static function stat4RangeCurrentNext(array $samples, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): array
+    {
+        $lowerPair = self::stat4BoundaryCurrentNext($samples, $lower, 'lower');
+        $upperPair = self::stat4BoundaryCurrentNext($samples, $upper, 'upper');
+
+        return [
+            'lower' => $lowerPair,
+            'upper' => $upperPair,
+            'lowerInclusive' => $lowerInclusive,
+            'upperInclusive' => $upperInclusive,
+            'emptyGap' => $lowerPair !== null
+                && $upperPair !== null
+                && ($lowerPair['current']['key'] ?? null) === ($upperPair['current']['key'] ?? null)
+                && ($lowerPair['next']['key'] ?? null) === ($upperPair['next']['key'] ?? null)
+                && self::compareStat4Keys($lower, $upper) < 0,
+        ];
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return array{lower:array<string,mixed>|null,upper:array<string,mixed>|null,lowerInclusive:bool,upperInclusive:bool,emptyGap:bool}
+     */
+    private static function stat4SingleRangeCurrentNext(array $samples, string $operator, mixed $value): array
+    {
+        return match ($operator) {
+            'range->' => self::stat4RangeCurrentNext($samples, $value, null, false, false),
+            'range->=' => self::stat4RangeCurrentNext($samples, $value, null, true, false),
+            'range-<' => self::stat4RangeCurrentNext($samples, null, $value, false, false),
+            'range-<=' => self::stat4RangeCurrentNext($samples, null, $value, false, true),
+            default => ['lower' => null, 'upper' => null, 'lowerInclusive' => false, 'upperInclusive' => false, 'emptyGap' => false],
+        };
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return array{current:array<string,mixed>|null,next:array<string,mixed>|null,side:string,value:mixed,exact:bool}|null
+     */
+    private static function stat4BoundaryCurrentNext(array $samples, mixed $value, string $side): ?array
+    {
+        if ($value === null || $samples === []) {
+            return null;
+        }
+
+        $previous = null;
+        foreach ($samples as $offset => $sample) {
+            $comparison = self::compareStat4Keys($sample['key'], $value);
+            if ($comparison >= 0) {
+                return [
+                    'current' => $comparison === 0 ? self::stat4BoundarySample($sample) : ($previous === null ? null : self::stat4BoundarySample($previous)),
+                    'next' => $comparison === 0
+                        ? (isset($samples[$offset + 1]) ? self::stat4BoundarySample($samples[$offset + 1]) : null)
+                        : self::stat4BoundarySample($sample),
+                    'side' => $side,
+                    'value' => $value,
+                    'exact' => $comparison === 0,
+                ];
+            }
+            $previous = $sample;
+        }
+
+        return [
+            'current' => $previous === null ? null : self::stat4BoundarySample($previous),
+            'next' => null,
+            'side' => $side,
+            'value' => $value,
+            'exact' => false,
+        ];
+    }
+
+    /**
+     * @param array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>} $sample
+     * @return array{key:mixed,neq:int,nlt:int,ndlt:int}
+     */
+    private static function stat4BoundarySample(array $sample): array
+    {
+        return [
+            'key' => $sample['key'],
+            'neq' => $sample['neq'],
+            'nlt' => $sample['nlt'],
+            'ndlt' => $sample['ndlt'],
+        ];
     }
 
     private static function compareStat4Keys(mixed $left, mixed $right): int

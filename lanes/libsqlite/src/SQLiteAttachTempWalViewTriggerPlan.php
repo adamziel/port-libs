@@ -138,6 +138,10 @@ final class SQLiteAttachTempWalViewTriggerPlan
         $rollbackKeys = self::operationKeySet($rollbackOperations);
         $routes = [];
 
+        $writtenBoundaries = [];
+        $writtenJournals = [];
+        $writtenFrames = [];
+
         foreach ($operations as $index => $operation) {
             $schema = (string) ($operation['schema'] ?? '');
             $kind = (string) ($operation['kind'] ?? 'unknown');
@@ -146,9 +150,15 @@ final class SQLiteAttachTempWalViewTriggerPlan
             $journal = 'none';
             $commitVisible = false;
             $walFrameIndexes = [];
+            $readAfterWrite = false;
 
             if ($kind === 'select') {
                 $journal = 'read';
+                if (isset($operation['table'], $writtenBoundaries[$schema])) {
+                    $readerBoundary = $writtenBoundaries[$schema];
+                    $walFrameIndexes = $writtenFrames[$schema] ?? [];
+                    $readAfterWrite = true;
+                }
             } elseif (isset($tempKeys[$key])) {
                 $journal = 'temp-rollback';
                 $readerBoundary = 'connection-local-next';
@@ -172,7 +182,15 @@ final class SQLiteAttachTempWalViewTriggerPlan
                 'reader_boundary' => $readerBoundary,
                 'commit_visible' => $commitVisible,
                 'wal_frame_indexes' => $walFrameIndexes,
+                'read_after_write' => $readAfterWrite,
+                'prior_write_journal' => $readAfterWrite ? ($writtenJournals[$schema] ?? 'none') : null,
             ];
+
+            if ($kind !== 'select' && $commitVisible) {
+                $writtenBoundaries[$schema] = $readerBoundary;
+                $writtenJournals[$schema] = $journal;
+                $writtenFrames[$schema] = $walFrameIndexes;
+            }
         }
 
         return $routes;

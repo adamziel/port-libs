@@ -599,6 +599,49 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,database_bytes:string,statement_journal_path?:string,statement_pages:array<int,string>,outer_journal_bytes?:string,reserved_lock?:bool}> $databases
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
+     */
+    public function applyMasterJournalStatementPageRecovery(
+        string $masterJournalPath,
+        ?string $masterJournalBytes,
+        array $databases,
+        int $pageSize,
+    ): array {
+        $plan = SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext(
+            $masterJournalPath,
+            $masterJournalBytes,
+            $databases,
+            $pageSize,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        if ($plan['recovered_database_count'] === 0) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => $plan['dependencies'],
+                'recovery' => $plan,
+                'atomic' => true,
+            ];
+        }
+
+        $applied = $this->applyAtomicOperations($plan['operations'], $plan['payloads'], $plan['dependencies']);
+        $applied['recovery'] = $plan;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null}
      */
     public function applySavepointRollback(

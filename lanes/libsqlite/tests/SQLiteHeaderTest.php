@@ -70,6 +70,7 @@ use PortLibs\LibSqlite\SQLiteOverflowFreelistReleasePlan;
 use PortLibs\LibSqlite\SQLitePageCache;
 use PortLibs\LibSqlite\SQLitePagerJournalOpenPlan;
 use PortLibs\LibSqlite\SQLitePagerCheckpointTransactionPlan;
+use PortLibs\LibSqlite\SQLitePagerStatementRecoveryPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaLockingMode;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
@@ -21792,6 +21793,171 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, $commits, $pageSize, 'bad'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, $commits, $pageSize, 'full', 'bad'));
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applySuperJournalCommit('../escape-mj', $commits, $pageSize));
+    },
+    'recovers sqlite statement journals gated by attached master journals current next' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-master-stmt-recovery-' . bin2hex(random_bytes(4));
+        $mainPath = '/srv/www/wp-content/database/.ht.sqlite';
+        $metaPath = '/srv/www/wp-content/database/site-meta.sqlite';
+        $orphanPath = '/srv/www/wp-content/database/orphan.sqlite';
+        $masterPath = '/srv/www/wp-content/database/.ht.sqlite-mj80';
+        $pageSize = 512;
+        $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
+
+        $mainCurrent = $page('main schema current after failed statement')
+            . $page('wp_options dirty plugin row')
+            . $page('wp_options dirty autoload index');
+        $metaCurrent = $page('sitemeta schema current after failed statement')
+            . $page('wp_sitemeta dirty plugin row');
+        $orphanCurrent = $page('orphan schema current after failed statement')
+            . $page('orphan dirty row');
+
+        $mainBeforeOptions = $page('wp_options before failed statement');
+        $mainBeforeIndex = $page('wp_options index before failed statement');
+        $metaBefore = $page('wp_sitemeta before failed statement');
+        $orphanBefore = $page('orphan before failed statement');
+        $masterBytes = $mainPath . "-journal\n" . $metaPath . "-journal\n";
+        $databases = [
+            [
+                'database_path' => $mainPath,
+                'database_bytes' => $mainCurrent,
+                'statement_journal_path' => $mainPath . '-stmt-journal',
+                'statement_pages' => [3 => $mainBeforeIndex, 2 => $mainBeforeOptions],
+                'outer_journal_bytes' => 'main outer transaction rollback journal remains live',
+            ],
+            [
+                'database_path' => $metaPath,
+                'database_bytes' => $metaCurrent,
+                'statement_pages' => [2 => $metaBefore],
+                'outer_journal_bytes' => 'sitemeta outer transaction rollback journal remains live',
+            ],
+            [
+                'database_path' => $orphanPath,
+                'database_bytes' => $orphanCurrent,
+                'statement_pages' => [2 => $orphanBefore],
+                'outer_journal_bytes' => 'orphan outer journal missing from master',
+            ],
+        ];
+
+        $plan = SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, $databases, $pageSize);
+        $t->same('master_journal_statement_recovered_current_next', $plan['status']);
+        $t->same('master_journal_members_gate_statement_journal_recovery', $plan['reason']);
+        $t->same($masterPath, $plan['master_journal_path']);
+        $t->same(true, $plan['master_journal_exists']);
+        $t->same([$mainPath . '-journal', $metaPath . '-journal'], $plan['master_journal_members']);
+        $t->same(3, $plan['database_count']);
+        $t->same(2, $plan['recovered_database_count']);
+        $t->same(1, $plan['skipped_database_count']);
+        $t->same('wp_options dirty plugin row', $plan['current_page_prefixes'][$mainPath][2]);
+        $t->same('wp_options before failed statement', $plan['next_page_prefixes'][$mainPath][2]);
+        $t->same('wp_options dirty autoload index', $plan['current_page_prefixes'][$mainPath][3]);
+        $t->same('wp_options index before failed statement', $plan['next_page_prefixes'][$mainPath][3]);
+        $t->same('wp_sitemeta dirty plugin row', $plan['current_page_prefixes'][$metaPath][2]);
+        $t->same('wp_sitemeta before failed statement', $plan['next_page_prefixes'][$metaPath][2]);
+        $t->same('orphan dirty row', $plan['current_page_prefixes'][$orphanPath][2]);
+        $t->same('orphan dirty row', $plan['next_page_prefixes'][$orphanPath][2]);
+        $t->same('delete_statement_journal_after_rollback', $plan['statement_journal_actions'][$mainPath . '-stmt-journal']);
+        $t->same('delete_statement_journal_after_rollback', $plan['statement_journal_actions'][$metaPath . '-stmt-journal']);
+        $t->same('preserve_statement_journal', $plan['statement_journal_actions'][$orphanPath . '-stmt-journal']);
+        $t->same('preserve_outer_rollback_journal', $plan['outer_journal_actions'][$mainPath . '-journal']);
+        $t->same('preserve_outer_rollback_journal', $plan['outer_journal_actions'][$metaPath . '-journal']);
+        $t->same('preserve_outer_rollback_journal', $plan['outer_journal_actions'][$orphanPath . '-journal']);
+        $t->same('preserve_master_journal_for_outer_transaction', $plan['master_journal_action']);
+        $t->same(7, count($plan['operations']));
+        $t->same(['write', 'truncate', 'delete', 'write', 'truncate', 'delete', 'sync_directory'], array_column($plan['operations'], 'op'));
+        $t->same('restore_statement_journal_page_preimages', $plan['operations'][0]['reason']);
+        $t->same($mainPath . '#statement-rollback', $plan['operations'][0]['payload_key']);
+        $t->same($pageSize * 3, $plan['operations'][0]['bytes']);
+        $t->same('trim_statement_recovered_database_image', $plan['operations'][1]['reason']);
+        $t->same('delete_statement_journal_after_recovery', $plan['operations'][2]['reason']);
+        $t->same($metaPath . '#statement-rollback', $plan['operations'][3]['payload_key']);
+        $t->same('persist_statement_journal_recovery_sidecars', $plan['operations'][6]['reason']);
+        $t->same($pageSize * 3, strlen($plan['payloads'][$mainPath . '#statement-rollback']));
+        $t->same($mainBeforeOptions, substr($plan['payloads'][$mainPath . '#statement-rollback'], $pageSize, $pageSize));
+        $t->same($mainBeforeIndex, substr($plan['payloads'][$mainPath . '#statement-rollback'], $pageSize * 2, $pageSize));
+        $t->same($metaBefore, substr($plan['payloads'][$metaPath . '#statement-rollback'], $pageSize, $pageSize));
+        $t->same(true, $plan['databases'][$mainPath]['recovered']);
+        $t->same('master_journal_member_statement_rollback', $plan['databases'][$mainPath]['reason']);
+        $t->same([2, 3], $plan['databases'][$mainPath]['page_numbers']);
+        $t->same(false, $plan['databases'][$orphanPath]['recovered']);
+        $t->same('missing_master_journal_member', $plan['databases'][$orphanPath]['reason']);
+        $t->same([
+            'sqlite-pager-master-journal-statement-recovery-current-next80',
+            'sqlite-statement-journal-page-recovery',
+            'attached-database-statement-rollback',
+            'vfs-file-write-coordination',
+        ], $plan['dependencies']);
+
+        mkdir(dirname($root . $masterPath), 0777, true);
+        file_put_contents($root . $masterPath, $masterBytes);
+        file_put_contents($root . $mainPath . '-journal', 'main outer rollback journal');
+        file_put_contents($root . $mainPath . '-stmt-journal', 'main statement journal');
+        file_put_contents($root . $metaPath . '-journal', 'meta outer rollback journal');
+        file_put_contents($root . $metaPath . '-stmt-journal', 'meta statement journal');
+        file_put_contents($root . $orphanPath . '-journal', 'orphan outer rollback journal');
+        file_put_contents($root . $orphanPath . '-stmt-journal', 'orphan statement journal');
+
+        $applied = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecovery($masterPath, $masterBytes, $databases, $pageSize);
+        $t->same('applied', $applied['status']);
+        $t->same(true, $applied['atomic']);
+        $t->same(7, $applied['applied']);
+        $t->same(($pageSize * 3) + ($pageSize * 2), $applied['bytes_written']);
+        $t->same(($pageSize * 3) + ($pageSize * 2), $applied['bytes_truncated']);
+        $t->same(2, $applied['files_deleted']);
+        $t->same(0, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(false, is_file($root . $mainPath . '-stmt-journal'));
+        $t->same(false, is_file($root . $metaPath . '-stmt-journal'));
+        $t->same(true, is_file($root . $mainPath . '-journal'));
+        $t->same(true, is_file($root . $metaPath . '-journal'));
+        $t->same(true, is_file($root . $masterPath));
+        $t->same(true, is_file($root . $orphanPath . '-stmt-journal'));
+        $mainBytes = file_get_contents($root . $mainPath);
+        $metaBytes = file_get_contents($root . $metaPath);
+        $t->same($pageSize * 3, strlen($mainBytes));
+        $t->same('main schema current after failed statement', rtrim(substr($mainBytes, 0, 48), "\0"));
+        $t->same($mainBeforeOptions, substr($mainBytes, $pageSize, $pageSize));
+        $t->same($mainBeforeIndex, substr($mainBytes, $pageSize * 2, $pageSize));
+        $t->same($pageSize * 2, strlen($metaBytes));
+        $t->same('sitemeta schema current after failed statement', rtrim(substr($metaBytes, 0, 48), "\0"));
+        $t->same($metaBefore, substr($metaBytes, $pageSize, $pageSize));
+        $t->same(2, $applied['recovery']['recovered_database_count']);
+        $t->same('preserve_master_journal_for_outer_transaction', $applied['recovery']['master_journal_action']);
+
+        $reserved = SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [[
+            'database_path' => $mainPath,
+            'database_bytes' => $mainCurrent,
+            'statement_pages' => [2 => $mainBeforeOptions],
+            'reserved_lock' => true,
+        ]], $pageSize);
+        $t->same('master_journal_statement_recovery_skipped_current_next', $reserved['status']);
+        $t->same(0, $reserved['recovered_database_count']);
+        $t->same(1, $reserved['skipped_database_count']);
+        $t->same('database_has_reserved_lock', $reserved['databases'][$mainPath]['reason']);
+        $t->same('preserve_statement_journal', $reserved['statement_journal_actions'][$mainPath . '-stmt-journal']);
+        $t->same([], $reserved['operations']);
+
+        $missingMaster = (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecovery($masterPath, null, [[
+            'database_path' => $mainPath,
+            'database_bytes' => $mainCurrent,
+            'statement_pages' => [2 => $mainBeforeOptions],
+        ]], $pageSize);
+        $t->same('skipped', $missingMaster['status']);
+        $t->same(false, $missingMaster['recovery']['master_journal_exists']);
+        $t->same('missing_master_journal', $missingMaster['recovery']['databases'][$mainPath]['reason']);
+        $t->same(0, $missingMaster['applied']);
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applyMasterJournalStatementPageRecovery($masterPath, $masterBytes, $databases, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext('', $masterBytes, $databases, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, $databases, 500));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [['database_path' => '', 'database_bytes' => $mainCurrent, 'statement_pages' => [2 => $mainBeforeOptions]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [['database_path' => $mainPath, 'database_bytes' => substr($mainCurrent, 1), 'statement_pages' => [2 => $mainBeforeOptions]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [['database_path' => $mainPath, 'database_bytes' => $mainCurrent, 'statement_pages' => []]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [['database_path' => $mainPath, 'database_bytes' => $mainCurrent, 'statement_pages' => [0 => $mainBeforeOptions]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [['database_path' => $mainPath, 'database_bytes' => $mainCurrent, 'statement_pages' => [2 => substr($mainBeforeOptions, 1)]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerStatementRecoveryPlan::masterJournalStatementRecoveryCurrentNext($masterPath, $masterBytes, [$databases[0], $databases[0]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => (new SQLiteVfsFileWriter($root))->applyMasterJournalStatementPageRecovery('../escape-mj', $masterBytes, $databases, $pageSize));
     },
     'applies sqlite vfs savepoint rollback images and wal truncation to local handles' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libsqlite-vfs-savepoint-' . bin2hex(random_bytes(4));

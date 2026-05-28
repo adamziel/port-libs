@@ -215,6 +215,96 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,rollback:array<string,mixed>,release:array<string,mixed>,checkpoint:array<string,mixed>,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_kept_rollback_wal_prefix:bool,release_allows_checkpoint_reset:bool,next_reader_uses_checkpoint_database:bool,images_match:bool,dependencies:list<string>}
+     */
+    public static function releaseAfterRollbackCheckpointCurrentNext81(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $currentReaderEndFrame = null
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint current/next requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint requires restart or truncate mode');
+        }
+
+        $working = clone $savepoints;
+        $rollback = $working->rollbackToWithPlan($savepoint);
+        $release = $working->releaseWithPlan($savepoint);
+        $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $currentWal = SQLiteWal::parse($currentWalBytes, $wal->header->pageSize, true);
+        $currentReaderEndFrame ??= $currentWal->frameCount();
+        if ($currentReaderEndFrame > $currentWal->frameCount()) {
+            $currentReaderEndFrame = $currentWal->frameCount();
+        }
+
+        $checkpoint = $currentWal->durableCheckpointResult($databaseBytes, $mode);
+        $nextWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($checkpoint['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint pages must be integers');
+            }
+
+            $current[] = $currentWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($checkpoint['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($checkpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+
+        return [
+            'status' => $checkpoint['busy'] ? 'busy' : 'released-checkpointed',
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'rollback' => $rollback,
+            'release' => $release,
+            'checkpoint' => $checkpoint,
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_kept_rollback_wal_prefix' => in_array('wal', $currentSources, true),
+            'release_allows_checkpoint_reset' => !$checkpoint['busy'] && ($checkpoint['can_reset'] || $checkpoint['can_truncate']),
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'images_match' => $currentImages === $nextImages,
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                [
+                    'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                    'sqlite-savepoint-release-after-rollback-current-next81',
+                    'sqlite-wal-savepoint-release-checkpoint-current-next81',
+                ]
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<int|null> $currentReadMarks
      * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_read_marks:array<string,mixed>,next_read_marks:array<string,mixed>,current_reader_kept_wal_snapshot:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_preserved_wal:bool,images_match:bool,dependencies:list<string>}
      */

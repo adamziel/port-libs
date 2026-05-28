@@ -291,6 +291,22 @@ final class SQLiteAttachTempViewTriggerYieldPlan
             ];
         }
 
+        if (preg_match('/^select\s+(?<values>.*?)\s+from\s+(?:(?<schema>["`\[]?[\w-]+["`\]]?)\s*\.\s*)?(?<table>["`\[]?[\w-]+["`\]]?)(?:\s+where\s+(?<where>.*))?$/is', $statement, $matches)) {
+            $target = self::resolveBodyTable($catalog, self::nameParts($matches), $triggerSchema, $tempTrigger);
+            $operation = [
+                'kind' => 'select',
+                'schema' => $target['schema'],
+                'table' => $target['record']->name,
+                'values' => array_map(static fn (string $value): mixed => self::value($value, $newRow, $oldRow), self::splitCommaList($matches['values'])),
+                'source' => $statement,
+            ];
+            if (isset($matches['where']) && trim($matches['where']) !== '') {
+                $operation['where'] = self::predicate($matches['where'], $newRow, $oldRow);
+            }
+
+            return $operation;
+        }
+
         if (preg_match('/^select\s+(?<values>.*)$/is', $statement, $matches)) {
             return [
                 'kind' => 'select',
