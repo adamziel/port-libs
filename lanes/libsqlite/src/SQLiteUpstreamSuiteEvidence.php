@@ -4499,6 +4499,155 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function currentSourceRunnerReproCountCurrentSourceNext107(
+        string $artifactDirectory,
+        string $currentSourceHead,
+        string $nextSourceHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->currentSourceNextArtifactDirectoryRecord(
+            $artifactDirectory,
+            $currentSourceHead,
+            $nextSourceHead,
+            $processSnapshot
+        );
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = is_array($record['entries'] ?? null) ? $record['entries'] : [];
+        $currentLabels = [];
+        $currentTestsTotal = 0;
+        $currentErrorsTotal = 0;
+        $currentPatterns = [];
+        $blockedLabels = [];
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $label = is_string($entry['label'] ?? null) ? $entry['label'] : '';
+            $status = is_string($entry['status'] ?? null) ? $entry['status'] : 'blocked';
+            if ($status !== 'current-source-countable') {
+                if ($status !== 'next-source-countable') {
+                    $blockedLabels[] = $label;
+                }
+                continue;
+            }
+
+            $currentLabels[] = $label;
+            $currentTestsTotal += max(0, (int) ($entry['tests'] ?? 0));
+            $currentErrorsTotal += max(0, (int) ($entry['errors'] ?? 0));
+        }
+
+        foreach ($this->boundedRunnerAuditArtifactPaths($artifactDirectory) as $auditPath) {
+            if (!is_file($auditPath)) {
+                continue;
+            }
+            $auditText = file_get_contents($auditPath);
+            if ($auditText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+            }
+            $label = $this->extractMarkdownHeadingLabel($auditText) ?? pathinfo($auditPath, PATHINFO_FILENAME);
+            if (!in_array($label, $currentLabels, true)) {
+                continue;
+            }
+            foreach ($this->extractBacktickListField($auditText, 'Patterns') as $pattern) {
+                if ($pattern !== '' && strtolower($pattern) !== 'none') {
+                    $currentPatterns[$pattern] = true;
+                }
+            }
+        }
+
+        ksort($currentPatterns);
+        sort($currentLabels, SORT_STRING);
+        sort($blockedLabels, SORT_STRING);
+
+        $blockers = [];
+        if (($record['artifact_count'] ?? 0) === 0) {
+            $blockers[] = [
+                'id' => 'current-source-repro-artifacts-missing',
+                'evidence' => 'no guarded bounded-runner audit/log artifacts were available for current-source repro counting',
+            ];
+        }
+        if ($currentLabels === []) {
+            $blockers[] = [
+                'id' => 'current-source-repro-artifact-not-countable',
+                'evidence' => 'no zero-error guarded bounded-runner artifact matched the current accepted source head',
+            ];
+        }
+        if (($record['next_source_count'] ?? 0) > 0) {
+            $blockers[] = [
+                'id' => 'next-source-artifact-present',
+                'evidence' => 'current-source repro counting must not mix next-source movement with preserved current-source evidence',
+                'next_source_labels' => $record['next_source_labels'] ?? [],
+            ];
+        }
+        if (($record['blocked_count'] ?? 0) > 0 || ($record['missing_log_count'] ?? 0) > 0) {
+            $blockers[] = [
+                'id' => 'blocked-runner-artifact-present',
+                'evidence' => 'stale, failed, manifest-mismatched, or missing-log artifacts remain in the repro directory',
+                'blocked_labels' => $blockedLabels,
+                'missing_log_labels' => $record['missing_log_labels'] ?? [],
+            ];
+        }
+        if ($currentErrorsTotal !== 0) {
+            $blockers[] = [
+                'id' => 'current-source-repro-errors-present',
+                'evidence' => 'current-source repro artifacts must have zero parsed errors before they are countable',
+                'errors_total' => $currentErrorsTotal,
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-current-source-repro-php-pass-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP TestRunner output did not satisfy admission gates',
+            ];
+        }
+
+        $blocked = $blockers !== [];
+        $phpDelta = $blocked ? 0 : (int) ($phpAdmission['assertion_delta'] ?? 0);
+
+        return [
+            'status' => $blocked ? 'blocked-current-source-next107-repro-count' : 'current-source-next107-repro-countable',
+            'artifact_directory' => $artifactDirectory,
+            'current_source_head' => $currentSourceHead,
+            'next_source_head' => $nextSourceHead,
+            'artifact_count' => (int) ($record['artifact_count'] ?? 0),
+            'current_source_count' => count($currentLabels),
+            'next_source_count' => (int) ($record['next_source_count'] ?? 0),
+            'blocked_count' => count($blockers),
+            'blockers' => $blockers,
+            'current_source_labels' => $currentLabels,
+            'current_source_patterns' => array_keys($currentPatterns),
+            'current_source_tests_total' => $blocked ? 0 : $currentTestsTotal,
+            'current_source_errors_total' => $currentErrorsTotal,
+            'counts_current_source_repro' => !$blocked,
+            'counts_next_source' => false,
+            'counts_release_parity' => false,
+            'php_pass_admission' => $phpAdmission,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $phpDelta,
+            'next_php_pass' => $blocked ? $currentPhpPass : $currentPhpPass + $phpDelta,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $blocked
+                ? 'keep current-source next107 repro count uncounted until only zero-error current-source artifacts remain and focused PASS-line admission is clean'
+                : 'publish only the current-source next107 repro-count artifact and exact focused PASS-line movement; release/all parity and next-source movement remain unclaimed',
+            'dependency_closure' => 'no new support component needed; current-source next107 repro count composes lane-local guarded runner audit/log artifacts, current accepted source provenance, manifest UUID gates, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function selectedScriptInventory(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
@@ -9654,6 +9803,139 @@ final class SQLiteUpstreamSuiteEvidence
             ? 'publish only the current-source next104 upstream-runner gap-burnup row and exact focused PASS-line movement; release/all parity remains gated on separate zero-error broad artifacts'
             : 'keep current-source next104 upstream-runner gap burnup uncounted until source provenance, lane-local artifacts, zero-error guarded runner rows, removed-blocker evidence, duplicate-runner state, and focused PASS-line gates are clear';
         $record['dependency_closure'] = 'no new support component needed; current-source next104 upstream-runner gap burnup composes lane-local bounded runner artifacts, removed-blocker classifications, launcher/dashboard/status/implementation source heads, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $rebaseRows = [];
+        $rebasedGapIds = [];
+        $preservedGapIds = [];
+        $blockedGapIds = [];
+        $blockers = is_array($record['blockers'] ?? null) ? $record['blockers'] : [];
+
+        foreach (is_array($record['gap_rows'] ?? null) ? $record['gap_rows'] : [] as $gapRow) {
+            if (!is_array($gapRow)) {
+                continue;
+            }
+
+            $unit = is_string($gapRow['unit'] ?? null) ? $gapRow['unit'] : '';
+            $source = null;
+            foreach ($artifactRows as $candidate) {
+                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                    $source = $candidate;
+                    break;
+                }
+            }
+
+            $rebaseStatus = is_array($source) && is_string($source['rebase_status'] ?? null) && $source['rebase_status'] !== ''
+                ? $source['rebase_status']
+                : 'open';
+            $rebaseReason = is_array($source) && is_string($source['rebase_reason'] ?? null)
+                ? trim($source['rebase_reason'])
+                : '';
+            $gapId = is_string($gapRow['gap_id'] ?? null) ? $gapRow['gap_id'] : $unit;
+            $movement = is_string($gapRow['movement'] ?? null) ? $gapRow['movement'] : 'open';
+            $rowBlockers = is_array($gapRow['blocker_ids'] ?? null) ? $gapRow['blocker_ids'] : [];
+
+            if ($movement === 'next-source-admitted') {
+                if ($rebaseStatus !== 'rebased') {
+                    $rowBlockers[] = 'rebase-status-not-rebased';
+                }
+                if ($rebaseReason === '') {
+                    $rowBlockers[] = 'rebase-reason-missing';
+                }
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedGapIds[] = $gapId;
+                $blockers[] = [
+                    'id' => 'current-source-next108-rebase-row-blocked',
+                    'unit' => $unit,
+                    'gap_id' => $gapId,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($movement === 'next-source-admitted') {
+                $rebasedGapIds[] = $gapId;
+            } elseif ($movement === 'current-source-preserved') {
+                $preservedGapIds[] = $gapId;
+            }
+
+            $gapRow['rebase_status'] = $rebaseStatus;
+            $gapRow['rebase_reason'] = $rebaseReason;
+            $gapRow['blocker_ids'] = $rowBlockers;
+            $rebaseRows[] = $gapRow;
+        }
+
+        sort($rebasedGapIds, SORT_STRING);
+        sort($preservedGapIds, SORT_STRING);
+        sort($blockedGapIds, SORT_STRING);
+
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && $rebasedGapIds !== [] ? 1 : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next108-upstream-runner-suite-evidence-rebase-countable';
+        } elseif (!$blocked) {
+            $status = 'current-source-next108-upstream-runner-suite-evidence-rebase-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next108-upstream-runner-suite-evidence-rebase-countable';
+        $record['blockers'] = $blockers;
+        $record['blocker_count'] = count($blockers);
+        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['rebase_rows'] = $rebaseRows;
+        $record['rebased_gap_ids'] = $rebasedGapIds;
+        $record['preserved_rebase_gap_ids'] = $preservedGapIds;
+        $record['blocked_rebase_gap_ids'] = $blockedGapIds;
+        $record['counts_upstream_runner_gap_burnup_current_source_next104'] = false;
+        $record['counts_upstream_runner_suite_evidence_rebase_current_source_next108'] = $status === 'current-source-next108-upstream-runner-suite-evidence-rebase-countable';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next108-upstream-runner-suite-evidence-rebase-countable'
+            ? 'publish only the current-source next108 upstream-runner suite evidence rebase row and exact focused PASS-line movement; release/all parity remains gated on separate zero-error broad artifacts'
+            : 'keep current-source next108 suite evidence rebase uncounted until provenance, lane-local artifacts, removed-blocker and rebase classifications, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next108 upstream-runner suite evidence rebase composes accepted artifact rows, rebase classifications, source-head provenance gates, active-runner gates, and focused TestRunner PASS-line output only';
 
         return $record;
     }

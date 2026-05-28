@@ -74,6 +74,12 @@ final class SQLitePragmaOptimizePlan
 
         $analyze = [];
         $skipped = [];
+        $currentSource = [
+            'schema' => $schema,
+            'tables' => [],
+            'stable' => true,
+            'stale' => [],
+        ];
         foreach ($tables as $table) {
             $tableSchema = $this->normalizeSchema((string) ($table['schema'] ?? 'main'));
             if ($tableSchema !== $schema) {
@@ -81,6 +87,15 @@ final class SQLitePragmaOptimizePlan
             }
 
             $name = self::requiredIdentifier($table, 'name', 'SQLite PRAGMA optimize table');
+            $source = $this->tableCurrentSource($schema, $name, $table);
+            $currentSource['tables'][$name] = $source;
+            if (!$source['stable']) {
+                $currentSource['stable'] = false;
+                $currentSource['stale'][] = ['table' => $name, 'reason' => $source['staleReason']];
+                $skipped[] = ['table' => $name, 'reason' => 'stale-current-source'];
+                continue;
+            }
+
             $rowCount = max(0, (int) ($table['rowCount'] ?? 0));
             $statRowCount = array_key_exists('statRowCount', $table) ? max(0, (int) $table['statRowCount']) : null;
             $touched = (bool) ($table['touched'] ?? false);
@@ -100,6 +115,7 @@ final class SQLitePragmaOptimizePlan
                 'analysisLimit' => $temporaryLimit,
                 'estimatedRows' => $rowCount,
                 'statRows' => $statRowCount,
+                'currentSource' => $source['token'],
             ];
         }
 
@@ -114,8 +130,9 @@ final class SQLitePragmaOptimizePlan
             'restoredAnalysisLimit' => $this->analysisLimits[$schema],
             'analyze' => $analyze,
             'skipped' => $skipped,
+            'currentSource' => $currentSource,
             'rows' => [],
-            'dependencies' => ['analysis_limit', 'sqlite_stat1', 'schema-table-scan'],
+            'dependencies' => ['analysis_limit', 'sqlite_stat1', 'schema-table-scan', 'current-source'],
         ];
     }
 
@@ -193,6 +210,69 @@ final class SQLitePragmaOptimizePlan
         $schema = strtolower(trim($schema));
 
         return $schema === '' ? 'main' : $schema;
+    }
+
+    /**
+     * @param array<string,mixed> $table
+     * @return array{token:string,stable:bool,staleReason:?string,schemaCookie:?int,expectedSchemaCookie:?int,statCookie:?int,expectedStatCookie:?int,sourceId:?string,expectedSourceId:?string}
+     */
+    private function tableCurrentSource(string $schema, string $name, array $table): array
+    {
+        $schemaCookie = $this->optionalInt($table['schemaCookie'] ?? null);
+        $expectedSchemaCookie = $this->optionalInt($table['expectedSchemaCookie'] ?? $schemaCookie);
+        $statCookie = $this->optionalInt($table['statCookie'] ?? null);
+        $expectedStatCookie = $this->optionalInt($table['expectedStatCookie'] ?? $statCookie);
+        $sourceId = $this->optionalString($table['sourceId'] ?? null);
+        $expectedSourceId = $this->optionalString($table['expectedSourceId'] ?? $sourceId);
+        $stable = true;
+        $staleReason = null;
+
+        if ($expectedSchemaCookie !== null && $schemaCookie !== $expectedSchemaCookie) {
+            $stable = false;
+            $staleReason = 'schema-cookie';
+        } elseif ($expectedStatCookie !== null && $statCookie !== $expectedStatCookie) {
+            $stable = false;
+            $staleReason = 'sqlite-stat1-cookie';
+        } elseif ($expectedSourceId !== null && $sourceId !== $expectedSourceId) {
+            $stable = false;
+            $staleReason = 'source-id';
+        }
+
+        return [
+            'token' => $schema . ':' . $name . ':schema=' . ($schemaCookie ?? 'none') . ':stat=' . ($statCookie ?? 'none') . ':source=' . ($sourceId ?? 'none'),
+            'stable' => $stable,
+            'staleReason' => $staleReason,
+            'schemaCookie' => $schemaCookie,
+            'expectedSchemaCookie' => $expectedSchemaCookie,
+            'statCookie' => $statCookie,
+            'expectedStatCookie' => $expectedStatCookie,
+            'sourceId' => $sourceId,
+            'expectedSourceId' => $expectedSourceId,
+        ];
+    }
+
+    private function optionalInt(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_int($value) && !(is_string($value) && preg_match('/^-?\d+$/', trim($value)))) {
+            throw new \InvalidArgumentException('SQLite PRAGMA optimize current source cookie needs an integer value');
+        }
+
+        return (int) $value;
+    }
+
+    private function optionalString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value) || trim($value) === '') {
+            throw new \InvalidArgumentException('SQLite PRAGMA optimize current source id needs a non-empty string value');
+        }
+
+        return trim($value);
     }
 
     /**

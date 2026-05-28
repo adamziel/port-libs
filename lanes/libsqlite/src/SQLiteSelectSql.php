@@ -113,11 +113,17 @@ final class SQLiteSelectSql
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
         $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
-        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow);
+        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow, $where);
 
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
             : null;
+        $namedWindows = isset($clauseOffsets['WINDOW'])
+            ? self::namedWindowDefinitions(self::clauseText($tail, $clauseOffsets, 'WINDOW'))
+            : [];
+        if ($namedWindows !== []) {
+            $selectSql = self::expandNamedWindowReferences($selectSql, $namedWindows);
+        }
         $select = self::selectList($selectSql, $tables);
         $plan = [
             'from' => $source['from'],
@@ -219,6 +225,12 @@ final class SQLiteSelectSql
         }
         if ($selectSql === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
+        }
+        $namedWindows = isset($clauseOffsets['WINDOW'])
+            ? self::namedWindowDefinitions(self::clauseText($sql, $clauseOffsets, 'WINDOW'))
+            : [];
+        if ($namedWindows !== []) {
+            $selectSql = self::expandNamedWindowReferences($selectSql, $namedWindows);
         }
 
         if (isset($clauseOffsets['GROUP BY']) || isset($clauseOffsets['HAVING'])) {
@@ -1207,7 +1219,7 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null): array
     {
         $commaSources = self::splitTopLevel($sql, ',');
         if (count($commaSources) > 1) {
@@ -1226,7 +1238,7 @@ final class SQLiteSelectSql
             $joinSql = trim(substr($sql, $joinOffset));
             $currentRows = self::qualifiedSourceRows($base);
             while ($joinSql !== '') {
-                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns, $outerRow);
+                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns, $outerRow, $wherePredicate);
                 $joins[] = $join;
                 $currentRows = [array_fill_keys(array_merge(self::collectColumns($currentRows), self::collectColumns($join['rows'])), null)];
             }
@@ -2048,7 +2060,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{0:array<string,mixed>,1:string}
      */
-    private static function consumeJoin(string $sql, array $tables, array $leftRows = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
+    private static function consumeJoin(string $sql, array $tables, array $leftRows = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null): array
     {
         if (preg_match('/^((?:natural\s+)?(?:(?:left|right|full)(?:\s+outer)?\s+join|inner\s+join|cross\s+join|join))\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN clause is not supported');
@@ -2197,7 +2209,10 @@ final class SQLiteSelectSql
         $predicate = self::predicate($on[1], $tables);
         $jsonIndexPredicate = $predicate;
         $jsonHiddenConstraints = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
-            ? self::jsonTableHiddenExpressionConstraintsForAlias($predicate, $table['alias'])
+            ? self::mergeJsonTableHiddenExpressionConstraints(
+                self::jsonTableHiddenExpressionConstraintsForAlias($predicate, $table['alias']),
+                $wherePredicate === null ? [] : self::jsonTableHiddenExpressionConstraintsForAlias($wherePredicate, $table['alias']),
+            )
             : [];
         if ($jsonHiddenConstraints !== []) {
             $function = $table['name'];
@@ -2417,6 +2432,30 @@ final class SQLiteSelectSql
         }
 
         return $constraints;
+    }
+
+    /**
+     * @param list<array{column:string,expression:array<string,mixed>,sql:string}> $primary
+     * @param list<array{column:string,expression:array<string,mixed>,sql:string}> $secondary
+     * @return list<array{column:string,expression:array<string,mixed>,sql:string}>
+     */
+    private static function mergeJsonTableHiddenExpressionConstraints(array $primary, array $secondary): array
+    {
+        $merged = [];
+        $seen = [];
+        foreach ([$primary, $secondary] as $constraints) {
+            foreach ($constraints as $constraint) {
+                $column = (string) $constraint['column'];
+                if (isset($seen[$column])) {
+                    continue;
+                }
+
+                $seen[$column] = true;
+                $merged[] = $constraint;
+            }
+        }
+
+        return $merged;
     }
 
     /**
@@ -4342,7 +4381,7 @@ final class SQLiteSelectSql
     private static function tailClauseOffsets(string $sql): array
     {
         $offsets = [];
-        foreach (['WHERE', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT'] as $keyword) {
+        foreach (['WHERE', 'GROUP BY', 'HAVING', 'WINDOW', 'ORDER BY', 'LIMIT'] as $keyword) {
             $offset = self::keywordOffset($sql, $keyword);
             if ($offset !== null) {
                 $offsets[$keyword] = $offset;
@@ -4351,6 +4390,102 @@ final class SQLiteSelectSql
         asort($offsets);
 
         return $offsets;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private static function namedWindowDefinitions(string $sql): array
+    {
+        $windows = [];
+        foreach (self::splitTopLevel($sql, ',') as $definition) {
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*(\(.*\))$/is', trim($definition), $match) !== 1) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW clause needs name AS (...) definitions');
+            }
+            $name = strtolower($match[1]);
+            if (isset($windows[$name])) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL WINDOW clause repeats window name {$match[1]}");
+            }
+            $body = self::unwrapParenthesizedExpression(trim($match[2]));
+            if ($body === trim($match[2])) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW definition must be parenthesized');
+            }
+            if ($body === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW definition cannot be empty');
+            }
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\b/i', $body, $baseMatch) === 1
+                && !in_array(strtoupper($baseMatch[1]), ['PARTITION', 'ORDER', 'ROWS', 'RANGE', 'GROUPS'], true)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW base-window chaining is not supported');
+            }
+            $windows[$name] = $body;
+        }
+        if ($windows === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL WINDOW clause needs at least one definition');
+        }
+
+        return $windows;
+    }
+
+    /**
+     * @param array<string,string> $windows
+     */
+    private static function expandNamedWindowReferences(string $sql, array $windows): string
+    {
+        $result = '';
+        $length = strlen($sql);
+        $quote = false;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $result .= $char;
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $result .= "'";
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                $result .= $char;
+                continue;
+            }
+            if (!self::keywordAt($sql, $i, 'OVER')) {
+                $result .= $char;
+                continue;
+            }
+
+            $result .= substr($sql, $i, 4);
+            $i += 4;
+            $spaces = '';
+            while ($i < $length && ctype_space($sql[$i])) {
+                $spaces .= $sql[$i];
+                $i++;
+            }
+            if ($i >= $length || !preg_match('/[A-Za-z_]/', $sql[$i]) || ($sql[$i] ?? '') === '(') {
+                $result .= $spaces;
+                $i--;
+                continue;
+            }
+
+            $start = $i;
+            $i++;
+            while ($i < $length && preg_match('/[A-Za-z0-9_]/', $sql[$i]) === 1) {
+                $i++;
+            }
+            $name = substr($sql, $start, $i - $start);
+            $key = strtolower($name);
+            if (!isset($windows[$key])) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL named window {$name} is not defined");
+            }
+            $result .= $spaces . '(' . $windows[$key] . ')';
+            $i--;
+        }
+        if ($quote) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL has unterminated string literal');
+        }
+
+        return $result;
     }
 
     /**

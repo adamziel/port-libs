@@ -172,4 +172,128 @@ final class SQLitePagerDirtyPageCacheSpillPlan
             ],
         ];
     }
+
+    /**
+     * @param list<array{page:int,bytes?:int,journaled?:bool,dirty?:bool,pinned?:bool,walFrame?:int}> $cachePages
+     * @return array<string, mixed>
+     */
+    public static function journalModeCurrentSourceNext107(
+        int $pageCount,
+        int $cacheSize,
+        int $spillThreshold,
+        array $cachePages,
+        string $journalMode,
+        bool $journalSynced,
+        string $lockState = 'reserved',
+        bool $cacheSpillEnabled = true,
+        ?int $maxSpillPages = null
+    ): array {
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'wal', 'memory', 'off'], true)) {
+            throw new \InvalidArgumentException('SQLite pager dirty-page spill journal mode is invalid');
+        }
+
+        $lockState = strtolower(trim($lockState));
+        if ($journalMode === 'off') {
+            $plan = self::currentNext(
+                $pageCount,
+                $cacheSize,
+                $spillThreshold,
+                self::normalizeCachePagesForJournalMode($cachePages, $journalMode),
+                $journalSynced,
+                $lockState,
+                false,
+                $maxSpillPages
+            );
+            $plan['journal_mode'] = $journalMode;
+            $plan['spill_target'] = 'deferred_until_commit';
+            $plan['journal_mode_blocked_reason'] = 'journal_mode_off_has_no_rollback_source';
+            $plan['next']['journal_mode'] = $journalMode;
+            $plan['next']['spill_target'] = 'deferred_until_commit';
+            $plan['next']['wal_frame_pages'] = [];
+            $plan['dependencies'][] = 'sqlite-pager-cache-spill-journalmode-current-source-next107';
+
+            return $plan;
+        }
+
+        $plan = self::currentNext(
+            $pageCount,
+            $cacheSize,
+            $spillThreshold,
+            self::normalizeCachePagesForJournalMode($cachePages, $journalMode),
+            $journalSynced,
+            $journalMode === 'wal' ? 'exclusive' : $lockState,
+            $cacheSpillEnabled,
+            $maxSpillPages
+        );
+
+        $spilledPages = $plan['next']['spilled_pages'];
+        $spillTarget = match ($journalMode) {
+            'wal' => 'wal_frames',
+            'memory' => 'database_pages_after_memory_journal',
+            default => 'database_pages_after_rollback_journal',
+        };
+
+        if ($spilledPages !== []) {
+            $operations = [];
+            if ($journalMode === 'wal') {
+                foreach ($spilledPages as $page) {
+                    $operations[] = [
+                        'op' => 'append_wal_frame',
+                        'page' => $page,
+                        'reason' => 'spill_dirty_page_to_wal',
+                    ];
+                    $operations[] = [
+                        'op' => 'mark_page_clean_in_cache',
+                        'page' => $page,
+                        'reason' => 'wal_spill_frame_completed',
+                    ];
+                }
+            } else {
+                $operations = $plan['operations'];
+            }
+            $plan['operations'] = $operations;
+        }
+
+        $plan['journal_mode'] = $journalMode;
+        $plan['spill_target'] = $spillTarget;
+        $plan['next']['journal_mode'] = $journalMode;
+        $plan['next']['spill_target'] = $spillTarget;
+        $plan['next']['database_image'] = $journalMode === 'wal' && $spilledPages !== []
+            ? 'unchanged_until_checkpoint'
+            : $plan['next']['database_image'];
+        $plan['next']['wal_frame_pages'] = $journalMode === 'wal' ? $spilledPages : [];
+        $plan['next']['journal_required_for_rollback'] = $journalMode !== 'wal';
+        $plan['dependencies'][] = 'sqlite-pager-cache-spill-journalmode-current-source-next107';
+        $plan['dependencies'][] = $journalMode === 'wal'
+            ? 'sqlite-pager-cache-spill-wal-frame-routing'
+            : 'sqlite-pager-cache-spill-rollback-journal-mode-routing';
+
+        return $plan;
+    }
+
+    /**
+     * @param list<array{page:int,bytes?:int,journaled?:bool,dirty?:bool,pinned?:bool,walFrame?:int}> $cachePages
+     * @return list<array{page:int,bytes?:int,journaled?:bool,dirty?:bool,pinned?:bool}>
+     */
+    private static function normalizeCachePagesForJournalMode(array $cachePages, string $journalMode): array
+    {
+        $normalized = [];
+        foreach ($cachePages as $cachePage) {
+            if ($journalMode === 'wal' && isset($cachePage['walFrame'])) {
+                $walFrame = $cachePage['walFrame'];
+                if (!is_int($walFrame) || $walFrame < 1) {
+                    throw new \InvalidArgumentException('SQLite pager dirty-page spill WAL frame numbers must be positive integers');
+                }
+                $cachePage['journaled'] = true;
+            }
+            if ($journalMode === 'memory' && ($cachePage['dirty'] ?? true)) {
+                $cachePage['journaled'] = (bool) ($cachePage['journaled'] ?? true);
+            }
+            unset($cachePage['walFrame']);
+            $normalized[] = $cachePage;
+        }
+
+        return $normalized;
+    }
 }

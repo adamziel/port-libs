@@ -657,6 +657,121 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
     }
 
     /**
+     * @param list<array{name:string, active?:bool, statement?:string}> $preparedTriggers
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
+    public static function triggerViewInvalidationCurrentSourceNext108(
+        SQLiteAttachedSchemaCatalog $current,
+        SQLiteAttachedSchemaCatalog $next,
+        array $preparedTriggers,
+        array $schemaStates = [],
+    ): array {
+        $base = self::triggerViewCacheCurrentSourceNext97($current, $next, $preparedTriggers, $schemaStates);
+        $dependencyExpired = [];
+        $dependencyStable = [];
+        $viewDependencySchemas = [];
+
+        foreach ($preparedTriggers as $trigger) {
+            $name = trim((string) $trigger['name']);
+            if (!isset($base['view_caches'][$name])) {
+                continue;
+            }
+
+            $active = (bool) ($trigger['active'] ?? false);
+            $currentView = $base['view_caches'][$name]['current'];
+            $nextView = $base['view_caches'][$name]['next'];
+            $currentDependencies = self::resolvedViewDependencies($current, $currentView);
+            $nextDependencies = self::resolvedViewDependencies($next, $nextView);
+            $changed = $currentDependencies !== $nextDependencies;
+            $schemas = self::orderedSchemaNames(array_merge(
+                array_column($currentDependencies, 'resolved_schema'),
+                array_column($nextDependencies, 'resolved_schema'),
+            ));
+            $viewDependencySchemas[$name] = $schemas;
+            $base['view_caches'][$name]['dependency_resolution'] = [
+                'current' => $currentDependencies,
+                'next' => $nextDependencies,
+                'changed' => $changed,
+                'schemas' => $schemas,
+            ];
+            $base['triggers'][$name]['view_dependency_resolution'] = $base['view_caches'][$name]['dependency_resolution'];
+
+            if (!$changed) {
+                $dependencyStable[] = $name;
+                continue;
+            }
+
+            $dependencyExpired[] = $name;
+            if (!in_array($name, $base['reprepare_triggers'], true)) {
+                $base['reprepare_triggers'][] = $name;
+            }
+            $base['triggers'][$name]['changed'] = true;
+            $base['triggers'][$name]['requires_reprepare'] = true;
+            $base['view_caches'][$name]['requires_reprepare'] = true;
+            if (!in_array('viewDependenciesResolved', $base['triggers'][$name]['changed_fields'], true)) {
+                $base['triggers'][$name]['changed_fields'][] = 'viewDependenciesResolved';
+            }
+            if (!in_array('dependency_resolution', $base['view_caches'][$name]['changed_fields'], true)) {
+                $base['view_caches'][$name]['changed_fields'][] = 'dependency_resolution';
+            }
+            foreach ($schemas as $schema) {
+                $base['changed_schemas'][] = $schema;
+                if ($schema === 'temp') {
+                    $base['temp_schemas'][] = $schema;
+                } else {
+                    $base['wal_schemas'][] = $schema;
+                    if ($schema !== 'main') {
+                        $base['attached_schemas'][] = $schema;
+                    }
+                }
+            }
+            if ($active) {
+                if (!in_array($name, $base['active_current_snapshot_triggers'], true)) {
+                    $base['active_current_snapshot_triggers'][] = $name;
+                }
+                if (!in_array($name, $base['reset_schema_triggers'], true)) {
+                    $base['reset_schema_triggers'][] = $name;
+                }
+                $base['triggers'][$name]['current_step_result'] = 'SQLITE_OK';
+                $base['triggers'][$name]['next_step_action'] = 'finish_current_view_dependency_source_then_sqlite_schema_on_reset';
+                $base['triggers'][$name]['current_source_kept_until_reset'] = true;
+                $base['view_caches'][$name]['current_source_kept_until_reset'] = true;
+            } else {
+                if (!in_array($name, $base['next_step_schema_triggers'], true)) {
+                    $base['next_step_schema_triggers'][] = $name;
+                }
+                $base['triggers'][$name]['current_step_result'] = 'SQLITE_SCHEMA';
+                $base['triggers'][$name]['next_step_action'] = 'sqlite_schema_before_next_view_dependency_step';
+            }
+        }
+
+        $base['status'] = $base['reprepare_triggers'] === [] ? 'trigger_view_dependency_stable' : 'trigger_view_dependency_expired';
+        $base['operation'] = 'attach-temp-trigger-view-invalidation-current-source-next108';
+        $base['requires_reprepare'] = $base['reprepare_triggers'] !== [];
+        $base['stable_triggers'] = array_values(array_filter(
+            $base['stable_triggers'],
+            static fn (string $name): bool => !in_array($name, $dependencyExpired, true),
+        ));
+        foreach ($dependencyStable as $name) {
+            if (!in_array($name, $base['stable_triggers'], true) && !in_array($name, $base['reprepare_triggers'], true)) {
+                $base['stable_triggers'][] = $name;
+            }
+        }
+        $base['changed_schemas'] = self::orderedSchemaNames($base['changed_schemas']);
+        $base['wal_schemas'] = self::orderedSchemaNames($base['wal_schemas']);
+        $base['temp_schemas'] = self::orderedSchemaNames($base['temp_schemas']);
+        $base['attached_schemas'] = self::orderedSchemaNames($base['attached_schemas']);
+        $base['view_dependency_expired_triggers'] = $dependencyExpired;
+        $base['view_dependency_stable_triggers'] = $dependencyStable;
+        $base['view_dependency_schemas'] = $viewDependencySchemas;
+        array_unshift($base['dependencies'], 'sqlite-attach-temp-trigger-view-invalidation-current-source-next108');
+        $base['dependencies'] = array_values(array_unique($base['dependencies']));
+
+        return $base;
+    }
+
+    /**
      * @param list<array<string,mixed>> $operations
      * @return list<array{operation_index:int,kind:string,schema:string,table:string,cookie_delta:int,journal:string,source:string}>
      */
@@ -767,6 +882,51 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         return array_values($dependencies);
+    }
+
+    /**
+     * @param array{schema:string,dependencies:list<array{schema:?string,name:string}>} $view
+     * @return list<array{schema:?string,name:string,resolved_schema:string,resolved_type:?string,resolved_rootpage:int|null,found:bool}>
+     */
+    private static function resolvedViewDependencies(SQLiteAttachedSchemaCatalog $catalog, array $view): array
+    {
+        $dependencies = [];
+        $viewSchema = self::normalizeName((string) $view['schema']);
+        foreach (($view['dependencies'] ?? []) as $dependency) {
+            $schema = $dependency['schema'] ?? null;
+            $name = self::normalizeName((string) $dependency['name']);
+            $schemas = $schema !== null && $schema !== ''
+                ? [self::normalizeName((string) $schema)]
+                : ($viewSchema === 'temp' ? $catalog->searchOrder() : [$viewSchema]);
+            $resolvedSchema = $schema !== null && $schema !== '' ? self::normalizeName((string) $schema) : $viewSchema;
+            $resolvedType = null;
+            $resolvedRoot = null;
+            $found = false;
+
+            foreach ($schemas as $candidateSchema) {
+                foreach ($catalog->schemaRecords($candidateSchema) as $record) {
+                    if (!in_array(strtolower($record->type), ['table', 'view'], true) || strcasecmp($record->name, $name) !== 0) {
+                        continue;
+                    }
+                    $resolvedSchema = $candidateSchema;
+                    $resolvedType = strtolower($record->type);
+                    $resolvedRoot = $record->rootPage;
+                    $found = true;
+                    break 2;
+                }
+            }
+
+            $dependencies[] = [
+                'schema' => $schema === null || $schema === '' ? null : self::normalizeName((string) $schema),
+                'name' => $name,
+                'resolved_schema' => $resolvedSchema,
+                'resolved_type' => $resolvedType,
+                'resolved_rootpage' => $resolvedRoot,
+                'found' => $found,
+            ];
+        }
+
+        return $dependencies;
     }
 
     /**

@@ -2536,6 +2536,123 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointSnapshotCurrentSourceNext108(
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        int $currentReaderEndFrame,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 requires at least one page number');
+        }
+        if ($currentReaderEndFrame < 0 || $currentReaderEndFrame > $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 current reader frame is outside the WAL frame range');
+        }
+
+        $source = self::parse($walBytes, $this->header->pageSize, $this->checksumsValidated);
+        if ($source->header != $this->header || $source->frameCount() !== $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 source header mismatch');
+        }
+        foreach ($source->frames as $index => $frame) {
+            if (!isset($this->frames[$index]) || $this->frames[$index] != $frame) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 source frame ' . ($index + 1) . ' mismatch');
+            }
+        }
+
+        $nextReaderEndFrame ??= $this->frameCount();
+        if ($nextReaderEndFrame < 0 || $nextReaderEndFrame > $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 next reader frame is outside the WAL frame range');
+        }
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint snapshot current-source next108 pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $nextReaderEndFrame);
+        }
+
+        $limitedPassive = $this->durableCheckpointResult($databaseBytes, 'passive', $currentReaderEndFrame);
+        $limitedFull = $this->durableCheckpointResult($databaseBytes, 'full', $currentReaderEndFrame);
+        $releasedFull = $this->durableCheckpointResult($databaseBytes, 'full', null);
+        $limitedWal = self::parse((string) $limitedPassive['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+
+        $limitedCurrent = [];
+        $limitedNext = [];
+        $releasedDatabase = [];
+        foreach ($pageNumbers as $pageNumber) {
+            $limitedCurrent[] = self::safeReaderVisibility($limitedWal, (string) $limitedPassive['database_bytes'], $pageNumber, $currentReaderEndFrame);
+            $limitedNext[] = self::safeReaderVisibility($limitedWal, (string) $limitedPassive['database_bytes'], $pageNumber, $nextReaderEndFrame);
+            $releasedDatabase[] = self::databasePageVisibilityOrError((string) $releasedFull['database_bytes'], $this->header->pageSize, $pageNumber);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+        $limitedCurrentImages = self::visibilityImages($limitedCurrent);
+        $limitedNextImages = self::visibilityImages($limitedNext);
+        $releasedImages = self::visibilityImages($releasedDatabase);
+
+        return [
+            'status' => 'reader-checkpoint-snapshot-current-source-next108',
+            'source_status' => 'current-source',
+            'page_size' => $this->header->pageSize,
+            'source_frame_count' => $this->frameCount(),
+            'parsed_frame_count' => $source->frameCount(),
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'current_snapshot' => $this->readerSnapshot($databaseBytes, $currentReaderEndFrame),
+            'next_snapshot' => $this->readerSnapshot($databaseBytes, $nextReaderEndFrame),
+            'limited_passive_checkpoint' => $limitedPassive,
+            'limited_full_checkpoint' => $limitedFull,
+            'released_full_checkpoint' => $releasedFull,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'limited_current_reader' => $limitedCurrent,
+            'limited_next_reader' => $limitedNext,
+            'released_database_reader' => $releasedDatabase,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'limited_current_sources' => self::visibilityColumn($limitedCurrent, 'source'),
+            'limited_next_sources' => self::visibilityColumn($limitedNext, 'source'),
+            'released_database_sources' => self::visibilityColumn($releasedDatabase, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'limited_current_frame_indexes' => self::visibilityColumn($limitedCurrent, 'frame_index'),
+            'limited_next_frame_indexes' => self::visibilityColumn($limitedNext, 'frame_index'),
+            'released_database_frame_indexes' => self::visibilityColumn($releasedDatabase, 'frame_index'),
+            'current_errors' => self::visibilityErrors($current),
+            'next_errors' => self::visibilityErrors($next),
+            'limited_current_errors' => self::visibilityErrors($limitedCurrent),
+            'limited_next_errors' => self::visibilityErrors($limitedNext),
+            'released_database_errors' => self::visibilityErrors($releasedDatabase),
+            'current_stable_after_limited_checkpoint' => $currentImages === $limitedCurrentImages,
+            'next_stable_after_limited_checkpoint' => $nextImages === $limitedNextImages,
+            'next_matches_released_checkpoint_database' => $nextImages === $releasedImages,
+            'current_next_images_match' => $currentImages === $nextImages,
+            'limited_checkpoint_preserves_wal' => $limitedPassive['wal_action'] === 'preserve_wal',
+            'limited_full_reports_busy' => (bool) $limitedFull['busy'],
+            'released_full_not_busy' => !(bool) $releasedFull['busy'],
+            'released_database_has_all_committed_frames' => $releasedFull['checkpointed_frame_count'] === $releasedFull['total_committable_frame_count'],
+            'reader_pin_limits_passive_checkpoint' => $limitedPassive['reason'] === 'reader_limited_passive_checkpoint',
+            'reader_pin_blocks_full_checkpoint' => $limitedFull['reason'] === 'reader_blocks_checkpoint_completion',
+            'source_digest' => hash('sha256', $walBytes),
+            'dependencies' => array_values(array_unique(array_merge(
+                $limitedPassive['dependencies'],
+                $limitedFull['dependencies'],
+                $releasedFull['dependencies'],
+                ['sqlite-wal-reader-checkpoint-snapshot-current-source-next108']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

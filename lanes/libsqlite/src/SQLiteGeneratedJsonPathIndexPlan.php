@@ -46,7 +46,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
 
             $position = $positions[(string) $rowid];
             $rowBefore = $after[$position];
-            $jsonColumn = self::jsonColumnName($generatedColumns);
+            $jsonColumn = self::mutationJsonColumn($update, $generatedColumns);
             $json = self::jsonValue($rowBefore, $jsonColumn);
 
             foreach ($update['mutations'] ?? [] as $mutation) {
@@ -80,6 +80,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                     'rowid' => $rowid,
                     'column' => $index['column'],
                     'path' => $index['path'],
+                    'source' => $index['source'],
+                    'expressionFunction' => $index['expressionFunction'],
+                    'expressionIndex' => $index['expressionIndex'],
                     'current' => $current['key'],
                     'next' => $next['key'],
                     'delete' => $current['present'],
@@ -135,6 +138,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 'rootPage' => $index['rootPage'],
                 'column' => $index['column'],
                 'path' => $index['path'],
+                'source' => $index['source'],
+                'expressionFunction' => $index['expressionFunction'],
+                'expressionIndex' => $index['expressionIndex'],
                 'collation' => $index['collation'],
                 'descending' => $index['descending'],
                 'partial' => $index['partial'],
@@ -245,6 +251,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 'rootPage' => $index['rootPage'],
                 'column' => $index['column'],
                 'path' => $index['path'],
+                'source' => $index['source'],
+                'expressionFunction' => $index['expressionFunction'],
+                'expressionIndex' => $index['expressionIndex'],
                 'collation' => $index['collation'],
                 'descending' => $index['descending'],
                 'partial' => $index['partial'],
@@ -272,6 +281,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                     'rowid' => is_numeric($rowid) ? (int) $rowid : $rowid,
                     'column' => $index['column'],
                     'path' => $index['path'],
+                    'source' => $index['source'],
+                    'expressionFunction' => $index['expressionFunction'],
+                    'expressionIndex' => $index['expressionIndex'],
                     'key' => $entry['key'],
                     'coveringColumns' => $coveringColumns,
                     'coveringValues' => $entry['coveringValues'],
@@ -385,6 +397,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                     'rowid' => $rowid,
                     'column' => $index['column'],
                     'path' => $index['path'],
+                    'source' => $index['source'],
+                    'expressionFunction' => $index['expressionFunction'],
+                    'expressionIndex' => $index['expressionIndex'],
                     'current' => $entry['key'],
                     'next' => null,
                     'delete' => true,
@@ -407,6 +422,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 'rootPage' => $index['rootPage'],
                 'column' => $index['column'],
                 'path' => $index['path'],
+                'source' => $index['source'],
+                'expressionFunction' => $index['expressionFunction'],
+                'expressionIndex' => $index['expressionIndex'],
                 'collation' => $index['collation'],
                 'descending' => $index['descending'],
                 'partial' => $index['partial'],
@@ -446,7 +464,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
     /**
      * @param list<array{name:string,generated:bool,storage:string|null,expression:string|null,dependencies:list<string>}> $columns
      * @param list<string> $order
-     * @return array<string,array{name:string,source:string,path:string,storage:string}>
+     * @return array<string,array{name:string,source:string,path:string,functionName:string,storage:string}>
      */
     private static function generatedJsonColumns(array $columns, array $order): array
     {
@@ -465,6 +483,7 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 'name' => $column['name'],
                 'source' => $json['source'],
                 'path' => $json['path'],
+                'functionName' => $json['functionName'],
                 'storage' => $column['storage'] ?? 'VIRTUAL',
             ];
         }
@@ -484,26 +503,26 @@ final class SQLiteGeneratedJsonPathIndexPlan
     }
 
     /**
-     * @return null|array{source:string,path:string}
+     * @return null|array{source:string,path:string,functionName:string}
      */
     private static function jsonExtractExpression(string $expression): ?array
     {
-        if (preg_match('/^\s*jsonb?_extract\s*\(\s*("?)([A-Za-z_][A-Za-z0-9_]*)\1\s*,\s*\'((?:\'\'|[^\'])+)\'\s*\)\s*$/i', $expression, $matches) !== 1) {
+        if (preg_match('/^\s*(jsonb?_extract)\s*\(\s*("?)([A-Za-z_][A-Za-z0-9_]*)\2\s*,\s*\'((?:\'\'|[^\'])+)\'\s*\)\s*$/i', $expression, $matches) !== 1) {
             return null;
         }
 
-        $path = str_replace("''", "'", $matches[3]);
+        $path = str_replace("''", "'", $matches[4]);
         if (!SQLiteJsonPath::isWellFormed($path)) {
             throw new \InvalidArgumentException('SQLite generated JSON path index column path is malformed');
         }
 
-        return ['source' => $matches[2], 'path' => $path];
+        return ['source' => $matches[3], 'path' => $path, 'functionName' => strtolower($matches[1])];
     }
 
     /**
      * @param list<array{name?:string,sql:string,rootPage?:int,unique?:bool}> $indexes
-     * @param array<string,array{name:string,source:string,path:string,storage:string}> $generatedColumns
-     * @return list<array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool}>
+     * @param array<string,array{name:string,source:string,path:string,functionName:string,storage:string}> $generatedColumns
+     * @return list<array{name:string,rootPage:int|null,column:string,path:string,source:string,expressionFunction:string|null,expressionIndex:bool,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool}>
      */
     private static function indexPlans(array $indexes, array $generatedColumns): array
     {
@@ -514,19 +533,52 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 throw new \InvalidArgumentException('SQLite generated JSON path index needs index SQL text');
             }
             $column = SQLiteCreateIndex::firstColumn($sql);
-            if ($column === null) {
-                continue;
+            $generatedColumn = null;
+            $expressionFunction = null;
+            $expressionIndex = false;
+            if ($column !== null) {
+                $key = strtolower($column->columnName);
+                $generatedColumn = $generatedColumns[$key] ?? null;
             }
-            $key = strtolower($column->columnName);
-            if (!isset($generatedColumns[$key])) {
+
+            if ($generatedColumn === null) {
+                $expression = SQLiteCreateIndex::firstJsonExtractExpression($sql);
+                if ($expression === null) {
+                    continue;
+                }
+                foreach ($generatedColumns as $candidate) {
+                    if (
+                        strcasecmp($candidate['source'], $expression->columnName) === 0
+                        && $candidate['path'] === $expression->path
+                        && $candidate['functionName'] === $expression->functionName
+                    ) {
+                        $generatedColumn = $candidate;
+                        $column = new SQLiteIndexColumn(
+                            $candidate['name'],
+                            $expression->collation,
+                            $expression->descending,
+                            $expression->partial,
+                            $expression->partialPredicate,
+                        );
+                        $expressionFunction = $expression->functionName;
+                        $expressionIndex = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($column === null || $generatedColumn === null) {
                 continue;
             }
 
             $plans[] = [
                 'name' => is_string($index['name'] ?? null) ? $index['name'] : self::indexName($sql),
                 'rootPage' => isset($index['rootPage']) ? (int) $index['rootPage'] : null,
-                'column' => $generatedColumns[$key]['name'],
-                'path' => $generatedColumns[$key]['path'],
+                'column' => $generatedColumn['name'],
+                'path' => $generatedColumn['path'],
+                'source' => $generatedColumn['source'],
+                'expressionFunction' => $expressionFunction,
+                'expressionIndex' => $expressionIndex,
                 'partial' => $column->partial,
                 'partialPredicate' => $column->partialPredicate,
                 'collation' => strtoupper($column->collation),
@@ -591,6 +643,29 @@ final class SQLiteGeneratedJsonPathIndexPlan
         }
 
         return $sources[0];
+    }
+
+    /**
+     * @param array<string,mixed> $update
+     * @param array<string,array{name:string,source:string,path:string,functionName:string,storage:string}> $generatedColumns
+     */
+    private static function mutationJsonColumn(array $update, array $generatedColumns): string
+    {
+        $column = $update['column'] ?? null;
+        if ($column === null) {
+            return self::jsonColumnName($generatedColumns);
+        }
+        if (!is_string($column) || $column === '') {
+            throw new \InvalidArgumentException('SQLite generated JSON path index UPDATE source column must be text');
+        }
+
+        foreach ($generatedColumns as $generatedColumn) {
+            if (strcasecmp($generatedColumn['source'], $column) === 0) {
+                return $generatedColumn['source'];
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite generated JSON path index UPDATE source column is not generated-indexed');
     }
 
     /**
@@ -846,6 +921,9 @@ final class SQLiteGeneratedJsonPathIndexPlan
             'rowid' => $update['rowid'],
             'column' => $update['column'],
             'path' => $update['path'],
+            'source' => $update['source'] ?? null,
+            'expressionFunction' => $update['expressionFunction'] ?? null,
+            'expressionIndex' => (bool) ($update['expressionIndex'] ?? false),
             'key' => $key,
             'record' => $record,
             'record_hex' => bin2hex(SQLiteRecord::encode($record)),

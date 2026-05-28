@@ -119,7 +119,7 @@ $tests['pragma optimize records skipped up to date tables'] = static function (T
 
 $tests['pragma optimize reports dependencies'] = static function (TestRunner $t) use ($tables): void {
     $result = (new SQLitePragmaOptimizePlan())->execute('PRAGMA optimize', $tables);
-    $t->same(['analysis_limit', 'sqlite_stat1', 'schema-table-scan'], $result['dependencies']);
+    $t->same(['analysis_limit', 'sqlite_stat1', 'schema-table-scan', 'current-source'], $result['dependencies']);
 };
 
 $tests['pragma optimize returns empty rows like sqlite pragma optimize'] = static function (TestRunner $t) use ($tables): void {

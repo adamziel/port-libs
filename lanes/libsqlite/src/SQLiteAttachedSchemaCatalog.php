@@ -357,6 +357,62 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * Apply bounded schema DDL to one attached schema and report the
+     * connection-level schema-cache invalidation that current prepared
+     * statements would observe on their next step.
+     *
+     * @param list<string> $ddl
+     * @param array{generation?: int, search_order?: list<string>, database_list?: list<array{seq: int, name: string, file: string|null}>, tables?: array<string, array{schema?: string|null, name?: string|null, rootpage?: int|null, type?: string|null}>, indexes?: array<string, array{schema?: string|null, name?: string|null, rootpage?: int|null, type?: string|null}>}|null $resolutionSnapshot
+     * @param list<array{id:string,schema_cookie:int,sql:string,target?:string}> $preparedStatements
+     * @return array{status: string, operation: string, schema: string, before_generation: int, after_generation: int, cache_invalidated: bool, ddl_plan: array<string,mixed>, invalidation: array<string,mixed>|null, database_list: list<array{seq: int, name: string, file: string|null}>, dependencies: list<string>}
+     */
+    public function applySchemaDdlCurrentSource(
+        string $schemaName,
+        array $ddl,
+        int $schemaCookie,
+        ?array $resolutionSnapshot = null,
+        array $preparedStatements = [],
+    ): array {
+        $name = self::normalizeSchemaName($schemaName);
+        if (!isset($this->schemas[$name])) {
+            throw new \InvalidArgumentException("SQLite schema {$name} is not attached");
+        }
+
+        $beforeGeneration = $this->schemaGeneration;
+        $ddlPlan = SQLiteSchemaDdlReparsePlan::apply(
+            $this->schemas[$name]['records'],
+            $ddl,
+            $schemaCookie,
+            $name,
+            $preparedStatements,
+        );
+
+        $changed = (bool) $ddlPlan['schema_changed'];
+        if ($changed) {
+            $this->schemas[$name]['records'] = $ddlPlan['records'];
+            $this->invalidateLookupCache();
+        }
+
+        return [
+            'status' => $changed ? 'schema_cache_expired' : 'schema_cache_stable',
+            'operation' => 'attach-schema-cache-ddl-current-source-next107',
+            'schema' => $name,
+            'before_generation' => $beforeGeneration,
+            'after_generation' => $this->schemaGeneration,
+            'cache_invalidated' => $changed,
+            'ddl_plan' => $ddlPlan,
+            'invalidation' => $resolutionSnapshot === null ? null : $this->schemaCacheResolutionInvalidation($resolutionSnapshot),
+            'database_list' => $this->databaseList(),
+            'dependencies' => [
+                'sqlite-attach-schema-cache-ddl-current-source-next107',
+                'schema-sql-reparse',
+                'sqlite-schema-cookie',
+                'sqlite-attached-current-source-cache-expiry',
+            ],
+        ];
+    }
+
+    /**
      * @return array{generation: int, entries: int, hits: int, misses: int}
      */
     public function lookupCacheStats(): array

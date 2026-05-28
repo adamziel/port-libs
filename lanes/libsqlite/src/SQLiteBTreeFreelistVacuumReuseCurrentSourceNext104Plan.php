@@ -64,6 +64,59 @@ final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function incrementalVacuumCurrentSourceNext108Rows(): array
+    {
+        $allocated = array_fill_keys($this->allocationPlan->allocatedPageNumbers, true);
+        $survivors = array_fill_keys($this->vacuumPlan->survivingFreedPointerMapPages(), true);
+        $truncated = array_fill_keys($this->vacuumPlan->truncatedFreedPointerMapPages(), true);
+
+        $sourceByPage = [];
+        foreach ($this->vacuumPlan->releasePlan->sources as $source) {
+            foreach ($source['pages'] as $position => $pageNumber) {
+                $sourceByPage[$pageNumber] = [
+                    'source' => $source['source'],
+                    'source_position' => $position,
+                ];
+            }
+        }
+
+        $rows = [];
+        foreach ($this->vacuumPlan->releasedOverflowPages() as $pageNumber) {
+            $currentEntry = null;
+            if ($this->vacuumPlan->sourceDatabase->isAutoVacuum() && !$this->vacuumPlan->sourceDatabase->isPointerMapPage($pageNumber)) {
+                $currentEntry = $this->vacuumPlan->sourceDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+
+            $nextEntry = null;
+            if (!isset($truncated[$pageNumber]) && $this->databaseAfterReuse->isAutoVacuum() && !$this->databaseAfterReuse->isPointerMapPage($pageNumber)) {
+                $nextEntry = $this->databaseAfterReuse->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'source' => $sourceByPage[$pageNumber]['source'] ?? null,
+                'source_position' => $sourceByPage[$pageNumber]['source_position'] ?? null,
+                'current_source_state' => 'obsolete-overflow-page',
+                'current_pointer_map_type' => $currentEntry['type_name'] ?? null,
+                'current_pointer_map_parent' => $currentEntry['parent_page_number'] ?? null,
+                'survived_incremental_vacuum' => isset($survivors[$pageNumber]),
+                'reused_by_next_btree' => isset($allocated[$pageNumber]),
+                'tail_truncated_by_incremental_vacuum' => isset($truncated[$pageNumber]),
+                'next_source_state' => isset($truncated[$pageNumber])
+                    ? 'truncated-from-database'
+                    : (isset($allocated[$pageNumber]) ? 'reused-as-btree-page' : 'survives-as-free-page'),
+                'next_pointer_map_type' => $nextEntry['type_name'] ?? null,
+                'next_pointer_map_parent' => $nextEntry['parent_page_number'] ?? null,
+                'next_page_materialized' => !isset($truncated[$pageNumber]) && $this->databaseAfterReuse->page($pageNumber) !== str_repeat("\0", $this->databaseAfterReuse->header->pageSize),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<int>
      */
     public function allocatedPageNumbers(): array
@@ -133,6 +186,7 @@ final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan
             'allocated_pointer_map_entries' => $this->allocationPlan->allocatedPointerMapEntries(),
             'updated_page_numbers' => array_keys($this->pageImages()),
             'btree_freelist_pointermap_vacuum_reuse_current_source_next104' => $this->reuseRows,
+            'incremental_vacuum_current_source_next108' => $this->incrementalVacuumCurrentSourceNext108Rows(),
         ];
     }
 
