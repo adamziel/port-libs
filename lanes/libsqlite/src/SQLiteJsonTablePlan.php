@@ -1572,6 +1572,66 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedHiddenResidualCostNext141(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        if ($generatedConstraints === []) {
+            throw new \InvalidArgumentException('SQLite JSON table generated hidden residual cost planner requires generated constraints');
+        }
+
+        $plan = self::currentSourceGeneratedHiddenCostNext136(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableGeneratedHiddenResidualCostProfile141($plan['currentGeneratedHiddenCost']);
+        $nextProfile = self::jsonTableGeneratedHiddenResidualCostProfile141($plan['nextGeneratedHiddenCost']);
+        $transitions = self::jsonTableGeneratedHiddenResidualCostTransitions141($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenResidualCostReplanReasons141($transitions);
+
+        $plan['currentGeneratedHiddenResidualCost'] = $currentProfile;
+        $plan['nextGeneratedHiddenResidualCost'] = $nextProfile;
+        $plan['generatedHiddenResidualCostTransitions'] = $transitions;
+        $plan['next141ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next136ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next141ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-hidden-residual-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next141ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-hidden-residual-cost-plan'
+            : 'prepare-next-json-table-generated-hidden-residual-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-hidden-residual-cost-current-source-next141'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceNestedPathRowidNext133(
@@ -4764,6 +4824,164 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-cost-changed',
                 'generatedValueTape' => 'json-table-generated-hidden-values-changed',
                 default => 'json-table-generated-hidden-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $generatedHidden
+     * @return array{generatedConstraintSignatures:list<string>,usableGeneratedConstraintSignatures:list<string>,residualGeneratedConstraintSignatures:list<string>,residualGeneratedColumns:list<string>,residualGeneratedConstraintCount:int,matchedRowCount:int,rowCount:int,baseEffectiveEstimatedCost:int,residualEvaluationPenalty:int,effectiveEstimatedCost:int,costClass:string,residualValueTape:list<array{rowid:int|null,fullkey:mixed,values:array<string,mixed>,matched:bool,residualValues:array<string,mixed>}>}
+     */
+    private static function jsonTableGeneratedHiddenResidualCostProfile141(array $generatedHidden): array
+    {
+        $constraints = $generatedHidden['generatedConstraints'];
+        $usableSignatures = [];
+        $residualSignatures = [];
+        $residualNames = [];
+        foreach ($constraints as $constraint) {
+            $signature = $constraint['name'] . ':' . $constraint['source'] . ':' . $constraint['path'] . ':' . $constraint['operator'] . ':' . json_encode($constraint['value']);
+            if ((bool) $constraint['usable']) {
+                $usableSignatures[] = $signature;
+            } else {
+                $residualSignatures[] = $signature;
+                $residualNames[] = $constraint['name'];
+            }
+        }
+
+        $residualTape = [];
+        foreach ($generatedHidden['generatedValueTape'] as $entry) {
+            $residualValues = [];
+            foreach ($residualNames as $name) {
+                $residualValues[$name] = $entry['values'][$name] ?? null;
+            }
+
+            $residualTape[] = $entry + ['residualValues' => $residualValues];
+        }
+
+        $rowCount = (int) $generatedHidden['rowCount'];
+        $matchedCount = (int) $generatedHidden['matchedRowCount'];
+        $residualCount = count($residualSignatures);
+        $baseCost = (int) $generatedHidden['effectiveEstimatedCost'];
+        $residualPenalty = $residualCount === 0 || $baseCost >= 1000000
+            ? 0
+            : max(1, $matchedCount) * $residualCount;
+        $effectiveCost = $baseCost >= 1000000 ? 1000000 : $baseCost + $residualPenalty;
+
+        return [
+            'generatedConstraintSignatures' => (array) $generatedHidden['generatedConstraintSignatures'],
+            'usableGeneratedConstraintSignatures' => $usableSignatures,
+            'residualGeneratedConstraintSignatures' => $residualSignatures,
+            'residualGeneratedColumns' => $residualNames,
+            'residualGeneratedConstraintCount' => $residualCount,
+            'matchedRowCount' => $matchedCount,
+            'rowCount' => $rowCount,
+            'baseEffectiveEstimatedCost' => $baseCost,
+            'residualEvaluationPenalty' => $residualPenalty,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableGeneratedHiddenResidualCostClass141(
+                (string) $generatedHidden['costClass'],
+                $residualCount,
+                $matchedCount,
+                $effectiveCost,
+            ),
+            'residualValueTape' => $residualTape,
+        ];
+    }
+
+    private static function jsonTableGeneratedHiddenResidualCostClass141(string $baseCostClass, int $residualCount, int $matchedCount, int $effectiveCost): string
+    {
+        if ($baseCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($residualCount === 0) {
+            return $baseCostClass;
+        }
+        if ($matchedCount === 0) {
+            return 'json-table-generated-hidden-residual-empty';
+        }
+        if ($matchedCount === 1) {
+            return 'json-table-generated-hidden-residual-point';
+        }
+
+        return $effectiveCost <= 12
+            ? 'json-table-generated-hidden-residual-narrow-filter'
+            : 'json-table-generated-hidden-residual-filter';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedHiddenResidualCostTransitions141(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'usableGeneratedConstraintSignatures',
+                'current' => $current['usableGeneratedConstraintSignatures'],
+                'next' => $next['usableGeneratedConstraintSignatures'],
+                'changed' => $current['usableGeneratedConstraintSignatures'] !== $next['usableGeneratedConstraintSignatures'],
+            ],
+            [
+                'field' => 'residualGeneratedConstraintSignatures',
+                'current' => $current['residualGeneratedConstraintSignatures'],
+                'next' => $next['residualGeneratedConstraintSignatures'],
+                'changed' => $current['residualGeneratedConstraintSignatures'] !== $next['residualGeneratedConstraintSignatures'],
+            ],
+            [
+                'field' => 'matchedRowCount',
+                'current' => $current['matchedRowCount'],
+                'next' => $next['matchedRowCount'],
+                'changed' => $current['matchedRowCount'] !== $next['matchedRowCount'],
+            ],
+            [
+                'field' => 'residualEvaluationPenalty',
+                'current' => $current['residualEvaluationPenalty'],
+                'next' => $next['residualEvaluationPenalty'],
+                'changed' => $current['residualEvaluationPenalty'] !== $next['residualEvaluationPenalty'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'residualValueTape',
+                'current' => $current['residualValueTape'],
+                'next' => $next['residualValueTape'],
+                'changed' => $current['residualValueTape'] !== $next['residualValueTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedHiddenResidualCostReplanReasons141(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'usableGeneratedConstraintSignatures' => 'json-table-generated-hidden-usable-constraint-changed',
+                'residualGeneratedConstraintSignatures' => 'json-table-generated-hidden-residual-constraint-changed',
+                'matchedRowCount' => 'json-table-generated-hidden-residual-row-count-changed',
+                'residualEvaluationPenalty', 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-residual-cost-changed',
+                'residualValueTape' => 'json-table-generated-hidden-residual-values-changed',
+                default => 'json-table-generated-hidden-residual-state-changed',
             };
         }
 

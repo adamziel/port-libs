@@ -342,6 +342,95 @@ final class SQLiteSkipScanStat4PartialOrderPlan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<array{expression:string,column?:string,direction?:string}> $orderByExpressions
+     * @param list<string> $neededColumns
+     * @param array<string,mixed>|null $nextSource
+     * @return array<string,mixed>
+     */
+    public static function expressionPartialSkipScanCurrentSourceNext141(
+        array $preparedSource,
+        array $currentSource,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        array $orderByExpressions,
+        array $neededColumns,
+        ?array $nextSource = null,
+    ): array {
+        $base = self::partialExpressionSkipScanCurrentSourceNext129(
+            $preparedSource,
+            $currentSource,
+            $partialPredicate,
+            $queryTerms,
+            $orderByExpressions,
+            $neededColumns,
+        );
+
+        $selectedPlan = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : null;
+        $selectedSource = ($base['selectedSource'] ?? null) === 'current' ? $currentSource : $preparedSource;
+        $selectedExpression = self::sourceString($selectedSource, 'rangeExpression');
+        $selectedRangeColumn = self::sourceString($selectedSource, 'rangeExpressionColumn');
+        $materializedSelected = self::materializedExpressionSource($selectedSource, $selectedExpression, $selectedRangeColumn);
+        $selectedSignature = self::sourceSignature($materializedSelected);
+        $nextSummary = null;
+        $nextSourceAdmitted = true;
+        if ($nextSource !== null) {
+            $nextExpression = self::sourceString($nextSource, 'rangeExpression');
+            $nextRangeColumn = self::sourceString($nextSource, 'rangeExpressionColumn');
+            $materializedNext = self::materializedExpressionSource($nextSource, $nextExpression, $nextRangeColumn);
+            $nextSignature = self::sourceSignature($materializedNext);
+            $nextSourceAdmitted = $nextSignature === $selectedSignature;
+            $nextSummary = [
+                'name' => self::sourceString($nextSource, 'name'),
+                'schemaCookie' => self::nonNegativeSourceInt($nextSource, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeSourceInt($nextSource, 'stat4Generation'),
+                'rangeExpression' => $nextExpression,
+                'rangeExpressionColumn' => $nextRangeColumn,
+                'sourceSignature' => $nextSignature,
+                'admitted' => $nextSourceAdmitted,
+                'replanReasons' => self::nextSourceReplanReasons($selectedSource, $nextSource, $selectedSignature, $nextSignature),
+            ];
+        }
+
+        if ($selectedPlan !== null) {
+            $selectedPlan = array_replace($selectedPlan, [
+                'expressionPartialSkipScan' => true,
+                'partialPredicateFence' => self::predicateFence($partialPredicate),
+                'sourceSignature' => $selectedSignature,
+                'nextSourceAdmitted' => $nextSourceAdmitted,
+                'detail' => ($selectedPlan['detail'] ?? 'SEARCH USING SKIP-SCAN')
+                    . ' PARTIAL EXPRESSION CURRENT-SOURCE FENCE',
+            ]);
+        }
+
+        return array_replace($base, [
+            'status' => (($base['status'] ?? null) === 'usable' && $selectedPlan !== null && $nextSourceAdmitted)
+                ? 'expression-partial-skipscan-current-source-next141-ready'
+                : 'requires-current-source-reprepare',
+            'selectedPlan' => $selectedPlan,
+            'currentSourceFence' => array_replace(
+                is_array($base['currentSourceFence'] ?? null) ? $base['currentSourceFence'] : [],
+                [
+                    'partialPredicateSignature' => self::predicateSignature($partialPredicate),
+                    'selectedSourceSignature' => $selectedSignature,
+                    'rangeExpression' => $selectedExpression,
+                    'rangeExpressionColumn' => $selectedRangeColumn,
+                ],
+            ),
+            'nextSource' => $nextSummary,
+            'nextSourceAdmitted' => $nextSourceAdmitted,
+            'partialPredicateFence' => self::predicateFence($partialPredicate),
+            'detail' => ($base['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
+                . ' CURRENT-SOURCE PARTIAL FENCE next141',
+            'dependencies' => ['sqlite-sqlplanner-expression-partial-skipscan-current-source-next141'],
+            'dependency_closure' => 'no new support component needed; next141 reuses native PHP expression skip-scan materialization, partial-index proof, STAT4 skip-scan estimates, and current-source fences',
+            'non_overlap' => 'avoids accepted next129 expression skip-scan materialization and next132 expression-covering rows by adding current-source partial-predicate source fencing and explicit next-source rejection for stale expression keys',
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{prefix:mixed,suffix:mixed,nEq:int,nLt:int,nDLt:int}> $stat4Samples
      * @param list<array<string,mixed>> $queryTerms
@@ -1396,6 +1485,98 @@ final class SQLiteSkipScanStat4PartialOrderPlan
             self::rowSignature(self::sourceRows($source)),
             self::stat4Signature(self::sourceList($source, 'stat4Samples')),
         ]));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function nextSourceReplanReasons(array $selectedSource, array $nextSource, string $selectedSignature, string $nextSignature): array
+    {
+        $reasons = [];
+        if (self::nonNegativeSourceInt($selectedSource, 'schemaCookie') !== self::nonNegativeSourceInt($nextSource, 'schemaCookie')) {
+            $reasons[] = 'schema-cookie';
+        }
+        if (self::nonNegativeSourceInt($selectedSource, 'stat4Generation') !== self::nonNegativeSourceInt($nextSource, 'stat4Generation')) {
+            $reasons[] = 'stat4-generation';
+        }
+        if (self::sourceString($selectedSource, 'rangeExpression') !== self::sourceString($nextSource, 'rangeExpression')) {
+            $reasons[] = 'range-expression';
+        }
+        if (self::sourceString($selectedSource, 'rangeExpressionColumn') !== self::sourceString($nextSource, 'rangeExpressionColumn')) {
+            $reasons[] = 'range-expression-column';
+        }
+        if (self::rowSignature(self::sourceRows($selectedSource)) !== self::rowSignature(self::sourceRows($nextSource))) {
+            $reasons[] = 'row-signature';
+        }
+        if (self::stat4Signature(self::sourceList($selectedSource, 'stat4Samples')) !== self::stat4Signature(self::sourceList($nextSource, 'stat4Samples'))) {
+            $reasons[] = 'stat4-signature';
+        }
+        if ($selectedSignature !== $nextSignature && $reasons === []) {
+            $reasons[] = 'source-signature';
+        }
+
+        return $reasons;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function predicateFence(SQLiteIndexPredicate $predicate): array
+    {
+        if (is_array($predicate->value)) {
+            $children = [];
+            foreach ($predicate->value as $child) {
+                if ($child instanceof SQLiteIndexPredicate) {
+                    $children[] = self::predicateFence($child);
+                }
+            }
+
+            return [
+                'column' => $predicate->columnName,
+                'operator' => $predicate->operator,
+                'children' => $children,
+                'signature' => self::predicateSignature($predicate),
+            ];
+        }
+
+        return [
+            'column' => $predicate->columnName,
+            'operator' => $predicate->operator,
+            'value' => $predicate->value,
+            'signature' => self::predicateSignature($predicate),
+        ];
+    }
+
+    private static function predicateSignature(SQLiteIndexPredicate $predicate): string
+    {
+        return hash('sha256', serialize(self::predicateSignaturePayload($predicate)));
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function predicateSignaturePayload(SQLiteIndexPredicate $predicate): array
+    {
+        if (is_array($predicate->value)) {
+            $children = [];
+            foreach ($predicate->value as $child) {
+                if ($child instanceof SQLiteIndexPredicate) {
+                    $children[] = self::predicateSignaturePayload($child);
+                }
+            }
+
+            return [
+                'column' => strtolower($predicate->columnName),
+                'operator' => $predicate->operator,
+                'children' => $children,
+            ];
+        }
+
+        return [
+            'column' => strtolower($predicate->columnName),
+            'operator' => $predicate->operator,
+            'value' => $predicate->value,
+        ];
     }
 
     /**
