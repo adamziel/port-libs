@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 19:55:04 UTC",
-    "sourceCommit": "ffd58980530d7b9207d8ce3de3b28e3de91df2ff",
-    "sourceCommitShort": "ffd58980530d",
+    "generated": "2026-05-28 20:04:47 UTC",
+    "sourceCommit": "5b343d6b0f9feaa0f77d82b5a66aafb56530cfbb",
+    "sourceCommitShort": "5b343d6b0f9f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ffd58980530d7b9207d8ce3de3b28e3de91df2ff",
-    "dashboardCommitShort": "ffd58980530d",
+    "dashboardCommit": "5b343d6b0f9feaa0f77d82b5a66aafb56530cfbb",
+    "dashboardCommitShort": "5b343d6b0f9f",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "641",
-            "coverage": "641 / 1589",
-            "php": "118322 pass / 0 fail",
+            "mapped": "642",
+            "coverage": "642 / 1589",
+            "php": "119121 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch206 subset covering next235-next237 non-J...",
-            "audit": "Implementation batch206 accepts 7 verifie...",
-            "currentWork": "Accepted verified batch206 subset in the clean integration worktree while 11 live libsqli...",
-            "nextTarget": "Publish dashboard/status for batch206, consume accepted marker triplets, then integrate q...",
-            "blocker": "No blocker for the accepted batch206 subset.",
-            "commit": "ffd5898"
+            "phase": "accepted batch207 subset covering next234-next238 non-J...",
+            "audit": "Implementation batch207 accepts 10 verifi...",
+            "currentWork": "Accepted verified batch207 subset in the clean integration worktree while 11 live libsqli...",
+            "nextTarget": "Publish dashboard/status for batch207, consume accepted marker triplets, then integrate q...",
+            "blocker": "No blocker for the accepted batch207 subset.",
+            "commit": "5b343d6"
         },
         {
             "library": "LightningCSS",
