@@ -257,7 +257,7 @@ final class SQLiteSelectQuery
         if ($distinct) {
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
-        if ($frame !== null && in_array($function, ['count', 'sum', 'group_concat'], true)) {
+        if ($frame !== null && in_array($function, ['count', 'sum', 'min', 'max', 'group_concat'], true)) {
             if ($orderBy === []) {
                 throw new \InvalidArgumentException('SQLite SELECT query aggregate window frame needs ORDER BY');
             }

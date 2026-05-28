@@ -1188,11 +1188,13 @@ final class SQLiteUpdateDeleteReturningSql
     private static function rowValueTupleList(string $sql, array $row, array $tables = []): array
     {
         $sql = trim($sql);
-        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+))?$/is', $sql, $match) === 1) {
+        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(.+))?$/is', $sql, $match) === 1) {
             return self::rowValueSelectTupleList(
                 trim($match[1]),
                 $match[2],
                 isset($match[3]) ? trim($match[3]) : null,
+                isset($match[4]) ? trim($match[4]) : null,
+                isset($match[5]) ? trim($match[5]) : null,
                 $tables,
             );
         }
@@ -1222,7 +1224,7 @@ final class SQLiteUpdateDeleteReturningSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return list<list<mixed>>
      */
-    private static function rowValueSelectTupleList(string $selectSql, string $table, ?string $whereSql, array $tables): array
+    private static function rowValueSelectTupleList(string $selectSql, string $table, ?string $whereSql, ?string $orderSql, ?string $limitSql, array $tables): array
     {
         if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value IN subquery table {$table} is missing");
@@ -1233,7 +1235,7 @@ final class SQLiteUpdateDeleteReturningSql
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value IN subquery must return at least two columns');
         }
 
-        $tuples = [];
+        $sourceRows = [];
         foreach ($tables[$table] as $sourceRow) {
             if (!is_array($sourceRow)) {
                 throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value IN subquery table {$table} rows must be arrays");
@@ -1244,7 +1246,26 @@ final class SQLiteUpdateDeleteReturningSql
                     continue;
                 }
             }
+            $sourceRows[] = $sourceRow;
+        }
 
+        if ($orderSql !== null && $orderSql !== '') {
+            $sourceRows = self::orderRowValueSelectRows($sourceRows, $orderSql);
+        }
+
+        if ($limitSql !== null && $limitSql !== '') {
+            [$limit, $offset] = self::parseLimit($limitSql);
+            if ($limit !== null && $limit >= 0) {
+                $sourceRows = array_slice($sourceRows, $offset, $limit);
+            } elseif ($limit === null) {
+                $sourceRows = array_slice($sourceRows, $offset);
+            } else {
+                $sourceRows = [];
+            }
+        }
+
+        $tuples = [];
+        foreach ($sourceRows as $sourceRow) {
             $tuple = [];
             foreach ($expressions as $expression) {
                 $tuple[] = self::evaluateExpression(trim($expression), $sourceRow);
@@ -1253,6 +1274,41 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $tuples;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function orderRowValueSelectRows(array $rows, string $orderSql): array
+    {
+        $terms = self::parseOrderBy($orderSql);
+        usort($rows, static function (array $left, array $right) use ($terms): int {
+            foreach ($terms as $term) {
+                $column = $term['column'];
+                $leftValue = self::column($left, $column);
+                $rightValue = self::column($right, $column);
+                if ($leftValue === $rightValue) {
+                    continue;
+                }
+                if ($leftValue === null) {
+                    $comparison = -1;
+                } elseif ($rightValue === null) {
+                    $comparison = 1;
+                } else {
+                    $comparison = $leftValue <=> $rightValue;
+                }
+                if (($term['direction'] ?? 'ASC') === 'DESC') {
+                    $comparison *= -1;
+                }
+
+                return $comparison;
+            }
+
+            return 0;
+        });
+
+        return $rows;
     }
 
     /**

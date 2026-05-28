@@ -392,7 +392,7 @@ final class SQLiteWindowFunction
         ?iterable $filters = null,
     ): array {
         $function = strtolower($function);
-        if (!in_array($function, ['count', 'sum', 'group_concat'], true)) {
+        if (!in_array($function, ['count', 'sum', 'min', 'max', 'group_concat'], true)) {
             throw new \InvalidArgumentException("SQLite window aggregate {$function} is not supported");
         }
         if ($preceding < 0 || $following < 0) {
@@ -442,6 +442,8 @@ final class SQLiteWindowFunction
             $result[] = match ($function) {
                 'count' => count(array_filter($values, static fn (mixed $value): bool => $value !== null)),
                 'sum' => self::sumFrameValues($values),
+                'min' => self::minMaxFrameValues($values, true),
+                'max' => self::minMaxFrameValues($values, false),
                 'group_concat' => self::groupConcatFrameValues($values),
             };
         }
@@ -672,6 +674,27 @@ final class SQLiteWindowFunction
         }
 
         return $sum;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function minMaxFrameValues(array $values, bool $minimum): mixed
+    {
+        $selected = null;
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (!is_int($value) && !is_float($value) && !is_string($value) && !is_bool($value)) {
+                throw new \InvalidArgumentException('SQLite window min()/max() values must be scalar or NULL');
+            }
+            if ($selected === null || ($minimum ? $value < $selected : $value > $selected)) {
+                $selected = $value;
+            }
+        }
+
+        return $selected;
     }
 
     /**
