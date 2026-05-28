@@ -216,6 +216,89 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool}
+     */
+    public function applyWalTransactionRecoveryBoundary(
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        ?int $databasePageSize = null
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL transaction recovery requires a database path');
+        }
+
+        $boundary = SQLiteWal::transactionRecoveryBoundary($walBytes, $databaseBytes, $databasePageSize);
+        $walPath = $databasePath . '-wal';
+        $operations = [];
+        $payloads = [];
+
+        if ($boundary['checkpoint_database_bytes'] !== null) {
+            $operations[] = [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($boundary['checkpoint_database_bytes']),
+                'durable' => false,
+                'reason' => 'checkpoint_committed_wal_transaction_prefix',
+            ];
+            $operations[] = [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($boundary['checkpoint_database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_checkpointed_transaction_database_image',
+            ];
+            $operations[] = [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_checkpointed_transaction_database',
+            ];
+            $payloads[$databasePath] = $boundary['checkpoint_database_bytes'];
+        }
+
+        $operations[] = [
+            'op' => 'write',
+            'path' => $walPath,
+            'offset' => 0,
+            'bytes' => strlen($boundary['committed_wal_bytes']),
+            'durable' => false,
+            'reason' => 'restore_committed_wal_transaction_prefix',
+        ];
+        $operations[] = [
+            'op' => 'truncate',
+            'path' => $walPath,
+            'bytes' => strlen($boundary['committed_wal_bytes']),
+            'durable' => false,
+            'reason' => 'discard_uncommitted_or_corrupt_wal_transaction_tail',
+        ];
+        $operations[] = [
+            'op' => 'sync',
+            'path' => $walPath,
+            'durable' => true,
+            'reason' => 'sync_committed_wal_transaction_prefix',
+        ];
+        $operations[] = [
+            'op' => 'sync_directory',
+            'path' => dirname($databasePath),
+            'durable' => true,
+            'reason' => 'persist_wal_transaction_recovery_sidecars',
+        ];
+        $payloads[$walPath] = $boundary['committed_wal_bytes'];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            $payloads,
+            array_values(array_unique(array_merge($boundary['dependencies'], ['sqlite-wal-transaction-boundary-vfs-apply'])))
+        );
+        $applied['recovery'] = $boundary;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,append:array<string, mixed>}
      */
