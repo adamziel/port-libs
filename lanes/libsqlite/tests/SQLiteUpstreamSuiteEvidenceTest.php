@@ -2954,4 +2954,240 @@ MD);
         $t->contains('wait for the guarded bounded-runner artifact directory', $record['next_gate']);
         $t->contains('directory record scans bounded runner audit/log artifacts only', $record['dependency_closure']);
     },
+    'separates current-source and next-source guarded runner artifacts before countability' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-next93-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $currentHead = '7abd7d7ba1b03a473ec2d0bbcb0db63762ceae42';
+        $nextHead = '21f1e38635e924df34f7be1aef3242b4b233710c';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/next-focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next93-focused-json
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next93-focused-json`
+- Log: `next-focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `json101.test` `json102.test`
+- Exit: `0`
+- Elapsed seconds: `4`
+- Parsed summary: `0 errors out of 812 tests`
+- Parsed errors: `0`
+- Parsed tests: `812`
+- Runner time: `00:00:04`
+MD);
+        file_put_contents($root . '/next-focused.log', "00:04 tcl(812/812) r0\n");
+
+        file_put_contents($root . '/next-release.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next93-release
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next93-release`
+- Log: `next-release.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `1900`
+- Parsed summary: `0 errors out of 26014 tests`
+- Parsed errors: `0`
+- Parsed tests: `26014`
+- Runner time: `00:31:40`
+MD);
+        file_put_contents($root . '/next-release.log', "31:40 tcl(26014/26014) r0\n");
+
+        file_put_contents($root . '/current-focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-current93-focused-wal
+
+- Repository HEAD: `{$currentHead}`
+- Scratch: `/tmp/libsqlite-current93-focused-wal`
+- Log: `current-focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `wal.test`
+- Exit: `0`
+- Elapsed seconds: `2`
+- Parsed summary: `0 errors out of 144 tests`
+- Parsed errors: `0`
+- Parsed tests: `144`
+- Runner time: `00:00:02`
+MD);
+        file_put_contents($root . '/current-focused.log', "00:02 tcl(144/144) r0\n");
+
+        try {
+            $record = $evidence->currentSourceNextArtifactDirectoryRecord($root, $currentHead, $nextHead);
+
+            $t->same('next-source-countable', $record['status']);
+            $t->same($root, $record['artifact_directory']);
+            $t->same($currentHead, $record['current_source_head']);
+            $t->same($nextHead, $record['next_source_head']);
+            $t->same(3, $record['artifact_count']);
+            $t->same(1, $record['current_source_count']);
+            $t->same(2, $record['next_source_count']);
+            $t->same(0, $record['stale_source_count']);
+            $t->same(0, $record['blocked_count']);
+            $t->same(0, $record['manifest_mismatch_count']);
+            $t->same(0, $record['missing_log_count']);
+            $t->same(['libsqlite-current93-focused-wal'], $record['current_source_labels']);
+            $t->same(['libsqlite-next93-focused-json', 'libsqlite-next93-release'], $record['next_source_labels']);
+            $t->same([], $record['stale_source_labels']);
+            $t->same([], $record['blocked_labels']);
+            $t->same([], $record['missing_log_labels']);
+            $t->same(26826, $record['tests_total']);
+            $t->same(0, $record['errors_total']);
+            $t->same(true, $record['counts_next_source']);
+            $t->same(false, $record['counts_as_release_parity']);
+            $t->contains('promote the next-source zero-error runner artifacts', $record['next_gate']);
+            $t->contains('current/next source directory evidence', $record['dependency_closure']);
+
+            $entries = [];
+            foreach ($record['entries'] as $entry) {
+                $entries[$entry['label']] = $entry;
+            }
+            $t->same('next-source-countable', $entries['libsqlite-next93-focused-json']['status']);
+            $t->same($nextHead, $entries['libsqlite-next93-focused-json']['repository_head']);
+            $t->same(812, $entries['libsqlite-next93-focused-json']['tests']);
+            $t->same(false, $entries['libsqlite-next93-focused-json']['missing_log']);
+            $t->same([], $entries['libsqlite-next93-focused-json']['blocker_ids']);
+            $t->same('next-source-countable', $entries['libsqlite-next93-release']['status']);
+            $t->same(26014, $entries['libsqlite-next93-release']['tests']);
+            $t->same('current-source-countable', $entries['libsqlite-current93-focused-wal']['status']);
+            $t->same($currentHead, $entries['libsqlite-current93-focused-wal']['repository_head']);
+            $t->same(144, $entries['libsqlite-current93-focused-wal']['tests']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
+    'keeps stale and manifest-mismatched current-source-next artifacts blocked' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-current-source-next93-blocked-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $currentHead = '7abd7d7ba1b03a473ec2d0bbcb0db63762ceae42';
+        $nextHead = '21f1e38635e924df34f7be1aef3242b4b233710c';
+        $sqliteCommit = '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+        $uuid = '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353';
+
+        file_put_contents($root . '/next-focused.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next93-focused-ok
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next93-focused-ok`
+- Log: `next-focused.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `select1.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 91 tests`
+- Parsed errors: `0`
+- Parsed tests: `91`
+MD);
+        file_put_contents($root . '/next-focused.log', "00:01 tcl(91/91) r0\n");
+
+        file_put_contents($root . '/stale.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next93-stale
+
+- Repository HEAD: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Scratch: `/tmp/libsqlite-next93-stale`
+- Log: `stale.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `{$uuid}`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `btree01.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 44 tests`
+- Parsed errors: `0`
+- Parsed tests: `44`
+MD);
+        file_put_contents($root . '/stale.log', "00:01 tcl(44/44) r0\n");
+
+        file_put_contents($root . '/wrong-manifest.md', <<<MD
+# SQLite Tcl Bounded Runner Evidence - libsqlite-next93-wrong-manifest
+
+- Repository HEAD: `{$nextHead}`
+- Scratch: `/tmp/libsqlite-next93-wrong-manifest`
+- Log: `wrong-manifest.log`
+- SQLite git commit: `{$sqliteCommit}`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `wrong-manifest`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `pragma.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 58 tests`
+- Parsed errors: `0`
+- Parsed tests: `58`
+MD);
+
+        try {
+            $record = $evidence->currentSourceNextArtifactDirectoryRecord($root, $currentHead, $nextHead);
+
+            $t->same('partially-next-source-countable', $record['status']);
+            $t->same(3, $record['artifact_count']);
+            $t->same(0, $record['current_source_count']);
+            $t->same(1, $record['next_source_count']);
+            $t->same(1, $record['stale_source_count']);
+            $t->same(2, $record['blocked_count']);
+            $t->same(1, $record['manifest_mismatch_count']);
+            $t->same(1, $record['missing_log_count']);
+            $t->same(['libsqlite-next93-focused-ok'], $record['next_source_labels']);
+            $t->same(['libsqlite-next93-stale'], $record['stale_source_labels']);
+            $t->same(['libsqlite-next93-stale', 'libsqlite-next93-wrong-manifest'], $record['blocked_labels']);
+            $t->same(['libsqlite-next93-wrong-manifest'], $record['manifest_mismatch_labels']);
+            $t->same(['libsqlite-next93-wrong-manifest'], $record['missing_log_labels']);
+            $t->same(91, $record['tests_total']);
+            $t->same(0, $record['errors_total']);
+            $t->same(false, $record['counts_next_source']);
+            $t->contains('count only next-source zero-error artifacts', $record['next_gate']);
+
+            $entries = [];
+            foreach ($record['entries'] as $entry) {
+                $entries[$entry['label']] = $entry;
+            }
+            $t->same('next-source-countable', $entries['libsqlite-next93-focused-ok']['status']);
+            $t->same('stale-source-blocked', $entries['libsqlite-next93-stale']['status']);
+            $t->true(in_array('repository-head-mismatch', $entries['libsqlite-next93-stale']['blocker_ids'], true), 'Expected stale source blocker');
+            $t->same('blocked', $entries['libsqlite-next93-wrong-manifest']['status']);
+            $t->true(in_array('sqlite-manifest-uuid-mismatch', $entries['libsqlite-next93-wrong-manifest']['blocker_ids'], true), 'Expected manifest mismatch blocker');
+            $t->same(true, $entries['libsqlite-next93-wrong-manifest']['missing_log']);
+
+            $missing = $evidence->currentSourceNextArtifactDirectoryRecord($root . '-missing', $currentHead, $nextHead);
+            $t->same('blocked-missing-artifact-directory', $missing['status']);
+            $t->same(0, $missing['artifact_count']);
+            $t->same(0, $missing['next_source_count']);
+            $t->same(false, $missing['counts_next_source']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
 ];

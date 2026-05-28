@@ -4341,6 +4341,164 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function currentSourceNextArtifactDirectoryRecord(
+        string $artifactDirectory,
+        string $currentSourceHead,
+        string $nextSourceHead,
+        string $processSnapshot = ''
+    ): array {
+        if ($currentSourceHead === '' || $nextSourceHead === '') {
+            throw new \InvalidArgumentException('SQLite current/next source artifact evidence requires non-empty source heads');
+        }
+
+        if (!is_dir($artifactDirectory)) {
+            return [
+                'status' => 'blocked-missing-artifact-directory',
+                'artifact_directory' => $artifactDirectory,
+                'current_source_head' => $currentSourceHead,
+                'next_source_head' => $nextSourceHead,
+                'artifact_count' => 0,
+                'current_source_count' => 0,
+                'next_source_count' => 0,
+                'stale_source_count' => 0,
+                'blocked_count' => 0,
+                'missing_log_count' => 0,
+                'entries' => [],
+                'counts_next_source' => false,
+                'next_gate' => 'place guarded bounded-runner audit/log artifacts in the directory before counting current/next source evidence',
+                'dependency_closure' => 'no new support component needed; current/next source evidence scans bounded runner audit/log artifacts only',
+            ];
+        }
+
+        $auditPaths = $this->boundedRunnerAuditArtifactPaths($artifactDirectory);
+        $entries = [];
+        $currentLabels = [];
+        $nextLabels = [];
+        $staleLabels = [];
+        $blockedLabels = [];
+        $manifestMismatchLabels = [];
+        $missingLogLabels = [];
+        $testsTotal = 0;
+        $errorsTotal = 0;
+
+        foreach ($auditPaths as $auditPath) {
+            if (!is_file($auditPath)) {
+                continue;
+            }
+
+            $auditText = file_get_contents($auditPath);
+            if ($auditText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+            }
+
+            $label = $this->extractMarkdownHeadingLabel($auditText) ?? pathinfo($auditPath, PATHINFO_FILENAME);
+            $stdoutPath = $this->pairedRunnerLogPath($auditText, $auditPath, $artifactDirectory);
+            if ($stdoutPath === null) {
+                $missingLogLabels[] = $label;
+            }
+
+            $artifact = $this->boundedRunnerArtifactRecordFromFiles(
+                $auditPath,
+                $stdoutPath ?? $auditPath,
+                $processSnapshot
+            );
+            $currentAcceptance = $this->boundedRunnerAcceptanceGate($artifact, $currentSourceHead);
+            $nextAcceptance = $this->boundedRunnerAcceptanceGate($artifact, $nextSourceHead);
+            $repositoryHead = is_string($artifact['repository_head'] ?? null) ? $artifact['repository_head'] : null;
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $tests = is_int($results['tests'] ?? null) ? $results['tests'] : null;
+            $errors = is_int($results['errors'] ?? null) ? $results['errors'] : null;
+            $manifestUuid = is_string($artifact['sqlite_manifest_uuid'] ?? null) ? $artifact['sqlite_manifest_uuid'] : null;
+            $blockerIds = [];
+
+            $sourceStatus = 'blocked';
+            if (($nextAcceptance['status'] ?? null) === 'accepted-for-lane-evidence') {
+                $sourceStatus = 'next-source-countable';
+                $nextLabels[] = $label;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+            } elseif (($currentAcceptance['status'] ?? null) === 'accepted-for-lane-evidence') {
+                $sourceStatus = 'current-source-countable';
+                $currentLabels[] = $label;
+            } else {
+                $blockedLabels[] = $label;
+                $sourceStatus = $repositoryHead !== $currentSourceHead && $repositoryHead !== $nextSourceHead
+                    ? 'stale-source-blocked'
+                    : 'blocked';
+                if ($sourceStatus === 'stale-source-blocked') {
+                    $staleLabels[] = $label;
+                }
+
+                $blockers = is_array($nextAcceptance['blockers'] ?? null) ? $nextAcceptance['blockers'] : [];
+                foreach ($blockers as $blocker) {
+                    if (is_array($blocker) && is_string($blocker['id'] ?? null)) {
+                        $blockerIds[] = $blocker['id'];
+                    }
+                }
+                if (in_array('sqlite-manifest-uuid-mismatch', $blockerIds, true)) {
+                    $manifestMismatchLabels[] = $label;
+                }
+            }
+
+            $entries[] = [
+                'label' => $label,
+                'status' => $sourceStatus,
+                'repository_head' => $repositoryHead,
+                'current_source_head' => $currentSourceHead,
+                'next_source_head' => $nextSourceHead,
+                'sqlite_manifest_uuid' => $manifestUuid,
+                'tests' => $tests,
+                'errors' => $errors,
+                'missing_log' => $stdoutPath === null,
+                'blocker_ids' => array_values(array_unique($blockerIds)),
+            ];
+        }
+
+        $status = 'blocked';
+        if ($entries !== [] && $nextLabels !== [] && $blockedLabels === [] && $missingLogLabels === []) {
+            $status = 'next-source-countable';
+        } elseif ($entries !== [] && $nextLabels !== [] && ($blockedLabels !== [] || $missingLogLabels !== [])) {
+            $status = 'partially-next-source-countable';
+        } elseif ($entries !== [] && $currentLabels !== [] && $blockedLabels === [] && $missingLogLabels === []) {
+            $status = 'current-source-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'artifact_directory' => $artifactDirectory,
+            'current_source_head' => $currentSourceHead,
+            'next_source_head' => $nextSourceHead,
+            'artifact_count' => count($entries),
+            'current_source_count' => count($currentLabels),
+            'next_source_count' => count($nextLabels),
+            'stale_source_count' => count($staleLabels),
+            'blocked_count' => count($blockedLabels),
+            'manifest_mismatch_count' => count(array_unique($manifestMismatchLabels)),
+            'missing_log_count' => count($missingLogLabels),
+            'current_source_labels' => $currentLabels,
+            'next_source_labels' => $nextLabels,
+            'stale_source_labels' => $staleLabels,
+            'blocked_labels' => $blockedLabels,
+            'manifest_mismatch_labels' => array_values(array_unique($manifestMismatchLabels)),
+            'missing_log_labels' => $missingLogLabels,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'entries' => $entries,
+            'counts_next_source' => $nextLabels !== [] && $blockedLabels === [] && $missingLogLabels === [],
+            'counts_as_release_parity' => false,
+            'next_gate' => match ($status) {
+                'next-source-countable' => 'promote the next-source zero-error runner artifacts to focused or release countability gates without launching another broad runner',
+                'partially-next-source-countable' => 'count only next-source zero-error artifacts and rerun or repair stale, failed, manifest-mismatched, or missing-log artifacts',
+                'current-source-preserved' => 'record that only current-source evidence is present; wait for a next-source artifact before claiming next movement',
+                default => 'rerun guarded bounded-runner artifacts from the next source head or repair blocked directory evidence before counting current/next source movement',
+            },
+            'dependency_closure' => 'no new support component needed; current/next source directory evidence composes bounded runner artifacts, accepted source heads, and manifest UUID gates only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function selectedScriptInventory(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

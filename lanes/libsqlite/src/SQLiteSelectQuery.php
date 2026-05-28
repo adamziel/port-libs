@@ -247,6 +247,16 @@ final class SQLiteSelectQuery
 
             return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy, $distinct);
         }
+        if ($frame !== null && in_array($function, ['json_group_object', 'jsonb_group_object'], true)) {
+            if ($orderBy === []) {
+                throw new \InvalidArgumentException('SQLite SELECT query JSON object aggregate window frame needs ORDER BY');
+            }
+            if (count($arguments) !== 2 || (($arguments[0]['type'] ?? null) === 'wildcard') || (($arguments[1]['type'] ?? null) === 'wildcard')) {
+                throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs label and value arguments");
+            }
+
+            return self::jsonObjectAggregateWindowFrameValues($function, $arguments[0], $arguments[1], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy, $distinct);
+        }
         if ($distinct) {
             throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
@@ -379,6 +389,79 @@ final class SQLiteSelectQuery
             }
             $json = SQLiteJsonAggregate::jsonGroupArray($values);
             $result[] = $function === 'jsonb_group_array'
+                ? new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)))
+                : $json;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $orderedRows
+     * @param list<mixed> $peerKeys
+     * @param array{unit:string,preceding:int|float,following:int|float,exclude:string} $frame
+     * @param array<string,mixed>|null $filter
+     * @param list<array{expression:array<string,mixed>,direction:string}>|null $aggregateOrderBy
+     * @return list<string|SQLiteBlobValue>
+     */
+    private static function jsonObjectAggregateWindowFrameValues(string $function, array $labelArgument, array $valueArgument, array $orderedRows, array $peerKeys, array $frame, ?array $filter, ?array $aggregateOrderBy, bool $distinct): array
+    {
+        $frameRows = [];
+        foreach ($orderedRows as $index => $row) {
+            $frameRows[] = [
+                'value' => [
+                    SQLiteSelectExpression::evaluate($row, $labelArgument),
+                    SQLiteSelectExpression::evaluate($row, $valueArgument),
+                ],
+                'frameKey' => $peerKeys[$index],
+                'aggregateKey' => $aggregateOrderBy === null
+                    ? [['value' => $peerKeys[$index], 'direction' => 'ASC']]
+                    : array_map(
+                        static fn (array $term): array => [
+                            'value' => SQLiteSelectExpression::evaluate($row, $term['expression']),
+                            'direction' => $term['direction'],
+                        ],
+                        $aggregateOrderBy,
+                    ),
+                'filter' => $filter === null || SQLiteSelectPredicate::filter([$row], $filter) !== [],
+                'position' => $index,
+            ];
+        }
+
+        $frames = self::windowFrameRows($frameRows, $frame['unit'], $frame['preceding'], $frame['following'], $frame['exclude']);
+        $result = [];
+        foreach ($frames as $frameRows) {
+            usort($frameRows, static function (array $left, array $right): int {
+                foreach ($left['aggregateKey'] as $index => $leftTerm) {
+                    $rightTerm = $right['aggregateKey'][$index] ?? null;
+                    if (!is_array($rightTerm) || !array_key_exists('value', $rightTerm)) {
+                        throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY keys are malformed');
+                    }
+                    $comparison = self::compareSqlValues($leftTerm['value'], $rightTerm['value']);
+                    if ($comparison === 0) {
+                        continue;
+                    }
+
+                    return $leftTerm['direction'] === 'DESC' ? -$comparison : $comparison;
+                }
+
+                return $left['position'] <=> $right['position'];
+            });
+            $pairs = [];
+            $seen = [];
+            foreach ($frameRows as $row) {
+                $pair = $row['value'];
+                if ($distinct) {
+                    $key = self::jsonAggregateDistinctKey($pair[0]) . "\0" . self::jsonAggregateDistinctKey($pair[1]);
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                }
+                $pairs[] = $pair;
+            }
+            $json = SQLiteJsonAggregate::jsonGroupObject($pairs);
+            $result[] = $function === 'jsonb_group_object'
                 ? new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)))
                 : $json;
         }

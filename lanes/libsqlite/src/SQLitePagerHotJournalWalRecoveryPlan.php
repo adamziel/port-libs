@@ -509,6 +509,146 @@ final class SQLitePagerHotJournalWalRecoveryPlan
     }
 
     /**
+     * @param array<int,string> $currentPageImages
+     * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,current_statement:string,next_statement:string,savepoint:string,page_size:int,hot_recovered:bool,journal_action:string,wal_recovery_status:string,current_source_verified:bool,current_source_page_numbers:list<int>,current_reader:list<array<string,mixed>>,current_reader_sources:list<string|null>,current_reader_frame_indexes:list<int|null>,current_database_bytes:int,rolled_back_database_bytes:int,rollback_to_wal_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,rollback_restored_page_numbers:list<int>,rollback_discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_rollback:list<int>,pending_wal_frame_indexes_after_rollback:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,current_source_prefixes:array<int,string>,next_source_prefixes:array<int,string>,operations:list<array<string,mixed>>,hot_recovery:array<string,mixed>,statement_recovery:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function statementCurrentSourceNext93(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        string $walBytes,
+        string $databasePath,
+        SQLiteSavepointStack $savepoints,
+        string $currentStatementName,
+        string $nextStatementName,
+        array $currentPageImages,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        ?int $databasePageSize = null,
+        bool $nextCommitFrame = false,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($currentStatementName === '') {
+            throw new \InvalidArgumentException('SQLite pager hot-journal statement current-source requires a current statement name');
+        }
+        if ($nextStatementName === '') {
+            throw new \InvalidArgumentException('SQLite pager hot-journal statement current-source requires a next statement name');
+        }
+        if ($currentPageImages === []) {
+            throw new \InvalidArgumentException('SQLite pager hot-journal statement current-source requires page images');
+        }
+
+        $recovery = self::recover(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $walBytes,
+            $databasePath,
+            $databasePageSize,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $baseDatabaseBytes = $recovery['payloads'][$databasePath . '#hot-journal'] ?? $databaseBytes;
+        if (!is_string($baseDatabaseBytes)) {
+            throw new \UnexpectedValueException('SQLite hot-journal recovery did not expose a database byte image');
+        }
+
+        $validWalBytes = (string) $recovery['wal_recovery']['valid_wal_bytes'];
+        $validWal = SQLiteWal::parse($validWalBytes, $databasePageSize, true);
+        $pageSize = self::pageSize($validWal, $databasePageSize, $baseDatabaseBytes);
+        $currentEndFrame = $validWal->frameCount();
+        $pageNumbers = array_keys($currentPageImages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        $currentReader = [];
+        $currentDatabaseBytes = $baseDatabaseBytes;
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite pager hot-journal statement current-source page numbers are one-based');
+            }
+            $expectedImage = $currentPageImages[$pageNumber];
+            if (!is_string($expectedImage) || strlen($expectedImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite pager hot-journal statement current-source image for page {$pageNumber} must match the page size");
+            }
+
+            $visibility = self::safeReaderVisibility($validWal, $baseDatabaseBytes, $pageNumber, $currentEndFrame);
+            if (($visibility['image'] ?? null) !== $expectedImage) {
+                throw new \RuntimeException("SQLite pager hot-journal statement current-source page {$pageNumber} is stale");
+            }
+            $currentReader[] = $visibility;
+            $offset = ($pageNumber - 1) * $pageSize;
+            if ($offset + $pageSize > strlen($currentDatabaseBytes)) {
+                throw new \InvalidArgumentException("SQLite pager hot-journal statement current-source page {$pageNumber} is outside the database image");
+            }
+            $currentDatabaseBytes = substr_replace($currentDatabaseBytes, $expectedImage, $offset, $pageSize);
+        }
+
+        $statementRecovery = $savepoints->rollbackStatementCurrentSourceAndBeginNext86(
+            $currentStatementName,
+            $nextStatementName,
+            $currentDatabaseBytes,
+            $currentPageImages,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $pageSize,
+            $nextCommitFrame
+        );
+
+        return [
+            'status' => 'hot_journal_statement_current_source_next',
+            'reason' => 'hot_journal_recovery_then_statement_subjournal_current_source_retry',
+            'database_path' => $databasePath,
+            'journal_path' => $recovery['journal_path'],
+            'wal_path' => $recovery['wal_path'],
+            'current_statement' => $currentStatementName,
+            'next_statement' => $nextStatementName,
+            'savepoint' => $statementRecovery['savepoint'],
+            'page_size' => $pageSize,
+            'hot_recovered' => $recovery['hot_recovered'],
+            'journal_action' => $recovery['journal_action'],
+            'wal_recovery_status' => $recovery['wal_status'],
+            'current_source_verified' => true,
+            'current_source_page_numbers' => $statementRecovery['current_source_page_numbers'],
+            'current_reader' => $currentReader,
+            'current_reader_sources' => self::visibilityColumn($currentReader, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($currentReader, 'frame_index'),
+            'current_database_bytes' => strlen($currentDatabaseBytes),
+            'rolled_back_database_bytes' => strlen($statementRecovery['rolled_back_database_bytes']),
+            'rollback_to_wal_frame' => $statementRecovery['rollback_to_wal_frame'],
+            'next_wal_frame_index' => $statementRecovery['next_wal_frame_index'],
+            'next_page_number' => $statementRecovery['next_page_number'],
+            'next_commit_frame' => $statementRecovery['next_commit_frame'],
+            'rollback_restored_page_numbers' => $statementRecovery['rollback_restored_page_numbers'],
+            'rollback_discarded_wal_frames' => $statementRecovery['rollback_discarded_wal_frames'],
+            'statement_journals_after_rollback' => $statementRecovery['statement_journals_after_rollback'],
+            'statement_journals_after_next' => $statementRecovery['statement_journals_after_next'],
+            'pending_page_numbers_after_rollback' => $statementRecovery['pending_page_numbers_after_rollback'],
+            'pending_wal_frame_indexes_after_rollback' => $statementRecovery['pending_wal_frame_indexes_after_rollback'],
+            'pending_page_numbers_after_next' => $statementRecovery['pending_page_numbers_after_next'],
+            'pending_wal_frame_indexes_after_next' => $statementRecovery['pending_wal_frame_indexes_after_next'],
+            'current_source_prefixes' => $statementRecovery['current_source_prefixes'],
+            'next_source_prefixes' => $statementRecovery['next_source_prefixes'],
+            'operations' => array_values(array_merge($recovery['operations'], [[
+                'op' => 'statement_rollback',
+                'path' => $databasePath,
+                'statement' => $currentStatementName,
+                'next_statement' => $nextStatementName,
+                'reason' => 'restore_statement_subjournal_after_hot_journal_recovery',
+            ]])),
+            'hot_recovery' => $recovery,
+            'statement_recovery' => $statementRecovery,
+            'dependencies' => array_values(array_unique(array_merge(
+                $recovery['dependencies'],
+                $statementRecovery['dependencies'],
+                ['sqlite-pager-hot-journal-savepoint-statement-current-source-next93']
+            ))),
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     private static function safeReaderVisibility(SQLiteWal $wal, string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame): array

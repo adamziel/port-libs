@@ -595,7 +595,16 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
 
     private static function normalizeName(string $name): string
     {
-        $trimmed = trim($name, " \t\r\n`'\"");
+        $trimmed = trim($name);
+        if ($trimmed !== '') {
+            $first = $trimmed[0];
+            $last = $trimmed[strlen($trimmed) - 1];
+            if (($first === '"' && $last === '"') || ($first === '`' && $last === '`') || ($first === "'" && $last === "'")) {
+                $trimmed = str_replace($first . $first, $first, substr($trimmed, 1, -1));
+            } elseif ($first === '[' && $last === ']') {
+                $trimmed = substr($trimmed, 1, -1);
+            }
+        }
         if ($trimmed === '') {
             throw new \InvalidArgumentException('SQLite schema object name cannot be empty');
         }

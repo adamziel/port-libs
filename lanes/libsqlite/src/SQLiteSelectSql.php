@@ -2193,13 +2193,17 @@ final class SQLiteSelectSql
         }
 
         $predicate = self::predicate($on[1], $tables);
+        $jsonIndexPredicate = $predicate;
         $jsonHiddenConstraints = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
             ? self::jsonTableHiddenExpressionConstraintsForAlias($predicate, $table['alias'])
             : [];
         if ($jsonHiddenConstraints !== []) {
             $function = $table['name'];
             $alias = $table['alias'];
-            $join['dynamicRows'] = static function (array $row) use ($function, $alias, $jsonHiddenConstraints): array {
+            $baseDynamicRows = isset($table['dynamicRows']) && is_callable($table['dynamicRows'])
+                ? $table['dynamicRows']
+                : null;
+            $join['dynamicRows'] = static function (array $row) use ($function, $alias, $jsonHiddenConstraints, $baseDynamicRows): array {
                 $constraints = [];
                 foreach ($jsonHiddenConstraints as $constraint) {
                     $value = SQLiteSelectExpression::evaluate($row, $constraint['expression']);
@@ -2212,6 +2216,15 @@ final class SQLiteSelectSql
                         'value' => $value,
                         'usable' => true,
                     ];
+                }
+
+                if ($baseDynamicRows !== null) {
+                    $row['__sqlite_json_table_constraints'][$alias] = array_merge(
+                        $row['__sqlite_json_table_constraints'][$alias] ?? [],
+                        $constraints,
+                    );
+
+                    return $baseDynamicRows($row);
                 }
 
                 $plan = SQLiteJsonTablePlan::validatedPlan($function, $constraints);
@@ -2240,13 +2253,16 @@ final class SQLiteSelectSql
             ];
         }
         $jsonIndexConstraints = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
-            ? self::jsonTableVisibleConstraintsForAlias($predicate, $table['alias'])
+            ? self::jsonTableVisibleConstraintsForAlias($jsonIndexPredicate, $table['alias'])
             : [];
-        if ($jsonIndexConstraints !== [] && isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
-            $dynamicRows = $table['dynamicRows'];
+        if ($jsonIndexConstraints !== [] && isset($join['dynamicRows']) && is_callable($join['dynamicRows'])) {
+            $dynamicRows = $join['dynamicRows'];
             $alias = $table['alias'];
             $join['indexedDynamicRows'] = static function (array $row) use ($dynamicRows, $alias, $jsonIndexConstraints): array {
-                $row['__sqlite_json_table_constraints'][$alias] = $jsonIndexConstraints;
+                $row['__sqlite_json_table_constraints'][$alias] = array_merge(
+                    $row['__sqlite_json_table_constraints'][$alias] ?? [],
+                    $jsonIndexConstraints,
+                );
 
                 return $dynamicRows($row);
             };
@@ -2468,7 +2484,11 @@ final class SQLiteSelectSql
             return null;
         }
 
-        return ($column === 'json' || $column === 'root') ? $column : null;
+        if ($column === 'rowid' || $column === '_rowid_' || $column === 'oid') {
+            $column = 'id';
+        }
+
+        return in_array($column, ['json', 'root', 'id'], true) ? $column : null;
     }
 
     private static function expressionSql(array $expression): string
@@ -3396,7 +3416,7 @@ final class SQLiteSelectSql
             $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
         }
 
-        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'group_concat', 'json_group_array', 'jsonb_group_array'];
+        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'group_concat', 'json_group_array', 'jsonb_group_array', 'json_group_object', 'jsonb_group_object'];
         if (!in_array($name, $supported, true)) {
             throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
         }

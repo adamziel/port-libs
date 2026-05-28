@@ -2253,6 +2253,86 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointRestartTruncateReaderCurrentSourceNext93(
+        string $databaseBytes,
+        string $walBytes,
+        SQLiteShmIndex $currentShm,
+        SQLiteShmIndex $nextReaderShm,
+        SQLiteShmIndex $currentReleasedShm,
+        SQLiteShmIndex $allReleasedShm,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($source->toBytes() !== $this->toBytes()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint restart/truncate next93 current source bytes mismatch');
+        }
+
+        $plan = $this->checkpointReaderRestartCurrentSourceNext89(
+            $databaseBytes,
+            $walBytes,
+            $currentShm,
+            $nextReaderShm,
+            $currentReleasedShm,
+            $allReleasedShm,
+            $pageNumbers,
+            $mode
+        );
+
+        $currentRows = $plan['current_source_rows'];
+        $nextRows = $plan['next_source_rows_after_current_release'];
+        $finalRows = $plan['final_source_rows_after_all_release'];
+        $currentNames = self::visibilityColumn($currentRows, 'current_source');
+        $nextNames = self::visibilityColumn($nextRows, 'current_source');
+        $finalNames = self::visibilityColumn($finalRows, 'current_source');
+        $afterCurrentCheckpoint = $plan['after_current_release']['checkpoint'];
+        $afterAllCheckpoint = $plan['after_all_release']['checkpoint'];
+
+        return array_merge($plan, [
+            'status' => str_replace('current-source-next89', 'current-source-next93', (string) $plan['status']),
+            'source_generation' => [
+                'current_wal_bytes_sha1' => sha1($walBytes),
+                'current_wal_bytes_length' => strlen($walBytes),
+                'current_frame_count' => $source->frameCount(),
+                'current_checkpoint_sequence' => $source->header->checkpointSequence,
+                'current_salt' => [$source->header->salt1, $source->header->salt2],
+                'after_current_release_wal_action' => $afterCurrentCheckpoint['wal_action'],
+                'after_current_release_wal_bytes_length' => $afterCurrentCheckpoint['wal_bytes_length'],
+                'after_all_release_wal_action' => $afterAllCheckpoint['wal_action'],
+                'after_all_release_wal_bytes_length' => $afterAllCheckpoint['wal_bytes_length'],
+                'after_all_release_checkpoint_sequence' => is_array($afterAllCheckpoint['wal_header']) ? $afterAllCheckpoint['wal_header']['checkpoint_sequence'] : null,
+                'after_all_release_salt' => is_array($afterAllCheckpoint['wal_header'])
+                    ? [$afterAllCheckpoint['wal_header']['salt1'], $afterAllCheckpoint['wal_header']['salt2']]
+                    : null,
+            ],
+            'current_source_names_next93' => $currentNames,
+            'next_source_names_next93' => $nextNames,
+            'final_source_names_next93' => $finalNames,
+            'current_uses_verified_sidecar' => in_array('preserved-wal', $currentNames, true),
+            'next_uses_checkpoint_database' => in_array('checkpoint-database', $nextNames, true),
+            'next_still_preserves_sidecar_for_reader_pin' => in_array('preserved-wal', $nextNames, true),
+            'final_uses_reset_database_only_next93' => $finalNames !== [] && count(array_unique($finalNames)) === 1 && $finalNames[0] === 'reset-database',
+            'restart_source_is_new_generation' => $afterAllCheckpoint['wal_action'] === 'restart_wal'
+                && is_array($afterAllCheckpoint['wal_header'])
+                && (int) $afterAllCheckpoint['wal_header']['checkpoint_sequence'] !== $source->header->checkpointSequence
+                && (int) $afterAllCheckpoint['wal_header']['salt1'] !== $source->header->salt1,
+            'truncate_source_is_empty_generation' => $afterAllCheckpoint['wal_action'] === 'truncate_wal'
+                && $afterAllCheckpoint['wal_bytes_length'] === 0
+                && $afterAllCheckpoint['wal_header'] === null,
+            'current_to_next_source_transition' => self::sourceTransitionRows($currentRows, $nextRows, 'current_to_next'),
+            'next_to_final_source_transition' => self::sourceTransitionRows($nextRows, $finalRows, 'next_to_final'),
+            'current_to_final_source_transition' => self::sourceTransitionRows($currentRows, $finalRows, 'current_to_final'),
+            'dependencies' => array_values(array_unique(array_merge(
+                $plan['dependencies'],
+                ['wal-checkpoint-restart-truncate-reader-current-source-next93']
+            ))),
+        ]);
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
@@ -2567,6 +2647,35 @@ final class SQLiteWal
         }
 
         return $sourceRows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $before
+     * @param list<array<string,mixed>> $after
+     * @return list<array{phase:string,page_number:int|null,before_source:string|null,after_source:string|null,before_frame:int|null,after_frame:int|null,image_changed:bool,after_checkpoint_database_has_page:bool}>
+     */
+    private static function sourceTransitionRows(array $before, array $after, string $phase): array
+    {
+        $rows = [];
+        $count = max(count($before), count($after));
+        for ($index = 0; $index < $count; $index++) {
+            $beforeRow = $before[$index] ?? [];
+            $afterRow = $after[$index] ?? [];
+            $rows[] = [
+                'phase' => $phase,
+                'page_number' => isset($beforeRow['page_number']) && is_int($beforeRow['page_number'])
+                    ? $beforeRow['page_number']
+                    : (isset($afterRow['page_number']) && is_int($afterRow['page_number']) ? $afterRow['page_number'] : null),
+                'before_source' => isset($beforeRow['current_source']) && is_string($beforeRow['current_source']) ? $beforeRow['current_source'] : null,
+                'after_source' => isset($afterRow['current_source']) && is_string($afterRow['current_source']) ? $afterRow['current_source'] : null,
+                'before_frame' => isset($beforeRow['frame_index']) && is_int($beforeRow['frame_index']) ? $beforeRow['frame_index'] : null,
+                'after_frame' => isset($afterRow['frame_index']) && is_int($afterRow['frame_index']) ? $afterRow['frame_index'] : null,
+                'image_changed' => ($beforeRow['image'] ?? null) !== ($afterRow['image'] ?? null),
+                'after_checkpoint_database_has_page' => (bool) ($afterRow['checkpoint_database_has_page'] ?? false),
+            ];
+        }
+
+        return $rows;
     }
 
     private static function highestActiveReadMarkFrame(SQLiteShmIndex $shm): ?int
