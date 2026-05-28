@@ -88,6 +88,46 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{parent_key:string,child_key:string,on_update?:string,on_delete?:string,deferred?:bool,child_default?:mixed,child_defaults?:array<string,mixed>} $foreignKey
+     * @param list<array<string,mixed>> $triggers
+     * @param array{operation:string,where:callable(array<string,mixed>):bool,assignments?:array<string,mixed|callable(array<string,mixed>):mixed>,returning?:list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,string):mixed>,savepoint?:string,rollback_on_deferred_violation?:bool,page_images?:array<int,string>,dirty_pages?:array<int,string>,wal_start_frame?:int,wal_frames?:list<array<string,mixed>>,rowid_column?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function currentNextYield(array $parents, array $children, array $foreignKey, array $triggers, array $statement): array
+    {
+        $plan = self::run($parents, $children, $foreignKey, $triggers, $statement);
+        $currentYielded = $plan['attempted_yielded'];
+        $nextYielded = $plan['yielded'];
+        $rolledBack = $plan['rolled_back_to_savepoint'];
+
+        $out = $plan + [
+            'current_parent' => $plan['attempted_parent'],
+            'current_child' => $plan['attempted_child'],
+            'next_parent' => $plan['parent'],
+            'next_child' => $plan['child'],
+            'current_yielded' => $currentYielded,
+            'next_yielded' => $nextYielded,
+            'current_returning_rows' => array_values(array_map(static fn (array $row): array => $row['returning'], $currentYielded)),
+            'next_returning_rows' => array_values(array_map(static fn (array $row): array => $row['returning'], $nextYielded)),
+            'current_changes' => $plan['attempted_changes'],
+            'next_changes' => $plan['changes'],
+            'yield_suppressed_by_rollback' => $rolledBack && $currentYielded !== [] && $nextYielded === [],
+            'current_next_boundary' => $rolledBack ? 'rollback-to-savepoint' : ($plan['foreign_key_violations'] === [] ? 'commit' : 'deferred-commit-blocked'),
+            'next_restored_savepoint_image' => $rolledBack && $plan['parent'] === array_values($parents) && $plan['child'] === array_values($children),
+            'current_rowids' => self::rowIds($plan['attempted_parent'], (string) ($statement['rowid_column'] ?? 'option_id')),
+            'next_rowids' => self::rowIds($plan['parent'], (string) ($statement['rowid_column'] ?? 'option_id')),
+        ];
+        $out['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-trigger-returning-savepoint-current-next64']
+        )));
+
+        return $out;
+    }
+
+    /**
      * @return array<int,string>
      */
     private static function pageImages(array $pages, string $label): array
@@ -133,6 +173,17 @@ final class SQLiteTriggerReturningForeignKeySavepointPlan
     private static function discardedWalFrames(array $frames, int $start): array
     {
         return array_values(array_filter($frames, static fn (array $frame): bool => (int) $frame['frame_index'] > $start));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function rowIds(array $rows, string $column): array
+    {
+        self::identifier($column, 'rowid column');
+
+        return array_values(array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows));
     }
 
     private static function nonNegativeInt(mixed $value, string $label): int

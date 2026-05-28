@@ -107,6 +107,81 @@ final class SQLiteOverflowVacuumTruncatePlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function pointerMapVacuumTransitions(): array
+    {
+        $currentEntries = [];
+        foreach ($this->currentFreedPointerMapEntries() as $entry) {
+            $currentEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $truncatedEntries = [];
+        foreach ($this->truncatePlan->truncatedPointerMapEntries as $entry) {
+            $truncatedEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $releasedPages = $this->releasedOverflowPages();
+        sort($releasedPages);
+
+        $transitions = [];
+        foreach ($releasedPages as $pageNumber) {
+            $current = $currentEntries[$pageNumber] ?? null;
+            $truncated = $truncatedEntries[$pageNumber] ?? null;
+            $next = null;
+            $status = 'survives-as-free-page';
+            if ($pageNumber > $this->finalDatabasePageCount()) {
+                $status = 'truncated-from-database';
+            } elseif ($this->nextDatabase->isAutoVacuum() && !$this->nextDatabase->isPointerMapPage($pageNumber)) {
+                $next = $this->nextDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
+
+            $transitions[] = [
+                'page_number' => $pageNumber,
+                'status' => $status,
+                'current' => $current,
+                'next' => $next,
+                'truncated' => $truncated,
+                'current_type_name' => $current['type_name'] ?? null,
+                'next_type_name' => $next['type_name'] ?? null,
+                'truncated_type_name' => $truncated['type_name'] ?? null,
+            ];
+        }
+
+        return $transitions;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function survivingFreedPointerMapPages(): array
+    {
+        $pages = [];
+        foreach ($this->pointerMapVacuumTransitions() as $transition) {
+            if ($transition['status'] === 'survives-as-free-page') {
+                $pages[] = (int) $transition['page_number'];
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function truncatedFreedPointerMapPages(): array
+    {
+        $pages = [];
+        foreach ($this->pointerMapVacuumTransitions() as $transition) {
+            if ($transition['status'] === 'truncated-from-database') {
+                $pages[] = (int) $transition['page_number'];
+            }
+        }
+
+        return $pages;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
@@ -124,6 +199,9 @@ final class SQLiteOverflowVacuumTruncatePlan
             'final_first_freelist_trunk_page' => $this->finalFirstFreelistTrunkPage(),
             'final_freelist_page_count' => $this->finalFreelistPageCount(),
             'next_freelist_page_numbers' => $this->nextFreelistPageNumbers(),
+            'pointer_map_vacuum_transitions' => $this->pointerMapVacuumTransitions(),
+            'surviving_freed_pointer_map_pages' => $this->survivingFreedPointerMapPages(),
+            'truncated_freed_pointer_map_pages' => $this->truncatedFreedPointerMapPages(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),

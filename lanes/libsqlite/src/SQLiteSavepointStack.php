@@ -241,6 +241,52 @@ final class SQLiteSavepointStack
         return substr($walBytes, 0, $plan['truncate_to_bytes']);
     }
 
+    /**
+     * @return array{savepoint:string,found_index:int,rollback_to_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,discarded_page_numbers:list<int>,retained_frame_names:list<string>,retained_wal_frame_indexes_before_next:list<int>,pending_page_numbers_before_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,pending_page_numbers_after_next:list<int>,current_savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function rollbackToCurrentAndRecordNextWalFrame64(string $name, int $nextPageNumber, bool $commitFrame = false): array
+    {
+        if ($nextPageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite page numbers are one-based');
+        }
+
+        $index = $this->findFrame($name);
+        $walPlan = $this->walRollbackToPlan($name);
+        $rollbackToFrame = $walPlan['rollback_to_frame'];
+        $retainedFrameNames = array_map(
+            static fn (array $frame): string => $frame['name'],
+            array_slice($this->frames, 0, $index + 1)
+        );
+        $pendingPagesBeforeNext = $this->pendingPageNumbersBeforeRollbackTarget($index);
+        $retainedWalFramesBeforeNext = $this->pendingWalFrameIndexesBeforeRollbackTarget($index);
+        $nextFrameIndex = $rollbackToFrame + 1;
+
+        $this->rollbackTo($name);
+        $this->recordWalFrameWrite($nextFrameIndex, $nextPageNumber, $commitFrame);
+
+        return [
+            'savepoint' => $name,
+            'found_index' => $index,
+            'rollback_to_frame' => $rollbackToFrame,
+            'next_wal_frame_index' => $nextFrameIndex,
+            'next_page_number' => $nextPageNumber,
+            'next_commit_frame' => $commitFrame,
+            'discarded_wal_frames' => $walPlan['discarded_wal_frames'],
+            'discarded_page_numbers' => $walPlan['discarded_page_numbers'],
+            'retained_frame_names' => $retainedFrameNames,
+            'retained_wal_frame_indexes_before_next' => $retainedWalFramesBeforeNext,
+            'pending_page_numbers_before_next' => $pendingPagesBeforeNext,
+            'pending_wal_frame_indexes_after_next' => $this->pendingWalFrameIndexes(),
+            'pending_page_numbers_after_next' => $this->pendingPageNumbers(),
+            'current_savepoint_active_after' => $this->hasOpenFrame($name),
+            'transaction_active_after' => $this->transactionActive(),
+            'dependencies' => [
+                'sqlite-savepoint-rollback-to-current-keeps-savepoint',
+                'sqlite-pager-current-next-wal-frame64',
+            ],
+        ];
+    }
+
     public function release(string $name): void
     {
         $index = $this->findFrame($name);
@@ -888,6 +934,17 @@ final class SQLiteSavepointStack
         throw new \InvalidArgumentException("SQLite savepoint does not exist: {$name}");
     }
 
+    private function hasOpenFrame(string $name): bool
+    {
+        foreach ($this->frames as $frame) {
+            if (strcasecmp($frame['name'], $name) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,prior_pages:array<int,true>,prior_page_images:array<int,string>,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}
      */
@@ -898,6 +955,42 @@ final class SQLiteSavepointStack
         }
 
         return $this->statementJournals[$statementName];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function pendingPageNumbersBeforeRollbackTarget(int $targetIndex): array
+    {
+        $pages = [];
+        for ($frameIndex = 0; $frameIndex < $targetIndex; $frameIndex++) {
+            foreach ($this->frames[$frameIndex]['pages'] as $pageNumber => $_) {
+                $pages[$pageNumber] = true;
+            }
+        }
+
+        $pageNumbers = array_keys($pages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return $pageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function pendingWalFrameIndexesBeforeRollbackTarget(int $targetIndex): array
+    {
+        $frames = [];
+        for ($frameIndex = 0; $frameIndex < $targetIndex; $frameIndex++) {
+            foreach ($this->frames[$frameIndex]['wal_frames'] as $walFrameIndex => $_) {
+                $frames[$walFrameIndex] = true;
+            }
+        }
+
+        $frameIndexes = array_keys($frames);
+        sort($frameIndexes, SORT_NUMERIC);
+
+        return $frameIndexes;
     }
 
     private function clearStatementJournalsFromFrame(int $frameIndex): void

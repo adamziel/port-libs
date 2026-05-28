@@ -128,6 +128,97 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
     }
 
     /**
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, next_tables?:list<string>|null, indexes?:list<string>, next_indexes?:list<string>|null, file?:string|null, cache?:string|null}> $schemas
+     * @param list<string> $preparedTables
+     * @return array<string,mixed>
+     */
+    public static function currentNextObjects(array $schemas, array $preparedTables = ['wp_options'], string $sourceSchema = 'main'): array
+    {
+        $normalized = self::normalizeSchemas($schemas);
+        foreach ($schemas as $name => $schema) {
+            $schemaName = self::normalizeName((string) $name);
+            if (array_key_exists('next_tables', $schema) && $schema['next_tables'] !== null) {
+                $normalized[$schemaName]['next_tables'] = array_values(array_map([self::class, 'normalizeName'], $schema['next_tables']));
+            }
+            if (array_key_exists('next_indexes', $schema) && $schema['next_indexes'] !== null) {
+                $normalized[$schemaName]['next_indexes'] = array_values(array_map([self::class, 'normalizeName'], $schema['next_indexes']));
+            }
+        }
+
+        $source = self::normalizeName($sourceSchema);
+        if (!isset($normalized[$source])) {
+            throw new \InvalidArgumentException("SQLite source schema {$source} is not attached");
+        }
+
+        $order = self::searchOrder($normalized);
+        $current = [];
+        $next = [];
+        $changed = [];
+        $objectChanged = [];
+        foreach ($order as $schemaName) {
+            $schema = $normalized[$schemaName];
+            $currentCookie = $schema['schema_cookie'];
+            $nextCookie = self::nextSchemaCookie($schema);
+            $current[$schemaName] = $currentCookie;
+            $next[$schemaName] = $nextCookie;
+            if ($nextCookie !== $currentCookie) {
+                $changed[] = $schemaName;
+            }
+            if (self::schemaObjectsChanged($schema)) {
+                $objectChanged[] = $schemaName;
+            }
+        }
+
+        $resolutions = [];
+        $reprepare = false;
+        foreach ($preparedTables as $table) {
+            $currentResolution = self::resolvePreparedTable($normalized, $order, $table);
+            $nextResolution = self::resolvePreparedTable($normalized, $order, $table, true);
+            $changedResolution = $currentResolution['schema'] !== $nextResolution['schema']
+                || $currentResolution['found'] !== $nextResolution['found']
+                || $currentResolution['name'] !== $nextResolution['name'];
+            $requiresReprepare = $changedResolution
+                || in_array($currentResolution['schema'], $changed, true)
+                || in_array($nextResolution['schema'], $changed, true)
+                || in_array($currentResolution['schema'], $objectChanged, true)
+                || in_array($nextResolution['schema'], $objectChanged, true);
+
+            $resolutions[$table] = [
+                'current' => $currentResolution + [
+                    'schema_cookie' => $current[$currentResolution['schema']] ?? null,
+                    'shadowed_schemas' => self::shadowedSchemas($normalized, $order, $table, $currentResolution['schema']),
+                ],
+                'next' => $nextResolution + [
+                    'schema_cookie' => $next[$nextResolution['schema']] ?? null,
+                    'shadowed_schemas' => self::shadowedSchemas($normalized, $order, $table, $nextResolution['schema'], true),
+                ],
+                'resolution_changed' => $changedResolution,
+                'requires_reprepare' => $requiresReprepare,
+            ];
+            $reprepare = $reprepare || $requiresReprepare;
+        }
+
+        return [
+            'status' => 'ok',
+            'operation' => 'attach-temp-main-wal-current-next-objects',
+            'source' => $source,
+            'search_order' => $order,
+            'schema_cookies_current' => $current,
+            'schema_cookies_next' => $next,
+            'changed_schemas' => $changed,
+            'object_changed_schemas' => $objectChanged,
+            'prepared_tables' => $resolutions,
+            'requires_reprepare' => $reprepare,
+            'database_list' => self::databaseList($normalized, $order),
+            'dependencies' => [
+                'sqlite-attach-wal-temp-current-next64',
+                'sqlite-wal-ddl-object-resolution',
+                'sqlite-temp-main-name-resolution',
+            ],
+        ];
+    }
+
+    /**
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables?:list<string>, indexes?:list<string>, file?:string|null, cache?:string|null}> $schemas
      * @return array<string,array{schema_cookie:int, wal_schema_cookie:int|null, wal_frames:list<array{page:int, schema_cookie?:int|null, commit?:bool}>, tables:list<string>, indexes:list<string>, file:string|null, cache:string|null}>
      */
@@ -217,7 +308,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
      * @param list<string> $order
      * @return array{schema:string, name:string, qualified:bool, found:bool}
      */
-    private static function resolvePreparedTable(array $schemas, array $order, string $table): array
+    private static function resolvePreparedTable(array $schemas, array $order, string $table, bool $next = false): array
     {
         $parts = explode('.', $table, 2);
         if (count($parts) === 2) {
@@ -227,13 +318,13 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
                 'schema' => $schema,
                 'name' => $name,
                 'qualified' => true,
-                'found' => self::tableExists($schemas[$schema] ?? null, $name),
+                'found' => self::tableExists($schemas[$schema] ?? null, $name, $next),
             ];
         }
 
         $name = self::normalizeName($table);
         foreach ($order as $schema) {
-            if (self::tableExists($schemas[$schema] ?? null, $name)) {
+            if (self::tableExists($schemas[$schema] ?? null, $name, $next)) {
                 return [
                     'schema' => $schema,
                     'name' => $name,
@@ -256,7 +347,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
      * @param list<string> $order
      * @return list<string>
      */
-    private static function shadowedSchemas(array $schemas, array $order, string $table, string $winner): array
+    private static function shadowedSchemas(array $schemas, array $order, string $table, string $winner, bool $next = false): array
     {
         $parts = explode('.', $table, 2);
         if (count($parts) === 2) {
@@ -271,7 +362,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
                 $seenWinner = true;
                 continue;
             }
-            if ($seenWinner && self::tableExists($schemas[$schema] ?? null, $name)) {
+            if ($seenWinner && self::tableExists($schemas[$schema] ?? null, $name, $next)) {
                 $shadowed[] = $schema;
             }
         }
@@ -280,11 +371,41 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
     }
 
     /**
-     * @param array{tables:list<string>}|null $schema
+     * @param array{tables:list<string>, next_tables?:list<string>}|null $schema
      */
-    private static function tableExists(?array $schema, string $table): bool
+    private static function tableExists(?array $schema, string $table, bool $next = false): bool
     {
-        return $schema !== null && in_array(self::normalizeName($table), $schema['tables'], true);
+        if ($schema === null) {
+            return false;
+        }
+
+        $tables = $next ? ($schema['next_tables'] ?? $schema['tables']) : $schema['tables'];
+
+        return in_array(self::normalizeName($table), $tables, true);
+    }
+
+    /**
+     * @param array{tables:list<string>, indexes:list<string>, next_tables?:list<string>, next_indexes?:list<string>} $schema
+     */
+    private static function schemaObjectsChanged(array $schema): bool
+    {
+        $nextTables = $schema['next_tables'] ?? $schema['tables'];
+        $nextIndexes = $schema['next_indexes'] ?? $schema['indexes'];
+
+        return self::sortedNames($schema['tables']) !== self::sortedNames($nextTables)
+            || self::sortedNames($schema['indexes']) !== self::sortedNames($nextIndexes);
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private static function sortedNames(array $names): array
+    {
+        $normalized = array_values(array_map([self::class, 'normalizeName'], $names));
+        sort($normalized);
+
+        return $normalized;
     }
 
     /**

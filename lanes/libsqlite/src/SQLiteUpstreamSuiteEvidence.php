@@ -7344,6 +7344,198 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $rows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerSuiteDenominatorCurrentNext64(
+        array $rows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $minimumPhpDelta = 64
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite current-next64 suite denominator requires current and next accepted HEAD values');
+        }
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite current-next64 suite denominator requires at least one row');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite current-next64 suite denominator requires a non-negative current mapped count');
+        }
+        if ($minimumPhpDelta < 1) {
+            throw new \InvalidArgumentException('SQLite current-next64 suite denominator requires a positive minimum PHP delta');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission($currentPhpPass, $focusedPath, $focusedTestOutput, $nonOverlapNote);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $tiers = [];
+        $newlyCountable = [];
+        $preserved = [];
+        $open = [];
+        $regressed = [];
+        $testsBefore = 0;
+        $testsAfter = 0;
+
+        foreach ($rows as $label => $row) {
+            if (!is_array($row)) {
+                $blockers[] = [
+                    'id' => 'current-next64-row-invalid',
+                    'unit' => is_string($label) ? $label : 'row-' . count($entries),
+                    'evidence' => 'suite denominator row is not an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : (is_string($label) ? $label : 'unit-' . count($entries));
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? $row['tier'] : 'unclassified';
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'unmapped';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'unmapped';
+            $currentCountable = (bool) ($row['current_countable'] ?? ($currentStatus === 'countable' || $currentStatus === 'mapped'));
+            $nextCountable = (bool) ($row['next_countable'] ?? ($nextStatus === 'countable' || $nextStatus === 'mapped'));
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $command = is_string($row['command'] ?? null) ? trim($row['command']) : '';
+            $currentTests = max(0, (int) ($row['current_tests'] ?? 0));
+            $nextTests = max(0, (int) ($row['next_tests'] ?? 0));
+            $rowBlockers = [];
+
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-suite-denominator-unit';
+            }
+            $seen[$unit] = true;
+
+            if ($nextCountable && $evidence === '') {
+                $rowBlockers[] = 'countable-unit-missing-evidence';
+            }
+            if ($nextCountable && $command === '') {
+                $rowBlockers[] = 'countable-unit-missing-command';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'countable-unit-regressed';
+                $regressed[] = $unit;
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $blocker) {
+                if (is_string($blocker) && $blocker !== '') {
+                    $rowBlockers[] = $blocker;
+                }
+            }
+
+            if ($nextCountable && !$currentCountable) {
+                $newlyCountable[] = $unit;
+                $movement = 'newly-countable';
+            } elseif ($nextCountable) {
+                $preserved[] = $unit;
+                $movement = 'preserved';
+            } else {
+                $open[] = $unit;
+                $movement = 'open';
+            }
+
+            $tiers[$tier] = ($tiers[$tier] ?? 0) + 1;
+            if ($currentCountable) {
+                $testsBefore += $currentTests;
+            }
+            if ($nextCountable) {
+                $testsAfter += $nextTests;
+            }
+
+            $rowBlockers = array_values(array_unique($rowBlockers));
+            foreach ($rowBlockers as $blocker) {
+                $blockers[] = [
+                    'id' => 'current-next64-row-blocked',
+                    'unit' => $unit,
+                    'evidence' => $blocker,
+                ];
+            }
+
+            $entries[] = [
+                'unit' => $unit,
+                'tier' => $tier,
+                'current_status' => $currentStatus,
+                'next_status' => $nextStatus,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'movement' => $movement,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'command' => $command,
+                'evidence' => $evidence,
+                'blockers' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        } elseif ((int) ($phpAdmission['assertion_delta'] ?? 0) < $minimumPhpDelta) {
+            $blockers[] = [
+                'id' => 'focused-php-pass-delta-below-minimum',
+                'evidence' => 'current-next64 requires at least ' . $minimumPhpDelta . ' focused assertions',
+                'actual' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            ];
+        }
+
+        ksort($tiers);
+        sort($newlyCountable);
+        sort($preserved);
+        sort($open);
+        sort($regressed);
+
+        $mappedDelta = count($newlyCountable);
+        $status = 'blocked';
+        if ($blockers === [] && $mappedDelta > 0) {
+            $status = 'current-next64-suite-denominator-advanced';
+        } elseif ($blockers === []) {
+            $status = 'current-next64-suite-denominator-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'tier_count' => count($tiers),
+            'tiers' => $tiers,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $blockers === [] ? $currentMapped + $mappedDelta : $currentMapped,
+            'mapped_delta' => $blockers === [] ? $mappedDelta : 0,
+            'newly_countable_count' => count($newlyCountable),
+            'newly_countable_units' => $newlyCountable,
+            'preserved_count' => count($preserved),
+            'preserved_units' => $preserved,
+            'open_count' => count($open),
+            'open_units' => $open,
+            'regressed_count' => count($regressed),
+            'regressed_units' => $regressed,
+            'current_tests_total' => $testsBefore,
+            'next_tests_total' => $testsAfter,
+            'tests_total_delta' => max(0, $testsAfter - $testsBefore),
+            'entries' => $entries,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $blockers === [] ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0,
+            'next_php_pass' => $blockers === [] ? (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass) : $currentPhpPass,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_suite_denominator_current_next64' => $status === 'current-next64-suite-denominator-advanced',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next64-suite-denominator-advanced'
+                ? 'publish only current-next64 newly countable suite denominator units; keep release/all parity gated on accepted zero-error broad runner artifacts'
+                : 'keep current-next64 suite denominator movement uncounted until rows have commands, evidence, no regressions, and focused PHP admission is clean',
+            'dependency_closure' => 'no new support component needed; current-next64 suite denominator admission composes lane-local row records and focused PHP TestRunner output only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function denominatorAuditInt(array $row, string $key): int

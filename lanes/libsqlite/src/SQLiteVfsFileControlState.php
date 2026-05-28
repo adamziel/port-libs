@@ -37,6 +37,11 @@ final class SQLiteVfsFileControlState
             'device_characteristics' => self::nonNegativeInt($fileControls['device_characteristics'] ?? 0, 'SQLite VFS device characteristics'),
             'name_hint' => null,
             'tempfile' => $this->memory,
+            'size_limit' => self::optionalNonNegativeInt($fileControls['size_limit'] ?? null, 'SQLite VFS size limit'),
+            'reserve_bytes' => self::reserveBytes($fileControls['reserve_bytes'] ?? 0),
+            'lock_timeout' => self::nonNegativeInt($fileControls['lock_timeout'] ?? 0, 'SQLite VFS lock timeout'),
+            'data_version' => self::positiveInt($fileControls['data_version'] ?? 1, 'SQLite VFS data version'),
+            'has_moved' => false,
         ];
     }
 
@@ -95,6 +100,12 @@ final class SQLiteVfsFileControlState
             'name_hint' => $this->nameHint($argument),
             'sector_size' => $this->readOnlyValue('sector_size', $op),
             'device_characteristics' => $this->readOnlyValue('device_characteristics', $op),
+            'size_limit' => $this->sizeLimit($argument),
+            'reserve_bytes' => $this->reserveBytesControl($argument),
+            'lock_timeout' => $this->lockTimeout($argument),
+            'data_version' => $this->readOnlyValue('data_version', $op),
+            'has_moved' => $this->hasMoved($argument),
+            'tempfilename', 'temp_filename' => $this->tempFilename($argument),
             default => $this->result('notfound', $op, false, null, null, 'unsupported_file_control'),
         };
     }
@@ -132,6 +143,63 @@ final class SQLiteVfsFileControlState
             'results' => $results,
             'controls' => $this->controls,
             'dependencies' => $this->dependencies(),
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $controls
+     * @return array{status:string,count:int,pairs:list<array{ordinal:int,op:string,current:array<string, mixed>,next:array<string, mixed>,result:array<string, mixed>}>,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    public function currentNext64(array $controls): array
+    {
+        $pairs = [];
+        $ordinal = 0;
+        foreach ($controls as $op => $argument) {
+            if (is_int($op)) {
+                if (!is_array($argument) || !array_key_exists('op', $argument)) {
+                    throw new \InvalidArgumentException('SQLite VFS current/next64 item requires an op');
+                }
+                $op = (string) $argument['op'];
+                $argument = $argument['value'] ?? null;
+            } else {
+                $op = (string) $op;
+            }
+
+            $current = $this->snapshot64();
+            $result = $this->apply($op, $argument);
+            $pairs[] = [
+                'ordinal' => $ordinal++,
+                'op' => (string) $result['op'],
+                'current' => $current,
+                'next' => $this->snapshot64(),
+                'result' => $result,
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'count' => count($pairs),
+            'pairs' => $pairs,
+            'controls' => $this->controls,
+            'dependencies' => array_values(array_unique(array_merge($this->dependencies(), ['vfs-file-control-current-next64']))),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function snapshot64(): array
+    {
+        return [
+            'size_limit' => $this->controls['size_limit'],
+            'mmap_size' => $this->controls['mmap_size'],
+            'chunk_size' => $this->controls['chunk_size'],
+            'lock_timeout' => $this->controls['lock_timeout'],
+            'data_version' => $this->controls['data_version'],
+            'reserve_bytes' => $this->controls['reserve_bytes'],
+            'persist_wal' => $this->controls['persist_wal'],
+            'powersafe_overwrite' => $this->controls['powersafe_overwrite'],
+            'has_moved' => $this->controls['has_moved'],
         ];
     }
 
@@ -218,6 +286,93 @@ final class SQLiteVfsFileControlState
         $this->controls['name_hint'] = $argument;
 
         return $this->result('ok', 'name_hint', $argument !== $previous, $argument, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function sizeLimit(mixed $argument): array
+    {
+        $previous = $this->controls['size_limit'];
+        if ($argument === null || $argument === -1) {
+            return $this->result('ok', 'size_limit', false, $previous, $previous, 'current_size_limit_returned');
+        }
+
+        $value = self::nonNegativeInt($argument, 'SQLite VFS size limit');
+        $this->controls['size_limit'] = $value;
+
+        return $this->result('ok', 'size_limit', $value !== $previous, $value, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function reserveBytesControl(mixed $argument): array
+    {
+        if ($this->readOnly || $this->immutable || $this->memory) {
+            return $this->result('ignored', 'reserve_bytes', false, $this->controls['reserve_bytes'], $this->controls['reserve_bytes'], 'reserve_bytes_requires_writable_file_handle');
+        }
+
+        $previous = $this->controls['reserve_bytes'];
+        if ($argument === null || $argument === -1) {
+            return $this->result('ok', 'reserve_bytes', false, $previous, $previous, 'current_reserve_bytes_returned');
+        }
+
+        $value = self::reserveBytes($argument);
+        $this->controls['reserve_bytes'] = $value;
+
+        return $this->result('ok', 'reserve_bytes', $value !== $previous, $value, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function lockTimeout(mixed $argument): array
+    {
+        if ($this->memory || $this->nolock) {
+            return $this->result('ignored', 'lock_timeout', false, $this->controls['lock_timeout'], $this->controls['lock_timeout'], 'lock_timeout_requires_lockable_file');
+        }
+
+        $previous = $this->controls['lock_timeout'];
+        $value = self::nonNegativeInt($argument, 'SQLite VFS lock timeout');
+        $this->controls['lock_timeout'] = $value;
+
+        return $this->result('ok', 'lock_timeout', $value !== $previous, $value, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function hasMoved(mixed $argument): array
+    {
+        if ($argument === null) {
+            return $this->readOnlyValue('has_moved', 'has_moved');
+        }
+        if (!is_string($argument) || trim($argument) === '') {
+            throw new \InvalidArgumentException('SQLite VFS has_moved comparison requires a non-empty path');
+        }
+
+        $previous = (bool) $this->controls['has_moved'];
+        $moved = $argument !== $this->path;
+        $this->controls['has_moved'] = $moved;
+
+        return $this->result('ok', 'has_moved', $moved !== $previous, $moved, $previous, null);
+    }
+
+    /**
+     * @return array{status:string,op:string,path:string,changed:bool,value:mixed,previous:mixed,reason:string|null,controls:array<string, mixed>,dependencies:list<string>}
+     */
+    private function tempFilename(mixed $argument): array
+    {
+        $suffix = is_string($argument) && trim($argument) !== '' ? trim($argument) : 'sqlite';
+        if (str_contains($suffix, "\0") || str_contains($suffix, '/') || str_contains($suffix, '\\')) {
+            throw new \InvalidArgumentException('SQLite VFS temp filename suffix must be a plain path segment');
+        }
+
+        $hint = is_string($this->controls['name_hint']) ? preg_replace('/[^A-Za-z0-9_.-]+/', '-', $this->controls['name_hint']) : 'sqlite';
+        $value = rtrim(dirname($this->path), '/') . '/etilqs_' . substr(hash('sha256', $this->path . '|' . $hint . '|' . $suffix), 0, 16) . '.' . $suffix;
+
+        return $this->result('ok', 'tempfilename', false, $value, null, 'generated_temp_filename');
     }
 
     /**
@@ -311,6 +466,15 @@ final class SQLiteVfsFileControlState
     {
         if (!is_int($value) || $value <= 0) {
             throw new \InvalidArgumentException("{$label} must be a positive integer");
+        }
+
+        return $value;
+    }
+
+    private static function reserveBytes(mixed $value): int
+    {
+        if (!is_int($value) || $value < 0 || $value > 255) {
+            throw new \InvalidArgumentException('SQLite VFS reserve bytes must be an integer between 0 and 255');
         }
 
         return $value;

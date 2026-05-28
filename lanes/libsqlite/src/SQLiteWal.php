@@ -927,6 +927,66 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
+     * @return array<string,mixed>
+     */
+    public function checkpointReaderPinCurrentNextHandoff(string $databaseBytes, array $pageNumbers, array $readMarks, string $mode = 'restart'): array
+    {
+        $base = $this->checkpointReaderPinCurrentNext($databaseBytes, $pageNumbers, $readMarks, $mode);
+        $readMarkPlan = $base['read_mark_plan'];
+        $nextReadMarks = array_values($readMarks);
+        $nextReaderSlot = self::nextReaderSlot($nextReadMarks, $readMarkPlan);
+        if ($nextReaderSlot !== null) {
+            $nextReadMarks[$nextReaderSlot] = $base['next_reader_end_frame'];
+        }
+
+        $releasedReadMarks = $nextReadMarks;
+        foreach ($readMarkPlan['read_marks'] as $mark) {
+            if ($mark['pins_checkpoint']) {
+                $releasedReadMarks[$mark['slot']] = null;
+            }
+        }
+
+        $releasedPlan = $this->readMarkPlan($releasedReadMarks);
+        $retryCheckpoint = $this->durableCheckpointResult($databaseBytes, $mode, $releasedPlan['checkpoint_pinned_frame']);
+        $nextReaderSurvivesRelease = $nextReaderSlot !== null
+            && array_key_exists($nextReaderSlot, $releasedReadMarks)
+            && $releasedReadMarks[$nextReaderSlot] === $base['next_reader_end_frame'];
+
+        return [
+            'mode' => $base['mode'],
+            'status' => $base['pin_blocks_reset']
+                ? ($releasedPlan['checkpoint_pinned_frame'] === null ? 'current-reader-released-next-reader-ready' : 'current-reader-still-pinned')
+                : 'no-current-reader-pin',
+            'checkpoint_reason' => $base['checkpoint_reason'],
+            'checkpoint_busy' => $base['checkpoint_busy'],
+            'wal_action' => $base['wal_action'],
+            'current_reader_end_frame' => $base['current_reader_end_frame'],
+            'next_reader_end_frame' => $base['next_reader_end_frame'],
+            'next_reader_slot' => $nextReaderSlot,
+            'current_read_marks' => array_values($readMarks),
+            'next_read_marks' => $nextReadMarks,
+            'released_read_marks' => $releasedReadMarks,
+            'retry_checkpoint' => $retryCheckpoint,
+            'current_sources' => $base['current_sources'],
+            'next_sources' => $base['next_sources'],
+            'current_frame_indexes' => $base['current_frame_indexes'],
+            'next_frame_indexes' => $base['next_frame_indexes'],
+            'current_stable' => $base['current_stable'],
+            'next_matches_latest_snapshot' => $base['next_matches_latest_snapshot'],
+            'current_pin_released' => $base['pin_blocks_reset'] && $releasedPlan['checkpoint_pinned_frame'] === null,
+            'next_reader_survives_release' => $nextReaderSurvivesRelease,
+            'retry_can_reset' => $retryCheckpoint['can_reset'],
+            'dependencies' => array_values(array_unique(array_merge($base['dependencies'], [
+                'wal-reader-pin-current-next64',
+                'sqlite-wal-readmark-handoff',
+            ]))),
+            'base' => $base,
+        ];
+    }
+
+    /**
      * @param list<int|null> $readMarks
      * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
      */
@@ -1633,6 +1693,27 @@ final class SQLiteWal
     private static function visibilityImages(array $rows): array
     {
         return array_map(static fn (array $row): ?string => is_string($row['image'] ?? null) ? $row['image'] : null, $rows);
+    }
+
+    /**
+     * @param list<int|null> $readMarks
+     * @param array<string,mixed> $readMarkPlan
+     */
+    private static function nextReaderSlot(array $readMarks, array $readMarkPlan): ?int
+    {
+        foreach ($readMarks as $slot => $frame) {
+            if ($frame === null) {
+                return $slot;
+            }
+        }
+
+        foreach ($readMarkPlan['read_marks'] as $mark) {
+            if (!$mark['pins_checkpoint'] && in_array($mark['slot'], $readMarkPlan['reusable_slots'], true)) {
+                return $mark['slot'];
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -60,6 +60,66 @@ final class SQLiteSelectRecursiveJsonMaterialization
     }
 
     /**
+     * @param array<string,mixed> $plan
+     * @param list<string> $partitionColumns
+     * @param list<string> $orderColumns
+     * @return list<array{partition:array<string,mixed>,row:array<string,mixed>,previous:?array<string,mixed>,next:?array<string,mixed>,rowNumber:int,partitionSize:int,first:bool,last:bool,recursiveIteration:int|null}>
+     */
+    public static function jsonCurrentNextWindow(array $plan, array $partitionColumns, array $orderColumns): array
+    {
+        $rows = $plan['rows'] ?? null;
+        if (!is_array($rows)) {
+            throw new \InvalidArgumentException('SQLite recursive JSON current-next window needs materialized rows');
+        }
+        if ($partitionColumns === [] || $orderColumns === []) {
+            throw new \InvalidArgumentException('SQLite recursive JSON current-next window needs partition and order columns');
+        }
+
+        $partitions = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON current-next window row is malformed');
+            }
+            self::assertColumns($row, $partitionColumns);
+            self::assertColumns($row, $orderColumns);
+
+            $key = self::partitionKey($row, $partitionColumns);
+            $partitions[$key][] = $row;
+        }
+
+        ksort($partitions);
+        $iterationMap = self::recursiveIterationMap($plan);
+        $iterationOffsets = [];
+        $windows = [];
+        foreach ($partitions as $partitionRows) {
+            usort(
+                $partitionRows,
+                static fn (array $left, array $right): int => self::compareRowsByColumns($left, $right, $orderColumns),
+            );
+            $size = count($partitionRows);
+            foreach ($partitionRows as $position => $row) {
+                $recursiveKey = self::recursiveRowKey($row);
+                $iterationOffset = $iterationOffsets[$recursiveKey] ?? 0;
+                $iterationOffsets[$recursiveKey] = $iterationOffset + 1;
+
+                $windows[] = [
+                    'partition' => self::projectColumns($row, $partitionColumns),
+                    'row' => $row,
+                    'previous' => $partitionRows[$position - 1] ?? null,
+                    'next' => $partitionRows[$position + 1] ?? null,
+                    'rowNumber' => $position + 1,
+                    'partitionSize' => $size,
+                    'first' => $position === 0,
+                    'last' => $position === $size - 1,
+                    'recursiveIteration' => $iterationMap[$recursiveKey][$iterationOffset] ?? null,
+                ];
+            }
+        }
+
+        return $windows;
+    }
+
+    /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>}
      */
@@ -203,6 +263,117 @@ final class SQLiteSelectRecursiveJsonMaterialization
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function assertColumns(array $row, array $columns): void
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException('SQLite recursive JSON current-next window missing column ' . $column);
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function projectColumns(array $row, array $columns): array
+    {
+        $projected = [];
+        foreach ($columns as $column) {
+            $projected[$column] = $row[$column];
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function partitionKey(array $row, array $columns): string
+    {
+        return json_encode(self::projectColumns($row, $columns), JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     * @param list<string> $columns
+     */
+    private static function compareRowsByColumns(array $left, array $right, array $columns): int
+    {
+        foreach ($columns as $column) {
+            $comparison = self::compareValues($left[$column], $right[$column]);
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+        }
+
+        return 0;
+    }
+
+    private static function compareValues(mixed $left, mixed $right): int
+    {
+        if ($left === $right) {
+            return 0;
+        }
+        if ($left === null) {
+            return -1;
+        }
+        if ($right === null) {
+            return 1;
+        }
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left <=> $right;
+        }
+
+        return strcmp((string) $left, (string) $right);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return array<string,list<int>>
+     */
+    private static function recursiveIterationMap(array $plan): array
+    {
+        $map = [];
+        $pairs = $plan['recursiveCurrentNext'] ?? [];
+        if (!is_array($pairs)) {
+            return $map;
+        }
+
+        foreach ($pairs as $pair) {
+            if (!is_array($pair)) {
+                continue;
+            }
+            $iteration = $pair['iteration'] ?? null;
+            $rows = $pair['currentJsonRows'] ?? [];
+            if (!is_int($iteration) || !is_array($rows)) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                if (is_array($row)) {
+                    $map[self::recursiveRowKey($row)][] = $iteration;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function recursiveRowKey(array $row): string
+    {
+        return json_encode($row, JSON_THROW_ON_ERROR);
     }
 
     private static function firstCteName(string $sql): string
