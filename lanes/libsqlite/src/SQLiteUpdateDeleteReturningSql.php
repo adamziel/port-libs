@@ -674,11 +674,18 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
-            $comparison = self::rowValueCompare($left, $right);
+            if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
+                $equals = self::rowValueEqualsNullable($left, $right);
 
+                return match ($match[2]) {
+                    '=' => $equals,
+                    '<>', '!=' => self::negateNullable($equals),
+                    default => false,
+                };
+            }
+
+            $comparison = self::rowValueCompare($left, $right);
             return match ($match[2]) {
-                '=' => $comparison === null ? null : $comparison === 0,
-                '<>', '!=' => $comparison === null ? null : $comparison !== 0,
                 '>' => $comparison === null ? null : $comparison > 0,
                 '>=' => $comparison === null ? null : $comparison >= 0,
                 '<' => $comparison === null ? null : $comparison < 0,
@@ -788,16 +795,23 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
-            $comparison = self::rowValueCompare($left, $right);
-            $result = match ($match[2]) {
-                '=' => $comparison === null ? null : $comparison === 0,
-                '<>', '!=' => $comparison === null ? null : $comparison !== 0,
-                '>' => $comparison === null ? null : $comparison > 0,
-                '>=' => $comparison === null ? null : $comparison >= 0,
-                '<' => $comparison === null ? null : $comparison < 0,
-                '<=' => $comparison === null ? null : $comparison <= 0,
-                default => false,
-            };
+            if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
+                $equals = self::rowValueEqualsNullable($left, $right);
+                $result = match ($match[2]) {
+                    '=' => $equals,
+                    '<>', '!=' => self::negateNullable($equals),
+                    default => false,
+                };
+            } else {
+                $comparison = self::rowValueCompare($left, $right);
+                $result = match ($match[2]) {
+                    '>' => $comparison === null ? null : $comparison > 0,
+                    '>=' => $comparison === null ? null : $comparison >= 0,
+                    '<' => $comparison === null ? null : $comparison < 0,
+                    '<=' => $comparison === null ? null : $comparison <= 0,
+                    default => false,
+                };
+            }
 
             return $result === null ? null : ($result ? 1 : 0);
         }
@@ -1118,6 +1132,31 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return 0;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function rowValueEqualsNullable(array $left, array $right): ?bool
+    {
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value arity mismatch');
+        }
+
+        $unknown = false;
+        foreach ($left as $index => $leftValue) {
+            $rightValue = $right[$index];
+            if ($leftValue === null || $rightValue === null) {
+                $unknown = true;
+                continue;
+            }
+            if ($leftValue != $rightValue) {
+                return false;
+            }
+        }
+
+        return $unknown ? null : true;
     }
 
     private static function negateNullable(?bool $value): ?bool
