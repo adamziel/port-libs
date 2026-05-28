@@ -828,7 +828,11 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $sum;
         }
-        if (preg_match("/^'.*'$/s", $expression) === 1 || strcasecmp($expression, 'NULL') === 0 || preg_match('/^-?\d+$/', $expression) === 1) {
+        if (
+            preg_match("/^'.*'$/s", $expression) === 1
+            || strcasecmp($expression, 'NULL') === 0
+            || preg_match('/^-?(?:\d+|\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $expression) === 1
+        ) {
             return self::literal($expression);
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
@@ -1199,6 +1203,9 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^-?\d+$/', $sql) === 1) {
             return (int) $sql;
+        }
+        if (preg_match('/^-?(?:\d+\.\d*|\.\d+|\d+[eE][+-]?\d+|\d+\.\d*[eE][+-]?\d+|\.\d+[eE][+-]?\d+)$/', $sql) === 1) {
+            return (float) $sql;
         }
 
         throw new \InvalidArgumentException("SQLite UPDATE/DELETE literal is not supported: {$sql}");

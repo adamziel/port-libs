@@ -2583,6 +2583,133 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,original_reader_end_frame:int,retained_reader_end_frame:int,next_reader_end_frame:int,rollback_to_frame:int,retained_frame_count:int,discarded_frame_count:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}>,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader:list<array<string,mixed>>,retained_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,original_reader_sources:list<string>,retained_reader_sources:list<string>,next_reader_sources:list<string>,original_reader_frame_indexes:list<int|null>,retained_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_source_keeps_original_wal:bool,retained_source_excludes_savepoint_tail:bool,next_reader_uses_checkpoint_database:bool,rolled_back_pages:list<int>,checkpointed_pages:list<int>,source_transitions:list<string>,images_match_retained_to_next:bool,images_match_original_to_retained:bool,current_wal_bytes_length:int,next_wal_bytes_length:int,database_bytes_length:int,dependencies:list<string>}
+     */
+    public static function checkpointReaderSavepointCurrentSourceNext149(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $originalReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint current-source next149 requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint current-source next149 requires at least one page number');
+        }
+
+        self::assertCurrentWalSource($wal, $walBytes);
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite checkpoint mode for current-source next149: {$mode}");
+        }
+
+        $rollback = $savepoints->walRollbackToPlan($savepoint);
+        $checkpoint = self::afterRollbackTo($savepoints, $savepoint, $wal, $walBytes, $databaseBytes, $mode);
+        $retainedWal = SQLiteWal::parse($checkpoint['current_wal_bytes'], $wal->header->pageSize, true);
+        $originalReaderEndFrame ??= $wal->frameCount();
+        $retainedReaderEndFrame = $retainedWal->frameCount();
+        if ($originalReaderEndFrame < 0 || $originalReaderEndFrame > $wal->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint current-source next149 original reader frame is outside the WAL frame range');
+        }
+
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame ??= $nextWal?->frameCount() ?? 0;
+        if ($nextReaderEndFrame < 0 || ($nextWal !== null && $nextReaderEndFrame > $nextWal->frameCount())) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint current-source next149 next reader frame is outside the WAL frame range');
+        }
+
+        $original = [];
+        $retained = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint reader savepoint current-source next149 pages must be integers');
+            }
+
+            $original[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $originalReaderEndFrame);
+            $retained[] = $retainedWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $retainedReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $originalSources = self::visibilityColumn($original, 'source');
+        $retainedSources = self::visibilityColumn($retained, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $originalFrames = self::visibilityColumn($original, 'frame_index');
+        $retainedFrames = self::visibilityColumn($retained, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $originalImages = self::visibilityColumn($original, 'image');
+        $retainedImages = self::visibilityColumn($retained, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+
+        $rolledBackPages = self::discardedPageNumbers($rollback['discarded_wal_frames']);
+        $checkpointedPages = [];
+        foreach ($retainedWal->checkpointPlan($databaseBytes)['frames'] as $frame) {
+            if ($frame['applied']) {
+                $checkpointedPages[$frame['page_number']] = true;
+            }
+        }
+        $checkpointedPages = array_keys($checkpointedPages);
+        sort($checkpointedPages, SORT_NUMERIC);
+
+        $sourceTransitions = [];
+        foreach ($pageNumbers as $index => $_pageNumber) {
+            $sourceTransitions[] = $originalSources[$index] . '>' . $retainedSources[$index] . '>' . $nextSources[$index];
+        }
+
+        return [
+            'status' => 'wal-checkpoint-reader-savepoint-current-source-next149',
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'original_reader_end_frame' => $originalReaderEndFrame,
+            'retained_reader_end_frame' => $retainedReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'rollback_to_frame' => $rollback['rollback_to_frame'],
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'discarded_wal_frames' => $rollback['discarded_wal_frames'],
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'original_reader' => $original,
+            'retained_reader' => $retained,
+            'next_reader' => $next,
+            'original_reader_sources' => $originalSources,
+            'retained_reader_sources' => $retainedSources,
+            'next_reader_sources' => $nextSources,
+            'original_reader_frame_indexes' => $originalFrames,
+            'retained_reader_frame_indexes' => $retainedFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'current_source_keeps_original_wal' => $originalImages !== $retainedImages,
+            'retained_source_excludes_savepoint_tail' => $retainedReaderEndFrame === $rollback['rollback_to_frame'],
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'rolled_back_pages' => $rolledBackPages,
+            'checkpointed_pages' => $checkpointedPages,
+            'source_transitions' => $sourceTransitions,
+            'images_match_retained_to_next' => $retainedImages === $nextImages,
+            'images_match_original_to_retained' => $originalImages === $retainedImages,
+            'current_wal_bytes_length' => strlen($checkpoint['current_wal_bytes']),
+            'next_wal_bytes_length' => strlen((string) $durable['wal_bytes']),
+            'database_bytes_length' => strlen((string) $durable['database_bytes']),
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                ['sqlite-wal-checkpoint-reader-savepoint-current-source-next149', 'wordpress-import-wal-current-reader-savepoint-boundary']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<string> $sources
      * @param list<int|null> $frameIndexes
      * @param list<string> $images

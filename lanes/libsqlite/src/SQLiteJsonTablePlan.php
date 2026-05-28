@@ -1880,6 +1880,64 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @param list<string> $generatedOutputColumns
+     * @return array<string,mixed>
+     */
+    public static function currentSourceRowidHiddenGeneratedNext149(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+        array $generatedOutputColumns = [],
+    ): array {
+        $plan = self::currentSourceGeneratedHiddenRowidCostNext142(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableRowidHiddenGeneratedProfile149($plan['currentGeneratedHiddenRowidCost'], $generatedOutputColumns);
+        $nextProfile = self::jsonTableRowidHiddenGeneratedProfile149($plan['nextGeneratedHiddenRowidCost'], $generatedOutputColumns);
+        $transitions = self::jsonTableRowidHiddenGeneratedTransitions149($currentProfile, $nextProfile);
+        $reasons = self::jsonTableRowidHiddenGeneratedReplanReasons149($transitions);
+
+        $plan['currentRowidHiddenGenerated'] = $currentProfile;
+        $plan['nextRowidHiddenGenerated'] = $nextProfile;
+        $plan['rowidHiddenGeneratedTransitions'] = $transitions;
+        $plan['next149ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next142ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next149ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-rowid-hidden-generated-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next149ReplanReasons'] === []
+            ? 'reuse-current-json-table-rowid-hidden-generated-plan'
+            : 'prepare-next-json-table-rowid-hidden-generated-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-rowid-hidden-generated-current-source-next149'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
     public static function currentSourceGeneratedPathRowidCostNext145(
@@ -5567,6 +5625,177 @@ final class SQLiteJsonTablePlan
                 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-rowid-cost-changed',
                 'generatedRowidTape' => 'json-table-generated-hidden-rowid-tape-changed',
                 default => 'json-table-generated-hidden-rowid-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $generatedHiddenRowid
+     * @param list<string> $generatedOutputColumns
+     * @return array{root:string,rowidConstraintSignature:string|null,rowidScoped:bool,generatedOutputColumns:list<string>,outputColumnCount:int,matchedRowCount:int,rowids:list<int|null>,fullkeys:list<mixed>,generatedRows:list<array{rowid:int|null,fullkey:mixed,matched:bool,values:array<string,mixed>,generatedFingerprint:string}>,firstRowid:int|null,lastRowid:int|null,generatedFingerprints:list<string>,combinedGeneratedFingerprint:string,effectiveEstimatedCost:int,costClass:string}
+     */
+    private static function jsonTableRowidHiddenGeneratedProfile149(array $generatedHiddenRowid, array $generatedOutputColumns): array
+    {
+        $availableColumns = [];
+        foreach ($generatedHiddenRowid['generatedRowidTape'] as $entry) {
+            foreach (array_keys(is_array($entry['values'] ?? null) ? $entry['values'] : []) as $column) {
+                $availableColumns[(string) $column] = true;
+            }
+        }
+
+        $columns = self::normalizeGeneratedOutputColumns149($generatedOutputColumns, array_keys($availableColumns));
+        $rows = [];
+        $rowids = [];
+        $fullkeys = [];
+        $fingerprints = [];
+        foreach ($generatedHiddenRowid['generatedRowidTape'] as $entry) {
+            if (($entry['matched'] ?? false) !== true) {
+                continue;
+            }
+
+            $values = [];
+            foreach ($columns as $column) {
+                $values[$column] = is_array($entry['values'] ?? null) && array_key_exists($column, $entry['values'])
+                    ? $entry['values'][$column]
+                    : null;
+            }
+
+            $fingerprint = self::jsonTableGeneratedOutputFingerprint149($values);
+            $rowid = is_int($entry['rowid'] ?? null) ? $entry['rowid'] : null;
+            $rowids[] = $rowid;
+            $fullkeys[] = $entry['fullkey'] ?? null;
+            $fingerprints[] = $fingerprint;
+            $rows[] = [
+                'rowid' => $rowid,
+                'fullkey' => $entry['fullkey'] ?? null,
+                'matched' => true,
+                'values' => $values,
+                'generatedFingerprint' => $fingerprint,
+            ];
+        }
+
+        $matchedCount = count($rows);
+        $effectiveCost = (int) $generatedHiddenRowid['effectiveEstimatedCost'];
+
+        return [
+            'root' => (string) $generatedHiddenRowid['root'],
+            'rowidConstraintSignature' => $generatedHiddenRowid['rowidConstraintSignature'],
+            'rowidScoped' => (bool) $generatedHiddenRowid['rowidScoped'],
+            'generatedOutputColumns' => $columns,
+            'outputColumnCount' => count($columns),
+            'matchedRowCount' => $matchedCount,
+            'rowids' => $rowids,
+            'fullkeys' => $fullkeys,
+            'generatedRows' => $rows,
+            'firstRowid' => $rowids[0] ?? null,
+            'lastRowid' => $rowids === [] ? null : $rowids[array_key_last($rowids)],
+            'generatedFingerprints' => $fingerprints,
+            'combinedGeneratedFingerprint' => hash('sha256', json_encode($fingerprints, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableRowidHiddenGeneratedCostClass149(
+                (string) $generatedHiddenRowid['costClass'],
+                (bool) $generatedHiddenRowid['rowidScoped'],
+                $matchedCount,
+                count($columns),
+            ),
+        ];
+    }
+
+    /**
+     * @param list<string> $requested
+     * @param list<string> $available
+     * @return list<string>
+     */
+    private static function normalizeGeneratedOutputColumns149(array $requested, array $available): array
+    {
+        $columns = $requested === [] ? $available : $requested;
+        $normalized = [];
+        foreach ($columns as $column) {
+            $column = trim((string) $column);
+            if ($column === '') {
+                throw new \InvalidArgumentException('SQLite JSON table generated output column must not be empty');
+            }
+            $normalized[$column] = $column;
+        }
+
+        ksort($normalized);
+
+        return array_values($normalized);
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function jsonTableGeneratedOutputFingerprint149(array $values): string
+    {
+        return hash('sha256', json_encode($values, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+    }
+
+    private static function jsonTableRowidHiddenGeneratedCostClass149(
+        string $baseCostClass,
+        bool $rowidScoped,
+        int $matchedCount,
+        int $outputColumnCount,
+    ): string {
+        if ($baseCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($matchedCount === 0) {
+            return 'json-table-rowid-hidden-generated-empty';
+        }
+        if ($rowidScoped && $matchedCount === 1) {
+            return $outputColumnCount <= 1
+                ? 'json-table-rowid-hidden-generated-point'
+                : 'json-table-rowid-hidden-generated-covering-point';
+        }
+
+        return 'json-table-rowid-hidden-generated-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableRowidHiddenGeneratedTransitions149(array $current, array $next): array
+    {
+        return [
+            ['field' => 'root', 'current' => $current['root'], 'next' => $next['root'], 'changed' => $current['root'] !== $next['root']],
+            ['field' => 'rowidConstraintSignature', 'current' => $current['rowidConstraintSignature'], 'next' => $next['rowidConstraintSignature'], 'changed' => $current['rowidConstraintSignature'] !== $next['rowidConstraintSignature']],
+            ['field' => 'generatedOutputColumns', 'current' => $current['generatedOutputColumns'], 'next' => $next['generatedOutputColumns'], 'changed' => $current['generatedOutputColumns'] !== $next['generatedOutputColumns']],
+            ['field' => 'matchedRowCount', 'current' => $current['matchedRowCount'], 'next' => $next['matchedRowCount'], 'changed' => $current['matchedRowCount'] !== $next['matchedRowCount']],
+            ['field' => 'rowids', 'current' => $current['rowids'], 'next' => $next['rowids'], 'changed' => $current['rowids'] !== $next['rowids']],
+            ['field' => 'fullkeys', 'current' => $current['fullkeys'], 'next' => $next['fullkeys'], 'changed' => $current['fullkeys'] !== $next['fullkeys']],
+            ['field' => 'generatedFingerprints', 'current' => $current['generatedFingerprints'], 'next' => $next['generatedFingerprints'], 'changed' => $current['generatedFingerprints'] !== $next['generatedFingerprints']],
+            ['field' => 'effectiveEstimatedCost', 'current' => $current['effectiveEstimatedCost'], 'next' => $next['effectiveEstimatedCost'], 'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'generatedRows', 'current' => $current['generatedRows'], 'next' => $next['generatedRows'], 'changed' => $current['generatedRows'] !== $next['generatedRows']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableRowidHiddenGeneratedReplanReasons149(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root' => 'json-table-rowid-hidden-generated-root-changed',
+                'rowidConstraintSignature' => 'json-table-rowid-hidden-generated-rowid-constraint-changed',
+                'generatedOutputColumns' => 'json-table-rowid-hidden-generated-output-columns-changed',
+                'matchedRowCount' => 'json-table-rowid-hidden-generated-row-count-changed',
+                'rowids', 'fullkeys' => 'json-table-rowid-hidden-generated-rowset-changed',
+                'generatedFingerprints', 'generatedRows' => 'json-table-rowid-hidden-generated-values-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-rowid-hidden-generated-cost-changed',
+                default => 'json-table-rowid-hidden-generated-state-changed',
             };
         }
 

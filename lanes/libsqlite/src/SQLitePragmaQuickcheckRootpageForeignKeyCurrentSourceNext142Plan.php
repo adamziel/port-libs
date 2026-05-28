@@ -137,7 +137,7 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan
             $rows[] = $row;
         }
 
-        return $rows;
+        return $scope['limit'] === null ? $rows : array_slice($rows, 0, $scope['limit']);
     }
 
     private static function rowMatchesTarget(string|SQLiteDatabase $database, array $row, string $target): bool
@@ -162,24 +162,34 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan
     }
 
     /**
-     * @return array{pragma:string,scope:string,target:string|null}
+     * @return array{pragma:string,scope:string,target:string|null,limit:int|null}
      */
     private static function quickCheckScope(string $sql): array
     {
         $trimmed = trim(rtrim(trim($sql), ';'));
         $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)\s*(?:\(\s*(?<limit1>\d+)\s*\)|=\s*(?<limit2>\d+))$/i', $trimmed, $matches) === 1) {
+            return [
+                'pragma' => 'quick_check',
+                'scope' => 'database',
+                'target' => null,
+                'limit' => (int) ($matches['limit1'] !== '' ? $matches['limit1'] : $matches['limit2']),
+            ];
+        }
         if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => 'quick_check',
                 'scope' => 'table',
                 'target' => self::unquoteIdentifier($matches['target']),
+                'limit' => null,
             ];
         }
-        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)(?:\s*(?:\(\s*\d+\s*\)|=\s*\d+))?$/i', $trimmed) === 1) {
+        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>quick_check)$/i', $trimmed) === 1) {
             return [
                 'pragma' => 'quick_check',
                 'scope' => 'database',
                 'target' => null,
+                'limit' => null,
             ];
         }
 
@@ -307,6 +317,7 @@ final class SQLitePragmaQuickcheckRootpageForeignKeyCurrentSourceNext142Plan
             'quick_check_sql' => self::normalizeSql($quickCheckSql),
             'quick_check_scope' => $scope['scope'],
             'quick_check_target' => $scope['target'],
+            'quick_check_limit' => $scope['limit'],
         ];
 
         return [
