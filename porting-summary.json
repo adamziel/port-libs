@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 01:22:03 UTC",
-    "sourceCommit": "9b3bbfb58cc932c03be8009efd9869372d5e924a",
-    "sourceCommitShort": "9b3bbfb58cc9",
+    "generated": "2026-05-28 01:32:10 UTC",
+    "sourceCommit": "af3d7266c7ebbf974741a410c8d869e6c0aa3ab5",
+    "sourceCommitShort": "af3d7266c7eb",
     "sourceBranch": "main",
-    "dashboardCommit": "9b3bbfb58cc932c03be8009efd9869372d5e924a",
-    "dashboardCommitShort": "9b3bbfb58cc9",
+    "dashboardCommit": "af3d7266c7ebbf974741a410c8d869e6c0aa3ab5",
+    "dashboardCommitShort": "af3d7266c7eb",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "464",
             "coverage": "464 / 1589",
-            "php": "27004 pass / 0 fail",
+            "php": "28200 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch70/71 clean subset libsqlite current-next...",
-            "audit": "Batch70/71 clean subset accepted in imple...",
-            "currentWork": "Accepted batch70/71 clean subset covering B-tree freeblock defragmentation, freelist trun...",
-            "nextTarget": "Consume accepted btree70/freelist71/encoding70/pagercache71/sqldml70/walchk70/walshm70 ma...",
-            "blocker": "No blocker for the accepted batch70/71 clean subset: focused, full libsql...",
-            "commit": "8c22ddd"
+            "phase": "accepted batch72/73 clean subset libsqlite current-next...",
+            "audit": "Batch72/73 clean subset accepted in imple...",
+            "currentWork": "Accepted batch72/73 clean subset covering VFS byte-range lock transitions and temp-file l...",
+            "nextTarget": "Publish dashboard/status for batch72/73, consume the accepted batch72/batch73 marker trip...",
+            "blocker": "No blocker for the accepted batch72/73 clean subset: focused, full libsql...",
+            "commit": "1c41f13"
         },
         {
             "library": "LightningCSS",
