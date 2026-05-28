@@ -1281,6 +1281,71 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceHiddenPathOrderByNext128(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourcePathHiddenRowidCostNext126(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentOrderCoverage = self::orderByConstraintCoverage120($plan['current']['used'], $orderBy);
+        $nextOrderCoverage = self::orderByConstraintCoverage120($plan['next']['used'], $orderBy);
+        $currentPartialOrder = self::jsonTablePartialOrderCostProfile124(
+            $plan['current'],
+            $plan['currentCostOrder'],
+            $currentOrderCoverage,
+        );
+        $nextPartialOrder = self::jsonTablePartialOrderCostProfile124(
+            $plan['next'],
+            $plan['nextCostOrder'],
+            $nextOrderCoverage,
+        );
+        $currentProfile = self::jsonTableHiddenPathOrderByProfile128(
+            $plan['currentPathHiddenRowidCost'],
+            $currentPartialOrder,
+        );
+        $nextProfile = self::jsonTableHiddenPathOrderByProfile128(
+            $plan['nextPathHiddenRowidCost'],
+            $nextPartialOrder,
+        );
+        $transitions = self::jsonTableHiddenPathOrderByTransitions128($currentProfile, $nextProfile);
+        $reasons = self::jsonTableHiddenPathOrderByReplanReasons128($transitions);
+
+        $plan['currentHiddenPathOrderBy'] = $currentProfile;
+        $plan['nextHiddenPathOrderBy'] = $nextProfile;
+        $plan['hiddenPathOrderByTransitions'] = $transitions;
+        $plan['next128ReplanReasons'] = array_values(array_unique(array_merge($plan['next126ReplanReasons'], $reasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-hidden-path-orderby-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next128ReplanReasons'] === []
+            ? 'reuse-current-json-table-hidden-path-orderby-source-plan'
+            : 'prepare-next-json-table-hidden-path-orderby-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-path-orderby-current-source-next128'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourcePathHiddenRowidCostNext126(
         string $function,
         array $currentSource,
@@ -3409,6 +3474,218 @@ final class SQLiteJsonTablePlan
                 'pathRowCount' => 'json-table-path-row-count-changed',
                 'pathTape' => 'json-table-path-tape-changed',
                 default => 'json-table-path-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $pathRowid
+     * @param array<string,mixed> $partialOrder
+     * @return array{compositeSignature:string|null,scanStrategy:string,pathOrderPrefix:list<string>,orderSuffix:list<string>,orderByConsumed:bool,blockSortRequired:bool,requiresOrderSort:bool,effectiveEstimatedCost:int,costClass:string,pathRowidTape:list<array{path:string,rowid:int}>,orderedRowids:list<int>,firstOrderedPathRowid:array{path:string,rowid:int}|null,lastOrderedPathRowid:array{path:string,rowid:int}|null}
+     */
+    private static function jsonTableHiddenPathOrderByProfile128(array $pathRowid, array $partialOrder): array
+    {
+        $pathRowidTape = $pathRowid['pathRowidTape'] ?? [];
+        $orderedRowids = array_values(array_map(
+            static fn (mixed $value): int => (int) $value,
+            $partialOrder['rowOrder'] ?? [],
+        ));
+        $orderSuffix = $partialOrder['suffixColumns'] ?? [];
+        $blockSortRequired = (bool) ($partialOrder['blockSortRequired'] ?? false);
+        $requiresOrderSort = $orderSuffix !== [] || $blockSortRequired;
+        $pathCost = (int) ($pathRowid['effectiveEstimatedCost'] ?? 1000000);
+        $orderCost = (int) ($partialOrder['effectiveEstimatedCost'] ?? 1000000);
+        $effectiveCost = max($pathCost, $orderCost);
+        if ($pathCost < 1000000 && $orderCost < 1000000 && $requiresOrderSort) {
+            $effectiveCost += (int) ($partialOrder['blockSortPenalty'] ?? $partialOrder['baseSortPenalty'] ?? 0);
+        }
+
+        return [
+            'compositeSignature' => $pathRowid['compositeSignature'] ?? null,
+            'scanStrategy' => (string) ($pathRowid['scanStrategy'] ?? 'full-json-table-scan'),
+            'pathOrderPrefix' => self::hiddenPathOrderPrefix128($pathRowid, $partialOrder),
+            'orderSuffix' => array_values(array_map('strval', $orderSuffix)),
+            'orderByConsumed' => !$requiresOrderSort,
+            'blockSortRequired' => $blockSortRequired,
+            'requiresOrderSort' => $requiresOrderSort,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableHiddenPathOrderByCostClass128($pathRowid, $partialOrder, $requiresOrderSort, $effectiveCost),
+            'pathRowidTape' => $pathRowidTape,
+            'orderedRowids' => $orderedRowids,
+            'firstOrderedPathRowid' => self::firstOrderedPathRowid128($pathRowidTape, $orderedRowids),
+            'lastOrderedPathRowid' => self::lastOrderedPathRowid128($pathRowidTape, $orderedRowids),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $pathRowid
+     * @param array<string,mixed> $partialOrder
+     * @return list<string>
+     */
+    private static function hiddenPathOrderPrefix128(array $pathRowid, array $partialOrder): array
+    {
+        $prefix = [];
+        if (($pathRowid['pathSignature'] ?? null) !== null) {
+            $prefix[] = 'path';
+        }
+        if (($pathRowid['rowidSignature'] ?? null) !== null) {
+            $prefix[] = 'id';
+        }
+
+        foreach ($partialOrder['consumedPrefixColumns'] ?? [] as $column) {
+            $column = (string) $column;
+            if (!in_array($column, $prefix, true)) {
+                $prefix[] = $column;
+            }
+        }
+
+        return $prefix;
+    }
+
+    /**
+     * @param array<string,mixed> $pathRowid
+     * @param array<string,mixed> $partialOrder
+     */
+    private static function jsonTableHiddenPathOrderByCostClass128(
+        array $pathRowid,
+        array $partialOrder,
+        bool $requiresOrderSort,
+        int $effectiveCost,
+    ): string {
+        if (($pathRowid['scanStrategy'] ?? null) === 'unrunnable-json-table' || ($partialOrder['costClass'] ?? null) === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$requiresOrderSort) {
+            return 'json-table-hidden-path-order-consumed';
+        }
+        if (($pathRowid['compositeSignature'] ?? null) !== null) {
+            return $effectiveCost <= 8
+                ? 'json-table-hidden-path-rowid-block-sort'
+                : 'json-table-hidden-path-rowid-order-sort';
+        }
+        if (($pathRowid['pathSignature'] ?? null) !== null) {
+            return 'json-table-hidden-path-order-sort';
+        }
+
+        return 'json-table-hidden-order-sort';
+    }
+
+    /**
+     * @param list<array{path:string,rowid:int}> $pathRowidTape
+     * @param list<int> $orderedRowids
+     * @return array{path:string,rowid:int}|null
+     */
+    private static function firstOrderedPathRowid128(array $pathRowidTape, array $orderedRowids): ?array
+    {
+        foreach ($orderedRowids as $rowid) {
+            foreach ($pathRowidTape as $entry) {
+                if (($entry['rowid'] ?? null) === $rowid) {
+                    return $entry;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{path:string,rowid:int}> $pathRowidTape
+     * @param list<int> $orderedRowids
+     * @return array{path:string,rowid:int}|null
+     */
+    private static function lastOrderedPathRowid128(array $pathRowidTape, array $orderedRowids): ?array
+    {
+        for ($index = count($orderedRowids) - 1; $index >= 0; $index--) {
+            foreach ($pathRowidTape as $entry) {
+                if (($entry['rowid'] ?? null) === $orderedRowids[$index]) {
+                    return $entry;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableHiddenPathOrderByTransitions128(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'compositeSignature',
+                'current' => $current['compositeSignature'],
+                'next' => $next['compositeSignature'],
+                'changed' => $current['compositeSignature'] !== $next['compositeSignature'],
+            ],
+            [
+                'field' => 'pathOrderPrefix',
+                'current' => $current['pathOrderPrefix'],
+                'next' => $next['pathOrderPrefix'],
+                'changed' => $current['pathOrderPrefix'] !== $next['pathOrderPrefix'],
+            ],
+            [
+                'field' => 'orderSuffix',
+                'current' => $current['orderSuffix'],
+                'next' => $next['orderSuffix'],
+                'changed' => $current['orderSuffix'] !== $next['orderSuffix'],
+            ],
+            [
+                'field' => 'requiresOrderSort',
+                'current' => $current['requiresOrderSort'],
+                'next' => $next['requiresOrderSort'],
+                'changed' => $current['requiresOrderSort'] !== $next['requiresOrderSort'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'orderedRowids',
+                'current' => $current['orderedRowids'],
+                'next' => $next['orderedRowids'],
+                'changed' => $current['orderedRowids'] !== $next['orderedRowids'],
+            ],
+            [
+                'field' => 'pathRowidTape',
+                'current' => $current['pathRowidTape'],
+                'next' => $next['pathRowidTape'],
+                'changed' => $current['pathRowidTape'] !== $next['pathRowidTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableHiddenPathOrderByReplanReasons128(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'compositeSignature' => 'json-table-hidden-path-rowid-signature-changed',
+                'pathOrderPrefix' => 'json-table-hidden-path-order-prefix-changed',
+                'orderSuffix', 'requiresOrderSort' => 'json-table-hidden-path-order-sorter-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-hidden-path-order-cost-changed',
+                'orderedRowids', 'pathRowidTape' => 'json-table-hidden-path-order-output-changed',
+                default => 'json-table-hidden-path-order-state-changed',
             };
         }
 

@@ -381,6 +381,8 @@ final class SQLiteSchemaDdlReparsePlan
                 'checked_rows' => $addPlan['checked_rows'],
                 'current_row_count' => $addPlan['current_row_count'],
                 'generated' => $addPlan['generated'],
+                'dependent_reparse_records' => self::dependentReparseRecordsForAddColumn($records, $tableName, $addPlan['column']),
+                'star_expansion_records' => self::starExpansionRecordsForTable($records, $tableName),
                 'changed' => true,
             ];
         }
@@ -500,6 +502,59 @@ final class SQLiteSchemaDdlReparsePlan
         }
 
         return preg_match('/(?<![A-Za-z0-9_$])' . preg_quote($tableName, '/') . '(?![A-Za-z0-9_$])/i', $record->sql) === 1;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<string>
+     */
+    private static function dependentReparseRecordsForAddColumn(array $records, string $tableName, string $columnName): array
+    {
+        $dependent = [];
+        foreach ($records as $record) {
+            if (!in_array($record->type, ['index', 'trigger', 'view'], true)) {
+                continue;
+            }
+
+            if (strcasecmp($record->tableName, $tableName) === 0 || self::recordSqlReferencesName($record, $tableName) || self::recordSqlReferencesName($record, $columnName)) {
+                $dependent[] = $record->type . ':' . $record->name;
+            }
+        }
+
+        return $dependent;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<string>
+     */
+    private static function starExpansionRecordsForTable(array $records, string $tableName): array
+    {
+        $dependent = [];
+        foreach ($records as $record) {
+            if (!in_array($record->type, ['trigger', 'view'], true) || $record->sql === null) {
+                continue;
+            }
+
+            if (!self::recordSqlReferencesName($record, $tableName)) {
+                continue;
+            }
+
+            if (preg_match('/(?<![A-Za-z0-9_$])select\s+(?:distinct\s+)?\*/i', $record->sql) === 1) {
+                $dependent[] = $record->type . ':' . $record->name;
+            }
+        }
+
+        return $dependent;
+    }
+
+    private static function recordSqlReferencesName(SQLiteSchemaRecord $record, string $name): bool
+    {
+        if ($record->sql === null) {
+            return false;
+        }
+
+        return preg_match('/(?<![A-Za-z0-9_$])' . preg_quote($name, '/') . '(?![A-Za-z0-9_$])/i', $record->sql) === 1;
     }
 
     /**

@@ -8,9 +8,10 @@ final class SQLiteUpdateDeleteReturningSql
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables
-     * @return array{action:string,table:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>}
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{action:string,table:string,conflict_action:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>}
      */
-    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id'): array
+    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = []): array
     {
         $parsed = self::parse($sql);
         $table = $parsed['table'];
@@ -40,20 +41,37 @@ final class SQLiteUpdateDeleteReturningSql
             );
         }
 
+        $projection = self::returningProjection($parsed['returning']);
+        $conflictAction = $parsed['conflict_action'];
+        $conflictResult = [
+            'rows' => $plan->resultRows,
+            'returning' => $plan->returningRows($projection),
+            'ignored_rows' => [],
+            'deleted_conflict_rows' => [],
+            'conflicts' => [],
+        ];
+        if ($parsed['action'] === 'update' && $uniqueConstraints !== []) {
+            $conflictResult = self::applyUpdateConflicts($plan, $projection, $uniqueConstraints, $conflictAction, $rowIdColumn);
+        }
+
         $nextTables = $tables;
-        $nextTables[$table] = $plan->resultRows;
+        $nextTables[$table] = $conflictResult['rows'];
 
         return [
             'action' => $parsed['action'],
             'table' => $table,
+            'conflict_action' => $conflictAction,
             'plan' => $plan,
             'tables' => $nextTables,
-            'returning' => $plan->returningRows(self::returningProjection($parsed['returning'])),
+            'returning' => $conflictResult['returning'],
+            'ignored_rows' => $conflictResult['ignored_rows'],
+            'deleted_conflict_rows' => $conflictResult['deleted_conflict_rows'],
+            'conflicts' => $conflictResult['conflicts'],
         ];
     }
 
     /**
-     * @return array{action:string,table:string,assignments:array<string,string>,where:?string,returning:string,order_by:list<array{column:string,direction?:string}>,limit:?int,offset:int}
+     * @return array{action:string,table:string,conflict_action:string,assignments:array<string,string>,where:?string,returning:string,order_by:list<array{column:string,direction?:string}>,limit:?int,offset:int}
      */
     public static function parse(string $sql): array
     {
@@ -70,6 +88,7 @@ final class SQLiteUpdateDeleteReturningSql
             return [
                 'action' => 'delete',
                 'table' => $table,
+                'conflict_action' => 'abort',
                 'assignments' => [],
                 'where' => $clauses['where'],
                 'returning' => $clauses['returning'],
@@ -79,12 +98,13 @@ final class SQLiteUpdateDeleteReturningSql
             ];
         }
 
-        if (preg_match('/^UPDATE\s+([A-Za-z_][A-Za-z0-9_]*)\s+SET\s+(.*)$/is', $sql, $match) !== 1) {
+        if (preg_match('/^UPDATE(?:\s+OR\s+(ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?\s+([A-Za-z_][A-Za-z0-9_]*)\s+SET\s+(.*)$/is', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE RETURNING SQL must start with UPDATE or DELETE');
         }
 
-        $table = $match[1];
-        $tail = $match[2];
+        $conflictAction = strtolower($match[1] === '' ? 'abort' : $match[1]);
+        $table = $match[2];
+        $tail = $match[3];
         $firstClause = self::firstKeywordPosition($tail, [' WHERE ', ' RETURNING ']);
         if ($firstClause === null) {
             throw new \InvalidArgumentException('SQLite UPDATE RETURNING SQL requires RETURNING');
@@ -95,6 +115,7 @@ final class SQLiteUpdateDeleteReturningSql
         return [
             'action' => 'update',
             'table' => $table,
+            'conflict_action' => $conflictAction,
             'assignments' => self::parseAssignments($assignmentSql),
             'where' => $clauses['where'],
             'returning' => $clauses['returning'],
@@ -102,6 +123,262 @@ final class SQLiteUpdateDeleteReturningSql
             'limit' => $clauses['limit'],
             'offset' => $clauses['offset'],
         ];
+    }
+
+    /**
+     * @param list<string>|array<string,string|callable(array<string,mixed>):mixed> $projection
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>}
+     */
+    private static function applyUpdateConflicts(
+        SQLiteUpdateDeleteLimitPlan $plan,
+        array $projection,
+        array $uniqueConstraints,
+        string $conflictAction,
+        string $rowIdColumn,
+    ): array {
+        $rows = $plan->resultRows;
+        $inputById = self::rowsById($plan->inputRows, $rowIdColumn);
+        $mutationById = self::rowsById($plan->mutationRows, $rowIdColumn);
+        $returningRows = [];
+        $ignoredRows = [];
+        $deletedRows = [];
+        $conflicts = [];
+        $deletedIds = [];
+
+        foreach ($plan->mutationIds as $rowId) {
+            if (isset($deletedIds[(string) $rowId]) || !array_key_exists($rowId, $mutationById)) {
+                continue;
+            }
+
+            $row = $mutationById[$rowId];
+            $conflict = self::firstRowConflict($row, $rows, $uniqueConstraints, $rowIdColumn);
+            if ($conflict === null) {
+                $returningRows[] = self::projectReturningRow($row, $projection);
+                continue;
+            }
+
+            $conflicts[] = $conflict;
+            if ($conflictAction === 'ignore') {
+                $rows = self::replaceRowById($rows, $rowIdColumn, $rowId, $inputById[$rowId]);
+                $ignoredRows[] = $row;
+                continue;
+            }
+            if ($conflictAction === 'replace') {
+                foreach ($conflict['conflicting_row_ids'] as $conflictingId) {
+                    $removed = self::rowById($rows, $rowIdColumn, $conflictingId);
+                    if ($removed !== null) {
+                        $deletedRows[] = $removed;
+                    }
+                    $deletedIds[(string) $conflictingId] = true;
+                    $rows = self::removeRowById($rows, $rowIdColumn, $conflictingId);
+                }
+                $returningRows[] = self::projectReturningRow($row, $projection);
+                continue;
+            }
+
+            throw new \InvalidArgumentException(
+                'SQLite UPDATE RETURNING unique constraint failed: '
+                . implode(',', $conflict['columns'])
+                . '='
+                . $conflict['key']
+                . ' using OR '
+                . strtoupper($conflictAction)
+            );
+        }
+
+        return [
+            'rows' => $rows,
+            'returning' => $returningRows,
+            'ignored_rows' => $ignoredRows,
+            'deleted_conflict_rows' => $deletedRows,
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<int|string,array<string,mixed>>
+     */
+    private static function rowsById(array $rows, string $rowIdColumn): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $id = self::column($row, $rowIdColumn);
+            if (!is_int($id) && !is_string($id)) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE rowid column {$rowIdColumn} must be int or string");
+            }
+            $indexed[$id] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}|null
+     */
+    private static function firstRowConflict(array $row, array $rows, array $uniqueConstraints, string $rowIdColumn): ?array
+    {
+        $rowId = self::column($row, $rowIdColumn);
+        if (!is_int($rowId) && !is_string($rowId)) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE rowid column {$rowIdColumn} must be int or string");
+        }
+
+        foreach ($uniqueConstraints as $columns) {
+            if (!is_array($columns) || $columns === []) {
+                throw new \InvalidArgumentException('SQLite UPDATE RETURNING unique constraints need columns');
+            }
+            $key = self::uniqueKey($row, $columns);
+            if ($key === null) {
+                continue;
+            }
+
+            $conflictingIds = [];
+            foreach ($rows as $other) {
+                $otherId = self::column($other, $rowIdColumn);
+                if ($otherId === $rowId) {
+                    continue;
+                }
+                if (self::uniqueKey($other, $columns) === $key) {
+                    if (!is_int($otherId) && !is_string($otherId)) {
+                        throw new \InvalidArgumentException("SQLite UPDATE/DELETE rowid column {$rowIdColumn} must be int or string");
+                    }
+                    $conflictingIds[] = $otherId;
+                }
+            }
+            if ($conflictingIds !== []) {
+                return ['row_id' => $rowId, 'columns' => array_values($columns), 'key' => $key, 'conflicting_row_ids' => $conflictingIds];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function uniqueKey(array $row, array $columns): ?string
+    {
+        $parts = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE RETURNING unique columns must be non-empty strings');
+            }
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite UPDATE RETURNING unique column {$column} is missing");
+            }
+            if ($row[$column] === null) {
+                return null;
+            }
+            $parts[] = self::keyPart($row[$column]);
+        }
+
+        return implode('|', $parts);
+    }
+
+    private static function keyPart(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return (string) $value;
+        }
+
+        return serialize($value);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function replaceRowById(array $rows, string $rowIdColumn, int|string $rowId, array $replacement): array
+    {
+        foreach ($rows as $index => $row) {
+            if (self::column($row, $rowIdColumn) === $rowId) {
+                $rows[$index] = $replacement;
+                return $rows;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function removeRowById(array $rows, string $rowIdColumn, int|string $rowId): array
+    {
+        return array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => self::column($row, $rowIdColumn) !== $rowId,
+        ));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     */
+    private static function rowById(array $rows, string $rowIdColumn, int|string $rowId): ?array
+    {
+        foreach ($rows as $row) {
+            if (self::column($row, $rowIdColumn) === $rowId) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string>|array<string,string|callable(array<string,mixed>):mixed> $projection
+     * @return array<string,mixed>
+     */
+    private static function projectReturningRow(array $row, array $projection): array
+    {
+        $returned = [];
+        foreach ($projection as $alias => $expression) {
+            if (is_int($alias)) {
+                if (!is_string($expression) || $expression === '') {
+                    throw new \InvalidArgumentException('SQLite RETURNING projection columns must be non-empty strings');
+                }
+                if ($expression === '*') {
+                    foreach ($row as $column => $value) {
+                        $returned[$column] = $value;
+                    }
+                    continue;
+                }
+                if (!array_key_exists($expression, $row)) {
+                    throw new \InvalidArgumentException("SQLite RETURNING projection column {$expression} is missing");
+                }
+                $returned[$expression] = $row[$expression];
+                continue;
+            }
+
+            if (!is_string($alias) || $alias === '') {
+                throw new \InvalidArgumentException('SQLite RETURNING projection aliases must be non-empty strings');
+            }
+            if (is_string($expression)) {
+                if ($expression === '') {
+                    throw new \InvalidArgumentException('SQLite RETURNING projection columns must be non-empty strings');
+                }
+                if (!array_key_exists($expression, $row)) {
+                    throw new \InvalidArgumentException("SQLite RETURNING projection column {$expression} is missing");
+                }
+                $returned[$alias] = $row[$expression];
+                continue;
+            }
+            if (!is_callable($expression)) {
+                throw new \InvalidArgumentException('SQLite RETURNING projection expressions must be column names or callables');
+            }
+            $returned[$alias] = $expression($row);
+        }
+
+        return $returned;
     }
 
     /**

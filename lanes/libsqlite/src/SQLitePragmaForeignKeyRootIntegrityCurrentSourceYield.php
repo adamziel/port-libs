@@ -17,10 +17,11 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         array $schemas,
         string $foreignKeySql,
         ?SQLiteAttachedSchemaCatalog $catalog = null,
+        string $integritySql = 'PRAGMA integrity_check',
     ): array {
         $rootpage = SQLitePragmaRootpageIntegrityAnalysisCurrentSourceNext111::analyze($database);
         $rows = [];
-        foreach ($rootpage['rows'] as $row) {
+        foreach (self::integrityRootRows($database, $rootpage['rows'], $integritySql) as $row) {
             if (($row['status'] ?? null) === 'ok' || ($row['status'] ?? null) === 'ignored') {
                 continue;
             }
@@ -68,7 +69,7 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
     /**
      * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
      * @param array{source_id?:string,next_offset?:int|null,offset?:int|null}|null $cursor
-     * @return array{status:string,source_id:string,current_source:array{database:string,foreign_key_sql:string,schema_hash:string,catalog_hash:string|null},offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array{integrity_root:int,foreign_key:int},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
+     * @return array{status:string,source_id:string,current_source:array{database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null},offset:int,limit:int,count:int,total:int,next_offset:int|null,complete:bool,current:array{integrity_root:int,foreign_key:int},next:array{source_id:string,offset:int}|null,rows:list<array<string,mixed>>}
      */
     public static function page(
         string|SQLiteDatabase $database,
@@ -78,6 +79,7 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         int $limit = 117,
         ?array $cursor = null,
         ?SQLiteAttachedSchemaCatalog $catalog = null,
+        string $integritySql = 'PRAGMA integrity_check',
     ): array {
         if ($offset < 0) {
             throw new InvalidArgumentException('SQLite PRAGMA foreign-key root integrity source cursor offset must be non-negative');
@@ -86,12 +88,12 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
             throw new InvalidArgumentException('SQLite PRAGMA foreign-key root integrity source cursor limit must be positive');
         }
 
-        $source = self::source($database, $schemas, $foreignKeySql, $catalog);
+        $source = self::source($database, $schemas, $foreignKeySql, $catalog, $integritySql);
         if ($cursor !== null) {
             self::validateCursor($cursor, $source['source_id'], $offset);
         }
 
-        $rows = self::collect($database, $schemas, $foreignKeySql, $catalog);
+        $rows = self::collect($database, $schemas, $foreignKeySql, $catalog, $integritySql);
         $pageRows = array_slice($rows, $offset, $limit);
         $nextOffset = $offset + count($pageRows);
         $complete = $nextOffset >= count($rows);
@@ -102,6 +104,9 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
             'current_source' => [
                 'database' => $source['database'],
                 'foreign_key_sql' => $source['foreign_key_sql'],
+                'integrity_sql' => $source['integrity_sql'],
+                'integrity_scope' => $source['integrity_scope'],
+                'integrity_target' => $source['integrity_target'],
                 'schema_hash' => $source['schema_hash'],
                 'catalog_hash' => $source['catalog_hash'],
             ],
@@ -128,6 +133,88 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
         $rowid = $row['rowid'] === null ? 'NULL' : (string) $row['rowid'];
 
         return "foreign key mismatch in {$row['schema']}.{$row['table']} rowid {$rowid} references {$row['parent']} fkid {$row['fkid']}";
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function integrityRootRows(string|SQLiteDatabase $database, array $rows, string $integritySql): array
+    {
+        $scope = self::integrityScope($integritySql);
+        if ($scope['target'] === null) {
+            return $rows;
+        }
+        if (is_string($database)) {
+            $database = SQLiteDatabase::fromBytes($database);
+        }
+
+        $targetNames = self::targetRootNames($database, $scope['target']);
+        if ($targetNames === []) {
+            throw new InvalidArgumentException("SQLite PRAGMA foreign-key root integrity target {$scope['target']} was not found");
+        }
+
+        return array_values(array_filter(
+            $rows,
+            static function (array $row) use ($targetNames): bool {
+                $name = $row['name'] ?? null;
+                $table = $row['table'] ?? null;
+
+                return (is_string($name) && isset($targetNames[$name]))
+                    || (is_string($table) && isset($targetNames[$table]));
+            },
+        ));
+    }
+
+    /**
+     * @return array<string,true>
+     */
+    private static function targetRootNames(SQLiteDatabase $database, string $target): array
+    {
+        $names = [];
+        $table = null;
+        foreach ($database->schemaRecords() as $record) {
+            if ($record->type === 'table' && strcasecmp($record->name, $target) === 0) {
+                $table = $record->name;
+                $names[$record->name] = true;
+                break;
+            }
+        }
+        if ($table === null) {
+            return [];
+        }
+        foreach ($database->schemaRecords() as $record) {
+            if ($record->type === 'index' && strcasecmp($record->tableName, $table) === 0) {
+                $names[$record->name] = true;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return array{pragma:string,scope:string,target:string|null}
+     */
+    private static function integrityScope(string $sql): array
+    {
+        $trimmed = trim(rtrim(trim($sql), ';'));
+        $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>integrity_check|quick_check)\s*\(\s*(?<target>' . $identifier . ')\s*\)$/i', $trimmed, $matches) === 1) {
+            return [
+                'pragma' => strtolower($matches['pragma']),
+                'scope' => 'table',
+                'target' => self::unquoteIdentifier($matches['target']),
+            ];
+        }
+        if (preg_match('/^PRAGMA\s+(?:(?:[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>integrity_check|quick_check)(?:\s*(?:\(\s*\d+\s*\)|=\s*\d+))?$/i', $trimmed, $matches) === 1) {
+            return [
+                'pragma' => strtolower($matches['pragma']),
+                'scope' => 'database',
+                'target' => null,
+            ];
+        }
+
+        throw new InvalidArgumentException('SQLite PRAGMA foreign-key root integrity needs PRAGMA integrity_check or quick_check SQL');
     }
 
     /**
@@ -170,13 +257,17 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
 
     /**
      * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
-     * @return array{source_id:string,database:string,foreign_key_sql:string,schema_hash:string,catalog_hash:string|null}
+     * @return array{source_id:string,database:string,foreign_key_sql:string,integrity_sql:string,integrity_scope:string,integrity_target:string|null,schema_hash:string,catalog_hash:string|null}
      */
-    private static function source(string|SQLiteDatabase $database, array $schemas, string $foreignKeySql, ?SQLiteAttachedSchemaCatalog $catalog): array
+    private static function source(string|SQLiteDatabase $database, array $schemas, string $foreignKeySql, ?SQLiteAttachedSchemaCatalog $catalog, string $integritySql): array
     {
+        $integrityScope = self::integrityScope($integritySql);
         $normalized = [
             'database' => is_string($database) ? hash('sha256', $database) : self::databaseHash($database),
             'foreign_key_sql' => self::normalizeSql($foreignKeySql),
+            'integrity_sql' => self::normalizeSql($integritySql),
+            'integrity_scope' => $integrityScope['scope'],
+            'integrity_target' => $integrityScope['target'],
             'schema_hash' => self::stableHash($schemas),
             'catalog_hash' => $catalog === null ? null : self::stableHash(self::catalogSource($catalog)),
         ];
@@ -232,6 +323,24 @@ final class SQLitePragmaForeignKeyRootIntegrityCurrentSourceYield
     private static function normalizeSql(string $sql): string
     {
         return strtolower(preg_replace('/\s+/', ' ', rtrim(trim($sql), ';')) ?? trim($sql));
+    }
+
+    private static function unquoteIdentifier(string $value): string
+    {
+        $value = trim($value);
+        $first = $value[0] ?? '';
+        $last = substr($value, -1);
+        if ($first === '"' && $last === '"') {
+            return str_replace('""', '"', substr($value, 1, -1));
+        }
+        if ($first === "'" && $last === "'") {
+            return str_replace("''", "'", substr($value, 1, -1));
+        }
+        if (($first === '`' && $last === '`') || ($first === '[' && $last === ']')) {
+            return substr($value, 1, -1);
+        }
+
+        return $value;
     }
 
     /**
