@@ -11113,3 +11113,30 @@ git diff --check -- lanes/libsqlite
 Expected dashboard movement: `phpPass` +115, from `128615` to `128730`; no mapped upstream coverage claim. Dependency closure: no new support component needed; this reuses next247 cleanup admission plus lane-local pager cache, readmark, schema-cookie, and WAL-index refresh receipt modeling.
 
 Non-overlap: next250 verifies stale pager cache and readmark invalidation after next247 cleanup. It does not repeat checkpoint publication, VFS durable handoff ordering, cleanup receipt admission, WAL byte truncation, rollback-journal apply/commit, VFS sync/apply, file locking, SELECT, JSON, or B-tree surfaces.
+
+## Suite Upstream Veryquick Shard Current Source Next290
+
+Date: 2026-05-28
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext290()`.
+It admits one lane-local zero-error guarded veryquick shard row tied to
+launcher Base accepted HEAD `2d826f3672d51185a8fc82f12ed43afe26d2c9d6` and
+accepted batch220 source `d650b9d8bbcee54ae28d34c6f45fad861468f872`.
+
+Focused upstream denominator impact: mapped coverage moves from `680 / 1589`
+to `681 / 1589`; `phpPass` moves from `136435` to `136531` through exact
+focused PASS-line admission. Release/all parity remains unclaimed.
+
+Focused verification: `php tools/run-tests.php
+lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext290Test.php`
+passed with `1 test files, 1500 assertions, 0 failures`.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+bounded runner metadata, accepted source provenance checks, active-runner
+gating, and focused `TestRunner` output parsing.
+
+Non-overlap: this avoids accepted next155 through next276 veryquick evidence,
+exact-shard next148, queued runner106/jsonvt104 rebase work, accepted
+batch109-113 and batch220 behavior surfaces, and live B-tree, JSON, VFS, WAL,
+planner, PRAGMA, ATTACH, window, and VDBE work.
