@@ -43,10 +43,32 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 9.7G available, 98% used; `/tmp` has about 6.7G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 11 current-base libsqlite next115/next116 development workers with no long sleepers; keep refills bounded because disk remains tight.
+- Root filesystem: current sample reports `/` at 452G size with about 7.5G available, 99% used; `/tmp` has about 6.6G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite next120/next121 development workers with no long sleepers; keep refills bounded because disk remains tight.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 06:42 UTC):
+  Batch118/119 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `d64244e5b82d9a9a0a502587e12d66bd5297d9a1` (`Integrate libsqlite batch
+  118 119 subset`) accepted 18 current-source libsqlite handoffs, applying
+  behavior/test hunks while excluding stale status-file hunks. Verification
+  passed: php-lint for `52` changed/untracked PHP files, 16 changed
+  WordPress examples/self-tests, git diff --check, focused changed tests
+  `18 test files / 14961 assertions / 0 failures / 1626 PASS lines`,
+  focused regression repair `4 test files / 250 assertions / 0 failures`,
+  full libsqlite `838 test files / 95796 assertions / 0 failures / 47656
+  PASS lines`, and root `1051 test files / 120264 assertions / 0 failures /
+  50684 PASS lines`. This is `+1244` public libsqlite PASS-line movement over
+  batch116/117 (`46412 -> 47656`); mapped coverage remains conservative at
+  `604 / 1589` because the accepted worker evidence did not claim fresh
+  manifest-backed mapped rows. Two compound SELECT handoffs (`compound118`,
+  `compound119`) remain queued for targeted `SQLiteSelectSql.php` rebase.
+  The worker pool was repaired during the batch by adding next120/next121
+  reserve slices and tightening the refiller so just-started non-ready worker
+  wrappers count as active; tmux `main` is again holding 10-11 real active
+  libsqlite Codex workers with no long sleepers.
 
 - 2026-05-28 supervisor continuation (shell samples 06:22 UTC):
   Batch116/117 clean subset is integrated and root-verified in the rolling
