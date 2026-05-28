@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 03:48:49 UTC",
-    "sourceCommit": "0aa2b4247b6e9da5ee0228f51617446bb4ea158e",
-    "sourceCommitShort": "0aa2b4247b6e",
+    "generated": "2026-05-28 03:55:36 UTC",
+    "sourceCommit": "1edf05734b9d44edd9e5be8ae6d29a999869e3d1",
+    "sourceCommitShort": "1edf05734b9d",
     "sourceBranch": "main",
-    "dashboardCommit": "0aa2b4247b6e9da5ee0228f51617446bb4ea158e",
-    "dashboardCommitShort": "0aa2b4247b6e",
+    "dashboardCommit": "1edf05734b9d44edd9e5be8ae6d29a999869e3d1",
+    "dashboardCommitShort": "1edf05734b9d",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "534",
-            "coverage": "534 / 1589",
-            "php": "36393 pass / 0 fail",
+            "mapped": "540",
+            "coverage": "540 / 1589",
+            "php": "36750 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch90 clean subset covering attach, B-tree,...",
-            "audit": "Implementation commit d2c849766e4d389df9f...",
-            "currentWork": "Accepted verified batch90 subset; dashboard/status publication and marker cleanup are nex...",
-            "nextTarget": "Publish dashboard/status for batch90, consume accepted marker triplets and inactive workt...",
+            "phase": "accepted batch91 clean subset covering B-tree, encoding...",
+            "audit": "Implementation commit c2c71df0e560a17d547...",
+            "currentWork": "Accepted verified batch91 subset; dashboard/status publication and marker cleanup are nex...",
+            "nextTarget": "Publish dashboard/status for batch91, consume accepted marker triplets and inactive workt...",
             "blocker": "No blocker for the accepted batch89 subset: focused, regression, full lib...",
-            "commit": "d2c8497"
+            "commit": "c2c71df"
         },
         {
             "library": "LightningCSS",
