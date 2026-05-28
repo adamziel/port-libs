@@ -44,9 +44,30 @@
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
 - Root filesystem: current sample reports `/` at 452G size with under 1G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The worker pool drained during the latest verification pass and must be refilled under the critical disk gate without long sleep loops.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10 libsqlite batch74 development workers with no long sleepers; do not add more worktrees until accepted marker/worktree cleanup relieves the critical disk gate.
 
 ## Current Coordination Snapshot
+
+- 2026-05-28 supervisor continuation (shell samples 02:18 UTC):
+  Batch70/71 plus leftover jsonagg73 clean subset is integrated and
+  root-verified in the rolling clean integration worktree. Implementation
+  source advanced to `de716911706397e566b51e35cd0367a397ebcf47`
+  (`Integrate libsqlite batch 70 71 clean subset`). Accepted handoffs:
+  pagerstmt70, btreeint70, suite70, jsonplan70, sqlddl70, pagerhot70,
+  trigger71, sqlexpr71, walrecover71, btreecell71, pragma71, jsonagg71, and
+  jsonagg73. The sqlplan71 handoff was split out for targeted rework after it
+  produced 11 planner expression-index/stat4 regressions in the full
+  libsqlite lane; removing it restored the full lane. Verification passed:
+  `php -l` for changed PHP files, changed WordPress examples, conflict-marker
+  scan, `git diff --check`, focused accepted subset `14 test files / 1374
+  assertions / 0 failures`, full libsqlite `526 test files / 61626 assertions
+  / 0 failures / 28917 PASS lines`, and root `739 test files / 86094
+  assertions / 0 failures / 31945 PASS lines` with `memory_limit=512M`. This
+  is `+717` libsqlite PASS lines over the published batch72/73 subset
+  (`28200 -> 28917`); mapped upstream coverage remains `464 / 1589`. Next
+  decision: publish the status/dashboard, consume accepted markers/worktrees
+  to recover disk, keep sqlplan71 and suite73 in rework, and integrate current
+  batch74 or remaining clean handoffs by verified PASS-line movement.
 
 - 2026-05-28 supervisor continuation (shell samples 02:02 UTC):
   Batch72/73 clean subset is integrated and root-verified in the rolling
