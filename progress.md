@@ -48,6 +48,35 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 00:22 UTC):
+  Batch56 is integrated and verified from clean worktree
+  `.tmux-team/worktrees/integrate-libsqlite-yield-batch56-20260528T001313Z`.
+  Implementation source advanced to
+  `9d3fcee2e7738d3c9f070e17e453339a0f83799d` (`Integrate libsqlite batch
+  56`). The accepted subset applied 11 current-next56 handoffs, excluded stale
+  lane-status/manifest prose, and updated stale aggregate/subquery exception
+  expectations after batch56 made aggregate subqueries and count(DISTINCT) SQL
+  text pass. Coverage added B-tree mutation apply/freeblock fragment reuse,
+  expression-index collation cursors, JSON table virtual planner constraints,
+  malformed UTF-8 LIKE/GLOB pattern planning, WAL/MVCC reader append
+  visibility, pager transaction state planning, schema catalog DDL planning,
+  schema DDL reparse, SELECT count/distinct aggregate execution, SELECT join
+  predicate routing, and upstream-suite current-head focused PASS admission
+  evidence. Verification passed: focused batch56 handoff tests `11 test files /
+  1007 assertions / 0 failures`; targeted aggregate/subquery regressions `3
+  test files / 9893 assertions / 0 failures`; full libsqlite lane `445 test
+  files / 51444 assertions / 0 failures / 23976 PASS lines`; root `658 test
+  files / 75912 assertions / 0 failures / 27004 PASS lines`. This is `+635`
+  libsqlite PASS lines over the batch55 live count of `23341`; mapped upstream
+  coverage remains `463 / 1589` because the current-next56 suite admission slice
+  is a current-head focused PASS countability gate, not release/all parity or a
+  new mapped denominator unit. The `main` tmux session was restored to 11 active
+  libsqlite isolated worker windows with Codex child processes and no long
+  sleepers; disk remains tight at about 8.0G available on `/`. Next decision:
+  publish dashboard/status for batch56, consume batch56 handoffs, keep 10-11
+  libsqlite workers active, then integrate ready batch57/batch64 outputs by
+  PASS-line movement.
+
 - 2026-05-28 supervisor continuation (shell/live samples 00:15 UTC):
   Batch55 is integrated and verified from clean worktree
   `.tmux-team/worktrees/integrate-libsqlite-yield-batch55-20260528T000506Z`.
