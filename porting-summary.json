@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 00:52:49 UTC",
-    "sourceCommit": "5883f5e65ebfd2e9cf8c9acf617a2a818277909c",
-    "sourceCommitShort": "5883f5e65ebf",
+    "generated": "2026-05-28 00:56:26 UTC",
+    "sourceCommit": "a8b81097bd79fb0094975d9dadaa794df8aaa4d8",
+    "sourceCommitShort": "a8b81097bd79",
     "sourceBranch": "main",
-    "dashboardCommit": "5883f5e65ebfd2e9cf8c9acf617a2a818277909c",
-    "dashboardCommitShort": "5883f5e65ebf",
+    "dashboardCommit": "a8b81097bd79fb0094975d9dadaa794df8aaa4d8",
+    "dashboardCommitShort": "a8b81097bd79",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -88,7 +88,7 @@
             "phase": "accepted batch68 remainder libsqlite current-next cover...",
             "audit": "Batch68 remainder accepted in implementat...",
             "currentWork": "Accepted batch68 remainder covering ATTACH WAL/temp rollback routing, JSONB CHECK optiona...",
-            "nextTarget": "Publish batch68 remainder dashboard status, consume accepted remaining batch68 handoffs,...",
+            "nextTarget": "Integrate remaining ready batch68 btree/pragma/trigger markers and ready batch69 attach/j...",
             "blocker": "No blocker for the accepted batch68 remainder: focused, full libsqlite, a...",
             "commit": "21f1e38"
         },
