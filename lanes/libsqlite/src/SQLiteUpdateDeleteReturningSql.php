@@ -1188,14 +1188,15 @@ final class SQLiteUpdateDeleteReturningSql
     private static function rowValueTupleList(string $sql, array $row, array $tables = []): array
     {
         $sql = trim($sql);
-        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(.+))?$/is', $sql, $match) === 1) {
+        if (preg_match('/^SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+?))?(?:\s+ORDER\s+BY\s+(.+?))?(?:\s+LIMIT\s+(.+))?$/is', $sql, $match) === 1) {
             return self::rowValueSelectTupleList(
-                trim($match[1]),
-                $match[2],
-                isset($match[3]) ? trim($match[3]) : null,
+                trim($match[2]),
+                $match[3],
                 isset($match[4]) ? trim($match[4]) : null,
                 isset($match[5]) ? trim($match[5]) : null,
+                isset($match[6]) ? trim($match[6]) : null,
                 $tables,
+                trim($match[1] ?? '') !== '',
             );
         }
         if (preg_match('/^VALUES\b(.*)$/is', $sql, $match) === 1) {
@@ -1224,7 +1225,7 @@ final class SQLiteUpdateDeleteReturningSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return list<list<mixed>>
      */
-    private static function rowValueSelectTupleList(string $selectSql, string $table, ?string $whereSql, ?string $orderSql, ?string $limitSql, array $tables): array
+    private static function rowValueSelectTupleList(string $selectSql, string $table, ?string $whereSql, ?string $orderSql, ?string $limitSql, array $tables, bool $distinct = false): array
     {
         if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value IN subquery table {$table} is missing");
@@ -1253,17 +1254,6 @@ final class SQLiteUpdateDeleteReturningSql
             $sourceRows = self::orderRowValueSelectRows($sourceRows, $orderSql);
         }
 
-        if ($limitSql !== null && $limitSql !== '') {
-            [$limit, $offset] = self::parseLimit($limitSql);
-            if ($limit !== null && $limit >= 0) {
-                $sourceRows = array_slice($sourceRows, $offset, $limit);
-            } elseif ($limit !== null && $limit < 0) {
-                $sourceRows = array_slice($sourceRows, $offset);
-            } elseif ($limit === null) {
-                $sourceRows = array_slice($sourceRows, $offset);
-            }
-        }
-
         $tuples = [];
         foreach ($sourceRows as $sourceRow) {
             $tuple = [];
@@ -1273,7 +1263,58 @@ final class SQLiteUpdateDeleteReturningSql
             $tuples[] = $tuple;
         }
 
+        if ($distinct) {
+            $tuples = self::distinctRowValueTuples($tuples);
+        }
+
+        if ($limitSql !== null && $limitSql !== '') {
+            [$limit, $offset] = self::parseLimit($limitSql);
+            if ($limit !== null && $limit >= 0) {
+                $tuples = array_slice($tuples, $offset, $limit);
+            } elseif ($limit !== null && $limit < 0) {
+                $tuples = array_slice($tuples, $offset);
+            } elseif ($limit === null) {
+                $tuples = array_slice($tuples, $offset);
+            }
+        }
+
         return $tuples;
+    }
+
+    /**
+     * @param list<list<mixed>> $tuples
+     * @return list<list<mixed>>
+     */
+    private static function distinctRowValueTuples(array $tuples): array
+    {
+        $seen = [];
+        $distinct = [];
+        foreach ($tuples as $tuple) {
+            $keyParts = [];
+            foreach ($tuple as $value) {
+                if ($value === null) {
+                    $keyParts[] = 'N:';
+                } elseif (is_bool($value)) {
+                    $keyParts[] = 'B:' . ($value ? '1' : '0');
+                } elseif (is_int($value)) {
+                    $keyParts[] = 'I:' . $value;
+                } elseif (is_float($value)) {
+                    $keyParts[] = 'F:' . sprintf('%.17G', $value);
+                } elseif (is_string($value)) {
+                    $keyParts[] = 'S:' . $value;
+                } else {
+                    $keyParts[] = 'X:' . serialize($value);
+                }
+            }
+            $key = implode("\0", $keyParts);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $distinct[] = $tuple;
+        }
+
+        return $distinct;
     }
 
     /**

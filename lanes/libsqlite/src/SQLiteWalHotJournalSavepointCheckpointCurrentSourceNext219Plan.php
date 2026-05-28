@@ -216,6 +216,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan
             'reader_names' => array_keys($readerNames),
             'page_numbers' => array_keys($pageDigests),
             'page_digest_count' => count($pageDigests),
+            'page_digests' => $pageDigests,
             'hot_journal_present' => ($scope['hot_journal_present'] ?? false) === true,
             'unknown_readers' => $unknownReaders,
             'reopen_reader_overlap' => $reopenOverlap,
