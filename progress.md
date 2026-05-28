@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 03:34 UTC):
+  Batch89 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `cff6baf6d405b3aa7ae1f6fca752e50506b70f0e` (`Integrate libsqlite batch
+  89 subset`) accepted 7 current-source libsqlite handoffs. Rework/defer:
+  `jsonagg89` conflicted in `SQLiteSelectQuery.php` and `SQLiteSelectSql.php`,
+  `jsonvt89` conflicted in `SQLiteJsonTablePlan.php`, and `sqlplan89`
+  conflicted in `UPSTREAM_TEST_MANIFEST.json`. Verification passed: php -l
+  `22` changed/untracked PHP files, 7 changed WordPress examples with valid
+  JSON, conflict-marker scan, git diff --check, focused changed tests
+  `7 test files / 571 assertions / 0 failures / 491 PASS lines`,
+  planner/pragma regression `3 test files / 202 assertions / 0 failures / 197
+  PASS lines`, full libsqlite `637 test files / 73616 assertions /
+  0 failures / 35916 PASS lines`, and root `850 test files / 98084
+  assertions / 0 failures / 38944 PASS lines`. This is `+616` libsqlite PASS
+  lines over batch88 (`35300 -> 35916`); mapped coverage is being advanced
+  from `517 / 1589` to `524 / 1589`. The worker pool briefly dropped to 4
+  during root verification; batch91 workers were launched immediately, putting
+  the pool back within the 10-11 active target with no long sleepers.
+
 - 2026-05-28 supervisor continuation (shell/live samples 03:26 UTC):
   Batch88 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
