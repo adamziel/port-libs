@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 02:21:24 UTC",
-    "sourceCommit": "6543c81704d81822b2ed853d969f73e5bad8e345",
-    "sourceCommitShort": "6543c81704d8",
+    "generated": "2026-05-28 02:30:12 UTC",
+    "sourceCommit": "ab6ebc5a0577ae44ee14d6076ebcce2f73c3e1c3",
+    "sourceCommitShort": "ab6ebc5a0577",
     "sourceBranch": "main",
-    "dashboardCommit": "6543c81704d81822b2ed853d969f73e5bad8e345",
-    "dashboardCommitShort": "6543c81704d8",
+    "dashboardCommit": "ab6ebc5a0577ae44ee14d6076ebcce2f73c3e1c3",
+    "dashboardCommitShort": "ab6ebc5a0577",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "465",
             "coverage": "465 / 1589",
-            "php": "31014 pass / 0 fail",
+            "php": "31557 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch76/77/79 verified subset covering B-tree,...",
-            "audit": "Implementation commit 06099b8f45593ee4ccd...",
-            "currentWork": "Accepted verified batch76/77/79 subset plus attach/encoding78 overlap; dashboard/status p...",
-            "nextTarget": "Publish dashboard/status for the batch76/77/79 verified subset, consume accepted marker t...",
-            "blocker": "No blocker for the accepted batch76/77/79 subset: focused, full libsqlite...",
-            "commit": "06099b8"
+            "phase": "accepted batch80/81 clean subset covering B-tree delete...",
+            "audit": "Implementation commit 161753b1f0bc7e811a1...",
+            "currentWork": "Accepted verified batch80/81 subset; dashboard/status publication and marker cleanup are...",
+            "nextTarget": "Publish dashboard/status for batch80/81, consume accepted marker triplets and inactive wo...",
+            "blocker": "No blocker for the accepted batch80/81 subset: focused, full libsqlite, a...",
+            "commit": "161753b"
         },
         {
             "library": "LightningCSS",
