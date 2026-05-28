@@ -924,6 +924,14 @@ final class SQLiteUpdateDeleteReturningSql
         ) {
             return self::literal($expression);
         }
+        if (preg_match('/^CASE\s+(.+?)\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END$/is', $expression, $match) === 1) {
+            $caseValue = self::evaluateExpression($match[1], $row);
+            $whenValue = self::evaluateExpression($match[2], $row);
+
+            return $caseValue == $whenValue
+                ? self::evaluateExpression($match[3], $row)
+                : self::evaluateExpression($match[4], $row);
+        }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
             return self::column($row, $expression);
         }

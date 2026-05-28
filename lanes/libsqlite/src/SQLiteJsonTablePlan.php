@@ -2982,6 +2982,74 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext206(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile209(
+            $plan['currentGeneratedPathRowidAliasOrder206'],
+            $constraints,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile209(
+            $plan['nextGeneratedPathRowidAliasOrder206'],
+            $constraints,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidRangeConstraintTransitions209($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidRangeConstraintReasons209($transitions);
+
+        $plan['currentGeneratedPathRowidRangeConstraint209'] = $currentProfile;
+        $plan['nextGeneratedPathRowidRangeConstraint209'] = $nextProfile;
+        $plan['generatedPathRowidRangeConstraint209Transitions'] = $transitions;
+        $plan['next209ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next206ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next209ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'range-rowid-current-json-table-generated-path-rowid-next209';
+        $plan['nextReaderPolicy'] = $nextProfile['rangeReusable']
+            ? 'reuse-range-rowid-current-json-table-generated-path-rowid-next209'
+            : 'reprepare-range-rowid-next-json-table-generated-path-rowid-next209';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next209'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext206(
         string $function,
         array $currentSource,
@@ -15332,6 +15400,231 @@ final class SQLiteJsonTablePlan
                 'upstreamReplanRequired', 'orderReusable', 'orderOpcode' => 'json-table-generated-path-rowid-order-admission-changed-next205',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-order-cost-changed-next205',
                 default => 'json-table-generated-path-rowid-order-state-changed-next205',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $aliasOrder206
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidRangeConstraintProfile209(array $aliasOrder206, array $constraints): array
+    {
+        $rangeConstraints = self::jsonTableGeneratedPathRowidRangeConstraints209($constraints);
+        $orderedRowids = array_values(array_map('intval', $aliasOrder206['orderedRowids'] ?? []));
+        $acceptedRowids = array_values(array_filter(
+            $orderedRowids,
+            static fn (int $rowid): bool => self::jsonTableGeneratedPathRowidMatchesRanges209($rowid, $rangeConstraints),
+        ));
+        $rejectedRowids = array_values(array_diff($orderedRowids, $acceptedRowids));
+        $orderConsumed = (bool) ($aliasOrder206['orderByConsumed'] ?? false);
+        $baseReusable = (bool) ($aliasOrder206['aliasProjectionReusable'] ?? false);
+        $rangeUsable = $rangeConstraints !== [];
+        $rangeReusable = $baseReusable && $orderConsumed && $rangeUsable && $acceptedRowids !== [];
+        $estimatedRows = $rangeReusable ? count($acceptedRowids) : 0;
+        $baseCost = max(1, (int) ($aliasOrder206['estimatedCost'] ?? 1));
+        $estimatedCost = $rangeReusable
+            ? max(1, min($baseCost, max(1, $estimatedRows + count($rangeConstraints))))
+            : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidRangeConstraintOpcode209(
+            $baseReusable,
+            $orderConsumed,
+            $rangeUsable,
+            $acceptedRowids,
+        );
+
+        return [
+            'function' => (string) ($aliasOrder206['function'] ?? ''),
+            'root' => (string) ($aliasOrder206['root'] ?? '$'),
+            'generatedPath' => (string) ($aliasOrder206['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($aliasOrder206['sourceGeneration'] ?? ''),
+            'rangeConstraints' => $rangeConstraints,
+            'orderedRowidsBeforeRange' => $orderedRowids,
+            'acceptedRangeRowids' => $acceptedRowids,
+            'rejectedRangeRowids' => $rejectedRowids,
+            'rangeConstraintCount' => count($rangeConstraints),
+            'baseOrderReusable' => $baseReusable,
+            'orderByConsumed' => $orderConsumed,
+            'rangeUsable' => $rangeUsable,
+            'rangeReusable' => $rangeReusable,
+            'rangeSelectivity' => $orderedRowids === [] ? 0.0 : count($acceptedRowids) / count($orderedRowids),
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'rangeOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidRangeConstraintCostClass209($opcode, count($acceptedRowids)),
+            'rangeFingerprint' => hash('sha256', json_encode([
+                $aliasOrder206['aliasOrderFingerprint'] ?? null,
+                $rangeConstraints,
+                $orderedRowids,
+                $acceptedRowids,
+                $rejectedRowids,
+                $rangeReusable,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array{column:string,operator:string,value:mixed,lower:int|null,upper:int|null,lowerInclusive:bool,upperInclusive:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidRangeConstraints209(array $constraints): array
+    {
+        $ranges = [];
+        foreach ($constraints as $constraint) {
+            $column = self::normalizeConstraintColumn((string) ($constraint['column'] ?? ''));
+            if ($column !== 'id' || (($constraint['usable'] ?? true) === false)) {
+                continue;
+            }
+            $operator = strtoupper((string) ($constraint['operator'] ?? ''));
+            $value = $constraint['value'] ?? null;
+            $range = match ($operator) {
+                'BETWEEN' => is_array($value) && count($value) === 2
+                    ? [
+                        'lower' => (int) array_values($value)[0],
+                        'upper' => (int) array_values($value)[1],
+                        'lowerInclusive' => true,
+                        'upperInclusive' => true,
+                    ]
+                    : null,
+                '>' => ['lower' => (int) $value, 'upper' => null, 'lowerInclusive' => false, 'upperInclusive' => true],
+                '>=' => ['lower' => (int) $value, 'upper' => null, 'lowerInclusive' => true, 'upperInclusive' => true],
+                '<' => ['lower' => null, 'upper' => (int) $value, 'lowerInclusive' => true, 'upperInclusive' => false],
+                '<=' => ['lower' => null, 'upper' => (int) $value, 'lowerInclusive' => true, 'upperInclusive' => true],
+                default => null,
+            };
+            if ($range === null) {
+                continue;
+            }
+            $ranges[] = [
+                'column' => (string) ($constraint['column'] ?? 'id'),
+                'operator' => $operator,
+                'value' => $value,
+                ...$range,
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<array{lower:int|null,upper:int|null,lowerInclusive:bool,upperInclusive:bool}> $ranges
+     */
+    private static function jsonTableGeneratedPathRowidMatchesRanges209(int $rowid, array $ranges): bool
+    {
+        foreach ($ranges as $range) {
+            $lower = $range['lower'];
+            if (is_int($lower) && ($range['lowerInclusive'] ? $rowid < $lower : $rowid <= $lower)) {
+                return false;
+            }
+            $upper = $range['upper'];
+            if (is_int($upper) && ($range['upperInclusive'] ? $rowid > $upper : $rowid >= $upper)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<int> $acceptedRowids
+     */
+    private static function jsonTableGeneratedPathRowidRangeConstraintOpcode209(
+        bool $baseReusable,
+        bool $orderConsumed,
+        bool $rangeUsable,
+        array $acceptedRowids,
+    ): string {
+        if (!$baseReusable) {
+            return 'OP_JsonTableRowidRangeReprepareNext209';
+        }
+        if (!$orderConsumed) {
+            return 'OP_JsonTableRowidRangeExternalOrderNext209';
+        }
+        if (!$rangeUsable) {
+            return 'OP_JsonTableRowidRangeBypassNext209';
+        }
+        if ($acceptedRowids === []) {
+            return 'OP_JsonTableRowidRangeEmptyNext209';
+        }
+
+        return 'OP_JsonTableRowidRangeSeekNext209';
+    }
+
+    private static function jsonTableGeneratedPathRowidRangeConstraintCostClass209(string $opcode, int $rowCount): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableRowidRangeSeekNext209' => $rowCount <= 1
+                ? 'json-table-generated-path-rowid-range-point-next209'
+                : 'json-table-generated-path-rowid-range-seek-next209',
+            'OP_JsonTableRowidRangeEmptyNext209' => 'json-table-generated-path-rowid-range-empty-next209',
+            'OP_JsonTableRowidRangeBypassNext209' => 'json-table-generated-path-rowid-range-bypass-next209',
+            'OP_JsonTableRowidRangeExternalOrderNext209' => 'json-table-generated-path-rowid-range-external-order-next209',
+            default => 'json-table-generated-path-rowid-range-reprepare-next209',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidRangeConstraintTransitions209(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'rangeConstraints',
+            'orderedRowidsBeforeRange',
+            'acceptedRangeRowids',
+            'rejectedRangeRowids',
+            'rangeConstraintCount',
+            'baseOrderReusable',
+            'orderByConsumed',
+            'rangeUsable',
+            'rangeReusable',
+            'rangeSelectivity',
+            'estimatedRows',
+            'estimatedCost',
+            'rangeOpcode',
+            'costClass',
+            'rangeFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidRangeConstraintReasons209(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'rangeFingerprint' => 'json-table-generated-path-rowid-range-source-changed-next209',
+                'rangeConstraints', 'rangeConstraintCount' => 'json-table-generated-path-rowid-range-constraint-changed-next209',
+                'orderedRowidsBeforeRange', 'acceptedRangeRowids', 'rejectedRangeRowids' => 'json-table-generated-path-rowid-range-rowset-changed-next209',
+                'baseOrderReusable', 'orderByConsumed', 'rangeUsable', 'rangeReusable' => 'json-table-generated-path-rowid-range-admission-changed-next209',
+                'rangeSelectivity', 'estimatedRows', 'estimatedCost', 'rangeOpcode', 'costClass' => 'json-table-generated-path-rowid-range-cost-changed-next209',
+                default => 'json-table-generated-path-rowid-range-state-changed-next209',
             };
         }
 
