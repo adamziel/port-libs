@@ -821,6 +821,56 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,current:array<string,mixed>,next:array<string,mixed>,replanRequired:bool,replanReasons:list<string>,sourceTransitions:list<array{field:string,current:mixed,next:mixed,changed:bool}>,argumentTransitions:list<array{index:int,current:mixed,next:mixed,changed:bool}>,usageTransitions:list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}>,currentRows:list<array<string,mixed>>,nextRows:list<array<string,mixed>>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function currentSourceConstraintPlannerNext86(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        if ($jsonColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table current-source planner requires a JSON source column');
+        }
+        if ($rootColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table current-source planner root column must be non-empty when provided');
+        }
+
+        $function = self::normalizeFunction($function);
+        $current = self::sourceConstraintPlan86($function, $currentSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
+        $next = self::sourceConstraintPlan86($function, $nextSource, $jsonColumn, $constraints, $rootColumn, $orderBy);
+        $sourceTransitions = self::sourceTransitions86($current, $next);
+        $argumentTransitions = self::argumentTransitions($current['filterArguments'], $next['filterArguments']);
+        $usageTransitions = self::usageTransitions($current['constraintUsage'], $next['constraintUsage']);
+        $replanReasons = self::currentSourceReplanReasons86($current, $next, $sourceTransitions, $argumentTransitions, $usageTransitions);
+
+        return [
+            'function' => $function,
+            'current' => $current,
+            'next' => $next,
+            'replanRequired' => $replanReasons !== [],
+            'replanReasons' => $replanReasons,
+            'sourceTransitions' => $sourceTransitions,
+            'argumentTransitions' => $argumentTransitions,
+            'usageTransitions' => $usageTransitions,
+            'currentRows' => $current['rows'],
+            'nextRows' => $next['rows'],
+            'currentReaderPolicy' => 'pin-current-json-table-source-until-cursor-reset',
+            'nextReaderPolicy' => $replanReasons === []
+                ? 'reuse-current-json-table-source-plan'
+                : 'prepare-next-json-table-source-plan',
+            'dependencies' => ['sqlite-json-table-constraint-planner-current-source-next86'],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -882,6 +932,164 @@ final class SQLiteJsonTablePlan
         }
 
         return $plans;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    private static function sourceConstraintPlan86(
+        string $function,
+        array $source,
+        string $jsonColumn,
+        array $constraints,
+        ?string $rootColumn,
+        array $orderBy,
+    ): array {
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table current-source row is missing {$jsonColumn}");
+        }
+
+        $sourceConstraints = [
+            ['column' => 'json', 'operator' => '=', 'value' => $source[$jsonColumn]],
+        ];
+        if ($rootColumn !== null) {
+            if (!array_key_exists($rootColumn, $source)) {
+                throw new \InvalidArgumentException("SQLite JSON table current-source row is missing {$rootColumn}");
+            }
+            if ($source[$rootColumn] !== null) {
+                $sourceConstraints[] = ['column' => 'root', 'operator' => '=', 'value' => $source[$rootColumn]];
+            }
+        }
+
+        $rowConstraints = array_merge($sourceConstraints, $constraints);
+        $indexPlan = self::xBestIndexPlan($function, $rowConstraints, $orderBy);
+        $validatedPlan = self::validatedPlan($function, $rowConstraints);
+        if (!$validatedPlan['runnable'] || $validatedPlan['jsonInputKind'] === 'sql-null') {
+            $indexPlan['runnable'] = false;
+            $indexPlan['estimatedCost'] = 1000000;
+            $indexPlan['estimatedRows'] = 0;
+            $rows = [];
+        } else {
+            $rows = $indexPlan['orderByConsumed']
+                ? self::filteredRows($function, $rowConstraints)
+                : self::orderedRows($function, $rowConstraints, $orderBy);
+        }
+
+        return [
+            'source' => $source,
+            'jsonColumn' => $jsonColumn,
+            'jsonValue' => $source[$jsonColumn],
+            'rootColumn' => $rootColumn,
+            'rootValue' => $rootColumn === null ? '$' : ($source[$rootColumn] ?? null),
+            'runnable' => $indexPlan['runnable'],
+            'idxNum' => $indexPlan['idxNum'],
+            'idxStr' => $indexPlan['idxStr'],
+            'filterArguments' => $indexPlan['filterArguments'],
+            'constraintUsage' => $indexPlan['constraintUsage'],
+            'filterCurrentNext' => $indexPlan['filterCurrentNext'],
+            'currentNext' => $indexPlan['currentNext'],
+            'orderByConsumed' => $indexPlan['orderByConsumed'],
+            'estimatedCost' => $indexPlan['estimatedCost'],
+            'estimatedRows' => $indexPlan['estimatedRows'],
+            'jsonInputKind' => $validatedPlan['jsonInputKind'],
+            'jsonValid' => $validatedPlan['jsonValid'],
+            'jsonError' => $validatedPlan['jsonError'],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function sourceTransitions86(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'json',
+                'current' => $current['jsonValue'],
+                'next' => $next['jsonValue'],
+                'changed' => $current['jsonValue'] !== $next['jsonValue'],
+            ],
+            [
+                'field' => 'root',
+                'current' => $current['rootValue'],
+                'next' => $next['rootValue'],
+                'changed' => $current['rootValue'] !== $next['rootValue'],
+            ],
+            [
+                'field' => 'jsonInputKind',
+                'current' => $current['jsonInputKind'],
+                'next' => $next['jsonInputKind'],
+                'changed' => $current['jsonInputKind'] !== $next['jsonInputKind'],
+            ],
+            [
+                'field' => 'jsonValid',
+                'current' => $current['jsonValid'],
+                'next' => $next['jsonValid'],
+                'changed' => $current['jsonValid'] !== $next['jsonValid'],
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $sourceTransitions
+     * @param list<array{index:int,current:mixed,next:mixed,changed:bool}> $argumentTransitions
+     * @param list<array{index:int,current:array<string,mixed>|null,next:array<string,mixed>|null,changed:bool}> $usageTransitions
+     * @return list<string>
+     */
+    private static function currentSourceReplanReasons86(
+        array $current,
+        array $next,
+        array $sourceTransitions,
+        array $argumentTransitions,
+        array $usageTransitions,
+    ): array {
+        $reasons = [];
+        foreach ($sourceTransitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+            $reasons[] = match ($transition['field']) {
+                'json' => 'source-json-changed',
+                'root' => 'source-root-changed',
+                'jsonInputKind' => 'source-json-kind-changed',
+                'jsonValid' => 'source-json-validity-changed',
+                default => 'source-state-changed',
+            };
+        }
+        if ($current['runnable'] !== $next['runnable']) {
+            $reasons[] = $next['runnable'] ? 'next-source-plan-becomes-runnable' : 'next-source-plan-becomes-unrunnable';
+        }
+        if ($current['idxNum'] !== $next['idxNum'] || $current['idxStr'] !== $next['idxStr']) {
+            $reasons[] = 'source-constraint-tape-changed';
+        }
+        foreach ($argumentTransitions as $transition) {
+            if ($transition['changed']) {
+                $reasons[] = 'source-argument-tape-changed';
+                break;
+            }
+        }
+        foreach ($usageTransitions as $transition) {
+            if ($transition['changed']) {
+                $reasons[] = 'source-usage-tape-changed';
+                break;
+            }
+        }
+        if ($current['orderByConsumed'] !== $next['orderByConsumed']) {
+            $reasons[] = 'source-orderby-consumption-changed';
+        }
+        if ($current['estimatedRows'] !== $next['estimatedRows'] || $current['estimatedCost'] !== $next['estimatedCost']) {
+            $reasons[] = 'source-estimate-changed';
+        }
+
+        return array_values(array_unique($reasons));
     }
 
     /**

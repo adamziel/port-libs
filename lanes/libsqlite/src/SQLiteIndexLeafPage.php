@@ -378,7 +378,12 @@ final class SQLiteIndexLeafPage
                 'offset' => $cell->offset,
                 'bytes' => $cell->bytesRead,
             ],
-            SQLiteIndexCell::parsePageCells($page, $header, $usableSize),
+            SQLiteIndexCell::parsePageCells(
+                $page,
+                $header,
+                $usableSize,
+                static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+            ),
         );
 
         return SQLiteBTreeLeafPageCompactor::compact($page, $header, $cells, $usableSize, $clearFreeSpace);

@@ -985,6 +985,105 @@ final class SQLiteSavepointStack
     }
 
     /**
+     * @param array<int,string> $currentPageImages
+     * @return array{current_statement:string,next_statement:string,savepoint:string,page_size:int,current_source_verified:bool,current_source_page_numbers:list<int>,current_source_prefixes:array<int,string>,next_source_prefixes:array<int,string>,rollback_to_wal_frame:int,next_wal_frame_index:int,next_page_number:int,next_commit_frame:bool,rollback_restored_page_numbers:list<int>,rollback_discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,statement_journals_after_rollback:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,statement_journals_after_next:list<array{name:string,savepoint:string,wal_start_frame:int,page_numbers:list<int>,wal_frame_indexes:list<int>}>,pending_page_numbers_after_rollback:list<int>,pending_wal_frame_indexes_after_rollback:list<int>,pending_page_numbers_after_next:list<int>,pending_wal_frame_indexes_after_next:list<int>,rolled_back_database_bytes:string,savepoint_active_after:bool,transaction_active_after:bool,dependencies:list<string>}
+     */
+    public function rollbackStatementCurrentSourceAndBeginNext86(
+        string $currentStatementName,
+        string $nextStatementName,
+        string $currentDatabaseBytes,
+        array $currentPageImages,
+        int $nextPageNumber,
+        string $nextBeforeImage,
+        int $pageSize,
+        bool $commitFrame = false,
+    ): array {
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite page size must be positive');
+        }
+        if (strlen($currentDatabaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite statement rollback current source must be aligned to the page size');
+        }
+        if ($currentPageImages === []) {
+            throw new \InvalidArgumentException('SQLite statement rollback current source pages must not be empty');
+        }
+
+        $sourcePageNumbers = [];
+        $currentSourcePrefixes = [];
+        foreach ($currentPageImages as $pageNumber => $expectedImage) {
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite statement rollback current source page numbers are one-based');
+            }
+            if (!is_string($expectedImage) || strlen($expectedImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite statement rollback current source image for page {$pageNumber} must match the page size");
+            }
+
+            $offset = ($pageNumber - 1) * $pageSize;
+            $actualImage = substr($currentDatabaseBytes, $offset, $pageSize);
+            if (strlen($actualImage) !== $pageSize) {
+                throw new \InvalidArgumentException("SQLite statement rollback current source page {$pageNumber} is outside the database image");
+            }
+            if ($actualImage !== $expectedImage) {
+                throw new \RuntimeException("SQLite statement rollback current source page {$pageNumber} is stale");
+            }
+
+            $sourcePageNumbers[] = $pageNumber;
+            $currentSourcePrefixes[$pageNumber] = rtrim(substr($actualImage, 0, min(48, $pageSize)), "\0");
+        }
+        sort($sourcePageNumbers, SORT_NUMERIC);
+        ksort($currentSourcePrefixes, SORT_NUMERIC);
+
+        $rolledBackDatabaseBytes = $this->rollbackStatementDatabaseImage($currentStatementName, $currentDatabaseBytes, $pageSize);
+        $recovery = $this->rollbackStatementAndBeginNextStatementJournal70(
+            $currentStatementName,
+            $nextStatementName,
+            $nextPageNumber,
+            $nextBeforeImage,
+            $pageSize,
+            $commitFrame
+        );
+
+        $nextSourcePrefixes = [];
+        foreach ($sourcePageNumbers as $pageNumber) {
+            $offset = ($pageNumber - 1) * $pageSize;
+            $nextSourcePrefixes[$pageNumber] = rtrim(substr($rolledBackDatabaseBytes, $offset, min(48, $pageSize)), "\0");
+        }
+
+        return [
+            'current_statement' => $currentStatementName,
+            'next_statement' => $nextStatementName,
+            'savepoint' => $recovery['savepoint'],
+            'page_size' => $pageSize,
+            'current_source_verified' => true,
+            'current_source_page_numbers' => $sourcePageNumbers,
+            'current_source_prefixes' => $currentSourcePrefixes,
+            'next_source_prefixes' => $nextSourcePrefixes,
+            'rollback_to_wal_frame' => $recovery['rollback_to_wal_frame'],
+            'next_wal_frame_index' => $recovery['next_wal_frame_index'],
+            'next_page_number' => $recovery['next_page_number'],
+            'next_commit_frame' => $recovery['next_commit_frame'],
+            'rollback_restored_page_numbers' => $recovery['rollback_restored_page_numbers'],
+            'rollback_discarded_wal_frames' => $recovery['rollback_discarded_wal_frames'],
+            'statement_journals_after_rollback' => $recovery['statement_journals_after_rollback'],
+            'statement_journals_after_next' => $recovery['statement_journals_after_next'],
+            'pending_page_numbers_after_rollback' => $recovery['pending_page_numbers_after_rollback'],
+            'pending_wal_frame_indexes_after_rollback' => $recovery['pending_wal_frame_indexes_after_rollback'],
+            'pending_page_numbers_after_next' => $recovery['pending_page_numbers_after_next'],
+            'pending_wal_frame_indexes_after_next' => $recovery['pending_wal_frame_indexes_after_next'],
+            'rolled_back_database_bytes' => $rolledBackDatabaseBytes,
+            'savepoint_active_after' => $recovery['savepoint_active_after'],
+            'transaction_active_after' => $recovery['transaction_active_after'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $recovery['dependencies'],
+                [
+                    'sqlite-pager-statement-journal-savepoint-current-source-next86',
+                    'sqlite-statement-journal-current-source-guard',
+                ]
+            ))),
+        ];
+    }
+
+    /**
      * @return array{statement:string,savepoint:string,page_size:int,restored_page_numbers:list<int>,restore_pages:list<array{page_number:int,database_offset:int,bytes:int}>,rollback_to_wal_frame:int,discarded_wal_frames:list<array{frame_index:int,page_number:int,commit_frame:bool}>,transaction_active_after:bool,savepoint_active_after:bool,statement_journal_cleared:bool}
      */
     public function rollbackStatementOnErrorWithPlan(string $statementName, int $pageSize): array

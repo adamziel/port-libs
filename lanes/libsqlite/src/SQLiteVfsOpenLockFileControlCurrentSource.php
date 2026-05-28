@@ -13,6 +13,26 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      */
     public static function currentSourceNext82(array $operations, array $options = []): array
     {
+        return self::run($operations, $options, false, 'vfs-open-lock-filecontrol-current-source-next82');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext86(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-open-uri-lock-current-source-next86');
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(array $operations, array $options, bool $uriAware, string $dependency): array
+    {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS open lock file-control current-source next82 requires operations');
         }
@@ -25,13 +45,14 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
-                $handle = self::openHandle($op, $options, $state);
+                $handle = self::openHandle($op, $options, $state, $uriAware);
                 $state['handles'][$handle['id']] = $handle;
                 $state['last_open'] = $handle['id'];
                 $events[] = self::event('open', $handle['status'], $before, self::snapshot($state), [
                     'handle' => $handle['id'],
                     'path' => $handle['path'],
                     'source_key' => $handle['source_key'],
+                    'uri' => $handle['uri'],
                     'reused_controls' => $handle['reused_controls'],
                     'reused_lock' => $handle['reused_lock'],
                 ]);
@@ -73,11 +94,13 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             if ($op['kind'] === 'lock') {
                 $handle = &$state['handles'][$handleId];
                 $level = self::lockLevel((string) $op['value']);
-                if ($handle['nolock']) {
+                if ($handle['nolock'] || $handle['immutable']) {
                     $events[] = self::event('lock', 'blocked', $before, self::snapshot($state), [
                         'handle' => $handleId,
                         'lock_state' => $handle['lock_state'],
-                        'reason' => 'nolock VFS disables POSIX byte-range locking',
+                        'reason' => $handle['immutable']
+                            ? 'immutable URI disables locking and change detection'
+                            : 'nolock VFS disables POSIX byte-range locking',
                     ]);
                     unset($handle);
                     continue;
@@ -126,7 +149,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'dependencies' => [
                 'vfs-open-file-control-application',
                 'vfs-lock-state-application',
-                'vfs-open-lock-filecontrol-current-source-next82',
+                $dependency,
             ],
         ];
     }
@@ -156,12 +179,13 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $state
      * @return array<string,mixed>
      */
-    private static function openHandle(array $op, array $options, array &$state): array
+    private static function openHandle(array $op, array $options, array &$state, bool $uriAware): array
     {
         $state['sequence']++;
         $filename = (string) ($op['filename'] ?? $options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
-        $path = self::canonicalPath($filename);
-        $memory = str_contains(strtolower($filename), 'mode=memory') || $path === ':memory:';
+        $uri = self::openUri($filename, $uriAware);
+        $path = (string) $uri['path'];
+        $memory = $uri['mode'] === 'memory' || $path === ':memory:';
         $sourceKey = $memory ? 'memory:db-' . $state['sequence'] : $path;
         $controls = $memory ? [] : ($state['persistent_controls'][$sourceKey] ?? []);
         $lock = $memory ? 'unlocked' : (string) ($state['persistent_locks'][$sourceKey] ?? 'unlocked');
@@ -175,14 +199,50 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
             'status' => $memory ? 'memory-open' : 'open',
             'path' => $memory ? '' : $path,
             'source_key' => $sourceKey,
-            'readonly' => (bool) ($op['readonly'] ?? str_contains(strtolower($filename), 'mode=ro')),
-            'nolock' => (bool) ($op['nolock'] ?? str_contains(strtolower($filename), 'nolock=1')),
+            'readonly' => (bool) ($op['readonly'] ?? ($uri['mode'] === 'ro' || $uri['immutable'] === true)),
+            'nolock' => (bool) ($op['nolock'] ?? $uri['nolock'] === true),
+            'immutable' => $uri['immutable'] === true,
+            'uri' => $uri,
             'delete_on_close' => (bool) ($op['delete_on_close'] ?? false),
             'persistent' => !$memory,
             'controls' => $controls,
             'lock_state' => $lock,
             'reused_controls' => $controls !== [],
             'reused_lock' => $lock !== 'unlocked',
+        ];
+    }
+
+    /**
+     * @return array{is_uri:bool,path:string,mode:string|null,cache:string|null,immutable:bool|null,nolock:bool|null,vfs:string|null,authority:string|null}
+     */
+    private static function openUri(string $filename, bool $uriAware): array
+    {
+        if ($uriAware) {
+            $uri = SQLiteFileUri::parse($filename);
+
+            return [
+                'is_uri' => $uri['is_uri'],
+                'path' => $uri['path'] === '' ? self::canonicalPath($filename) : (string) $uri['path'],
+                'mode' => $uri['mode'],
+                'cache' => $uri['cache'],
+                'immutable' => $uri['immutable'],
+                'nolock' => $uri['nolock'],
+                'vfs' => $uri['vfs'],
+                'authority' => $uri['authority'],
+            ];
+        }
+
+        $path = self::canonicalPath($filename);
+
+        return [
+            'is_uri' => str_starts_with($filename, 'file:'),
+            'path' => $path,
+            'mode' => str_contains(strtolower($filename), 'mode=memory') || $path === ':memory:' ? 'memory' : (str_contains(strtolower($filename), 'mode=ro') ? 'ro' : null),
+            'cache' => null,
+            'immutable' => null,
+            'nolock' => str_contains(strtolower($filename), 'nolock=1') ? true : null,
+            'vfs' => null,
+            'authority' => null,
         ];
     }
 

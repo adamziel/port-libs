@@ -441,43 +441,95 @@ final class SQLiteSelectExpressionIndexPlan
             }
         }
 
-        $bounded = [];
-        foreach ($rangeConstraints as $leftOffset => $left) {
-            if ($left['operator'] !== 'range->' && $left['operator'] !== 'range->=') {
+        $groups = [];
+        foreach ($rangeConstraints as $constraint) {
+            $key = implode("\0", [
+                $constraint['type'],
+                strtolower($constraint['column']),
+                (string) ($constraint['path'] ?? ''),
+            ]);
+            $groups[$key]['type'] = $constraint['type'];
+            $groups[$key]['column'] = $constraint['column'];
+            $groups[$key]['path'] = $constraint['path'] ?? null;
+            if ($constraint['operator'] === 'range->' || $constraint['operator'] === 'range->=') {
+                if (
+                    !isset($groups[$key]['lower'])
+                    || self::lowerBoundIsTighter($constraint, $groups[$key]['lower'])
+                ) {
+                    $groups[$key]['lower'] = $constraint;
+                }
                 continue;
             }
-            foreach ($rangeConstraints as $rightOffset => $right) {
-                if ($leftOffset === $rightOffset || ($right['operator'] !== 'range-<' && $right['operator'] !== 'range-<=')) {
-                    continue;
-                }
+            if ($constraint['operator'] === 'range-<' || $constraint['operator'] === 'range-<=') {
                 if (
-                    $left['type'] !== $right['type']
-                    || strcasecmp($left['column'], $right['column']) !== 0
-                    || (($left['path'] ?? null) !== ($right['path'] ?? null))
+                    !isset($groups[$key]['upper'])
+                    || self::upperBoundIsTighter($constraint, $groups[$key]['upper'])
                 ) {
-                    continue;
+                    $groups[$key]['upper'] = $constraint;
                 }
-                if (self::compareStat4Keys($left['values'], $right['values']) > 0) {
-                    continue;
-                }
-
-                $bounded[] = [
-                    'type' => $left['type'],
-                    'column' => $left['column'],
-                    'path' => $left['path'] ?? null,
-                    'operator' => 'range-bounded',
-                    'values' => [
-                        'lower' => $left['values'],
-                        'upper' => $right['values'],
-                        'lowerInclusive' => $left['operator'] === 'range->=',
-                        'upperInclusive' => $right['operator'] === 'range-<=',
-                    ],
-                    'residualPredicateRequired' => true,
-                ];
             }
         }
 
+        $bounded = [];
+        foreach ($groups as $group) {
+            $left = $group['lower'] ?? null;
+            $right = $group['upper'] ?? null;
+            if (!is_array($left) || !is_array($right)) {
+                continue;
+            }
+
+            $comparison = self::compareStat4Keys($left['values'], $right['values']);
+            if ($comparison > 0) {
+                continue;
+            }
+            if ($comparison === 0 && ($left['operator'] !== 'range->=' || $right['operator'] !== 'range-<=')) {
+                continue;
+            }
+
+            $bounded[] = [
+                'type' => $group['type'],
+                'column' => $group['column'],
+                'path' => $group['path'],
+                'operator' => 'range-bounded',
+                'values' => [
+                    'lower' => $left['values'],
+                    'upper' => $right['values'],
+                    'lowerInclusive' => $left['operator'] === 'range->=',
+                    'upperInclusive' => $right['operator'] === 'range-<=',
+                ],
+                'residualPredicateRequired' => true,
+            ];
+        }
+
         return $bounded;
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $candidate
+     * @param array{operator:string,values:mixed} $current
+     */
+    private static function lowerBoundIsTighter(array $candidate, array $current): bool
+    {
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        if ($comparison !== 0) {
+            return $comparison > 0;
+        }
+
+        return $candidate['operator'] === 'range->' && $current['operator'] === 'range->=';
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $candidate
+     * @param array{operator:string,values:mixed} $current
+     */
+    private static function upperBoundIsTighter(array $candidate, array $current): bool
+    {
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        if ($comparison !== 0) {
+            return $comparison < 0;
+        }
+
+        return $candidate['operator'] === 'range-<' && $current['operator'] === 'range-<=';
     }
 
     /**

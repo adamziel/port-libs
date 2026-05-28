@@ -15,6 +15,28 @@ final class SQLitePragmaForeignKeyIntegrity
     public static function execute(string $sql, array $schemas, ?SQLiteAttachedSchemaCatalog $catalog = null): array
     {
         $parsed = self::parsePragma($sql);
+
+        return self::executeParsed($parsed, $schemas, $catalog);
+    }
+
+    /**
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{status:string,pragma:string,schema:string,target_schema:string,target:string|null,target_source:string,rows:list<array{schema:string,table:string,rowid:int|string|null,parent:string,fkid:int}>}
+     */
+    public static function executeTableValued(string $sql, array $schemas, ?SQLiteAttachedSchemaCatalog $catalog = null): array
+    {
+        $parsed = self::parseTableValuedPragma($sql);
+
+        return self::executeParsed($parsed, $schemas, $catalog);
+    }
+
+    /**
+     * @param array{schema:string|null,target_schema:string|null,target:string|null} $parsed
+     * @param array<string,array{tables:array<string,list<array<string,mixed>>>,foreignKeys:list<array<string,mixed>>}> $schemas
+     * @return array{status:string,pragma:string,schema:string,target_schema:string,target:string|null,target_source:string,rows:list<array{schema:string,table:string,rowid:int|string|null,parent:string,fkid:int}>}
+     */
+    private static function executeParsed(array $parsed, array $schemas, ?SQLiteAttachedSchemaCatalog $catalog = null): array
+    {
         $schema = $parsed['schema'];
         $target = $parsed['target'];
         $targetSchema = $parsed['target_schema'];
@@ -120,6 +142,29 @@ final class SQLitePragmaForeignKeyIntegrity
     }
 
     /**
+     * @return array{schema:string|null,target_schema:string|null,target:string|null}
+     */
+    private static function parseTableValuedPragma(string $sql): array
+    {
+        $trimmed = rtrim(trim($sql), ';');
+        if (!preg_match('/^(?:select\s+\*\s+from\s+)?(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?pragma_foreign_key_check\s*(?:\(\s*(?<target>.*?)\s*\))?$/i', $trimmed, $matches)) {
+            throw new InvalidArgumentException('Only pragma_foreign_key_check[(table)] table-valued calls are supported');
+        }
+
+        $target = null;
+        $targetSchema = null;
+        if (isset($matches['target']) && trim($matches['target']) !== '') {
+            [$targetSchema, $target] = self::splitTargetIdentifier($matches['target']);
+        }
+
+        return [
+            'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
+            'target_schema' => $targetSchema,
+            'target' => $target,
+        ];
+    }
+
+    /**
      * @return array{0:string|null,1:string}
      */
     private static function splitTargetIdentifier(string $identifier): array
@@ -127,6 +172,17 @@ final class SQLitePragmaForeignKeyIntegrity
         $parts = self::splitQualifiedIdentifier($identifier);
         if (count($parts) === 1) {
             $target = self::unquoteIdentifier($parts[0]);
+            if (str_contains($target, '.')) {
+                $qualified = self::splitQualifiedIdentifier($target);
+                if (count($qualified) === 2) {
+                    $schema = strtolower(self::unquoteIdentifier($qualified[0]));
+                    $target = self::unquoteIdentifier($qualified[1]);
+                    self::validateIdentifier($schema, 'target schema');
+                    self::validateIdentifier($target, 'target table');
+
+                    return [$schema, $target];
+                }
+            }
             self::validateIdentifier($target, 'target table');
 
             return [null, $target];

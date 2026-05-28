@@ -599,6 +599,92 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,current_source_rows:list<array{page_number:int,before_source:string,current_source:string,next_source:string,before_frame:int|null,current_frame:int|null,next_frame:int|null,rollback_changed_current:bool,checkpoint_changed_next:bool,source_transition:string,current_label:string,next_label:string}>,current_sources:list<string>,next_sources:list<string>,source_transitions:list<string>,current_source_counts:array<string,int>,next_source_counts:array<string,int>,rolled_back_page_numbers:list<int>,rolled_back_frame_indexes:list<int>,current_uses_rollback_prefix:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,images_match:bool,yield_count:int,dependencies:list<string>}
+     */
+    public static function checkpointReaderSavepointCurrentSourceNext85(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $originalReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        $yield = self::yieldReaderSavepointCurrentNext(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $originalReaderEndFrame,
+            $nextReaderEndFrame
+        );
+
+        $rows = [];
+        $transitions = [];
+        foreach ($yield['current_reader'] as $index => $current) {
+            $before = $yield['before_reader'][$index];
+            $next = $yield['next_reader'][$index];
+            $beforeSource = (string) $before['source'];
+            $currentSource = (string) $current['source'];
+            $nextSource = (string) $next['source'];
+            $transition = $beforeSource . '>' . $currentSource . '>' . $nextSource;
+            $transitions[] = $transition;
+
+            $rows[] = [
+                'page_number' => (int) $current['page_number'],
+                'before_source' => $beforeSource,
+                'current_source' => $currentSource,
+                'next_source' => $nextSource,
+                'before_frame' => $before['frame_index'] ?? null,
+                'current_frame' => $current['frame_index'] ?? null,
+                'next_frame' => $next['frame_index'] ?? null,
+                'rollback_changed_current' => $before['image'] !== $current['image'],
+                'checkpoint_changed_next' => $current['image'] !== $next['image'],
+                'source_transition' => $transition,
+                'current_label' => rtrim(substr((string) $current['image'], 0, 64), ".\0"),
+                'next_label' => rtrim(substr((string) $next['image'], 0, 64), ".\0"),
+            ];
+        }
+
+        return [
+            'status' => $yield['status'],
+            'savepoint' => $yield['savepoint'],
+            'mode' => $yield['mode'],
+            'wal_action' => $yield['wal_action'],
+            'checkpoint_busy' => $yield['checkpoint_busy'],
+            'checkpoint_reason' => $yield['checkpoint_reason'],
+            'original_reader_end_frame' => $yield['original_reader_end_frame'],
+            'current_reader_end_frame' => $yield['current_reader_end_frame'],
+            'next_reader_end_frame' => $yield['next_reader_end_frame'],
+            'retained_frame_count' => $yield['retained_frame_count'],
+            'discarded_frame_count' => $yield['discarded_frame_count'],
+            'current_source_rows' => $rows,
+            'current_sources' => $yield['current_reader_sources'],
+            'next_sources' => $yield['next_reader_sources'],
+            'source_transitions' => $transitions,
+            'current_source_counts' => array_count_values($yield['current_reader_sources']),
+            'next_source_counts' => array_count_values($yield['next_reader_sources']),
+            'rolled_back_page_numbers' => $yield['rolled_back_page_numbers'],
+            'rolled_back_frame_indexes' => $yield['rolled_back_frame_indexes'],
+            'current_uses_rollback_prefix' => in_array('wal', $yield['current_reader_sources'], true),
+            'next_uses_checkpoint_database' => !in_array('wal', $yield['next_reader_sources'], true),
+            'next_uses_preserved_wal' => $yield['wal_action'] === 'preserve_wal',
+            'images_match' => $yield['current_to_next_images_match'],
+            'yield_count' => $yield['yield_count'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $yield['dependencies'],
+                ['sqlite-wal-checkpoint-reader-savepoint-current-source-next85']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,truncated_wal_bytes:int,restarted_wal_bytes:int,restarted_checkpoint_sequence:int|null,restarted_salt1:int|null,restarted_salt2:int|null,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,current_reader_kept_retained_wal:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_restarted_header:bool,images_match:bool,dependencies:list<string>}
      */
     public static function readerRestartCurrentNextAfterRollbackTo(

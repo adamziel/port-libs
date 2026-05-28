@@ -160,6 +160,86 @@ final class SQLiteAttachTempViewTriggerResolution
     }
 
     /**
+     * Compare the current prepared trigger source with the next schema catalog
+     * that a connection sees after ATTACH, temp DDL, or WAL-backed schema DDL.
+     *
+     * @return array{trigger:string,current:array<string,mixed>,next:array<string,mixed>,changed:bool,changedFields:list<string>,requiresReprepare:bool,walSchemas:list<string>,tempSchemas:list<string>,attachedSchemas:list<string>,invalidatedSources:list<string>,status:string}
+     */
+    public static function currentNextSourcePlan(SQLiteAttachedSchemaCatalog $current, SQLiteAttachedSchemaCatalog $next, string $triggerName): array
+    {
+        $currentSource = self::sourceSnapshot($current, $triggerName);
+        $nextSource = self::sourceSnapshot($next, $triggerName);
+        $changedFields = [];
+
+        foreach (['triggerSchema', 'triggerTemporary', 'target', 'targetSchema', 'targetType', 'targetTemporary', 'insteadOf', 'columns', 'bodyDependencies', 'status'] as $field) {
+            if (($currentSource[$field] ?? null) !== ($nextSource[$field] ?? null)) {
+                $changedFields[] = $field;
+            }
+        }
+
+        $sourceSchemas = array_values(array_unique(array_merge(
+            [$currentSource['triggerSchema'], $currentSource['targetSchema'], $nextSource['triggerSchema'], $nextSource['targetSchema']],
+            self::dependencySchemas($currentSource['bodyDependencies']),
+            self::dependencySchemas($nextSource['bodyDependencies']),
+        )));
+        sort($sourceSchemas);
+
+        $walSchemas = array_values(array_filter($sourceSchemas, static fn (string $schema): bool => $schema !== 'temp'));
+        $tempSchemas = array_values(array_filter($sourceSchemas, static fn (string $schema): bool => $schema === 'temp'));
+        $attachedSchemas = array_values(array_filter($sourceSchemas, static fn (string $schema): bool => !in_array($schema, ['main', 'temp'], true)));
+
+        return [
+            'trigger' => $currentSource['trigger'],
+            'current' => $currentSource,
+            'next' => $nextSource,
+            'changed' => $changedFields !== [],
+            'changedFields' => $changedFields,
+            'requiresReprepare' => $changedFields !== [],
+            'walSchemas' => $walSchemas,
+            'tempSchemas' => $tempSchemas,
+            'attachedSchemas' => $attachedSchemas,
+            'invalidatedSources' => $changedFields === [] ? [] : $sourceSchemas,
+            'status' => $changedFields === [] ? 'stable' : 'reprepare-required',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function sourceSnapshot(SQLiteAttachedSchemaCatalog $catalog, string $triggerName): array
+    {
+        $resolved = self::resolve($catalog, $triggerName);
+
+        return [
+            'trigger' => $resolved['trigger'],
+            'triggerSchema' => $resolved['triggerSchema'],
+            'triggerTemporary' => $resolved['triggerTemporary'],
+            'target' => $resolved['target'],
+            'targetSchema' => $resolved['targetSchema'],
+            'targetType' => $resolved['targetType'],
+            'targetTemporary' => $resolved['targetTemporary'],
+            'insteadOf' => $resolved['insteadOf'],
+            'columns' => $resolved['columns'],
+            'bodyDependencies' => $resolved['bodyDependencies'],
+            'status' => $resolved['status'],
+        ];
+    }
+
+    /**
+     * @param list<array{schema:?string,name:string}> $dependencies
+     * @return list<string>
+     */
+    private static function dependencySchemas(array $dependencies): array
+    {
+        $schemas = [];
+        foreach ($dependencies as $dependency) {
+            $schemas[] = $dependency['schema'] ?? 'unqualified';
+        }
+
+        return array_values(array_filter($schemas, static fn (string $schema): bool => $schema !== 'unqualified'));
+    }
+
+    /**
      * @return array{schema:string,name:string}
      */
     private static function splitQualifiedName(string $name): array

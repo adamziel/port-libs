@@ -136,11 +136,18 @@ final class SQLiteGroupedAggregate
             if (!is_string($orderColumn)) {
                 throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY column is malformed');
             }
-            usort($filtered, static function (array $left, array $right) use ($orderColumn): int {
+            $direction = strtoupper((string) ($aggregate['orderDirection'] ?? 'ASC'));
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON aggregate ORDER BY direction must be ASC or DESC');
+            }
+            usort($filtered, static function (array $left, array $right) use ($orderColumn, $direction): int {
                 if (!array_key_exists($orderColumn, $left['row']) || !array_key_exists($orderColumn, $right['row'])) {
                     throw new \InvalidArgumentException("SQLite JSON aggregate ORDER BY row is missing column {$orderColumn}");
                 }
                 $comparison = self::compareSqlValues($left['row'][$orderColumn], $right['row'][$orderColumn]);
+                if ($direction === 'DESC') {
+                    $comparison = -$comparison;
+                }
 
                 return $comparison === 0 ? $left['position'] <=> $right['position'] : $comparison;
             });

@@ -374,6 +374,141 @@ final class SQLitePagerHotJournalWalRecoveryPlan
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,mode:string,hot_recovered:bool,journal_action:string,wal_recovery_status:string,base_database_bytes:int,valid_wal_bytes_length:int,before_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,retained_frame_count:int,discarded_frame_count:int,wal_action:string,checkpoint_busy:bool,before_reader:list<array<string,mixed>>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string|null>,current_reader_sources:list<string|null>,next_reader_sources:list<string|null>,before_reader_frame_indexes:list<int|null>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_current_images_match:bool,current_to_next_images_match:bool,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,operations:list<array<string,mixed>>,hot_recovery:array<string,mixed>,savepoint_checkpoint:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function savepointCurrentSourceNext85(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        string $walBytes,
+        string $databasePath,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $databasePageSize = null,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite pager hot-journal WAL savepoint current-source requires a savepoint name');
+        }
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite pager hot-journal WAL savepoint current-source requires page numbers');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite pager hot-journal WAL savepoint current-source requires restart or truncate mode');
+        }
+
+        $recovery = self::recover(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $walBytes,
+            $databasePath,
+            $databasePageSize,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $baseDatabaseBytes = $recovery['payloads'][$databasePath . '#hot-journal'] ?? $databaseBytes;
+        if (!is_string($baseDatabaseBytes)) {
+            throw new \UnexpectedValueException('SQLite hot-journal recovery did not expose a database byte image');
+        }
+
+        $validWalBytes = (string) $recovery['wal_recovery']['valid_wal_bytes'];
+        $validWal = SQLiteWal::parse($validWalBytes, $databasePageSize, true);
+        $checkpoint = SQLiteWalSavepointCheckpointPlan::afterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $validWal,
+            $validWalBytes,
+            $baseDatabaseBytes,
+            $mode
+        );
+        $currentWal = SQLiteWal::parse($checkpoint['current_wal_bytes'], $validWal->header->pageSize, true);
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $validWal->header->pageSize, true);
+
+        $beforeEndFrame = $validWal->frameCount();
+        $currentEndFrame = $currentWal->frameCount();
+        $nextEndFrame = $nextWal?->frameCount() ?? 0;
+        $pageSize = self::pageSize($validWal, $databasePageSize, $baseDatabaseBytes);
+        $before = [];
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite pager hot-journal WAL savepoint current-source page numbers must be integers');
+            }
+
+            $before[] = self::safeReaderVisibility($validWal, $baseDatabaseBytes, $pageNumber, $beforeEndFrame);
+            $current[] = self::safeReaderVisibility($currentWal, $baseDatabaseBytes, $pageNumber, $currentEndFrame);
+            $next[] = $nextWal === null
+                ? self::databaseVisibility($durable['database_bytes'], $pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $durable['database_bytes'], $pageNumber, $nextEndFrame);
+        }
+
+        $beforeImages = self::visibilityImages($before);
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'status' => $checkpoint['busy'] ? 'busy' : 'ready',
+            'reason' => 'hot_journal_recovery_then_wal_savepoint_current_source_checkpoint',
+            'database_path' => $databasePath,
+            'journal_path' => $recovery['journal_path'],
+            'wal_path' => $recovery['wal_path'],
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'hot_recovered' => $recovery['hot_recovered'],
+            'journal_action' => $recovery['journal_action'],
+            'wal_recovery_status' => $recovery['wal_status'],
+            'base_database_bytes' => strlen($baseDatabaseBytes),
+            'valid_wal_bytes_length' => strlen($validWalBytes),
+            'before_reader_end_frame' => $beforeEndFrame,
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'before_reader' => $before,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'before_reader_sources' => self::visibilityColumn($before, 'source'),
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'before_reader_frame_indexes' => self::visibilityColumn($before, 'frame_index'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'before_to_current_images_match' => $beforeImages === $currentImages,
+            'current_to_next_images_match' => $currentImages === $nextImages,
+            'next_uses_checkpoint_database' => !in_array('wal', self::visibilityColumn($next, 'source'), true),
+            'next_uses_preserved_wal' => $durable['wal_action'] === 'preserve_wal',
+            'operations' => array_values(array_merge($recovery['operations'], [[
+                'op' => 'checkpoint',
+                'path' => $databasePath,
+                'mode' => $mode,
+                'reason' => 'checkpoint_retained_wal_prefix_after_savepoint_rollback',
+            ]])),
+            'hot_recovery' => $recovery,
+            'savepoint_checkpoint' => $checkpoint,
+            'dependencies' => array_values(array_unique(array_merge(
+                $recovery['dependencies'],
+                $checkpoint['dependencies'],
+                ['sqlite-pager-hot-journal-wal-savepoint-current-source-next85']
+            ))),
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     private static function safeReaderVisibility(SQLiteWal $wal, string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame): array

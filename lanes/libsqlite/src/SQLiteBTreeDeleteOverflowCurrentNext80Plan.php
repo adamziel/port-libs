@@ -46,7 +46,11 @@ final class SQLiteBTreeDeleteOverflowCurrentNext80Plan
         $nextDeletePage = SQLiteTableLeafPage::deleteCellByRowId(
             $databaseAfterCurrent->page($leafPageNumber),
             $nextRowId,
+            $databaseAfterCurrent->header->pageSize,
+            $leafPageNumber === 1 ? 100 : 0,
+            $databaseAfterCurrent->usablePageSize(),
             secureDelete: $secureDelete,
+            overflowReader: static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
         );
         $next = SQLiteBTreeDeleteRebalanceFreeblockApplyPlan::tableLeafFromDeleteResult(
             $databaseAfterCurrent,
@@ -74,6 +78,7 @@ final class SQLiteBTreeDeleteOverflowCurrentNext80Plan
         array $nextRecordValues,
         array $nextObsoleteOverflowPageNumbers,
         bool $secureDelete = false,
+        ?callable $overflowReader = null,
     ): self {
         $current = SQLiteBTreeDeleteRebalanceFreeblockApplyPlan::indexLeafFromDeleteResult(
             $database,
@@ -85,7 +90,12 @@ final class SQLiteBTreeDeleteOverflowCurrentNext80Plan
         $nextDeletePage = SQLiteIndexLeafPage::deleteCellByRecordValues(
             $databaseAfterCurrent->page($leafPageNumber),
             $nextRecordValues,
+            $databaseAfterCurrent->header->pageSize,
+            $leafPageNumber === 1 ? 100 : 0,
+            $databaseAfterCurrent->usablePageSize(),
+            1,
             secureDelete: $secureDelete,
+            overflowReader: $overflowReader ?? static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
         );
         $next = SQLiteBTreeDeleteRebalanceFreeblockApplyPlan::indexLeafFromDeleteResult(
             $databaseAfterCurrent,

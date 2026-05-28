@@ -952,6 +952,89 @@ final class SQLiteWal
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,mode:string,source_status:string,reason:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,wal_bytes_length:int,checkpoint_sequence:int,restarted_checkpoint_sequence:int|null,current_salt:array{0:int,1:int},next_salt:array{0:int,1:int}|null,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_sources:list<string>,next_sources:list<string>,current_frame_indexes:list<int|null>,next_frame_indexes:list<int|null>,current_errors:list<string>,next_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,next_uses_restarted_header:bool,source_frame_count:int,parsed_frame_count:int,dependencies:list<string>}
+     */
+    public function restartTruncateReaderCurrentSourceNext86(
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $currentReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader boundary requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader boundary requires restart or truncate mode');
+        }
+
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        $currentEndFrame = $currentReaderEndFrame ?? $this->frameCount();
+        if ($currentEndFrame < 0 || $currentEndFrame > $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader frame is outside the WAL frame range');
+        }
+
+        $checkpoint = $source->durableCheckpointResult($databaseBytes, $mode, null);
+        $nextWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($checkpoint['wal_bytes'], $source->header->pageSize, $this->checksumsValidated);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source reader boundary pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($source, $databaseBytes, $pageNumber, $currentEndFrame);
+            $next[] = $nextWal === null || $nextReaderEndFrame === 0
+                ? self::databasePageVisibilityOrError($checkpoint['database_bytes'], $source->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $checkpoint['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+        $restartedHeader = $checkpoint['wal_header'];
+
+        return [
+            'status' => $checkpoint['busy'] ? 'busy' : 'ready',
+            'mode' => $mode,
+            'source_status' => 'current-source',
+            'reason' => $checkpoint['reason'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $checkpoint['wal_action'],
+            'wal_bytes_length' => $checkpoint['wal_bytes_length'],
+            'checkpoint_sequence' => $source->header->checkpointSequence,
+            'restarted_checkpoint_sequence' => is_array($restartedHeader) ? (int) $restartedHeader['checkpoint_sequence'] : null,
+            'current_salt' => [$source->header->salt1, $source->header->salt2],
+            'next_salt' => is_array($restartedHeader) ? [(int) $restartedHeader['salt1'], (int) $restartedHeader['salt2']] : null,
+            'checkpoint' => $checkpoint,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_errors' => self::visibilityErrors($current),
+            'next_errors' => self::visibilityErrors($next),
+            'images_match' => $currentImages === $nextImages,
+            'next_uses_checkpoint_database' => $checkpoint['database_bytes'] !== $databaseBytes,
+            'next_uses_restarted_header' => $checkpoint['wal_action'] === 'restart_wal' && $nextWal !== null && $nextWal->frameCount() === 0,
+            'source_frame_count' => $source->frameCount(),
+            'parsed_frame_count' => $this->frameCount(),
+            'dependencies' => array_values(array_unique(array_merge($checkpoint['dependencies'], [
+                'sqlite-wal-restart-truncate-reader-current-source-next86',
+                'sqlite-wal-current-source-admission',
+            ]))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,mode:string,reason:string,busy:bool,reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,dependencies:list<string>}
      */
     public function checkpointBusyReaderCurrentNext(string $databaseBytes, array $pageNumbers, string $mode = 'full', int $readerEndFrame = 0): array
@@ -2225,6 +2308,25 @@ final class SQLiteWal
         }
 
         return $errors;
+    }
+
+    private function assertCurrentWalBytes86(string $walBytes): self
+    {
+        $source = self::parse($walBytes, $this->header->pageSize, $this->checksumsValidated);
+        if ($source->header->pageSize !== $this->header->pageSize) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source page size mismatch');
+        }
+        if ($source->header->checkpointSequence !== $this->header->checkpointSequence) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source checkpoint sequence mismatch');
+        }
+        if ($source->header->salt1 !== $this->header->salt1 || $source->header->salt2 !== $this->header->salt2) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source salt mismatch');
+        }
+        if ($source->frameCount() !== $this->frameCount()) {
+            throw new \InvalidArgumentException('SQLite WAL restart/truncate current-source frame count mismatch');
+        }
+
+        return $source;
     }
 
     /**
