@@ -140,12 +140,16 @@ $tests['btree overflow autovacuum current next rejects empty payload'] = static 
     });
 };
 
-$tests['btree overflow autovacuum current next rejects append fallback'] = static function (TestRunner $t) use ($makeCurrentNextFreelistDatabase, $payloadForPages): void {
+$tests['btree overflow autovacuum current next permits explicit append fallback'] = static function (TestRunner $t) use ($makeCurrentNextFreelistDatabase, $payloadForPages): void {
     $database = $makeCurrentNextFreelistDatabase();
 
-    $t->throws(InvalidArgumentException::class, static function () use ($database, $payloadForPages): void {
-        SQLiteBTreeOverflowAutoVacuumPointerMapPlan::allocateCurrentNextChain($database, 3, $payloadForPages(5, 'z'), true);
-    });
+    $plan = SQLiteBTreeOverflowAutoVacuumPointerMapPlan::allocateCurrentNextChain($database, 3, $payloadForPages(5, 'z'), true);
+
+    $t->same([5, 4, 107, 106, 108], $plan->allocationPlan->allocatedPageNumbers);
+    $t->same([108], $plan->allocationPlan->appendedPageNumbers);
+    $t->same([2, 105], $plan->updatedPointerMapPageNumbers());
+    $t->same(108, $plan->database->pageCount());
+    $t->same('overflow-page', $plan->database->pointerMapEntryForPage(108)->typeName());
 };
 
 return $tests;

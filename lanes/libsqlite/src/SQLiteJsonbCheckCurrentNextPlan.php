@@ -131,8 +131,14 @@ final class SQLiteJsonbCheckCurrentNextPlan
         if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/i', $term, $m) === 1) {
             return ['expr' => self::parseExpr($m[1]), 'operator' => isset($m[2]) && trim($m[2]) !== '' ? 'IS NOT NULL' : 'IS NULL', 'value' => null];
         }
+        if (preg_match('/^(.+?)\s+NOT\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $term, $m) === 1) {
+            return ['expr' => self::parseExpr($m[1]), 'operator' => 'NOT BETWEEN', 'value' => ['lower' => self::literalValue($m[2]), 'upper' => self::literalValue($m[3])]];
+        }
         if (preg_match('/^(.+?)\s+BETWEEN\s+(.+?)\s+AND\s+(.+)$/i', $term, $m) === 1) {
             return ['expr' => self::parseExpr($m[1]), 'operator' => 'BETWEEN', 'value' => ['lower' => self::literalValue($m[2]), 'upper' => self::literalValue($m[3])]];
+        }
+        if (preg_match('/^(.+?)\s+NOT\s+IN\s*\((.+)\)$/i', $term, $m) === 1) {
+            return ['expr' => self::parseExpr($m[1]), 'operator' => 'NOT IN', 'value' => array_map(self::literalValue(...), self::splitTopLevel($m[2], ','))];
         }
         if (preg_match('/^(.+?)\s+IN\s*\((.+)\)$/i', $term, $m) === 1) {
             return ['expr' => self::parseExpr($m[1]), 'operator' => 'IN', 'value' => array_map(self::literalValue(...), self::splitTopLevel($m[2], ','))];
@@ -278,6 +284,9 @@ final class SQLiteJsonbCheckCurrentNextPlan
         if ($operator === 'BETWEEN') {
             return is_array($expected) && self::compare($actual, '>=', $expected['lower']) && self::compare($actual, '<=', $expected['upper']);
         }
+        if ($operator === 'NOT BETWEEN') {
+            return is_array($expected) && !self::compare($actual, 'BETWEEN', $expected);
+        }
         if ($operator === 'IN') {
             $hasNull = false;
             foreach ((array) $expected as $value) {
@@ -294,6 +303,9 @@ final class SQLiteJsonbCheckCurrentNextPlan
         }
         if ($actual === null || $expected === null) {
             return null;
+        }
+        if ($operator === 'NOT IN') {
+            return !self::compare($actual, 'IN', $expected);
         }
 
         $comparison = (is_int($actual) || is_float($actual) || is_int($expected) || is_float($expected))
@@ -571,6 +583,10 @@ final class SQLiteJsonbCheckCurrentNextPlan
                 continue;
             }
             if ($depth === 0 && preg_match($pattern, $sql, $m, 0, $i) === 1) {
+                if (strcasecmp($keyword, 'AND') === 0 && self::andBelongsToBetween(substr($sql, $start, $i - $start))) {
+                    $i += strlen($m[0]) - 1;
+                    continue;
+                }
                 $parts[] = trim(substr($sql, $start, $i - $start));
                 $i += strlen($m[0]) - 1;
                 $start = $i + 1;
@@ -579,6 +595,12 @@ final class SQLiteJsonbCheckCurrentNextPlan
         $parts[] = trim(substr($sql, $start));
 
         return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    private static function andBelongsToBetween(string $leftSql): bool
+    {
+        return preg_match('/\b(?:NOT\s+)?BETWEEN\b/i', $leftSql) === 1
+            && preg_match('/\bAND\b/i', $leftSql) !== 1;
     }
 
     private static function stripOuterParens(string $sql): string

@@ -41,7 +41,7 @@ final class SQLiteBTreeOverflowAutoVacuumPointerMapPlan
             $database->usablePageSize(),
         );
         $allocationPlan = $database->planOverflowPageAllocation($requiredPageCount, $parentBtreePageNumber, $allowAppend);
-        if ($allocationPlan->appendedPageNumbers !== []) {
+        if (!$allowAppend && $allocationPlan->appendedPageNumbers !== []) {
             throw new \InvalidArgumentException('SQLite overflow current/next pointer-map planning expected freelist pages, not appended pages');
         }
 

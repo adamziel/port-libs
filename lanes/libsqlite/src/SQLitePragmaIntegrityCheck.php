@@ -275,8 +275,8 @@ final class SQLitePragmaIntegrityCheck
                 };
 
                 match ($header->pageType) {
-                    'table-leaf' => SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader),
-                    'index-leaf' => SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader),
+                    'table-leaf' => self::appendTableLeafOrderErrors($pageNumber, SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader), $errors, $limit),
+                    'index-leaf' => self::appendIndexCellOrderErrors($database, $pageNumber, SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader), $errors, $limit),
                     'index-interior' => self::appendIndexInteriorChildErrors($database, $pageNumber, $page, $header, $usableSize, $overflowReader, $errors, $limit),
                     'table-interior' => self::appendTableInteriorChildErrors($database, $pageNumber, $page, $header, $errors, $limit),
                     default => null,
@@ -284,6 +284,43 @@ final class SQLitePragmaIntegrityCheck
             } catch (\InvalidArgumentException $exception) {
                 self::append($errors, $limit, "btree page {$pageNumber}: " . self::formatError($exception));
             }
+        }
+    }
+
+    /**
+     * @param list<SQLiteTableLeafCell> $cells
+     * @param list<string> $errors
+     */
+    private static function appendTableLeafOrderErrors(int $pageNumber, array $cells, array &$errors, int $limit): void
+    {
+        $previous = null;
+        foreach ($cells as $cell) {
+            if ($previous !== null && $cell->rowId <= $previous) {
+                self::append($errors, $limit, "btree page {$pageNumber}: table leaf rowid {$cell->rowId} is not greater than previous rowid {$previous}");
+                return;
+            }
+            $previous = $cell->rowId;
+        }
+    }
+
+    /**
+     * @param list<SQLiteIndexCell> $cells
+     * @param list<string> $errors
+     */
+    private static function appendIndexCellOrderErrors(SQLiteDatabase $database, int $pageNumber, array $cells, array &$errors, int $limit): void
+    {
+        if (count($cells) < 2) {
+            return;
+        }
+
+        $previous = null;
+        foreach ($cells as $cell) {
+            $record = $cell->record($database->header->textEncoding)->values;
+            if ($previous !== null && SQLiteVdbeSortCompare::compareRecords($previous, $record) >= 0) {
+                self::append($errors, $limit, "btree page {$pageNumber}: index record is not greater than previous record");
+                return;
+            }
+            $previous = $record;
         }
     }
 
@@ -301,7 +338,9 @@ final class SQLitePragmaIntegrityCheck
         array &$errors,
         int $limit,
     ): void {
-        foreach (SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
+        $cells = SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader);
+        self::appendIndexCellOrderErrors($database, $pageNumber, $cells, $errors, $limit);
+        foreach ($cells as $cell) {
             if ($cell->leftChildPage !== null) {
                 self::appendInteriorChildPointerMapError($database, $pageNumber, $cell->leftChildPage, 'left child', $errors, $limit);
             }
@@ -323,7 +362,13 @@ final class SQLitePragmaIntegrityCheck
         array &$errors,
         int $limit,
     ): void {
+        $previous = null;
         foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $cell) {
+            if ($previous !== null && $cell->key <= $previous) {
+                self::append($errors, $limit, "btree page {$pageNumber}: table interior divider key {$cell->key} is not greater than previous divider key {$previous}");
+                return;
+            }
+            $previous = $cell->key;
             self::appendInteriorChildPointerMapError($database, $pageNumber, $cell->leftChildPage, 'left child', $errors, $limit);
         }
 
