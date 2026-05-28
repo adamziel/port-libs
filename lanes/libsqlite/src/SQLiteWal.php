@@ -1035,6 +1035,119 @@ final class SQLiteWal
 
     /**
      * @param list<int> $pageNumbers
+     * @return array<string,mixed>
+     */
+    public function checkpointTruncateReaderCurrentSourceNext88(
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        ?int $currentReaderEndFrame
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL truncate reader current-source next88 requires at least one page number');
+        }
+
+        $source = $this->assertCurrentWalBytes86($walBytes);
+        if ($currentReaderEndFrame !== null && ($currentReaderEndFrame < 0 || $currentReaderEndFrame > $source->frameCount())) {
+            throw new \InvalidArgumentException('SQLite WAL truncate reader current-source next88 reader frame is outside the WAL frame range');
+        }
+
+        $pinnedCheckpoint = $source->durableCheckpointResult($databaseBytes, 'truncate', $currentReaderEndFrame);
+        $drainedCheckpoint = $source->durableCheckpointResult($databaseBytes, 'truncate', null);
+        $pinnedWal = $pinnedCheckpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($pinnedCheckpoint['wal_bytes'], $source->header->pageSize, $this->checksumsValidated);
+
+        $currentEndFrame = $currentReaderEndFrame ?? $source->frameCount();
+        $nextEndFrame = $pinnedWal?->frameCount() ?? 0;
+        $current = [];
+        $next = [];
+        $drained = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL truncate reader current-source next88 pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($source, $databaseBytes, $pageNumber, $currentEndFrame);
+            $next[] = $pinnedWal === null || $nextEndFrame === 0
+                ? self::databasePageVisibilityOrError($pinnedCheckpoint['database_bytes'], $source->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($pinnedWal, $pinnedCheckpoint['database_bytes'], $pageNumber, $nextEndFrame);
+            $drained[] = self::databasePageVisibilityOrError($drainedCheckpoint['database_bytes'], $source->header->pageSize, $pageNumber);
+        }
+
+        $currentSources = self::checkpointSourceRows(
+            $current,
+            $pinnedCheckpoint['database_bytes'],
+            $pinnedCheckpoint['checkpointed_frame_count'],
+            'current'
+        );
+        $nextSources = self::checkpointSourceRows(
+            $next,
+            $pinnedCheckpoint['database_bytes'],
+            $pinnedCheckpoint['checkpointed_frame_count'],
+            'next'
+        );
+        $drainedSources = self::checkpointSourceRows(
+            $drained,
+            $drainedCheckpoint['database_bytes'],
+            $drainedCheckpoint['checkpointed_frame_count'],
+            'final'
+        );
+
+        return [
+            'status' => $pinnedCheckpoint['busy'] ? 'reader-pinned-truncate-preserves-wal' : 'truncate-ready',
+            'source_status' => 'current-source',
+            'mode' => 'truncate',
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'pinned_checkpoint' => $pinnedCheckpoint,
+            'drained_checkpoint' => $drainedCheckpoint,
+            'wal_action' => $pinnedCheckpoint['wal_action'],
+            'drained_wal_action' => $drainedCheckpoint['wal_action'],
+            'wal_bytes_length' => $pinnedCheckpoint['wal_bytes_length'],
+            'drained_wal_bytes_length' => $drainedCheckpoint['wal_bytes_length'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'drained_reader' => $drained,
+            'current_source_rows' => $currentSources,
+            'next_source_rows' => $nextSources,
+            'drained_source_rows' => $drainedSources,
+            'current_sources' => self::visibilityColumn($current, 'source'),
+            'next_sources' => self::visibilityColumn($next, 'source'),
+            'drained_sources' => self::visibilityColumn($drained, 'source'),
+            'current_source_names' => self::visibilityColumn($currentSources, 'current_source'),
+            'next_source_names' => self::visibilityColumn($nextSources, 'current_source'),
+            'drained_source_names' => self::visibilityColumn($drainedSources, 'current_source'),
+            'current_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'drained_frame_indexes' => self::visibilityColumn($drained, 'frame_index'),
+            'current_errors' => self::visibilityErrors($current),
+            'next_errors' => self::visibilityErrors($next),
+            'drained_errors' => self::visibilityErrors($drained),
+            'current_next_images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'next_drained_images_match' => self::visibilityImages($next) === self::visibilityImages($drained),
+            'current_drained_images_match' => self::visibilityImages($current) === self::visibilityImages($drained),
+            'next_uses_preserved_wal' => in_array('wal', self::visibilityColumn($next, 'source'), true),
+            'next_uses_checkpoint_database' => in_array('checkpoint-database', self::visibilityColumn($nextSources, 'current_source'), true),
+            'drained_uses_reset_database_only' => !in_array('preserved-wal', self::visibilityColumn($drainedSources, 'current_source'), true)
+                && !in_array('missing', self::visibilityColumn($drainedSources, 'current_source'), true),
+            'reader_pin_blocks_truncate' => $pinnedCheckpoint['busy'] && $pinnedCheckpoint['wal_action'] === 'preserve_wal',
+            'drained_retry_truncates_wal' => !$drainedCheckpoint['busy'] && $drainedCheckpoint['wal_action'] === 'truncate_wal',
+            'source_frame_count' => $source->frameCount(),
+            'parsed_frame_count' => $this->frameCount(),
+            'dependencies' => array_values(array_unique(array_merge(
+                $pinnedCheckpoint['dependencies'],
+                $drainedCheckpoint['dependencies'],
+                [
+                    'sqlite-wal-current-source-admission',
+                    'sqlite-wal-reader-checkpoint-truncate-current-source-next88',
+                ]
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,mode:string,reason:string,busy:bool,reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint:array<string,mixed>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,next_uses_checkpoint_database:bool,next_uses_preserved_wal:bool,dependencies:list<string>}
      */
     public function checkpointBusyReaderCurrentNext(string $databaseBytes, array $pageNumbers, string $mode = 'full', int $readerEndFrame = 0): array

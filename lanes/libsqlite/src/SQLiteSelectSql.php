@@ -3333,8 +3333,17 @@ final class SQLiteSelectSql
         $name = strtolower($match[1]);
         $argumentSql = trim($match[2]);
         $arguments = [];
+        $distinct = false;
         $aggregateOrderBy = null;
+        $aggregateOrderDirection = 'ASC';
         if ($argumentSql !== '') {
+            if (preg_match('/^distinct(?:\s+|$)(.+)$/is', $argumentSql, $distinctMatch) === 1) {
+                $distinct = true;
+                $argumentSql = trim($distinctMatch[1]);
+                if ($argumentSql === '' || $argumentSql === '*') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL DISTINCT window aggregate needs a value argument');
+                }
+            }
             $orderParts = self::splitTopLevelByKeyword($argumentSql, 'ORDER BY');
             if (count($orderParts) > 2) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL window aggregate supports one ORDER BY clause');
@@ -3345,7 +3354,7 @@ final class SQLiteSelectSql
                 if ($argumentSql === '' || $orderSql === '') {
                     throw new \InvalidArgumentException('SQLite SELECT SQL window aggregate ORDER BY needs value and order expression');
                 }
-                $aggregateOrderBy = self::valueExpression($orderSql, $tables);
+                [$aggregateOrderBy, $aggregateOrderDirection] = self::aggregateOrderTerm($orderSql, $tables);
             }
             foreach (self::splitTopLevel($argumentSql, ',') as $argument) {
                 $arguments[] = trim($argument) === '*'
@@ -3406,8 +3415,14 @@ final class SQLiteSelectSql
         if ($filter !== null) {
             $expression['filter'] = $filter;
         }
+        if ($distinct) {
+            $expression['distinct'] = true;
+        }
         if ($aggregateOrderBy !== null) {
-            $expression['aggregateOrderBy'] = $aggregateOrderBy;
+            $expression['aggregateOrderBy'] = [
+                'expression' => $aggregateOrderBy,
+                'direction' => $aggregateOrderDirection,
+            ];
         }
 
         return $expression;

@@ -871,6 +871,63 @@ final class SQLiteJsonTablePlan
     }
 
     /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    public static function currentSourceHiddenConstraintPlannerNext88(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceConstraintPlannerNext86(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentHiddenResiduals = self::hiddenResidualConstraints88($plan['current']['constraintUsage']);
+        $nextHiddenResiduals = self::hiddenResidualConstraints88($plan['next']['constraintUsage']);
+        $rowCountTransition = [
+            'current' => count($plan['currentRows']),
+            'next' => count($plan['nextRows']),
+            'changed' => count($plan['currentRows']) !== count($plan['nextRows']),
+        ];
+
+        $hiddenReasons = [];
+        if ($currentHiddenResiduals !== [] || $nextHiddenResiduals !== []) {
+            $hiddenReasons[] = 'hidden-residual-constraint-present';
+        }
+        if ($currentHiddenResiduals !== $nextHiddenResiduals) {
+            $hiddenReasons[] = 'hidden-residual-usage-changed';
+        }
+        if ($rowCountTransition['changed']) {
+            $hiddenReasons[] = 'hidden-residual-rowset-changed';
+        }
+
+        $plan['currentHiddenResiduals'] = $currentHiddenResiduals;
+        $plan['nextHiddenResiduals'] = $nextHiddenResiduals;
+        $plan['rowCountTransition'] = $rowCountTransition;
+        $plan['next88ReplanReasons'] = array_values(array_unique(array_merge($plan['replanReasons'], $hiddenReasons)));
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-hidden-constraint-planner-current-source-next88'],
+        )));
+
+        return $plan;
+    }
+
+    /**
      * @param list<array<string,mixed>> $hostRows
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
@@ -1394,6 +1451,32 @@ final class SQLiteJsonTablePlan
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     * @return list<array{constraintIndex:int,column:string,operator:string,usable:bool}>
+     */
+    private static function hiddenResidualConstraints88(array $usage): array
+    {
+        $hidden = [];
+        foreach ($usage as $entry) {
+            if ($entry['kind'] !== 'residual') {
+                continue;
+            }
+            if ($entry['column'] !== 'json' && $entry['column'] !== 'root') {
+                continue;
+            }
+
+            $hidden[] = [
+                'constraintIndex' => $entry['constraintIndex'],
+                'column' => $entry['column'],
+                'operator' => $entry['operator'],
+                'usable' => $entry['usable'],
+            ];
+        }
+
+        return $hidden;
     }
 
     /**

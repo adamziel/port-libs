@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteMultiColumnRangePlan
 {
     /**
-     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -21,7 +21,7 @@ final class SQLiteMultiColumnRangePlan
     }
 
     /**
-     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -57,7 +57,7 @@ final class SQLiteMultiColumnRangePlan
     }
 
     /**
-     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
@@ -90,7 +90,8 @@ final class SQLiteMultiColumnRangePlan
                 }
             }
 
-            $estimatedRows = self::estimatedRows($index, $prefix);
+            $estimated = self::estimatedRows($index, $prefix);
+            $estimatedRows = $estimated['rows'];
             $orderBySatisfied = $prefix['usesSkipScan']
                 ? self::skipScanOrderBySatisfied($columns, $orderBy, $prefix['skippedColumns'], $prefix['equalityPrefix'], $prefix['rangeColumn'])
                 : self::orderBySatisfied($columns, $orderBy, $prefix['equalityPrefix'], $prefix['rangeColumn']);
@@ -129,6 +130,14 @@ final class SQLiteMultiColumnRangePlan
                 'partial' => $columns[0]->partial,
                 'estimatedRows' => $estimatedRows,
                 'estimatedCost' => max(1, $cost),
+                'stat4Used' => $estimated['stat4Used'],
+                'stat4Estimate' => $estimated['stat4Estimate'],
+                'stat4MatchedSamples' => $estimated['stat4MatchedSamples'],
+                'stat4CurrentNext' => $estimated['stat4CurrentNext'],
+                'stat4MatchedCurrentNext' => $estimated['stat4MatchedCurrentNext'],
+                'stat4RangeCurrentNext' => $estimated['stat4RangeCurrentNext'],
+                'stat4CurrentSourceColumn' => $estimated['stat4CurrentSourceColumn'],
+                'stat4CurrentSourceOffset' => $estimated['stat4CurrentSourceOffset'],
             ];
         }
 
@@ -276,7 +285,7 @@ final class SQLiteMultiColumnRangePlan
                 continue;
             }
 
-            $range = self::firstRangeConstraint($matches);
+            $range = self::tightRangeConstraint($matches);
             if ($range !== null && self::hasNonNullValue($range['values'])) {
                 $used[] = $column->columnName;
                 $rangeColumn = $column->columnName;
@@ -368,7 +377,7 @@ final class SQLiteMultiColumnRangePlan
                     continue;
                 }
 
-                $range = self::firstRangeConstraint($matches);
+                $range = self::tightRangeConstraint($matches);
                 if ($range !== null && self::hasNonNullValue($range['values'])) {
                     $used[] = $column->columnName;
                     $rangeColumn = $column->columnName;
@@ -431,9 +440,77 @@ final class SQLiteMultiColumnRangePlan
      * @param list<array{column:string,operator:string,values:mixed}> $constraints
      * @return null|array{column:string,operator:string,values:mixed}
      */
-    private static function firstRangeConstraint(array $constraints): ?array
+    private static function tightRangeConstraint(array $constraints): ?array
     {
-        return self::rangeConstraints($constraints)[0] ?? null;
+        $ranges = self::rangeConstraints($constraints);
+        if (count($ranges) === 1 && ($ranges[0]['operator'] ?? null) === 'BETWEEN') {
+            return $ranges[0];
+        }
+        $lower = null;
+        $upper = null;
+        foreach ($ranges as $constraint) {
+            if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
+                $betweenLower = ['column' => $constraint['column'], 'operator' => 'range->=', 'values' => $constraint['values']['lower'] ?? null];
+                $betweenUpper = ['column' => $constraint['column'], 'operator' => 'range-<=', 'values' => $constraint['values']['upper'] ?? null];
+                $lower = $lower === null || self::lowerBoundIsTighter($betweenLower, $lower) ? $betweenLower : $lower;
+                $upper = $upper === null || self::upperBoundIsTighter($betweenUpper, $upper) ? $betweenUpper : $upper;
+                continue;
+            }
+            if ($constraint['operator'] === 'range->' || $constraint['operator'] === 'range->=') {
+                $lower = $lower === null || self::lowerBoundIsTighter($constraint, $lower) ? $constraint : $lower;
+                continue;
+            }
+            if ($constraint['operator'] === 'range-<' || $constraint['operator'] === 'range-<=') {
+                $upper = $upper === null || self::upperBoundIsTighter($constraint, $upper) ? $constraint : $upper;
+            }
+        }
+        if ($lower !== null && $upper !== null) {
+            $comparison = self::compareStat4Keys($lower['values'], $upper['values']);
+            if ($comparison > 0 || ($comparison === 0 && ($lower['operator'] !== 'range->=' || $upper['operator'] !== 'range-<='))) {
+                return null;
+            }
+
+            return [
+                'column' => $lower['column'],
+                'operator' => 'range-bounded',
+                'values' => [
+                    'lower' => $lower['values'],
+                    'upper' => $upper['values'],
+                    'lowerInclusive' => $lower['operator'] === 'range->=',
+                    'upperInclusive' => $upper['operator'] === 'range-<=',
+                ],
+            ];
+        }
+
+        return $lower ?? $upper;
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $candidate
+     * @param array{operator:string,values:mixed} $current
+     */
+    private static function lowerBoundIsTighter(array $candidate, array $current): bool
+    {
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        if ($comparison !== 0) {
+            return $comparison > 0;
+        }
+
+        return $candidate['operator'] === 'range->' && $current['operator'] === 'range->=';
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $candidate
+     * @param array{operator:string,values:mixed} $current
+     */
+    private static function upperBoundIsTighter(array $candidate, array $current): bool
+    {
+        $comparison = self::compareStat4Keys($candidate['values'], $current['values']);
+        if ($comparison !== 0) {
+            return $comparison < 0;
+        }
+
+        return $candidate['operator'] === 'range-<' && $current['operator'] === 'range-<=';
     }
 
     /**
@@ -578,10 +655,11 @@ final class SQLiteMultiColumnRangePlan
     }
 
     /**
-     * @param array{estimatedRows?:int} $index
-     * @param array{equalityPrefix:int,residualRangeColumns:list<string>,usesSkipScan?:bool,skipScanLoops?:int} $prefix
+     * @param array{estimatedRows?:int,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>} $index
+     * @param array{equalityPrefix:int,equalityConstraints:list<array{column:string,operator:string,values:mixed}>,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,usesSkipScan?:bool,skipScanLoops?:int,currentIndexColumnOffset:int} $prefix
+     * @return array{rows:int,stat4Used:bool,stat4Estimate:int|null,stat4MatchedSamples:int,stat4CurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4MatchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,stat4RangeCurrentNext:array<string,mixed>|null,stat4CurrentSourceColumn:string|null,stat4CurrentSourceOffset:int|null}
      */
-    private static function estimatedRows(array $index, array $prefix): int
+    private static function estimatedRows(array $index, array $prefix): array
     {
         $baseRows = $index['estimatedRows'] ?? 1000;
         if (!is_int($baseRows) || $baseRows < 1) {
@@ -595,7 +673,353 @@ final class SQLiteMultiColumnRangePlan
             $selectivity *= min(1.0, max(1, $prefix['skipScanLoops'] ?? 1) * 0.35);
         }
 
-        return max(1, min($baseRows, (int) ceil($baseRows * $selectivity)));
+        $fallbackRows = max(1, min($baseRows, (int) ceil($baseRows * $selectivity)));
+        $stat4 = self::stat4Estimate($index['stat4Samples'] ?? [], $prefix, $baseRows);
+        if ($stat4 === null) {
+            return [
+                'rows' => $fallbackRows,
+                'stat4Used' => false,
+                'stat4Estimate' => null,
+                'stat4MatchedSamples' => 0,
+                'stat4CurrentNext' => [],
+                'stat4MatchedCurrentNext' => [],
+                'stat4RangeCurrentNext' => null,
+                'stat4CurrentSourceColumn' => null,
+                'stat4CurrentSourceOffset' => null,
+            ];
+        }
+
+        return [
+            'rows' => max(1, min($baseRows, $stat4['rows'])),
+            'stat4Used' => true,
+            'stat4Estimate' => $stat4['rows'],
+            'stat4MatchedSamples' => $stat4['matchedSamples'],
+            'stat4CurrentNext' => $stat4['currentNext'],
+            'stat4MatchedCurrentNext' => $stat4['matchedCurrentNext'],
+            'stat4RangeCurrentNext' => $stat4['rangeCurrentNext'],
+            'stat4CurrentSourceColumn' => $stat4['currentSourceColumn'],
+            'stat4CurrentSourceOffset' => $stat4['currentSourceOffset'],
+        ];
+    }
+
+    /**
+     * @param mixed $samples
+     * @param array{equalityConstraints:list<array{column:string,operator:string,values:mixed}>,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,currentIndexColumnOffset:int} $prefix
+     * @return null|array{rows:int,matchedSamples:int,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,matchedCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,rangeCurrentNext:array<string,mixed>|null,currentSourceColumn:string,currentSourceOffset:int}
+     */
+    private static function stat4Estimate(mixed $samples, array $prefix, int $baseRows): ?array
+    {
+        if ($samples === [] || $samples === null) {
+            return null;
+        }
+        if (!is_array($samples) || !array_is_list($samples)) {
+            throw new \InvalidArgumentException('SQLite multicolumn range stat4Samples must be a list');
+        }
+        $range = $prefix['rangeConstraint'] ?? null;
+        $rangeColumn = $prefix['rangeColumn'] ?? null;
+        if (!is_array($range) || !is_string($rangeColumn)) {
+            return null;
+        }
+        $offset = $prefix['currentIndexColumnOffset'];
+        if (!is_int($offset) || $offset < 0) {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                throw new \InvalidArgumentException('SQLite multicolumn range stat4Samples rows must be arrays');
+            }
+            $sampleValues = $sample['sample'] ?? null;
+            if ($sampleValues === null && array_key_exists('prefix', $sample) && array_key_exists('suffix', $sample)) {
+                return null;
+            }
+            if (!is_array($sampleValues) || !array_is_list($sampleValues) || !array_key_exists($offset, $sampleValues)) {
+                throw new \InvalidArgumentException('SQLite multicolumn range stat4 sample must contain the current source column');
+            }
+            if (!self::stat4SampleMatchesEqualityPrefix($sampleValues, $prefix['equalityConstraints'])) {
+                continue;
+            }
+            $normalized[] = [
+                'key' => self::literalValue($sampleValues[$offset]),
+                'neq' => self::stat4IntegerAt($sample['neq'] ?? null, 'neq', $offset),
+                'nlt' => self::stat4IntegerAt($sample['nlt'] ?? null, 'nlt', $offset, true),
+                'ndlt' => self::stat4IntegerAt($sample['ndlt'] ?? 0, 'ndlt', $offset, true),
+                'sample' => $sampleValues,
+            ];
+        }
+        if ($normalized === []) {
+            return null;
+        }
+
+        usort($normalized, static fn (array $left, array $right): int => self::compareStat4Keys($left['key'], $right['key']));
+        $matched = self::stat4MatchingSamples($normalized, $range);
+        $rows = self::stat4Rows($normalized, $range, $baseRows);
+
+        return [
+            'rows' => $rows,
+            'matchedSamples' => count($matched),
+            'currentNext' => self::stat4CurrentNext($normalized),
+            'matchedCurrentNext' => self::stat4CurrentNext($matched),
+            'rangeCurrentNext' => self::stat4RangeCurrentNext($normalized, $range),
+            'currentSourceColumn' => $rangeColumn,
+            'currentSourceOffset' => $offset,
+        ];
+    }
+
+    /**
+     * @param list<mixed> $sampleValues
+     * @param list<array{column:string,operator:string,values:mixed}> $constraints
+     */
+    private static function stat4SampleMatchesEqualityPrefix(array $sampleValues, array $constraints): bool
+    {
+        foreach ($constraints as $offset => $constraint) {
+            if (!array_key_exists($offset, $sampleValues)) {
+                return false;
+            }
+            $value = self::literalValue($sampleValues[$offset]);
+            if (($constraint['operator'] ?? null) === 'point' && self::compareStat4Keys($value, $constraint['values']) !== 0) {
+                return false;
+            }
+            if (($constraint['operator'] ?? null) === 'IN') {
+                $matched = false;
+                foreach (is_array($constraint['values']) ? $constraint['values'] : [] as $candidate) {
+                    if ($candidate !== null && self::compareStat4Keys($value, $candidate) === 0) {
+                        $matched = true;
+                        break;
+                    }
+                }
+                if (!$matched) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static function stat4IntegerAt(mixed $value, string $field, int $offset, bool $allowZero = false): int
+    {
+        if (is_string($value) && preg_match('/^\d+(?:\s+\d+)*$/', trim($value)) === 1) {
+            $parts = preg_split('/\s+/', trim($value));
+            $value = (int) ($parts[$offset] ?? $parts[0] ?? 0);
+        } elseif (is_array($value) && array_is_list($value)) {
+            $value = $value[$offset] ?? $value[0] ?? null;
+        }
+        if (!is_int($value) || $value < ($allowZero ? 0 : 1)) {
+            $kind = $allowZero ? 'unsigned integer' : 'positive integer';
+            throw new \InvalidArgumentException("SQLite multicolumn range stat4 {$field} must contain a {$kind}");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @param array{operator:string,values:mixed} $constraint
+     */
+    private static function stat4Rows(array $samples, array $constraint, int $baseRows): int
+    {
+        $operator = $constraint['operator'];
+        $values = $constraint['values'];
+        if (($operator === 'BETWEEN' || $operator === 'range-bounded') && is_array($values)) {
+            $lowerInclusive = $operator === 'BETWEEN' || (bool) ($values['lowerInclusive'] ?? false);
+            $upperInclusive = $operator === 'BETWEEN' || (bool) ($values['upperInclusive'] ?? false);
+            $rows = self::stat4LessThanRows($samples, $values['upper'] ?? null, $upperInclusive, $baseRows)
+                - self::stat4LessThanRows($samples, $values['lower'] ?? null, !$lowerInclusive, $baseRows);
+
+            return max(1, min($baseRows, $rows));
+        }
+        $rows = match ($operator) {
+            'range-<' => self::stat4LessThanRows($samples, $values, false, $baseRows),
+            'range-<=' => self::stat4LessThanRows($samples, $values, true, $baseRows),
+            'range->' => $baseRows - self::stat4LessThanRows($samples, $values, true, $baseRows),
+            'range->=' => $baseRows - self::stat4LessThanRows($samples, $values, false, $baseRows),
+            default => null,
+        };
+
+        return $rows === null ? $baseRows : max(1, min($baseRows, $rows));
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @param array{operator:string,values:mixed} $constraint
+     * @return list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}>
+     */
+    private static function stat4MatchingSamples(array $samples, array $constraint): array
+    {
+        return array_values(array_filter(
+            $samples,
+            static fn (array $sample): bool => self::stat4SampleMatches($sample['key'], $constraint),
+        ));
+    }
+
+    /**
+     * @param array{operator:string,values:mixed} $constraint
+     */
+    private static function stat4SampleMatches(mixed $key, array $constraint): bool
+    {
+        $operator = $constraint['operator'];
+        $values = $constraint['values'];
+        if (($operator === 'BETWEEN' || $operator === 'range-bounded') && is_array($values)) {
+            $lowerComparison = self::compareStat4Keys($key, $values['lower'] ?? null);
+            $upperComparison = self::compareStat4Keys($key, $values['upper'] ?? null);
+            $lowerMatches = ($operator === 'BETWEEN' || (bool) ($values['lowerInclusive'] ?? false)) ? $lowerComparison >= 0 : $lowerComparison > 0;
+            $upperMatches = ($operator === 'BETWEEN' || (bool) ($values['upperInclusive'] ?? false)) ? $upperComparison <= 0 : $upperComparison < 0;
+
+            return $lowerMatches && $upperMatches;
+        }
+        if ($operator === 'range-<') {
+            return self::compareStat4Keys($key, $values) < 0;
+        }
+        if ($operator === 'range-<=') {
+            return self::compareStat4Keys($key, $values) <= 0;
+        }
+        if ($operator === 'range->') {
+            return self::compareStat4Keys($key, $values) > 0;
+        }
+        if ($operator === 'range->=') {
+            return self::compareStat4Keys($key, $values) >= 0;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null}>
+     */
+    private static function stat4CurrentNext(array $samples): array
+    {
+        $pairs = [];
+        foreach ($samples as $offset => $sample) {
+            $pairs[] = [
+                'current' => self::stat4BoundarySample($sample),
+                'next' => isset($samples[$offset + 1]) ? self::stat4BoundarySample($samples[$offset + 1]) : null,
+            ];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @param array{operator:string,values:mixed} $constraint
+     * @return array{lower:array<string,mixed>|null,upper:array<string,mixed>|null,lowerInclusive:bool,upperInclusive:bool,emptyGap:bool}
+     */
+    private static function stat4RangeCurrentNext(array $samples, array $constraint): array
+    {
+        $operator = $constraint['operator'];
+        $values = $constraint['values'];
+        $lower = null;
+        $upper = null;
+        $lowerInclusive = false;
+        $upperInclusive = false;
+        if (($operator === 'BETWEEN' || $operator === 'range-bounded') && is_array($values)) {
+            $lower = $values['lower'] ?? null;
+            $upper = $values['upper'] ?? null;
+            $lowerInclusive = $operator === 'BETWEEN' || (bool) ($values['lowerInclusive'] ?? false);
+            $upperInclusive = $operator === 'BETWEEN' || (bool) ($values['upperInclusive'] ?? false);
+        } elseif ($operator === 'range->' || $operator === 'range->=') {
+            $lower = $values;
+            $lowerInclusive = $operator === 'range->=';
+        } elseif ($operator === 'range-<' || $operator === 'range-<=') {
+            $upper = $values;
+            $upperInclusive = $operator === 'range-<=';
+        }
+
+        $lowerPair = self::stat4BoundaryCurrentNext($samples, $lower, 'lower');
+        $upperPair = self::stat4BoundaryCurrentNext($samples, $upper, 'upper');
+
+        return [
+            'lower' => $lowerPair,
+            'upper' => $upperPair,
+            'lowerInclusive' => $lowerInclusive,
+            'upperInclusive' => $upperInclusive,
+            'emptyGap' => $lowerPair !== null
+                && $upperPair !== null
+                && ($lowerPair['current']['key'] ?? null) === ($upperPair['current']['key'] ?? null)
+                && ($lowerPair['next']['key'] ?? null) === ($upperPair['next']['key'] ?? null)
+                && $lower !== null
+                && $upper !== null
+                && self::compareStat4Keys($lower, $upper) < 0,
+        ];
+    }
+
+    /**
+     * @param list<array{key:mixed,neq:int,nlt:int,ndlt:int,sample:list<mixed>}> $samples
+     * @return array{current:array<string,mixed>|null,next:array<string,mixed>|null,side:string,value:mixed,exact:bool}|null
+     */
+    private static function stat4BoundaryCurrentNext(array $samples, mixed $value, string $side): ?array
+    {
+        if ($value === null || $samples === []) {
+            return null;
+        }
+
+        $previous = null;
+        foreach ($samples as $offset => $sample) {
+            $comparison = self::compareStat4Keys($sample['key'], $value);
+            if ($comparison >= 0) {
+                return [
+                    'current' => $comparison === 0 ? self::stat4BoundarySample($sample) : ($previous === null ? null : self::stat4BoundarySample($previous)),
+                    'next' => $comparison === 0
+                        ? (isset($samples[$offset + 1]) ? self::stat4BoundarySample($samples[$offset + 1]) : null)
+                        : self::stat4BoundarySample($sample),
+                    'side' => $side,
+                    'value' => $value,
+                    'exact' => $comparison === 0,
+                ];
+            }
+            $previous = $sample;
+        }
+
+        return [
+            'current' => $previous === null ? null : self::stat4BoundarySample($previous),
+            'next' => null,
+            'side' => $side,
+            'value' => $value,
+            'exact' => false,
+        ];
+    }
+
+    /**
+     * @param array{key:mixed,neq:int,nlt:int,ndlt:int} $sample
+     * @return array{key:mixed,neq:int,nlt:int,ndlt:int}
+     */
+    private static function stat4BoundarySample(array $sample): array
+    {
+        return [
+            'key' => $sample['key'],
+            'neq' => $sample['neq'],
+            'nlt' => $sample['nlt'],
+            'ndlt' => $sample['ndlt'],
+        ];
+    }
+
+    private static function stat4LessThanRows(array $samples, mixed $value, bool $inclusive, int $baseRows): int
+    {
+        $previous = 0;
+        foreach ($samples as $sample) {
+            $comparison = self::compareStat4Keys($sample['key'], $value);
+            if ($comparison > 0 || ($comparison === 0 && !$inclusive)) {
+                return max(0, min($baseRows, $sample['nlt']));
+            }
+            $previous = $sample['nlt'] + $sample['neq'];
+            if ($comparison === 0) {
+                return max(0, min($baseRows, $inclusive ? $previous : $sample['nlt']));
+            }
+        }
+
+        return max(0, min($baseRows, $previous));
+    }
+
+    private static function compareStat4Keys(mixed $left, mixed $right): int
+    {
+        if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
+            return ((float) $left) <=> ((float) $right);
+        }
+
+        return strcmp((string) $left, (string) $right);
     }
 
     /**

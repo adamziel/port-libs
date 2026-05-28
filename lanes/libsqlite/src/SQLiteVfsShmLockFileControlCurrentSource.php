@@ -13,18 +13,39 @@ final class SQLiteVfsShmLockFileControlCurrentSource
      */
     public static function currentSourceNext85(array $operations, array $options = []): array
     {
+        return self::run($operations, $options, false, 'vfs-shm-lock-filecontrol-current-source-next85', 'next85');
+    }
+
+    /**
+     * @param list<array<string,mixed>|string> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function currentSourceNext88(array $operations, array $options = []): array
+    {
+        return self::run($operations, $options, true, 'vfs-uri-shm-lock-filecontrol-current-source-next88', 'next88');
+    }
+
+    /**
+     * @param list<array<string,mixed>|string> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function run(array $operations, array $options, bool $uriAware, string $dependency, string $label): array
+    {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite SHM lock file-control current-source next85 requires operations');
+            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {$label} requires operations");
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null);
-        $path = self::canonicalPath((string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite'));
+        $open = self::openSource((string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite'), $uriAware, $state);
+        $path = $open['source_key'];
         if ($path === '') {
-            throw new \InvalidArgumentException('SQLite SHM lock file-control current-source next85 requires a database path');
+            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {$label} requires a database path");
         }
 
         if (!isset($state['sources'][$path])) {
-            $state['sources'][$path] = self::newSource($path, $options);
+            $state['sources'][$path] = self::newSource($path, $options, $open);
         }
 
         $events = [];
@@ -38,10 +59,15 @@ final class SQLiteVfsShmLockFileControlCurrentSource
                 $handleId = 'shm-' . $state['sequence'];
                 $state['handles'][$handleId] = [
                     'id' => $handleId,
-                    'path' => $path,
+                    'path' => $open['path'],
+                    'source_key' => $path,
+                    'uri' => $open['uri'],
                     'source_generation' => $source['generation'],
                     'lock' => null,
-                    'readonly' => (bool) ($op['readonly'] ?? false),
+                    'readonly' => (bool) ($op['readonly'] ?? $open['readonly']),
+                    'nolock' => (bool) ($op['nolock'] ?? $open['nolock']),
+                    'immutable' => (bool) $open['immutable'],
+                    'persistent' => (bool) $open['persistent'],
                     'controls' => $source['controls'],
                     'shm_locks' => $source['locks'],
                 ];
@@ -50,7 +76,9 @@ final class SQLiteVfsShmLockFileControlCurrentSource
 
                 $events[] = self::event('open', 'open', $before, self::snapshot($state), [
                     'handle' => $handleId,
-                    'path' => $path,
+                    'path' => $open['path'],
+                    'source_key' => $path,
+                    'uri' => $open['uri'],
                     'source_generation' => $state['handles'][$handleId]['source_generation'],
                     'reused_controls' => $state['handles'][$handleId]['controls'] !== [],
                 ]);
@@ -67,7 +95,7 @@ final class SQLiteVfsShmLockFileControlCurrentSource
             }
 
             $handle = &$state['handles'][$handleId];
-            if ($handle['path'] !== $path) {
+            if ($handle['source_key'] !== $path) {
                 unset($handle, $source);
                 $events[] = self::event($op['kind'], 'wrong-source', $before, self::snapshot($state), [
                     'handle' => $handleId,
@@ -78,6 +106,21 @@ final class SQLiteVfsShmLockFileControlCurrentSource
             if ($op['kind'] === 'shmlock') {
                 $lock = self::lockName((string) $op['lock']);
                 $exclusive = (bool) ($op['exclusive'] ?? false);
+                if ($handle['nolock'] || $handle['immutable'] || !$handle['persistent']) {
+                    $reason = !$handle['persistent']
+                        ? 'memory_uri_has_private_shm'
+                        : ($handle['immutable'] ? 'immutable_uri_disables_shm_locking' : 'nolock_uri_disables_shm_locking');
+                    unset($handle, $source);
+                    $events[] = self::event('shmlock', 'blocked', $before, self::snapshot($state), [
+                        'handle' => $handleId,
+                        'lock' => $lock,
+                        'exclusive' => $exclusive,
+                        'blocking' => [],
+                        'reason' => $reason,
+                    ]);
+                    continue;
+                }
+
                 $conflicts = self::lockConflicts($source['locks'], $lock, $handleId, $exclusive);
                 if ($conflicts !== []) {
                     unset($handle, $source);
@@ -181,7 +224,7 @@ final class SQLiteVfsShmLockFileControlCurrentSource
             'dependencies' => [
                 'sqlite-shm-locks',
                 'vfs-xfilecontrol-current-source',
-                'vfs-shm-lock-filecontrol-current-source-next85',
+                $dependency,
             ],
         ];
     }
@@ -208,10 +251,13 @@ final class SQLiteVfsShmLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    private static function newSource(string $path, array $options): array
+    private static function newSource(string $path, array $options, array $open): array
     {
         return [
             'path' => $path,
+            'filename' => $open['path'],
+            'uri' => $open['uri'],
+            'persistent' => $open['persistent'],
             'generation' => max(1, (int) ($options['generation'] ?? 1)),
             'controls' => is_array($options['file_controls'] ?? null) ? $options['file_controls'] : [],
             'locks' => [
@@ -242,13 +288,18 @@ final class SQLiteVfsShmLockFileControlCurrentSource
                 'control' => $operation['control'] ?? null,
                 'value' => $operation['value'] ?? null,
                 'readonly' => $operation['readonly'] ?? null,
+                'nolock' => $operation['nolock'] ?? null,
                 'exclusive' => $operation['exclusive'] ?? null,
             ];
         }
 
         $trimmed = trim($operation);
         if (preg_match('/^open(?:\((?<mode>readonly)\))?$/i', $trimmed, $matches) === 1) {
-            return ['kind' => 'open', 'handle' => null, 'readonly' => isset($matches['mode']) && $matches['mode'] !== ''];
+            return [
+                'kind' => 'open',
+                'handle' => null,
+                'readonly' => isset($matches['mode']) && $matches['mode'] !== '' ? true : null,
+            ];
         }
         if (preg_match('/^close(?:\((?<handle>[^)]*)\))?$/i', $trimmed, $matches) === 1) {
             return ['kind' => 'close', 'handle' => ($matches['handle'] ?? '') !== '' ? trim($matches['handle']) : null];
@@ -276,6 +327,59 @@ final class SQLiteVfsShmLockFileControlCurrentSource
         }
 
         return $filename;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     * @return array{path:string,source_key:string,readonly:bool,nolock:bool,immutable:bool,persistent:bool,uri:array<string,mixed>}
+     */
+    private static function openSource(string $filename, bool $uriAware, array $state): array
+    {
+        if ($uriAware) {
+            $uri = SQLiteFileUri::parse($filename);
+            $path = $uri['path'] === '' ? self::canonicalPath($filename) : (string) $uri['path'];
+            $memory = $uri['mode'] === 'memory' || $path === ':memory:';
+
+            return [
+                'path' => $memory ? '' : $path,
+                'source_key' => $memory ? 'memory:shm-' . (((int) ($state['sequence'] ?? 0)) + 1) : $path,
+                'readonly' => $uri['mode'] === 'ro' || $uri['immutable'] === true,
+                'nolock' => $uri['nolock'] === true,
+                'immutable' => $uri['immutable'] === true,
+                'persistent' => !$memory,
+                'uri' => [
+                    'is_uri' => $uri['is_uri'],
+                    'path' => $path,
+                    'mode' => $uri['mode'],
+                    'cache' => $uri['cache'],
+                    'immutable' => $uri['immutable'],
+                    'nolock' => $uri['nolock'],
+                    'vfs' => $uri['vfs'],
+                    'authority' => $uri['authority'],
+                ],
+            ];
+        }
+
+        $path = self::canonicalPath($filename);
+
+        return [
+            'path' => $path,
+            'source_key' => $path,
+            'readonly' => false,
+            'nolock' => false,
+            'immutable' => false,
+            'persistent' => true,
+            'uri' => [
+                'is_uri' => str_starts_with(strtolower($filename), 'file:'),
+                'path' => $path,
+                'mode' => null,
+                'cache' => null,
+                'immutable' => null,
+                'nolock' => null,
+                'vfs' => null,
+                'authority' => null,
+            ],
+        ];
     }
 
     /**

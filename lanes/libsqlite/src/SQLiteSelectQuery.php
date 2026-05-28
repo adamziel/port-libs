@@ -139,12 +139,13 @@ final class SQLiteSelectQuery
             }
             $aggregateOrderBy = $expression['aggregateOrderBy'];
         }
+        $distinct = ($expression['distinct'] ?? false) === true;
 
         $result = array_fill(0, count($rows), null);
         foreach (self::windowPartitions($rows, $partitionBy) as $partitionIndexes) {
             $orderedIndexes = self::orderWindowPartition($rows, $partitionIndexes, $orderBy);
             $orderedRows = array_map(static fn (int $rowIndex): array => $rows[$rowIndex], $orderedIndexes);
-            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame, $filter, $aggregateOrderBy);
+            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame, $filter, $aggregateOrderBy, $distinct);
             foreach ($orderedIndexes as $offset => $rowIndex) {
                 $result[$rowIndex] = $orderedValues[$offset];
             }
@@ -217,7 +218,7 @@ final class SQLiteSelectQuery
      * @param array<string,mixed>|null $filter
      * @return list<mixed>
      */
-    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame, ?array $filter, ?array $aggregateOrderBy): array
+    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame, ?array $filter, ?array $aggregateOrderBy, bool $distinct): array
     {
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
@@ -247,7 +248,10 @@ final class SQLiteSelectQuery
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs one value argument");
             }
 
-            return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy);
+            return self::jsonAggregateWindowFrameValues($function, $arguments[0], $orderedRows, $peerKeys, $frame, $filter, $aggregateOrderBy, $distinct);
+        }
+        if ($distinct) {
+            throw new \InvalidArgumentException("SQLite SELECT query DISTINCT window aggregate is not supported for {$function}");
         }
         if ($frame !== null && in_array($function, ['count', 'sum', 'group_concat'], true)) {
             if ($orderBy === []) {
@@ -323,14 +327,30 @@ final class SQLiteSelectQuery
      * @param array<string,mixed>|null $aggregateOrderBy
      * @return list<string|SQLiteBlobValue>
      */
-    private static function jsonAggregateWindowFrameValues(string $function, array $argument, array $orderedRows, array $peerKeys, array $frame, ?array $filter, ?array $aggregateOrderBy): array
+    private static function jsonAggregateWindowFrameValues(string $function, array $argument, array $orderedRows, array $peerKeys, array $frame, ?array $filter, ?array $aggregateOrderBy, bool $distinct): array
     {
+        $aggregateOrderExpression = null;
+        $aggregateOrderDirection = 'ASC';
+        if ($aggregateOrderBy !== null) {
+            if (array_key_exists('expression', $aggregateOrderBy)) {
+                if (!is_array($aggregateOrderBy['expression'])) {
+                    throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY expression is malformed');
+                }
+                $aggregateOrderExpression = $aggregateOrderBy['expression'];
+                $aggregateOrderDirection = strtoupper((string) ($aggregateOrderBy['direction'] ?? 'ASC'));
+                if ($aggregateOrderDirection !== 'ASC' && $aggregateOrderDirection !== 'DESC') {
+                    throw new \InvalidArgumentException('SQLite SELECT query window aggregate ORDER BY direction must be ASC or DESC');
+                }
+            } else {
+                $aggregateOrderExpression = $aggregateOrderBy;
+            }
+        }
         $frameRows = [];
         foreach ($orderedRows as $index => $row) {
             $frameRows[] = [
                 'value' => SQLiteSelectExpression::evaluate($row, $argument),
                 'frameKey' => $peerKeys[$index],
-                'aggregateKey' => $aggregateOrderBy === null ? $peerKeys[$index] : SQLiteSelectExpression::evaluate($row, $aggregateOrderBy),
+                'aggregateKey' => $aggregateOrderExpression === null ? $peerKeys[$index] : SQLiteSelectExpression::evaluate($row, $aggregateOrderExpression),
                 'filter' => $filter === null || SQLiteSelectPredicate::filter([$row], $filter) !== [],
                 'position' => $index,
             ];
@@ -339,15 +359,27 @@ final class SQLiteSelectQuery
         $frames = self::windowFrameRows($frameRows, $frame['unit'], $frame['preceding'], $frame['following'], $frame['exclude']);
         $result = [];
         foreach ($frames as $frameRows) {
-            usort($frameRows, static function (array $left, array $right): int {
+            usort($frameRows, static function (array $left, array $right) use ($aggregateOrderDirection): int {
                 $comparison = self::compareSqlValues($left['aggregateKey'], $right['aggregateKey']);
                 if ($comparison === 0) {
                     return $left['position'] <=> $right['position'];
                 }
 
-                return $comparison;
+                return $aggregateOrderDirection === 'DESC' ? -$comparison : $comparison;
             });
-            $values = array_map(static fn (array $row): mixed => $row['value'], $frameRows);
+            $values = [];
+            $seen = [];
+            foreach ($frameRows as $row) {
+                $value = $row['value'];
+                if ($distinct) {
+                    $key = self::jsonAggregateDistinctKey($value);
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                }
+                $values[] = $value;
+            }
             $json = SQLiteJsonAggregate::jsonGroupArray($values);
             $result[] = $function === 'jsonb_group_array'
                 ? new SQLiteBlobValue(SQLiteJsonB::encode(json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)))
@@ -355,6 +387,33 @@ final class SQLiteSelectQuery
         }
 
         return $result;
+    }
+
+    private static function jsonAggregateDistinctKey(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return 'json:' . $value->json;
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_bool($value)) {
+            return 'bool:' . ($value ? '1' : '0');
+        }
+        if (is_int($value)) {
+            return 'int:' . $value;
+        }
+        if (is_float($value)) {
+            return 'float:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        return 'json:' . json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**

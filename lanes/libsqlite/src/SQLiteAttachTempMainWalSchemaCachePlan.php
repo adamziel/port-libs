@@ -432,7 +432,7 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
 
     private static function normalizeName(string $name): string
     {
-        $trimmed = trim($name, " \t\r\n`'\"");
+        $trimmed = trim($name, " \t\r\n`'\"[]");
         if ($trimmed === '') {
             throw new \InvalidArgumentException('SQLite schema or table name cannot be empty');
         }
@@ -452,8 +452,8 @@ final class SQLiteAttachTempMainWalSchemaCachePlan
 
         $tables = [];
         $patterns = [
-            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
-            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\b(?:FROM|JOIN|INTO|UPDATE)\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)/i',
+            '/\bDELETE\s+FROM\s+((?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\'[^\']+\'|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))?)/i',
         ];
 
         foreach ($patterns as $pattern) {
