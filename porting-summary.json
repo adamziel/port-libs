@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 03:09:57 UTC",
-    "sourceCommit": "d90e92742b92c67ab8cd06218fdab4d563d58dae",
-    "sourceCommitShort": "d90e92742b92",
+    "generated": "2026-05-28 03:18:30 UTC",
+    "sourceCommit": "e68e90e0f2ff02e6b5730207c024f40016d91b02",
+    "sourceCommitShort": "e68e90e0f2ff",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d90e92742b92c67ab8cd06218fdab4d563d58dae",
-    "dashboardCommitShort": "d90e92742b92",
+    "dashboardCommit": "e68e90e0f2ff02e6b5730207c024f40016d91b02",
+    "dashboardCommitShort": "e68e90e0f2ff",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "500",
-            "coverage": "500 / 1589",
-            "php": "34288 pass / 0 fail",
+            "mapped": "507",
+            "coverage": "507 / 1589",
+            "php": "34719 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch85-86 clean subset covering attach, B-tre...",
-            "audit": "Implementation commit b12cdaca07411191b07...",
-            "currentWork": "Accepted verified batch85-86 subset; dashboard/status publication and marker cleanup are...",
-            "nextTarget": "Publish dashboard/status for batch85-86, consume accepted marker triplets and inactive wo...",
-            "blocker": "No blocker for the accepted batch85-86 subset: focused, regression, full...",
-            "commit": "b12cdac"
+            "phase": "accepted batch87 clean subset covering attach, B-tree,...",
+            "audit": "Implementation commit ec1aa1898f4a1c257d0...",
+            "currentWork": "Accepted verified batch87 subset; dashboard/status publication and marker cleanup are nex...",
+            "nextTarget": "Publish dashboard/status for batch87, consume accepted marker triplets and inactive workt...",
+            "blocker": "No blocker for the accepted batch87 subset: focused, regression, full lib...",
+            "commit": "ec1aa18"
         },
         {
             "library": "LightningCSS",
