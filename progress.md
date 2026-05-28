@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 03:18 UTC):
+  Batch87 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `ec1aa1898f4a1c257d04bde8756d307ec1e0159c` (`Integrate libsqlite batch
+  87 subset`) accepted 7 current-source libsqlite handoffs; excluded
+  `jsonagg87`, `jsonvt87`, and `suite87` for current-source/status conflicts.
+  Verification passed: php -l `22` changed/untracked PHP files, 7 changed
+  WordPress examples with valid JSON, conflict-marker scan, git diff --check,
+  focused changed tests `7 test files / 605 assertions / 0 failures / 428
+  PASS lines`, planner/pragma regression `3 test files / 202 assertions /
+  0 failures / 197 PASS lines`, full libsqlite `620 test files / 72206
+  assertions / 0 failures / 34719 PASS lines`, and root `833 test files /
+  96674 assertions / 0 failures / 37747 PASS lines`. Public publication is
+  next; mapped coverage is being advanced from `500 / 1589` to `507 / 1589`.
+  tmux `main` had drained to only 3 active batch88 workers with no long
+  sleepers during verification, so the next operational action is a bounded
+  refill back to the 10-11 active libsqlite worker target after publication.
+  Disk remains tight at about 3.9G free on `/home/claude`.
+
 - 2026-05-28 supervisor continuation (shell/live samples 03:09 UTC):
   Batch85/86 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit `b12cdaca07411191b076d8ca72ee0a92f58b1659` (`Integrate libsqlite batch
