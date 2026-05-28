@@ -23,6 +23,9 @@ $recordsBySchema = static function (string $variant = 'clean') use ($record): ar
     $networkParentSql = $variant === 'network-collation-mismatch'
         ? 'CREATE TABLE wp_blogmeta(blog_id INTEGER, meta_key TEXT COLLATE NOCASE, PRIMARY KEY(blog_id, meta_key)) WITHOUT ROWID'
         : 'CREATE TABLE wp_blogmeta(blog_id INTEGER, meta_key TEXT, PRIMARY KEY(blog_id, meta_key)) WITHOUT ROWID';
+    $networkParentIndexSql = $variant === 'network-collation-mismatch'
+        ? 'CREATE UNIQUE INDEX sqlite_autoindex_wp_blogmeta_1 ON wp_blogmeta(blog_id, meta_key COLLATE BINARY)'
+        : null;
 
     return [
         'temp' => [
@@ -45,7 +48,7 @@ $recordsBySchema = static function (string $variant = 'clean') use ($record): ar
         ],
         'network' => [
             $record('table', 'wp_blogmeta', 'wp_blogmeta', 14, $networkParentSql, 1),
-            $record('index', 'sqlite_autoindex_wp_blogmeta_1', 'wp_blogmeta', 15, null, 2),
+            $record('index', 'sqlite_autoindex_wp_blogmeta_1', 'wp_blogmeta', 15, $networkParentIndexSql, 2),
             $record('table', 'wp_sitemeta', 'wp_sitemeta', 16, 'CREATE TABLE wp_sitemeta(meta_id INTEGER PRIMARY KEY, blog_id INTEGER, meta_key TEXT, FOREIGN KEY(blog_id, meta_key) REFERENCES wp_blogmeta(blog_id, meta_key))', 3),
         ],
     ];

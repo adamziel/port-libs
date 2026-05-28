@@ -817,14 +817,30 @@ final class SQLitePragmaSchemaCatalog
     private function autoIndexColumnTerms(SQLiteSchemaRecord $index): array
     {
         return array_map(
-            static fn (string $columnName): array => [
-                'name' => $columnName,
+            static fn (SQLiteIndexColumn $column): array => [
+                'name' => $column->columnName,
                 'expression' => false,
-                'collation' => 'BINARY',
-                'descending' => false,
+                'collation' => strtoupper($column->collation),
+                'descending' => $column->descending,
             ],
-            $this->autoIndexColumns($index),
+            SQLiteCreateTable::automaticIndexColumnMetadata($this->tables[strtolower($index->tableName)]->sql ?? '')[$this->autoIndexOffset($index)] ?? [],
         );
+    }
+
+    private function autoIndexOffset(SQLiteSchemaRecord $index): int
+    {
+        $offset = 0;
+        foreach ($this->indexesByTable[strtolower($index->tableName)] ?? [] as $candidate) {
+            if (!str_starts_with($candidate->name, 'sqlite_autoindex_')) {
+                continue;
+            }
+            if (strcasecmp($candidate->name, $index->name) === 0) {
+                return $offset;
+            }
+            $offset++;
+        }
+
+        return 0;
     }
 
     private function findIndex(string $indexName): ?SQLiteSchemaRecord

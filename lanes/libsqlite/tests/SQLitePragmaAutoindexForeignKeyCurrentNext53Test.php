@@ -19,12 +19,15 @@ $records = static function (string $variant = 'clean') use ($record): array {
     $optionNamesSql = $variant === 'collation-mismatch'
         ? 'CREATE TABLE wp_option_names(name TEXT COLLATE NOCASE UNIQUE, source TEXT)'
         : 'CREATE TABLE wp_option_names(name TEXT UNIQUE, source TEXT)';
+    $optionNamesIndexSql = $variant === 'collation-mismatch'
+        ? 'CREATE UNIQUE INDEX sqlite_autoindex_wp_option_names_1 ON wp_option_names(name COLLATE BINARY)'
+        : null;
 
     $records = [
         $record('table', 'wp_sites', 'wp_sites', 2, 'CREATE TABLE wp_sites(blog_id INTEGER PRIMARY KEY, domain TEXT UNIQUE)', 1),
         $record('index', 'sqlite_autoindex_wp_sites_1', 'wp_sites', 3, null, 2),
         $record('table', 'wp_option_names', 'wp_option_names', 5, $optionNamesSql, 3),
-        $record('index', 'sqlite_autoindex_wp_option_names_1', 'wp_option_names', $optionNamesIndexRoot, null, 4),
+        $record('index', 'sqlite_autoindex_wp_option_names_1', 'wp_option_names', $optionNamesIndexRoot, $optionNamesIndexSql, 4),
         $record('table', 'wp_options', 'wp_options', 7, "CREATE TABLE wp_options(
             option_id INTEGER PRIMARY KEY,
             blog_id INTEGER REFERENCES wp_sites(blog_id),
