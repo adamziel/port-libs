@@ -43,12 +43,34 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with under 1G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10 libsqlite batch74 development workers with no long sleepers; do not add more worktrees until accepted marker/worktree cleanup relieves the critical disk gate.
+- Root filesystem: current sample reports `/` at 452G size with about 2.5G available, 100% used; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10 libsqlite batch76/batch77 development workers with no long sleepers; keep refills bounded because disk remains critical.
 
 ## Current Coordination Snapshot
 
-- 2026-05-28 supervisor continuation (shell samples 02:18 UTC):
+- 2026-05-28 supervisor continuation (shell samples 01:59 UTC):
+  Batch74 clean subset is integrated and root-verified in the rolling clean
+  integration worktree. Implementation source advanced to
+  `36bd7fd0773cffe029f6464d85645882504d5cb6` (`Integrate libsqlite batch 74
+  clean subset`). Accepted handoffs: encoding74, suite74, pagerj74, walsp74,
+  btreeleaf74, trigger74, sqlplan74, and vfsopen74. The jsonagg74 handoff was
+  held for current-source rebase after jsonagg73 because its patch conflicted
+  in `SQLiteJsonAggregate.php`; jsonvt74 was held after full libsqlite exposed
+  four JSON table lateral/nested left-join NULL rowid alias regressions.
+  Verification passed: `php -l` for changed PHP files, changed WordPress
+  examples, `git diff --check`, focused accepted subset `8 test files / 1319
+  assertions / 0 failures`, full libsqlite `534 test files / 62945 assertions
+  / 0 failures / 29382 PASS lines`, and root `747 test files / 87413
+  assertions / 0 failures / 32410 PASS lines`. This is `+465` libsqlite PASS
+  lines over the published batch70/71 plus jsonagg73 subset (`28917 ->
+  29382`); mapped upstream coverage remains `464 / 1589`. The worker pool was
+  restored to 10 active libsqlite batch76/batch77 lanes with zero long
+  sleepers after bounded cleanup of clean inactive worktrees. Next decision:
+  publish this status/dashboard, consume accepted batch74 markers/worktrees,
+  keep jsonagg74/jsonvt74 in rework, and integrate the next ready handoffs by
+  verified PASS-line movement.
+
+- 2026-05-28 supervisor continuation (shell samples 01:47 UTC):
   Batch70/71 plus leftover jsonagg73 clean subset is integrated and
   root-verified in the rolling clean integration worktree. Implementation
   source advanced to `de716911706397e566b51e35cd0367a397ebcf47`
