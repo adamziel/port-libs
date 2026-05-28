@@ -19,7 +19,7 @@ final class SQLiteUpdateDeleteReturningSql
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE RETURNING table {$table} is missing");
         }
 
-        $where = self::wherePredicate($parsed['where']);
+        $where = self::wherePredicate($parsed['where'], $tables);
         if ($parsed['action'] === 'delete') {
             $plan = SQLiteUpdateDeleteLimitPlan::delete(
                 $tables[$table],
@@ -41,7 +41,7 @@ final class SQLiteUpdateDeleteReturningSql
             );
         }
 
-        $projection = self::returningProjection($parsed['returning']);
+        $projection = self::returningProjection($parsed['returning'], $tables);
         $conflictAction = $parsed['conflict_action'];
         $conflictResult = [
             'rows' => $plan->resultRows,
@@ -595,9 +595,10 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
      * @return callable(array<string,mixed>):bool|null
      */
-    private static function wherePredicate(?string $where): callable
+    private static function wherePredicate(?string $where, array $tables = []): callable
     {
         if ($where === null || $where === '') {
             return static fn (): bool => true;
@@ -611,12 +612,12 @@ final class SQLiteUpdateDeleteReturningSql
             self::splitWhereOr($where),
         );
 
-        return static function (array $row) use ($orGroups): ?bool {
+        return static function (array $row) use ($orGroups, $tables): ?bool {
             $sawUnknown = false;
             foreach ($orGroups as $terms) {
                 $group = true;
                 foreach ($terms as $term) {
-                    $value = self::evaluatePredicate(trim($term), $row);
+                    $value = self::evaluatePredicate(trim($term), $row, $tables);
                     if ($value === false) {
                         $group = false;
                         break;
@@ -640,16 +641,16 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param array<string,mixed> $row
      */
-    private static function evaluatePredicate(string $term, array $row): ?bool
+    private static function evaluatePredicate(string $term, array $row, array $tables = []): ?bool
     {
         $stripped = self::stripEnclosingParentheses($term);
         if ($stripped !== null) {
-            return self::evaluatePredicate($stripped, $row);
+            return self::evaluatePredicate($stripped, $row, $tables);
         }
 
         $not = self::unwrapUnaryNot($term);
         if ($not !== null) {
-            return self::negateNullable(self::evaluatePredicate($not, $row));
+            return self::negateNullable(self::evaluatePredicate($not, $row, $tables));
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $term, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
@@ -664,7 +665,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $tuples = self::rowValueTupleList($match[3], $row);
+            $tuples = self::rowValueTupleList($match[3], $row, $tables);
             $result = self::rowValueIn($left, $tuples);
 
             return isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result;
@@ -754,9 +755,10 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
      * @return list<string>|array<string,string|callable(array<string,mixed>):mixed>
      */
-    private static function returningProjection(string $sql): array
+    private static function returningProjection(string $sql, array $tables = []): array
     {
         $projection = [];
         foreach (self::splitComma($sql) as $term) {
@@ -772,7 +774,7 @@ final class SQLiteUpdateDeleteReturningSql
                     $projection[$alias] = $expression;
                     continue;
                 }
-                $projection[$alias] = static fn (array $row): mixed => self::evaluateReturningExpression($expression, $row);
+                $projection[$alias] = static fn (array $row): mixed => self::evaluateReturningExpression($expression, $row, $tables);
                 continue;
             }
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $term) !== 1) {
@@ -787,17 +789,17 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param array<string,mixed> $row
      */
-    private static function evaluateReturningExpression(string $expression, array $row): mixed
+    private static function evaluateReturningExpression(string $expression, array $row, array $tables = []): mixed
     {
         $expression = trim($expression);
         $stripped = self::stripEnclosingParentheses($expression);
         if ($stripped !== null) {
-            return self::evaluateReturningExpression($stripped, $row);
+            return self::evaluateReturningExpression($stripped, $row, $tables);
         }
 
         $not = self::unwrapUnaryNot($expression);
         if ($not !== null) {
-            $result = self::evaluatePredicate($not, $row);
+            $result = self::evaluatePredicate($not, $row, $tables);
 
             return $result === null ? null : ($result ? 0 : 1);
         }
@@ -840,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $tuples = self::rowValueTupleList($match[3], $row);
+            $tuples = self::rowValueTupleList($match[3], $row, $tables);
             $result = self::rowValueIn($left, $tuples);
             if (isset($match[2]) && trim($match[2]) !== '') {
                 $result = self::negateNullable($result);
@@ -1180,11 +1182,20 @@ final class SQLiteUpdateDeleteReturningSql
 
     /**
      * @param array<string,mixed> $row
+     * @param array<string,list<array<string,mixed>>> $tables
      * @return list<list<mixed>>
      */
-    private static function rowValueTupleList(string $sql, array $row): array
+    private static function rowValueTupleList(string $sql, array $row, array $tables = []): array
     {
         $sql = trim($sql);
+        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+WHERE\s+(.+))?$/is', $sql, $match) === 1) {
+            return self::rowValueSelectTupleList(
+                trim($match[1]),
+                $match[2],
+                isset($match[3]) ? trim($match[3]) : null,
+                $tables,
+            );
+        }
         if (preg_match('/^VALUES\b(.*)$/is', $sql, $match) === 1) {
             $sql = trim($match[1]);
             if ($sql === '') {
@@ -1202,6 +1213,43 @@ final class SQLiteUpdateDeleteReturningSql
                 throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value IN list must contain row tuples');
             }
             $tuples[] = self::rowValueExpressions(substr($tuple, 1, -1), $row);
+        }
+
+        return $tuples;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<list<mixed>>
+     */
+    private static function rowValueSelectTupleList(string $selectSql, string $table, ?string $whereSql, array $tables): array
+    {
+        if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value IN subquery table {$table} is missing");
+        }
+
+        $expressions = self::splitComma($selectSql);
+        if (count($expressions) < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value IN subquery must return at least two columns');
+        }
+
+        $tuples = [];
+        foreach ($tables[$table] as $sourceRow) {
+            if (!is_array($sourceRow)) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value IN subquery table {$table} rows must be arrays");
+            }
+            if ($whereSql !== null && $whereSql !== '') {
+                $predicate = self::evaluatePredicate($whereSql, $sourceRow, $tables);
+                if ($predicate !== true) {
+                    continue;
+                }
+            }
+
+            $tuple = [];
+            foreach ($expressions as $expression) {
+                $tuple[] = self::evaluateExpression(trim($expression), $sourceRow);
+            }
+            $tuples[] = $tuple;
         }
 
         return $tuples;

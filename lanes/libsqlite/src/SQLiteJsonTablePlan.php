@@ -3050,6 +3050,76 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext212(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+            $plan['currentGeneratedPathRowidRangeConstraint209'],
+            $plan['currentGeneratedPathRowidAliasProjection203'],
+            false,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+            $plan['nextGeneratedPathRowidRangeConstraint209'],
+            $plan['nextGeneratedPathRowidAliasProjection203'],
+            $plan['next209ReplanReasons'] !== [],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions212($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons212($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceXCurrent212'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceXCurrent212'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceXCurrent212Transitions'] = $transitions;
+        $plan['next212ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next209ReplanReasons'] ?? [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next212ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'xcurrent-rowid-current-json-table-generated-path-rowid-next212';
+        $plan['nextReaderPolicy'] = $nextProfile['xCurrentReusable']
+            ? 'reuse-xcurrent-rowid-current-json-table-generated-path-rowid-next212'
+            : 'reprepare-xcurrent-rowid-next-json-table-generated-path-rowid-next212';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next212'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext209(
         string $function,
         array $currentSource,
@@ -21387,6 +21457,203 @@ final class SQLiteJsonTablePlan
                 'previousRowid', 'selectedRowids', 'remainingRowidsBeforeXNext', 'emittedRowids', 'blockedRowidsAfterXNext', 'nextRowid', 'eofAfterXNext' => 'json-table-generated-path-rowid-xnext-rowset-changed-next202',
                 'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xnext-cost-changed-next202',
                 default => 'json-table-generated-path-rowid-xnext-state-changed-next202',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $range209
+     * @param array<string,mixed> $aliasProjection203
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentProfile212(
+        array $range209,
+        array $aliasProjection203,
+        bool $upstreamReplanRequired,
+    ): array {
+        $acceptedRowids = array_values(array_map('intval', $range209['acceptedRangeRowids'] ?? []));
+        $activeRowid = $acceptedRowids[0] ?? null;
+        $aliasTape = is_array($aliasProjection203['aliasTape'] ?? null) ? $aliasProjection203['aliasTape'] : [];
+        $activeEntry = null;
+        foreach ($aliasTape as $entry) {
+            if (!is_array($entry) || !isset($entry['rowid'])) {
+                continue;
+            }
+            if ((int) $entry['rowid'] === $activeRowid) {
+                $activeEntry = $entry;
+                break;
+            }
+        }
+
+        $projectedColumns = is_array($activeEntry['projectedColumns'] ?? null) ? $activeEntry['projectedColumns'] : [];
+        $aliasValues = is_array($activeEntry['aliasValues'] ?? null) ? $activeEntry['aliasValues'] : [];
+        $sourceFingerprint = hash('sha256', json_encode([
+            $range209['function'] ?? null,
+            $range209['root'] ?? null,
+            $range209['generatedPath'] ?? null,
+            $range209['sourceGeneration'] ?? null,
+            $range209['rangeFingerprint'] ?? null,
+            $aliasProjection203['aliasProjectionFingerprint'] ?? null,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $rowFingerprint = $activeEntry === null ? null : hash('sha256', json_encode([
+            $activeRowid,
+            $projectedColumns,
+            $aliasValues,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $rangeReusable = (bool) ($range209['rangeReusable'] ?? false);
+        $rowMaterialized = (bool) ($activeEntry['accepted'] ?? false) && (bool) ($activeEntry['materialized'] ?? false);
+        $xCurrentReusable = $rangeReusable && !$upstreamReplanRequired && $activeRowid !== null && $rowMaterialized;
+        $remainingRowids = $activeRowid === null
+            ? []
+            : array_values(array_filter($acceptedRowids, static fn (int $rowid): bool => $rowid !== $activeRowid));
+        $estimatedRows = $xCurrentReusable ? 1 : 0;
+        $estimatedCost = $xCurrentReusable ? max(1, min((int) ($range209['estimatedCost'] ?? 1), 1)) : 1000000;
+        $opcode = self::jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode212(
+            $xCurrentReusable,
+            $rangeReusable,
+            $upstreamReplanRequired,
+            $activeRowid,
+            $rowMaterialized,
+        );
+
+        return [
+            'function' => (string) ($range209['function'] ?? ''),
+            'root' => (string) ($range209['root'] ?? '$'),
+            'generatedPath' => (string) ($range209['generatedPath'] ?? ''),
+            'sourceGeneration' => (string) ($range209['sourceGeneration'] ?? ''),
+            'sourceFingerprint' => $sourceFingerprint,
+            'rangeFingerprint' => (string) ($range209['rangeFingerprint'] ?? ''),
+            'aliasProjectionFingerprint' => (string) ($aliasProjection203['aliasProjectionFingerprint'] ?? ''),
+            'acceptedRangeRowids' => $acceptedRowids,
+            'activeRowid' => $activeRowid,
+            'remainingRowids' => $remainingRowids,
+            'activeRowMaterialized' => $rowMaterialized,
+            'activeProjectedColumns' => $xCurrentReusable ? $projectedColumns : [],
+            'activeAliasValues' => $xCurrentReusable ? $aliasValues : [],
+            'rowFingerprint' => $rowFingerprint,
+            'rangeReusable' => $rangeReusable,
+            'upstreamReplanRequired' => $upstreamReplanRequired,
+            'xCurrentReusable' => $xCurrentReusable,
+            'xCurrentOpcode' => $opcode,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass212($opcode, $remainingRowids),
+            'xCurrentFingerprint' => hash('sha256', json_encode([
+                $sourceFingerprint,
+                $activeRowid,
+                $remainingRowids,
+                $rowFingerprint,
+                $xCurrentReusable,
+                $opcode,
+                $estimatedCost,
+            ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentOpcode212(
+        bool $xCurrentReusable,
+        bool $rangeReusable,
+        bool $upstreamReplanRequired,
+        ?int $activeRowid,
+        bool $rowMaterialized,
+    ): string {
+        if ($xCurrentReusable) {
+            return 'OP_JsonTableGeneratedPathRowidXCurrentNext212';
+        }
+        if ($upstreamReplanRequired) {
+            return 'OP_JsonTableGeneratedPathRowidXCurrentReprepareNext212';
+        }
+        if (!$rangeReusable) {
+            return 'OP_JsonTableGeneratedPathRowidXCurrentReseekRangeNext212';
+        }
+        if ($activeRowid === null) {
+            return 'OP_JsonTableGeneratedPathRowidXCurrentEofNext212';
+        }
+        if (!$rowMaterialized) {
+            return 'OP_JsonTableGeneratedPathRowidXCurrentMaterializeNext212';
+        }
+
+        return 'OP_JsonTableGeneratedPathRowidXCurrentRestartNext212';
+    }
+
+    /**
+     * @param list<int> $remainingRowids
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentCostClass212(string $opcode, array $remainingRowids): string
+    {
+        return match ($opcode) {
+            'OP_JsonTableGeneratedPathRowidXCurrentNext212' => $remainingRowids === []
+                ? 'json-table-generated-path-rowid-xcurrent-point-next212'
+                : 'json-table-generated-path-rowid-xcurrent-range-next212',
+            'OP_JsonTableGeneratedPathRowidXCurrentReprepareNext212' => 'json-table-generated-path-rowid-xcurrent-reprepare-next212',
+            'OP_JsonTableGeneratedPathRowidXCurrentReseekRangeNext212' => 'json-table-generated-path-rowid-xcurrent-reseek-range-next212',
+            'OP_JsonTableGeneratedPathRowidXCurrentEofNext212' => 'json-table-generated-path-rowid-xcurrent-eof-next212',
+            'OP_JsonTableGeneratedPathRowidXCurrentMaterializeNext212' => 'json-table-generated-path-rowid-xcurrent-materialize-next212',
+            default => 'json-table-generated-path-rowid-xcurrent-blocked-next212',
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentTransitions212(array $current, array $next): array
+    {
+        $fields = [
+            'function',
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'sourceFingerprint',
+            'acceptedRangeRowids',
+            'activeRowid',
+            'remainingRowids',
+            'activeRowMaterialized',
+            'activeProjectedColumns',
+            'activeAliasValues',
+            'rowFingerprint',
+            'rangeReusable',
+            'upstreamReplanRequired',
+            'xCurrentReusable',
+            'xCurrentOpcode',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'xCurrentFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceXCurrentReasons212(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+            $reasons[] = match ($transition['field']) {
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'sourceFingerprint', 'xCurrentFingerprint' => 'json-table-generated-path-rowid-xcurrent-source-changed-next212',
+                'acceptedRangeRowids', 'activeRowid', 'remainingRowids' => 'json-table-generated-path-rowid-xcurrent-rowset-changed-next212',
+                'activeRowMaterialized', 'activeProjectedColumns', 'activeAliasValues', 'rowFingerprint' => 'json-table-generated-path-rowid-xcurrent-row-changed-next212',
+                'rangeReusable', 'upstreamReplanRequired', 'xCurrentReusable', 'xCurrentOpcode' => 'json-table-generated-path-rowid-xcurrent-admission-changed-next212',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xcurrent-cost-changed-next212',
+                default => 'json-table-generated-path-rowid-xcurrent-state-changed-next212',
             };
         }
 
