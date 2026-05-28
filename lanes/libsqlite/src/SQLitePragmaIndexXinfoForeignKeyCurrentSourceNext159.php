@@ -88,11 +88,13 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159
                 usort($rows, static fn (array $left, array $right): int => (int) $left['seq'] <=> (int) $right['seq']);
                 $parent = (string) $rows[0]['table'];
                 $parentRecord = $tables[strtolower($parent)] ?? null;
+                $implicitParentColumns = null;
                 $columns = [];
                 foreach ($rows as $row) {
                     $parentColumn = (string) ($row['to'] ?? '');
                     if ($parentColumn === '') {
-                        throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next159 needs explicit parent columns');
+                        $implicitParentColumns ??= self::implicitParentColumns($catalog, $parentRecord, $parent, count($rows));
+                        $parentColumn = $implicitParentColumns[(int) $row['seq']] ?? '';
                     }
                     $columns[] = [
                         'child' => (string) $row['from'],
@@ -113,6 +115,29 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159
         }
 
         return $foreignKeys;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function implicitParentColumns(SQLitePragmaSchemaCatalog $catalog, ?SQLiteSchemaRecord $record, string $parent, int $arity): array
+    {
+        if ($record === null) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next159 cannot resolve implicit parent columns without parent table DDL');
+        }
+
+        $primaryKeyRows = array_values(array_filter(
+            $catalog->execute('PRAGMA table_info(' . self::pragmaArgumentLiteral($parent) . ')')['rows'],
+            static fn (array $row): bool => (int) ($row['pk'] ?? 0) > 0,
+        ));
+        usort($primaryKeyRows, static fn (array $left, array $right): int => (int) $left['pk'] <=> (int) $right['pk']);
+        $columns = array_map(static fn (array $row): string => (string) $row['name'], $primaryKeyRows);
+
+        if (count($columns) !== $arity) {
+            throw new InvalidArgumentException('SQLite PRAGMA index_xinfo/FK current-source next159 implicit parent columns must match the child key arity');
+        }
+
+        return $columns;
     }
 
     /**

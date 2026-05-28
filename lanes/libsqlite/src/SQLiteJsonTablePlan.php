@@ -2060,6 +2060,67 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostSourceNext162(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostSourceNext160(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCostSourceProfile162(
+            $plan['currentGeneratedPathRowidCostSource'],
+            $constraints,
+            $orderBy,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCostSourceProfile162(
+            $plan['nextGeneratedPathRowidCostSource'],
+            $constraints,
+            $orderBy,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCostSourceTransitions162($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCostSourceReplanReasons162($transitions);
+
+        $plan['currentGeneratedPathRowidCostSource162'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCostSource162'] = $nextProfile;
+        $plan['generatedPathRowidCostSource162Transitions'] = $transitions;
+        $plan['next162ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next160ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next162ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-source-next162-until-xfilter-reset';
+        $plan['nextReaderPolicy'] = $plan['next162ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-cost-source-next162-plan'
+            : 'prepare-next-json-table-generated-path-rowid-cost-source-next162-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next162'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidSeekCostNext159(
         string $function,
         array $currentSource,
@@ -7126,6 +7187,205 @@ final class SQLiteJsonTablePlan
                 'estimatedRows' => 'json-table-generated-path-rowid-current-source-admission-row-estimate-changed',
                 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-admission-cost-changed',
                 default => 'json-table-generated-path-rowid-current-source-admission-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{rowidAlias:string|null,rowidAliasCandidates:list<string>,rowidPointUsable:bool,generatedPathArgvIndex:int|null,rowidArgvIndex:int|null,idxNum:int,idxStr:string,orderByColumns:list<string>,orderByConsumed:bool,omittedConstraintColumns:list<string>,residualConstraintColumns:list<string>,sourceStableKey:string,estimatedRows:int,estimatedCost:int,costClass:string}
+     */
+    private static function jsonTableGeneratedPathRowidCostSourceProfile162(
+        array $source,
+        array $constraints,
+        array $orderBy,
+    ): array {
+        $rowidAlias = null;
+        $rowidAliases = [];
+        $generatedPathArgvIndex = null;
+        $rowidArgvIndex = null;
+        foreach ($source['argvBindings'] ?? [] as $binding) {
+            $column = self::normalizeConstraintColumn((string) ($binding['column'] ?? ''));
+            if ($column === 'path' && ($binding['kind'] ?? null) === 'generated-path') {
+                $generatedPathArgvIndex = (int) $binding['argvIndex'];
+            }
+            if ($column === 'id' && ($binding['kind'] ?? null) === 'rowid-point') {
+                $rowidArgvIndex = (int) $binding['argvIndex'];
+            }
+        }
+
+        foreach ($constraints as $constraint) {
+            if (($constraint['usable'] ?? true) !== true) {
+                continue;
+            }
+            $rawColumn = strtolower((string) ($constraint['column'] ?? ''));
+            if (!self::isRowIdAlias($rawColumn)) {
+                continue;
+            }
+            $rowidAliases[] = $rawColumn;
+            $rowidAlias ??= $rawColumn;
+        }
+
+        $orderColumns = [];
+        foreach ($orderBy as $term) {
+            $orderColumns[] = self::normalizeConstraintColumn((string) ($term['column'] ?? ''));
+        }
+        $orderColumns = array_values(array_filter($orderColumns, static fn (string $column): bool => $column !== ''));
+        $orderByConsumed = $orderColumns !== []
+            && array_diff($orderColumns, ['path', 'id']) === []
+            && in_array('path', $source['omitColumns'] ?? [], true);
+
+        $rowids = array_values(array_filter(
+            $source['intersectedRowids'] ?? [],
+            static fn (mixed $rowid): bool => is_int($rowid),
+        ));
+        $estimatedRows = count($rowids);
+        if ($estimatedRows === 0 && (bool) ($source['runnable'] ?? false) && ($source['costClass'] ?? null) !== 'json-table-generated-path-rowid-empty') {
+            $estimatedRows = max(1, count($source['intersectedPaths'] ?? []));
+        }
+        $estimatedCost = (int) ($source['effectiveEstimatedCost'] ?? 1000000);
+        if ($rowidArgvIndex !== null && $estimatedRows <= 1 && (bool) ($source['runnable'] ?? false)) {
+            $estimatedCost = min($estimatedCost, 1);
+        }
+        if ($orderByConsumed && $estimatedCost < 1000000) {
+            $estimatedCost = max(1, $estimatedCost - 1);
+        }
+
+        $idxFlags = 0;
+        if ($generatedPathArgvIndex !== null) {
+            $idxFlags |= 1;
+        }
+        if ($rowidArgvIndex !== null) {
+            $idxFlags |= 2;
+        }
+        if ($orderByConsumed) {
+            $idxFlags |= 4;
+        }
+
+        $stableKey = hash('sha256', json_encode([
+            $source['planFingerprint'] ?? null,
+            $rowidAlias,
+            $rowidAliases,
+            $generatedPathArgvIndex,
+            $rowidArgvIndex,
+            $orderColumns,
+            $rowids,
+            $estimatedRows,
+            $estimatedCost,
+        ], JSON_THROW_ON_ERROR));
+
+        return [
+            'rowidAlias' => $rowidAlias,
+            'rowidAliasCandidates' => array_values(array_unique($rowidAliases)),
+            'rowidPointUsable' => $rowidArgvIndex !== null,
+            'generatedPathArgvIndex' => $generatedPathArgvIndex,
+            'rowidArgvIndex' => $rowidArgvIndex,
+            'idxNum' => $idxFlags,
+            'idxStr' => self::jsonTableGeneratedPathRowidCostSourceIdxStr162($idxFlags),
+            'orderByColumns' => $orderColumns,
+            'orderByConsumed' => $orderByConsumed,
+            'omittedConstraintColumns' => array_values($source['omitColumns'] ?? []),
+            'residualConstraintColumns' => array_values($source['residualColumns'] ?? []),
+            'sourceStableKey' => $stableKey,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidCostSourceCostClass162(
+                (string) ($source['costClass'] ?? 'unrunnable-json-table'),
+                $rowidArgvIndex !== null,
+                $orderByConsumed,
+                $estimatedRows,
+            ),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidCostSourceIdxStr162(int $idxFlags): string
+    {
+        $parts = [];
+        if (($idxFlags & 1) !== 0) {
+            $parts[] = 'generated-path';
+        }
+        if (($idxFlags & 2) !== 0) {
+            $parts[] = 'rowid-point';
+        }
+        if (($idxFlags & 4) !== 0) {
+            $parts[] = 'orderby';
+        }
+
+        return $parts === [] ? 'json-table-scan' : implode('+', $parts);
+    }
+
+    private static function jsonTableGeneratedPathRowidCostSourceCostClass162(
+        string $baseCostClass,
+        bool $rowidPoint,
+        bool $orderByConsumed,
+        int $estimatedRows,
+    ): string {
+        if ($baseCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($estimatedRows === 0) {
+            return 'json-table-generated-path-rowid-cost-source-next162-empty';
+        }
+        if ($rowidPoint && $orderByConsumed && $estimatedRows === 1) {
+            return 'json-table-generated-path-rowid-cost-source-next162-covering-point';
+        }
+        if ($rowidPoint && $estimatedRows === 1) {
+            return 'json-table-generated-path-rowid-cost-source-next162-point';
+        }
+        if ($orderByConsumed) {
+            return 'json-table-generated-path-rowid-cost-source-next162-ordered';
+        }
+
+        return str_contains($baseCostClass, 'unconstrained')
+            ? 'json-table-generated-path-rowid-cost-source-next162-residual'
+            : 'json-table-generated-path-rowid-cost-source-next162-range';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCostSourceTransitions162(array $current, array $next): array
+    {
+        return [
+            ['field' => 'rowidAlias', 'current' => $current['rowidAlias'], 'next' => $next['rowidAlias'], 'changed' => $current['rowidAlias'] !== $next['rowidAlias']],
+            ['field' => 'rowidPointUsable', 'current' => $current['rowidPointUsable'], 'next' => $next['rowidPointUsable'], 'changed' => $current['rowidPointUsable'] !== $next['rowidPointUsable']],
+            ['field' => 'idxNum', 'current' => $current['idxNum'], 'next' => $next['idxNum'], 'changed' => $current['idxNum'] !== $next['idxNum']],
+            ['field' => 'idxStr', 'current' => $current['idxStr'], 'next' => $next['idxStr'], 'changed' => $current['idxStr'] !== $next['idxStr']],
+            ['field' => 'orderByConsumed', 'current' => $current['orderByConsumed'], 'next' => $next['orderByConsumed'], 'changed' => $current['orderByConsumed'] !== $next['orderByConsumed']],
+            ['field' => 'omittedConstraintColumns', 'current' => $current['omittedConstraintColumns'], 'next' => $next['omittedConstraintColumns'], 'changed' => $current['omittedConstraintColumns'] !== $next['omittedConstraintColumns']],
+            ['field' => 'residualConstraintColumns', 'current' => $current['residualConstraintColumns'], 'next' => $next['residualConstraintColumns'], 'changed' => $current['residualConstraintColumns'] !== $next['residualConstraintColumns']],
+            ['field' => 'estimatedRows', 'current' => $current['estimatedRows'], 'next' => $next['estimatedRows'], 'changed' => $current['estimatedRows'] !== $next['estimatedRows']],
+            ['field' => 'estimatedCost', 'current' => $current['estimatedCost'], 'next' => $next['estimatedCost'], 'changed' => $current['estimatedCost'] !== $next['estimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'sourceStableKey', 'current' => $current['sourceStableKey'], 'next' => $next['sourceStableKey'], 'changed' => $current['sourceStableKey'] !== $next['sourceStableKey']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCostSourceReplanReasons162(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'rowidAlias', 'rowidPointUsable' => 'json-table-generated-path-rowid-cost-source-next162-rowid-alias-changed',
+                'idxNum', 'idxStr', 'omittedConstraintColumns', 'residualConstraintColumns' => 'json-table-generated-path-rowid-cost-source-next162-index-usage-changed',
+                'orderByConsumed' => 'json-table-generated-path-rowid-cost-source-next162-orderby-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-cost-source-next162-cost-changed',
+                'sourceStableKey' => 'json-table-generated-path-rowid-cost-source-next162-stable-key-changed',
+                default => 'json-table-generated-path-rowid-cost-source-next162-state-changed',
             };
         }
 

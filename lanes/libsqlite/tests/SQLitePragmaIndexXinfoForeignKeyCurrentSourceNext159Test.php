@@ -205,13 +205,17 @@ $tests['pragma index xinfo foreignkey current source next159 rejects stale offse
     $t->throws(InvalidArgumentException::class, static fn (): array => $page159(6, 5, $first['next']));
 };
 
-$tests['pragma index xinfo foreignkey current source next159 rejects unsupported implicit parent columns'] = static function (TestRunner $t) use ($record159): void {
+$tests['pragma index xinfo foreignkey current source next159 resolves implicit rowid parent columns'] = static function (TestRunner $t) use ($record159): void {
     $records = [
         $record159('table', 'parent', 'parent', 2, 'CREATE TABLE parent(id INTEGER PRIMARY KEY)', 1),
         $record159('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent)', 2),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159::foreignKeysFromCatalog($records));
+    $foreignKeys = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159::foreignKeysFromCatalog($records);
+
+    $t->same('parent_id', $foreignKeys[0]['columns'][0]['child']);
+    $t->same('id', $foreignKeys[0]['columns'][0]['parent']);
+    $t->same('integer', $foreignKeys[0]['columns'][0]['affinity']);
 };
 
 $tests['pragma index xinfo foreignkey current source next159 rejects negative offset'] = static function (TestRunner $t) use ($page159): void {
