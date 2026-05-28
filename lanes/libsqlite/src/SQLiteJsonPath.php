@@ -6,6 +6,48 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonPath
 {
+    public static function normalizeOperatorPath(mixed $operand): ?string
+    {
+        if (is_int($operand)) {
+            return $operand < 0 ? '$[#' . $operand . ']' : '$[' . $operand . ']';
+        }
+
+        if ($operand instanceof SQLiteBlobValue) {
+            $operand = $operand->bytes;
+        } elseif (is_bool($operand)) {
+            $operand = $operand ? '1' : '0';
+        } elseif (is_float($operand)) {
+            $operand = (string) $operand;
+        }
+
+        if (!is_string($operand)) {
+            return null;
+        }
+
+        if (str_starts_with($operand, '$')) {
+            return self::isWellFormed($operand) ? $operand : null;
+        }
+        if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $operand) === 1) {
+            return '$' . $operand;
+        }
+
+        $member = self::decodeBareMember($operand);
+        if ($member === null) {
+            return null;
+        }
+
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $member) === 1) {
+            return '$.' . $member;
+        }
+
+        $quoted = json_encode($member, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($quoted)) {
+            return null;
+        }
+
+        return '$.' . $quoted;
+    }
+
     public static function isWellFormed(string $path): bool
     {
         if ($path === '' || $path[0] !== '$') {

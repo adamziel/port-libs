@@ -873,34 +873,11 @@ final class SQLiteCreateIndex
 
     private static function normalizeJsonTextOperatorPath(mixed $operand): ?string
     {
-        if (is_int($operand)) {
-            return $operand < 0 ? '$[#' . $operand . ']' : '$[' . $operand . ']';
-        }
-        if (!is_string($operand)) {
-            return null;
-        }
-        if (str_starts_with($operand, '$')) {
-            return SQLiteJsonPath::isWellFormed($operand) ? $operand : null;
-        }
-        if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $operand) === 1) {
-            return '$' . $operand;
-        }
-
-        $member = SQLiteJsonPath::decodeBareMember($operand);
-        if ($member === null) {
+        if (!is_int($operand) && !is_string($operand)) {
             return null;
         }
 
-        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $member) === 1) {
-            return '$.' . $member;
-        }
-
-        $quoted = json_encode($member, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if (!is_string($quoted)) {
-            return null;
-        }
-
-        return '$.' . $quoted;
+        return SQLiteJsonPath::normalizeOperatorPath($operand);
     }
 
     private static function readIntegerOnlyLiteral(string $text): ?int

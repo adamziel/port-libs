@@ -14,26 +14,35 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
      * @param list<int> $cellPointersBefore
      * @param list<int> $cellPointersAfter
      * @param list<int> $obsoleteOverflowPageNumbers
+     * @param list<int> $writeOrderPageNumbers
      * @param array<int, string> $pageImages
      */
     private function __construct(
         public readonly int $leafPageNumber,
         public readonly string $leafPageType,
+        public readonly string $currentSourcePageHash,
+        public readonly string $deletedLeafPageHash,
+        public readonly string $nextLeafPageHash,
         public readonly array $deletedRowIds,
         public readonly array $deletedRecordValues,
         public readonly int $cellCountBefore,
         public readonly int $cellCountAfter,
+        public readonly int $cellCountDelta,
         public readonly int $freeblockBytesBefore,
         public readonly int $freeblockBytesAfter,
+        public readonly int $freeblockBytesDelta,
         public readonly int $fragmentedBytesBefore,
         public readonly int $fragmentedBytesAfter,
+        public readonly int $fragmentedBytesDelta,
         public readonly int $cellContentStartBefore,
         public readonly int $cellContentStartAfter,
+        public readonly int $cellContentStartDelta,
         public readonly array $freeblocksBefore,
         public readonly array $freeblocksAfter,
         public readonly array $cellPointersBefore,
         public readonly array $cellPointersAfter,
         public readonly array $obsoleteOverflowPageNumbers,
+        public readonly array $writeOrderPageNumbers,
         public readonly SQLiteFreelistFreePlan $freePlan,
         public readonly string $leafPageImage,
         public readonly array $pageImages,
@@ -115,16 +124,23 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
             'action' => 'btree-delete-rebalance-freeblock-apply-current-next',
             'leaf_page' => $this->leafPageNumber,
             'leaf_page_type' => $this->leafPageType,
+            'current_source_page_hash' => $this->currentSourcePageHash,
+            'deleted_leaf_page_hash' => $this->deletedLeafPageHash,
+            'next_leaf_page_hash' => $this->nextLeafPageHash,
             'deleted_rowids' => $this->deletedRowIds,
             'deleted_record_values' => $this->deletedRecordValues,
             'cell_count_before' => $this->cellCountBefore,
             'cell_count_after' => $this->cellCountAfter,
+            'cell_count_delta' => $this->cellCountDelta,
             'freeblock_bytes_before' => $this->freeblockBytesBefore,
             'freeblock_bytes_after' => $this->freeblockBytesAfter,
+            'freeblock_bytes_delta' => $this->freeblockBytesDelta,
             'fragmented_bytes_before' => $this->fragmentedBytesBefore,
             'fragmented_bytes_after' => $this->fragmentedBytesAfter,
+            'fragmented_bytes_delta' => $this->fragmentedBytesDelta,
             'cell_content_start_before' => $this->cellContentStartBefore,
             'cell_content_start_after' => $this->cellContentStartAfter,
+            'cell_content_start_delta' => $this->cellContentStartDelta,
             'freeblocks_before' => $this->freeblocksBefore,
             'freeblocks_after' => $this->freeblocksAfter,
             'cell_pointers_before' => $this->cellPointersBefore,
@@ -134,6 +150,7 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
             'freelist_page_count' => $this->freePlan->freelistPageCount,
             'first_freelist_trunk_page' => $this->freePlan->firstFreelistTrunkPage,
             'updated_page_numbers' => $this->updatedPageNumbers(),
+            'write_order_page_numbers' => $this->writeOrderPageNumbers,
             'updated_freelist_page_numbers' => array_keys($this->freePlan->updatedFreelistPages),
             'updated_pointer_map_page_numbers' => array_keys($this->freePlan->updatedPointerMapPages),
             'secure_delete_cleared_pages' => $this->freePlan->clearedPageNumbers,
@@ -173,6 +190,7 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
             throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply keeps non-empty leaves; empty leaves should use the empty-leaf free plan');
         }
 
+        $currentPage = $database->page($leafPageNumber);
         $freeblocksBefore = self::freeblockArrays($before, $page, $database->usablePageSize());
         if ($freeblocksBefore === []) {
             throw new \InvalidArgumentException('SQLite delete rebalance freeblock apply requires at least one current leaf freeblock');
@@ -197,25 +215,34 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
         $pageImages = $freePlan->pageImages();
         $pageImages[$leafPageNumber] = $leafPageImage;
         ksort($pageImages);
+        $writeOrderPageNumbers = self::writeOrderPageNumbers($leafPageNumber, $freePlan, $pageImages);
 
         return new self(
             $leafPageNumber,
             $leafPageType,
+            hash('sha256', $currentPage),
+            hash('sha256', $page),
+            hash('sha256', $leafPageImage),
             $deletedRowIds,
             $deletedRecordValues,
             $before->cellCount,
             $after->cellCount,
+            $after->cellCount - $before->cellCount,
             array_sum(array_column($freeblocksBefore, 'size')),
             0,
+            -array_sum(array_column($freeblocksBefore, 'size')),
             $before->fragmentedFreeBytes,
             $after->fragmentedFreeBytes,
+            $after->fragmentedFreeBytes - $before->fragmentedFreeBytes,
             $before->cellContentAreaStart,
             $after->cellContentAreaStart,
+            $after->cellContentAreaStart - $before->cellContentAreaStart,
             $freeblocksBefore,
             self::freeblockArrays($after, $leafPageImage, $database->usablePageSize()),
             $before->cellPointers($page),
             $after->cellPointers($leafPageImage),
             $obsoleteOverflowPages,
+            $writeOrderPageNumbers,
             $freePlan,
             $leafPageImage,
             $pageImages,
@@ -381,5 +408,33 @@ final class SQLiteBTreeDeleteRebalanceFreeblockApplyPlan
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @return list<int>
+     */
+    private static function writeOrderPageNumbers(int $leafPageNumber, SQLiteFreelistFreePlan $freePlan, array $pageImages): array
+    {
+        $ordered = [$leafPageNumber];
+        foreach ($freePlan->freedPageNumbers as $pageNumber) {
+            $ordered[] = $pageNumber;
+        }
+        foreach (array_keys($freePlan->updatedFreelistPages) as $pageNumber) {
+            $ordered[] = $pageNumber;
+        }
+        foreach (array_keys($freePlan->updatedPointerMapPages) as $pageNumber) {
+            $ordered[] = $pageNumber;
+        }
+        foreach (array_keys($pageImages) as $pageNumber) {
+            if ($pageNumber !== 1) {
+                $ordered[] = $pageNumber;
+            }
+        }
+        if (isset($pageImages[1])) {
+            $ordered[] = 1;
+        }
+
+        return array_values(array_unique($ordered));
     }
 }
