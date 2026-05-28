@@ -61,9 +61,10 @@
   full libsqlite `838 test files / 95796 assertions / 0 failures / 47656
   PASS lines`, and root `1051 test files / 120264 assertions / 0 failures /
   50684 PASS lines`. This is `+1244` public libsqlite PASS-line movement over
-  batch116/117 (`46412 -> 47656`); mapped coverage remains conservative at
-  `604 / 1589` because the accepted worker evidence did not claim fresh
-  manifest-backed mapped rows. Two compound SELECT handoffs (`compound118`,
+  batch116/117 (`46412 -> 47656`); mapped coverage moved to `605 / 1589`
+  after the accepted suite countability manifest row, while the remaining
+  accepted behavior is counted as PHP PASS coverage only. Two compound SELECT
+  handoffs (`compound118`,
   `compound119`) remain queued for targeted `SQLiteSelectSql.php` rebase.
   The worker pool was repaired during the batch by adding next120/next121
   reserve slices and tightening the refiller so just-started non-ready worker
