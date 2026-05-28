@@ -154,7 +154,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
-     * @return array{function:string,idxNum:int,idxStr:string,runnable:bool,arguments:list<mixed>,constraintUsage:list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,orderByConsumed:bool,estimatedCost:int,estimatedRows:int}
+     * @return array{function:string,idxNum:int,idxStr:string,runnable:bool,arguments:list<mixed>,filterArguments:list<mixed>,constraintUsage:list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>,filterCurrentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,currentNext:list<array{current:array<string,mixed>,next:array<string,mixed>|null}>,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,orderByConsumed:bool,estimatedCost:int,estimatedRows:int}
      */
     public static function xBestIndexPlan(string $function, array $constraints, array $orderBy = []): array
     {
@@ -177,6 +177,8 @@ final class SQLiteJsonTablePlan
         }
 
         usort($usage, static fn (array $left, array $right): int => $left['constraintIndex'] <=> $right['constraintIndex']);
+        $filterArguments = self::filterArguments($plan['used']);
+        $filterUsage = self::filterConstraintUsage($usage);
 
         return [
             'function' => $plan['function'],
@@ -184,7 +186,9 @@ final class SQLiteJsonTablePlan
             'idxStr' => self::jsonTableIdxStr($plan),
             'runnable' => $plan['runnable'],
             'arguments' => $plan['arguments'],
+            'filterArguments' => $filterArguments,
             'constraintUsage' => $usage,
+            'filterCurrentNext' => self::constraintCurrentNext($filterUsage),
             'currentNext' => self::constraintCurrentNext($usage),
             'used' => $plan['used'],
             'residual' => $plan['residual'],
@@ -731,6 +735,50 @@ final class SQLiteJsonTablePlan
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $used
+     * @return list<mixed>
+     */
+    private static function filterArguments(array $used): array
+    {
+        $arguments = [];
+        foreach ($used as $constraint) {
+            $argvIndex = (int) ($constraint['argvIndex'] ?? 0);
+            if ($argvIndex <= 0) {
+                continue;
+            }
+
+            $arguments[$argvIndex] = $constraint['value'] ?? null;
+        }
+
+        if ($arguments === []) {
+            return [];
+        }
+
+        ksort($arguments);
+
+        return array_values($arguments);
+    }
+
+    /**
+     * @param list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}> $usage
+     * @return list<array{constraintIndex:int,column:string,operator:string,argvIndex:int|null,omit:bool,usable:bool,kind:string}>
+     */
+    private static function filterConstraintUsage(array $usage): array
+    {
+        $filtered = array_values(array_filter(
+            $usage,
+            static fn (array $constraint): bool => $constraint['argvIndex'] !== null && $constraint['argvIndex'] > 0,
+        ));
+        usort($filtered, static function (array $left, array $right): int {
+            $argvOrder = ($left['argvIndex'] ?? 0) <=> ($right['argvIndex'] ?? 0);
+
+            return $argvOrder !== 0 ? $argvOrder : $left['constraintIndex'] <=> $right['constraintIndex'];
+        });
+
+        return $filtered;
     }
 
     /**

@@ -413,16 +413,30 @@ final class SQLiteIndexLeafPage
         usort($blocks, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
 
         $coalesced = [];
+        $coalescedFragmentBytes = 0;
         foreach ($blocks as $block) {
             $lastIndex = count($coalesced) - 1;
-            if ($lastIndex >= 0 && $coalesced[$lastIndex]['offset'] + $coalesced[$lastIndex]['size'] === $block['offset']) {
+            $lastEnd = $lastIndex >= 0 ? $coalesced[$lastIndex]['offset'] + $coalesced[$lastIndex]['size'] : null;
+            if ($lastEnd !== null && $lastEnd === $block['offset']) {
                 $coalesced[$lastIndex]['size'] += $block['size'];
                 continue;
             }
-            if ($lastIndex >= 0 && $coalesced[$lastIndex]['offset'] + $coalesced[$lastIndex]['size'] > $block['offset']) {
+            if ($lastEnd !== null && $lastEnd < $block['offset'] && $block['offset'] - $lastEnd < 4) {
+                $coalescedFragmentBytes += $block['offset'] - $lastEnd;
+                $coalesced[$lastIndex]['size'] = ($block['offset'] + $block['size']) - $coalesced[$lastIndex]['offset'];
+                continue;
+            }
+            if ($lastEnd !== null && $lastEnd > $block['offset']) {
                 throw new \InvalidArgumentException('SQLite index leaf deletion produced overlapping freeblocks');
             }
             $coalesced[] = $block;
+        }
+        if ($coalescedFragmentBytes > 0) {
+            $fragmented = ord($page[$header->headerOffset + 7]);
+            if ($coalescedFragmentBytes > $fragmented) {
+                throw new \InvalidArgumentException('SQLite index leaf deletion current/next fragments exceed fragmented free byte count');
+            }
+            $page[$header->headerOffset + 7] = chr($fragmented - $coalescedFragmentBytes);
         }
 
         $page = substr_replace(

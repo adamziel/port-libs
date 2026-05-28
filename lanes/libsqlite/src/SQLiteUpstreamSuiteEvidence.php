@@ -6876,12 +6876,119 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
-     * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int}
+     * @return array<string, mixed>
+     */
+    public function focusedPhpPassCurrentHeadAdmission(
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $evidenceRepositoryHead,
+        string $focusedPath,
+        string $testOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null
+    ): array {
+        if (trim($acceptedRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite focused phpPass current-head admission requires an accepted repository HEAD');
+        }
+        if (trim($evidenceRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite focused phpPass current-head admission requires an evidence repository HEAD');
+        }
+        if ($expectedPassDelta !== null && $expectedPassDelta < 0) {
+            throw new \InvalidArgumentException('SQLite focused phpPass current-head admission requires a non-negative expected PASS delta');
+        }
+        if ($currentPhpPass < 0) {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission needs a non-negative current pass count');
+        }
+        if (!preg_match('#^lanes/libsqlite/tests/[A-Za-z0-9_./-]+Test\.php$#', $focusedPath)) {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission requires a lane-local focused test path');
+        }
+        if (trim($nonOverlapNote) === '') {
+            throw new \InvalidArgumentException('SQLite focused phpPass admission requires a non-overlap note');
+        }
+
+        $parsed = $this->parseFocusedPhpTestOutput($testOutput);
+        $blockers = [];
+        if (!$parsed['focused']) {
+            $blockers[] = [
+                'id' => 'missing-focused-testrunner-output',
+                'evidence' => 'Focused TestRunner marker is required before phpPass can move',
+            ];
+        }
+        if ($parsed['selected_test_files'] !== 1 || $parsed['summary_test_files'] !== 1) {
+            $blockers[] = [
+                'id' => 'focused-test-file-count-not-one',
+                'evidence' => 'phpPass admission requires exactly one focused lane test file for this slice',
+                'selected_test_files' => $parsed['selected_test_files'],
+                'summary_test_files' => $parsed['summary_test_files'],
+            ];
+        }
+        if ($parsed['failures'] !== 0) {
+            $blockers[] = [
+                'id' => 'focused-output-has-failures',
+                'evidence' => 'focused TestRunner output contains failures',
+                'failures' => $parsed['failures'],
+            ];
+        }
+        if ($parsed['pass_lines'] <= 0) {
+            $blockers[] = [
+                'id' => 'focused-pass-lines-missing',
+                'evidence' => 'focused TestRunner output has no PASS lines to count',
+            ];
+        }
+        if ($acceptedRepositoryHead !== $evidenceRepositoryHead) {
+            $blockers[] = [
+                'id' => 'repository-head-mismatch',
+                'expected' => $acceptedRepositoryHead,
+                'actual' => $evidenceRepositoryHead,
+                'evidence' => 'focused phpPass evidence must be produced from the current accepted repository HEAD',
+            ];
+        }
+        if ($expectedPassDelta !== null && $expectedPassDelta !== $parsed['pass_lines']) {
+            $blockers[] = [
+                'id' => 'focused-pass-delta-mismatch',
+                'expected' => $expectedPassDelta,
+                'actual' => $parsed['pass_lines'],
+                'evidence' => 'expected phpPass delta must match exact focused PASS-line count',
+            ];
+        }
+
+        $admitted = $blockers === [];
+        $delta = $admitted ? $parsed['pass_lines'] : 0;
+
+        return [
+            'status' => $admitted ? 'current-head-focused-pass-countable' : 'blocked',
+            'focused_path' => $focusedPath,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'evidence_repository_head' => $evidenceRepositoryHead,
+            'current_php_pass' => $currentPhpPass,
+            'pass_delta' => $delta,
+            'assertion_count_observed' => $parsed['assertions'],
+            'pass_lines_observed' => $parsed['pass_lines'],
+            'expected_pass_delta' => $expectedPassDelta,
+            'next_php_pass' => $currentPhpPass + $delta,
+            'selected_test_files' => $parsed['selected_test_files'],
+            'summary_test_files' => $parsed['summary_test_files'],
+            'failures' => $parsed['failures'],
+            'focused_output_seen' => $parsed['focused'],
+            'non_overlap_note' => trim($nonOverlapNote),
+            'countable' => $admitted,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $admitted
+                ? 'publish the exact focused PASS-line delta for this current accepted HEAD only'
+                : 'rerun the focused lane test from the accepted HEAD and preserve exact PASS-line evidence before moving phpPass',
+            'dependency_closure' => 'no new support component needed; current-head phpPass admission reuses local focused TestRunner output only',
+        ];
+    }
+
+    /**
+     * @return array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int}
      */
     private function parseFocusedPhpTestOutput(string $output): array
     {
         $focused = preg_match('/Focused test run:\s+(\d+)\s+selected test files \(root lock skipped\)/', $output, $focusedMatch) === 1;
         $summary = preg_match('/\n(\d+)\s+test files,\s+(\d+)\s+assertions,\s+(\d+)\s+failures\s*$/', $output, $summaryMatch) === 1;
+        $passLines = preg_match_all('/^PASS(?:\s|$)/m', $output);
 
         return [
             'focused' => $focused,
@@ -6889,11 +6996,12 @@ final class SQLiteUpstreamSuiteEvidence
             'summary_test_files' => $summary ? (int) $summaryMatch[1] : 0,
             'assertions' => $summary ? (int) $summaryMatch[2] : 0,
             'failures' => $summary ? (int) $summaryMatch[3] : 0,
+            'pass_lines' => $passLines === false ? 0 : $passLines,
         ];
     }
 
     /**
-     * @param array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int} $parsed
+     * @param array{focused:bool,selected_test_files:int,summary_test_files:int,assertions:int,failures:int,pass_lines:int} $parsed
      */
     private function focusedPhpPassAdmissionBlocker(array $parsed): string
     {

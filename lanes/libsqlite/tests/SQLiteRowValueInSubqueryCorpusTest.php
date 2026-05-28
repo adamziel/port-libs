@@ -212,7 +212,7 @@ $cases = [
     ],
     'row-value in subquery can feed aggregate group' => [
         "SELECT autoload AS load_state, count(*) AS total FROM wp_options WHERE (option_id, autoload) IN (SELECT meta_option_id, meta_value FROM option_meta WHERE meta_key = 'load') GROUP BY autoload ORDER BY load_state",
-        InvalidArgumentException::class,
+        ['no:2', 'yes:3'],
         static fn (array $rows): array => array_map(static fn (array $row): string => $row['load_state'] . ':' . $row['total'], $rows),
     ],
     'row-value in subquery can feed compound arm' => [

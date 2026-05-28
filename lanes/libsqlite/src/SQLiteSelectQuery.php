@@ -654,9 +654,6 @@ final class SQLiteSelectQuery
         if ($groupColumn === []) {
             $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn);
         } else {
-            if ($valueColumn === null) {
-                throw new \InvalidArgumentException('SQLite SELECT query grouped aggregate needs a value column');
-            }
             $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn);
         }
 

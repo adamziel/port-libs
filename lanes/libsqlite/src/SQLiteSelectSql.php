@@ -2201,25 +2201,71 @@ final class SQLiteSelectSql
         if ($columns === []) {
             return static fn (): bool => true;
         }
-        $leftColumns = self::resolveJoinColumns($columns, self::collectColumns($leftRows), 'left');
+        $leftColumns = self::resolveJoinColumnSets($columns, self::collectColumns($leftRows), 'left');
         $rightColumns = self::resolveJoinColumns($columns, self::collectColumns($rightRows), 'right');
 
         return static function (array $left, array $right) use ($leftColumns, $rightColumns): bool {
             foreach ($leftColumns as $index => $leftColumn) {
                 $rightColumn = $rightColumns[$index];
-                if (!array_key_exists($leftColumn, $left) || !array_key_exists($rightColumn, $right)) {
+                if (!array_key_exists($rightColumn, $right)) {
                     throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING row is missing a comparison column');
                 }
-                if ($left[$leftColumn] === null || $right[$rightColumn] === null) {
+                $leftValue = self::coalescedJoinColumnValue($left, $leftColumn);
+                if ($leftValue === null || $right[$rightColumn] === null) {
                     return false;
                 }
-                if (self::joinValueKey($left[$leftColumn]) !== self::joinValueKey($right[$rightColumn])) {
+                if (self::joinValueKey($leftValue) !== self::joinValueKey($right[$rightColumn])) {
                     return false;
                 }
             }
 
             return true;
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function coalescedJoinColumnValue(array $row, array $columns): mixed
+    {
+        $sawColumn = false;
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                continue;
+            }
+            $sawColumn = true;
+            if ($row[$column] !== null) {
+                return $row[$column];
+            }
+        }
+        if (!$sawColumn) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING row is missing a comparison column');
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string> $available
+     * @return list<list<string>>
+     */
+    private static function resolveJoinColumnSets(array $columns, array $available, string $side): array
+    {
+        $resolved = [];
+        foreach ($columns as $column) {
+            $matches = array_values(array_filter(
+                $available,
+                static fn (string $candidate): bool => self::unqualifiedColumn($candidate) === $column
+            ));
+            if ($matches === []) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL JOIN USING {$side} side is missing column {$column}");
+            }
+            $resolved[] = $matches;
+        }
+
+        return $resolved;
     }
 
     /**
@@ -2656,14 +2702,28 @@ final class SQLiteSelectSql
             ];
         }
 
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $sql, $match) === 1) {
-            if (trim($match[2]) === '*') {
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/s', $sql, $match) === 1) {
+            $argumentSql = trim($match[2]);
+            $distinct = false;
+            if (preg_match('/^distinct(?:\s+|$)(.+)$/is', $argumentSql, $distinctMatch) === 1) {
+                $distinct = true;
+                $argumentSql = trim($distinctMatch[1]);
+                if ($argumentSql === '' || $argumentSql === '*') {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL DISTINCT aggregate needs a value argument');
+                }
+            }
+            if ($argumentSql === '*') {
                 $arguments = [['type' => 'wildcard']];
             } else {
-                $arguments = trim($match[2]) === '' ? [] : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($match[2], ','));
+                $arguments = $argumentSql === '' ? [] : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($argumentSql, ','));
             }
 
-            return ['type' => 'function', 'name' => $match[1], 'arguments' => $arguments];
+            $function = ['type' => 'function', 'name' => $match[1], 'arguments' => $arguments];
+            if ($distinct) {
+                $function['distinct'] = true;
+            }
+
+            return $function;
         }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => (int) $sql];
@@ -3333,14 +3393,23 @@ final class SQLiteSelectSql
         }
 
         if ($name === 'count' && count($arguments) === 1 && (($arguments[0]['type'] ?? null) === 'wildcard')) {
+            if (($term['distinct'] ?? false) === true) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL count(DISTINCT *) is not supported');
+            }
+
             return ['summaryColumn' => 'countAll', 'valueColumn' => null];
         }
         if (($name === 'min' || $name === 'max') && count($arguments) !== 1) {
             return null;
         }
 
+        $distinct = ($term['distinct'] ?? false) === true;
+        if ($distinct && $name !== 'count') {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
+        }
+
         $summaryColumn = match ($name) {
-            'count' => 'countValue',
+            'count' => $distinct ? 'countDistinct' : 'countValue',
             'sum' => 'sum',
             'total' => 'total',
             'avg' => 'avg',

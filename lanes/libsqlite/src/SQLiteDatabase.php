@@ -11208,7 +11208,7 @@ final class SQLiteDatabase
      */
     private static function sqlitePatternCharacters(string $value): array
     {
-        return self::sqliteTextCharacters($value) ?? str_split($value);
+        return self::sqliteTextPatternCharacters($value);
     }
 
     private static function sqliteTextLength(string $value): int
@@ -11340,6 +11340,91 @@ final class SQLiteDatabase
         }
 
         return $characters;
+    }
+
+    /**
+     * Split LIKE/GLOB text as SQLite does for UTF-8 pattern matching: valid
+     * UTF-8 codepoints remain single characters, while malformed bytes are
+     * consumed one byte at a time instead of forcing the whole string into a
+     * byte split.
+     *
+     * @return list<string>
+     */
+    private static function sqliteTextPatternCharacters(string $value): array
+    {
+        $strict = self::sqliteTextCharacters($value);
+        if ($strict !== null) {
+            return $strict;
+        }
+
+        $characters = [];
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($value[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+
+            if ($sequenceLength === 1) {
+                $characters[] = $value[$offset];
+                $offset++;
+                continue;
+            }
+
+            $sequence = substr($value, $offset, $sequenceLength);
+            if (strlen($sequence) === $sequenceLength && self::sqliteUtf8SequenceIsWellFormed($sequence)) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+
+            $characters[] = $value[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    private static function sqliteUtf8SequenceIsWellFormed(string $sequence): bool
+    {
+        $bytes = array_values(unpack('C*', $sequence) ?: []);
+        $length = count($bytes);
+        if ($length === 2) {
+            return $bytes[0] >= 0xc2
+                && $bytes[0] <= 0xdf
+                && self::sqliteUtf8ContinuationByte($bytes[1]);
+        }
+        if ($length === 3) {
+            if (!self::sqliteUtf8ContinuationByte($bytes[1]) || !self::sqliteUtf8ContinuationByte($bytes[2])) {
+                return false;
+            }
+
+            return ($bytes[0] !== 0xe0 || $bytes[1] >= 0xa0)
+                && ($bytes[0] !== 0xed || $bytes[1] <= 0x9f);
+        }
+        if ($length === 4) {
+            if (
+                !self::sqliteUtf8ContinuationByte($bytes[1])
+                || !self::sqliteUtf8ContinuationByte($bytes[2])
+                || !self::sqliteUtf8ContinuationByte($bytes[3])
+            ) {
+                return false;
+            }
+
+            return ($bytes[0] !== 0xf0 || $bytes[1] >= 0x90)
+                && ($bytes[0] !== 0xf4 || $bytes[1] <= 0x8f);
+        }
+
+        return $length === 1 && ($bytes[0] ?? 0) < 0x80;
+    }
+
+    private static function sqliteUtf8ContinuationByte(int $byte): bool
+    {
+        return $byte >= 0x80 && $byte <= 0xbf;
     }
 
     private static function sqliteTrimBytes(string $value, string $functionName, string $characters): string

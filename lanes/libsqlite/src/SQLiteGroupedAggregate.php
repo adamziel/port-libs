@@ -10,7 +10,7 @@ final class SQLiteGroupedAggregate
      * @param iterable<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarize(iterable $rows, string|array $groupColumn, string $valueColumn): array
+    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn): array
     {
         $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
@@ -22,7 +22,7 @@ final class SQLiteGroupedAggregate
                 }
                 $groupValues[$column] = $row[$column];
             }
-            if (!array_key_exists($valueColumn, $row)) {
+            if ($valueColumn !== null && !array_key_exists($valueColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite aggregate row is missing column {$valueColumn}");
             }
 
@@ -34,7 +34,9 @@ final class SQLiteGroupedAggregate
                 'values' => [],
             ];
             $groups[$key]['rows'][] = $row;
-            $groups[$key]['values'][] = $row[$valueColumn];
+            if ($valueColumn !== null) {
+                $groups[$key]['values'][] = $row[$valueColumn];
+            }
         }
 
         $summaries = [];

@@ -449,6 +449,96 @@ final class SQLiteWalAppendPlan
     }
 
     /**
+     * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
+     * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,database_path:string,wal_path:string,current_reader_end_frame:int,next_reader_end_frame:int,base_writer_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_database_page_count:int,next_database_page_count:int,current_commit_frame:int|null,next_commit_frame:int|null,appended_frame_count:int,committed_transaction_count:int,uncommitted_transaction_count:int,frames_hidden_from_current:list<int>,frames_visible_to_next:list<int>,uncommitted_tail_visible:bool,images_match:bool,append:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function mvccReaderCurrentNext(
+        SQLiteWal $wal,
+        string $databaseBytes,
+        string $databasePath,
+        array $transactions,
+        array $pageNumbers,
+        ?int $currentReaderEndFrame = null,
+        bool $syncWal = true,
+        bool $syncDirectory = true,
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL MVCC reader current/next requires at least one page number');
+        }
+
+        $baseWriterEndFrame = $wal->frameCount();
+        $currentEndFrame = $currentReaderEndFrame ?? $baseWriterEndFrame;
+        if ($currentEndFrame < 0 || $currentEndFrame > $baseWriterEndFrame) {
+            throw new \InvalidArgumentException('SQLite WAL MVCC reader end frame must be within the current WAL frame range');
+        }
+
+        $currentSnapshot = $wal->readerSnapshot($databaseBytes, $currentEndFrame);
+        $append = self::appendTransactions($wal, $databasePath, $transactions, $syncWal, $syncDirectory);
+        $nextWal = SQLiteWal::parse($append['wal_bytes'], $wal->header->pageSize, true);
+        $nextEndFrame = $append['last_commit_frame'] ?? $baseWriterEndFrame;
+        $nextSnapshot = $nextWal->readerSnapshot($databaseBytes, $nextEndFrame);
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL MVCC reader current/next pages must be integers');
+            }
+
+            $current[] = self::safeReaderVisibility($wal, $databaseBytes, $pageNumber, $currentEndFrame, true);
+            $next[] = self::safeReaderVisibility($nextWal, $databaseBytes, $pageNumber, $nextEndFrame, true);
+        }
+
+        $uncommittedTailVisible = false;
+        foreach ($next as $entry) {
+            $frameIndex = $entry['frame_index'] ?? null;
+            if (is_int($frameIndex) && $frameIndex > $nextEndFrame) {
+                $uncommittedTailVisible = true;
+                break;
+            }
+        }
+
+        return [
+            'status' => 'planned',
+            'reason' => $append['committed_transaction_count'] > 0
+                ? 'mvcc_current_reader_pinned_next_reader_advances'
+                : 'mvcc_append_has_no_committed_next_snapshot',
+            'database_path' => $databasePath,
+            'wal_path' => $append['wal_path'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'base_writer_end_frame' => $baseWriterEndFrame,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'current_database_page_count' => $currentSnapshot['database_page_count'],
+            'next_database_page_count' => $nextSnapshot['database_page_count'],
+            'current_commit_frame' => $currentSnapshot['commit_frame']?->index,
+            'next_commit_frame' => $nextSnapshot['commit_frame']?->index,
+            'appended_frame_count' => $append['appended_frame_count'],
+            'committed_transaction_count' => $append['committed_transaction_count'],
+            'uncommitted_transaction_count' => $append['uncommitted_transaction_count'],
+            'frames_hidden_from_current' => $currentEndFrame < $nextWal->frameCount()
+                ? range($currentEndFrame + 1, $nextWal->frameCount())
+                : [],
+            'frames_visible_to_next' => $nextEndFrame > 0 ? range(1, $nextEndFrame) : [],
+            'uncommitted_tail_visible' => $uncommittedTailVisible,
+            'images_match' => self::visibilityImages($current) === self::visibilityImages($next),
+            'append' => $append,
+            'dependencies' => array_values(array_unique(array_merge(
+                $append['dependencies'],
+                ['sqlite-pager-mvcc-reader-current-next']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     private static function checksumSeed(SQLiteWal $wal): array

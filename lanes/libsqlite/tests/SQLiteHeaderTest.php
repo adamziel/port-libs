@@ -22500,7 +22500,11 @@ SQL;
             ['wp_options' => $options, 'option_meta' => $metadata],
         );
         $t->same(['siteurl', 'blogname', '_transient_feed', '_site_transient_update_plugins'], array_column($joinedSubqueryRows, 'option_name'));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT count(*) FROM option_meta GROUP BY meta_key)', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $aggregateSubqueryRows = SQLiteSelectSql::execute(
+            'SELECT option_name FROM wp_options WHERE option_id IN (SELECT count(*) FROM option_meta GROUP BY meta_key)',
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(['siteurl', 'home'], array_column($aggregateSubqueryRows, 'option_name'));
     },
     'executes bounded sqlite select sql scalar subquery expressions' => static function (TestRunner $t): void {
         $options = [
@@ -22587,7 +22591,11 @@ SQL;
             ['wp_options' => $options, 'option_meta' => $metadata],
         );
         $t->same(['public', null, 'public', 'expired', 'plugin'], array_column($joinedScalarRows, 'joined_meta'));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT count(*) FROM option_meta GROUP BY meta_key) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $aggregateScalarRows = SQLiteSelectSql::execute(
+            'SELECT (SELECT count(*) FROM option_meta GROUP BY meta_key) AS first_meta_group_count FROM wp_options',
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same([2, 2, 2, 2, 2], array_column($aggregateScalarRows, 'first_meta_group_count'));
     },
     'filters sqlite select rows with residual where predicate semantics' => static function (TestRunner $t): void {
         $options = [
@@ -25106,7 +25114,11 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes), max(option_id) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY autoload HAVING count(option_id) >= 2', ['wp_options' => $options]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, count(DISTINCT bytes) FROM wp_options GROUP BY autoload', ['wp_options' => $options]));
+        $distinctAggregateRows = SQLiteSelectSql::execute(
+            'SELECT autoload, count(DISTINCT bytes) FROM wp_options GROUP BY autoload',
+            ['wp_options' => $options],
+        );
+        $t->same(['yes:2', 'no:2', ':1'], array_map(static fn (array $row): string => (string) $row['autoload'] . ':' . $row['countDistinct'], $distinctAggregateRows));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes + FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
