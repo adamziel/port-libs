@@ -913,6 +913,62 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,next_reader_uses_checkpoint_database:bool,current_reader_kept_wal_snapshot:bool,images_match:bool,current_source_verified:bool,current_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},retained_source:array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int},next_source:array{kind:string,checkpoint_sequence:int|null,salt1:int|null,salt2:int|null,page_size:int,frame_count:int,wal_bytes_length:int,database_bytes_length:int},dependencies:list<string>}
+     */
+    public static function readerBoundaryCurrentSourceNext87(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        self::assertCurrentWalSource($wal, $walBytes);
+
+        $boundary = self::readerBoundaryAfterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $pageNumbers,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $retainedWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $retainedWal = SQLiteWal::parse($retainedWalBytes, $wal->header->pageSize, true);
+        $durable = self::afterRollbackTo($savepoints, $savepoint, $wal, $walBytes, $databaseBytes, $mode, $currentReaderEndFrame)['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+
+        $boundary['current_source_verified'] = true;
+        $boundary['current_source'] = self::walSourceSummary($wal, strlen($walBytes));
+        $boundary['retained_source'] = self::walSourceSummary($retainedWal, strlen($retainedWalBytes));
+        $boundary['next_source'] = [
+            'kind' => $nextWal === null ? 'checkpoint_database' : $durable['wal_action'],
+            'checkpoint_sequence' => $nextWal?->header->checkpointSequence,
+            'salt1' => $nextWal?->header->salt1,
+            'salt2' => $nextWal?->header->salt2,
+            'page_size' => $nextWal?->header->pageSize ?? $wal->header->pageSize,
+            'frame_count' => $nextWal?->frameCount() ?? 0,
+            'wal_bytes_length' => strlen($durable['wal_bytes']),
+            'database_bytes_length' => strlen($durable['database_bytes']),
+        ];
+        $boundary['dependencies'] = array_values(array_unique(array_merge(
+            $boundary['dependencies'],
+            ['sqlite-wal-savepoint-reader-current-source-next87']
+        )));
+
+        return $boundary;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,released_savepoint:string,rollback_savepoint:string,release:array<string,mixed>,boundary:array<string,mixed>,released_frame_names:list<string>,merged_page_numbers:list<int>,retained_frame_count:int,discarded_frame_count:int,rolled_back_released_frames:list<int>,rolled_back_released_pages:list<int>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,images_match:bool,dependencies:list<string>}
      */
     public static function releaseThenRollbackCheckpointCurrentNext(
@@ -1147,6 +1203,21 @@ final class SQLiteWalSavepointCheckpointPlan
         if ($source->frameCount() !== $wal->frameCount()) {
             throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint current source frame count mismatch');
         }
+    }
+
+    /**
+     * @return array{checkpoint_sequence:int,salt1:int,salt2:int,page_size:int,frame_count:int,wal_bytes_length:int}
+     */
+    private static function walSourceSummary(SQLiteWal $wal, int $walBytesLength): array
+    {
+        return [
+            'checkpoint_sequence' => $wal->header->checkpointSequence,
+            'salt1' => $wal->header->salt1,
+            'salt2' => $wal->header->salt2,
+            'page_size' => $wal->header->pageSize,
+            'frame_count' => $wal->frameCount(),
+            'wal_bytes_length' => $walBytesLength,
+        ];
     }
 
     /**

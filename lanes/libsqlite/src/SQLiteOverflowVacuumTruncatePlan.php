@@ -12,6 +12,7 @@ final class SQLiteOverflowVacuumTruncatePlan
     private function __construct(
         public readonly SQLiteOverflowFreelistReleasePlan $releasePlan,
         public readonly SQLiteFreelistTruncatePlan $truncatePlan,
+        public readonly SQLiteDatabase $sourceDatabase,
         public readonly SQLiteDatabase $currentDatabase,
         public readonly SQLiteDatabase $nextDatabase,
         public readonly array $pageImages,
@@ -48,7 +49,7 @@ final class SQLiteOverflowVacuumTruncatePlan
 
         $nextDatabase = self::databaseWithPageImages($database, $pageImages, $truncatePlan->databasePageCount);
 
-        return new self($releasePlan, $truncatePlan, $releasedDatabase, $nextDatabase, $pageImages);
+        return new self($releasePlan, $truncatePlan, $database, $releasedDatabase, $nextDatabase, $pageImages);
     }
 
     /**
@@ -122,6 +123,49 @@ final class SQLiteOverflowVacuumTruncatePlan
                 fn (int $pageNumber): bool => $pageNumber > $this->nextDatabase->pageCount(),
             )),
         ];
+    }
+
+    /**
+     * @return list<array{source:string,page_number:int,current_status:string,next_status:string,current_next_page:int|null,next_next_page:int|null,current_pointer_map_type:string|null,next_pointer_map_type:string|null,truncated_pointer_map_type:string|null,materialized:bool,truncated:bool,secure_deleted:bool}>
+     */
+    public function overflowFreeblockTruncateCurrentSourceNext87(): array
+    {
+        $truncatedEntries = [];
+        foreach ($this->truncatePlan->truncatedPointerMapEntries as $entry) {
+            $truncatedEntries[(int) $entry['page_number']] = $entry;
+        }
+
+        $rows = [];
+        foreach ($this->releasePlan->sources as $source) {
+            foreach ($source['pages'] as $pageNumber) {
+                $currentEntry = null;
+                if ($this->sourceDatabase->isAutoVacuum() && !$this->sourceDatabase->isPointerMapPage($pageNumber)) {
+                    $currentEntry = $this->sourceDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+                }
+                $truncated = $pageNumber > $this->finalDatabasePageCount();
+                $nextEntry = null;
+                if (!$truncated && $this->nextDatabase->isAutoVacuum() && !$this->nextDatabase->isPointerMapPage($pageNumber)) {
+                    $nextEntry = $this->nextDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+                }
+
+                $rows[] = [
+                    'source' => $source['source'],
+                    'page_number' => $pageNumber,
+                    'current_status' => 'obsolete-overflow',
+                    'next_status' => $truncated ? 'truncated-from-database' : 'survives-as-freelist-page',
+                    'current_next_page' => self::overflowNextPage($this->sourceDatabase, $pageNumber),
+                    'next_next_page' => $truncated ? null : self::overflowNextPage($this->nextDatabase, $pageNumber),
+                    'current_pointer_map_type' => $currentEntry['type_name'] ?? null,
+                    'next_pointer_map_type' => $nextEntry['type_name'] ?? null,
+                    'truncated_pointer_map_type' => $truncatedEntries[$pageNumber]['type_name'] ?? null,
+                    'materialized' => !$truncated,
+                    'truncated' => $truncated,
+                    'secure_deleted' => !$truncated && $this->pageIsSecureDeleted($pageNumber),
+                ];
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -245,6 +289,7 @@ final class SQLiteOverflowVacuumTruncatePlan
             'surviving_freed_pointer_map_pages' => $this->survivingFreedPointerMapPages(),
             'truncated_freed_pointer_map_pages' => $this->truncatedFreedPointerMapPages(),
             'materialized_apply' => $this->materializedApplySummary(),
+            'overflow_freeblock_truncate_current_source_next87' => $this->overflowFreeblockTruncateCurrentSourceNext87(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),
@@ -275,5 +320,31 @@ final class SQLiteOverflowVacuumTruncatePlan
         }
 
         return SQLiteDatabase::fromBytes(implode('', $pages));
+    }
+
+    private static function overflowNextPage(SQLiteDatabase $database, int $pageNumber): int
+    {
+        if ($pageNumber > $database->pageCount()) {
+            return 0;
+        }
+
+        return unpack('N', substr($database->page($pageNumber), 0, 4))[1];
+    }
+
+    private function pageIsSecureDeleted(int $pageNumber): bool
+    {
+        if ($pageNumber > $this->nextDatabase->pageCount()) {
+            return false;
+        }
+
+        $page = $this->nextDatabase->page($pageNumber);
+        if ($this->nextDatabase->header->firstFreelistTrunkPage === $pageNumber) {
+            $leafCount = unpack('N', substr($page, 4, 4))[1];
+            $freelistHeaderBytes = 8 + ($leafCount * 4);
+
+            return substr($page, $freelistHeaderBytes) === str_repeat("\0", strlen($page) - $freelistHeaderBytes);
+        }
+
+        return $page === str_repeat("\0", strlen($page));
     }
 }

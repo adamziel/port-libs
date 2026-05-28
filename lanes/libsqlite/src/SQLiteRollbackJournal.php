@@ -130,6 +130,30 @@ final class SQLiteRollbackJournal
         return count($this->pages);
     }
 
+    public function toBytes(): string
+    {
+        $header = self::headerBytes($this->header);
+        $bytes = str_pad($header, $this->header->sectorSize, "\0");
+
+        foreach ($this->pages as $page) {
+            $bytes .= pack('N', $page->pageNumber) . $page->pageImage . pack('N', $page->checksum);
+        }
+
+        return $bytes;
+    }
+
+    private static function headerBytes(SQLiteRollbackJournalHeader $header): string
+    {
+        return SQLiteRollbackJournalHeader::MAGIC . pack(
+            'N*',
+            $header->pageCount,
+            $header->checksumNonce,
+            $header->initialDatabasePageCount,
+            $header->sectorSize,
+            $header->pageSize
+        );
+    }
+
     /**
      * @return array<int, string>
      */

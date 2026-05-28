@@ -8,6 +8,75 @@ final class SQLiteWalHotJournalSavepointReplayPlan
 {
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,database_path:string,journal_path:string,wal_path:string,savepoint:string,hot_recovered:bool,journal_action:string,rollback_to_frame:int,original_frame_count:int,retained_frame_count:int,discarded_frame_count:int,current_wal_bytes:string,current_wal_bytes_length:int,current_reader_end_frame:int,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,can_checkpoint:bool,checkpoint_database_page_count:int|null,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,operations:list<array<string,mixed>>,payloads:array<string,string>,hot_journal:array<string,mixed>,savepoint_truncation:array<string,mixed>,wal_recovery:array<string,mixed>,current_source:array<string,mixed>,dependencies:list<string>}
+     */
+    public static function replayCurrentSourceNext87(
+        SQLiteRollbackJournal $journal,
+        string $databaseBytes,
+        string $journalBytes,
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databasePath,
+        array $pageNumbers,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        if ($journalBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint current-source replay requires rollback-journal bytes');
+        }
+        if ($journal->toBytes() !== $journalBytes) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint current-source replay rollback journal bytes do not match the parsed journal');
+        }
+        if ($wal->toBytes() !== $walBytes) {
+            throw new \InvalidArgumentException('SQLite WAL hot-journal savepoint current-source replay WAL bytes do not match the parsed WAL');
+        }
+
+        $journalCandidate = SQLiteRollbackJournal::hotJournalCandidate(
+            $journalBytes,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+        $plan = self::replayCurrentNext(
+            $journal,
+            $databaseBytes,
+            $journalBytes,
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databasePath,
+            $pageNumbers,
+            $databaseReservedLock,
+            $requiresSuperJournal,
+            $superJournalExists
+        );
+
+        $plan['current_source'] = [
+            'journal_bytes_match' => true,
+            'wal_bytes_match' => true,
+            'journal_checksum_validated' => $journal->checksumsValidated,
+            'wal_checksum_validated' => $wal->checksumsValidated,
+            'journal_page_count' => $journal->pageCount(),
+            'wal_frame_count' => $wal->frameCount(),
+            'hot_journal_reason' => $journalCandidate['reason'],
+            'database_reserved_lock' => $databaseReservedLock,
+            'requires_super_journal' => $requiresSuperJournal,
+            'super_journal_exists' => $superJournalExists,
+        ];
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-wal-hot-journal-savepoint-current-source-next87']
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @return array{status:string,reason:string,master_journal_path:string,master_cache:array<string,mixed>,replay:array<string,mixed>,next_master_member:bool,stale_current_member:bool,operations:list<array<string,mixed>>,payloads:array<string,string>,dependencies:list<string>}
      */
     public static function masterJournalCurrentSourceNext82(
