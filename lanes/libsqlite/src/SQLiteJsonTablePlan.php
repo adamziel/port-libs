@@ -1688,6 +1688,62 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedHiddenRowidCostNext142(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $baseRootColumn,
+        string $nestedPathColumn,
+        array $constraints = [],
+        array $orderBy = [],
+        array $generatedConstraints = [],
+    ): array {
+        $plan = self::currentSourceGeneratedHiddenCostNext136(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $baseRootColumn,
+            $nestedPathColumn,
+            $constraints,
+            $orderBy,
+            $generatedConstraints,
+        );
+
+        $currentProfile = self::jsonTableGeneratedHiddenRowidCostProfile142($plan['currentGeneratedHiddenCost'], $constraints);
+        $nextProfile = self::jsonTableGeneratedHiddenRowidCostProfile142($plan['nextGeneratedHiddenCost'], $constraints);
+        $transitions = self::jsonTableGeneratedHiddenRowidCostTransitions142($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedHiddenRowidCostReplanReasons142($transitions);
+
+        $plan['currentGeneratedHiddenRowidCost'] = $currentProfile;
+        $plan['nextGeneratedHiddenRowidCost'] = $nextProfile;
+        $plan['generatedHiddenRowidCostTransitions'] = $transitions;
+        $plan['next142ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next136ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next142ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-hidden-rowid-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next142ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-hidden-rowid-cost-plan'
+            : 'prepare-next-json-table-generated-hidden-rowid-cost-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-hidden-rowid-cost-current-source-next142'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedHiddenCostNext136(
         string $function,
         array $currentSource,
@@ -4982,6 +5038,161 @@ final class SQLiteJsonTablePlan
                 'residualEvaluationPenalty', 'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-residual-cost-changed',
                 'residualValueTape' => 'json-table-generated-hidden-residual-values-changed',
                 default => 'json-table-generated-hidden-residual-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $generatedHidden
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{root:string,rowidConstraintSignature:string|null,rowidConstraintColumn:string|null,rowidConstraintOperator:string|null,rowidConstraintValue:mixed,rowidScoped:bool,generatedMatchedRowCount:int,rowidMatchedRowCount:int,intersectedRowCount:int,intersectedRowids:list<int|null>,intersectedFullkeys:list<mixed>,firstIntersectedRowid:int|null,lastIntersectedRowid:int|null,generatedRowidTape:list<array{rowid:int|null,fullkey:mixed,generatedMatched:bool,rowidMatched:bool,matched:bool,values:array<string,mixed>}>,baseGeneratedCost:int,effectiveEstimatedCost:int,costClass:string}
+     */
+    private static function jsonTableGeneratedHiddenRowidCostProfile142(array $generatedHidden, array $constraints): array
+    {
+        $rowidConstraint = self::firstRowidConstraint133($constraints);
+        $rowidOperator = isset($rowidConstraint['operator']) ? strtoupper((string) $rowidConstraint['operator']) : null;
+        $rowidValue = $rowidConstraint['value'] ?? null;
+        $rowidScoped = $rowidConstraint !== null
+            && $rowidOperator === '='
+            && self::rowidConstraintIntValue133($rowidValue) !== null;
+
+        $tape = [];
+        $rowidMatched = 0;
+        $intersectedRowids = [];
+        $intersectedFullkeys = [];
+        foreach ($generatedHidden['generatedValueTape'] as $entry) {
+            $rowid = is_int($entry['rowid'] ?? null) ? $entry['rowid'] : null;
+            $row = [
+                'id' => $rowid,
+                'rowid' => $rowid,
+                '_rowid_' => $rowid,
+                'oid' => $rowid,
+                'fullkey' => $entry['fullkey'] ?? null,
+            ];
+            $generatedMatched = ($entry['matched'] ?? false) === true;
+            $matchedRowid = $rowidConstraint === null || self::rowMatchesResidualConstraints($row, [$rowidConstraint]);
+            if ($matchedRowid) {
+                $rowidMatched++;
+            }
+            $matched = $generatedMatched && $matchedRowid;
+            if ($matched) {
+                $intersectedRowids[] = $rowid;
+                $intersectedFullkeys[] = $entry['fullkey'] ?? null;
+            }
+
+            $tape[] = [
+                'rowid' => $rowid,
+                'fullkey' => $entry['fullkey'] ?? null,
+                'generatedMatched' => $generatedMatched,
+                'rowidMatched' => $matchedRowid,
+                'matched' => $matched,
+                'values' => $entry['values'] ?? [],
+            ];
+        }
+
+        $baseCost = (int) $generatedHidden['effectiveEstimatedCost'];
+        $matchedCount = count($intersectedRowids);
+        if ((string) $generatedHidden['costClass'] === 'unrunnable-json-table') {
+            $effectiveCost = 1000000;
+        } elseif ($matchedCount === 0) {
+            $effectiveCost = 1;
+        } elseif ($rowidScoped) {
+            $effectiveCost = 1;
+        } elseif ($rowidConstraint !== null) {
+            $effectiveCost = min($baseCost, max(1, $matchedCount));
+        } else {
+            $effectiveCost = $baseCost;
+        }
+
+        return [
+            'root' => (string) $generatedHidden['root'],
+            'rowidConstraintSignature' => $rowidConstraint === null ? null : self::nestedPathRowidConstraintSignature133($rowidConstraint),
+            'rowidConstraintColumn' => isset($rowidConstraint['column']) ? self::normalizeConstraintColumn((string) $rowidConstraint['column']) : null,
+            'rowidConstraintOperator' => $rowidOperator,
+            'rowidConstraintValue' => $rowidValue,
+            'rowidScoped' => $rowidScoped,
+            'generatedMatchedRowCount' => (int) $generatedHidden['matchedRowCount'],
+            'rowidMatchedRowCount' => $rowidMatched,
+            'intersectedRowCount' => $matchedCount,
+            'intersectedRowids' => $intersectedRowids,
+            'intersectedFullkeys' => $intersectedFullkeys,
+            'firstIntersectedRowid' => $intersectedRowids[0] ?? null,
+            'lastIntersectedRowid' => $intersectedRowids === [] ? null : $intersectedRowids[array_key_last($intersectedRowids)],
+            'generatedRowidTape' => $tape,
+            'baseGeneratedCost' => $baseCost,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTableGeneratedHiddenRowidCostClass142((string) $generatedHidden['costClass'], $rowidConstraint !== null, $rowidScoped, $matchedCount, $effectiveCost),
+        ];
+    }
+
+    private static function jsonTableGeneratedHiddenRowidCostClass142(
+        string $generatedCostClass,
+        bool $hasRowidConstraint,
+        bool $rowidScoped,
+        int $matchedCount,
+        int $effectiveCost,
+    ): string {
+        if ($generatedCostClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$hasRowidConstraint) {
+            return 'json-table-generated-hidden-rowid-unconstrained';
+        }
+        if ($matchedCount === 0) {
+            return 'json-table-generated-hidden-rowid-empty';
+        }
+        if ($rowidScoped && $matchedCount === 1) {
+            return 'json-table-generated-hidden-rowid-point';
+        }
+
+        return $effectiveCost <= 4
+            ? 'json-table-generated-hidden-rowid-narrow-intersection'
+            : 'json-table-generated-hidden-rowid-intersection';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedHiddenRowidCostTransitions142(array $current, array $next): array
+    {
+        return [
+            ['field' => 'root', 'current' => $current['root'], 'next' => $next['root'], 'changed' => $current['root'] !== $next['root']],
+            ['field' => 'rowidConstraintSignature', 'current' => $current['rowidConstraintSignature'], 'next' => $next['rowidConstraintSignature'], 'changed' => $current['rowidConstraintSignature'] !== $next['rowidConstraintSignature']],
+            ['field' => 'generatedMatchedRowCount', 'current' => $current['generatedMatchedRowCount'], 'next' => $next['generatedMatchedRowCount'], 'changed' => $current['generatedMatchedRowCount'] !== $next['generatedMatchedRowCount']],
+            ['field' => 'rowidMatchedRowCount', 'current' => $current['rowidMatchedRowCount'], 'next' => $next['rowidMatchedRowCount'], 'changed' => $current['rowidMatchedRowCount'] !== $next['rowidMatchedRowCount']],
+            ['field' => 'intersectedRowids', 'current' => $current['intersectedRowids'], 'next' => $next['intersectedRowids'], 'changed' => $current['intersectedRowids'] !== $next['intersectedRowids']],
+            ['field' => 'intersectedFullkeys', 'current' => $current['intersectedFullkeys'], 'next' => $next['intersectedFullkeys'], 'changed' => $current['intersectedFullkeys'] !== $next['intersectedFullkeys']],
+            ['field' => 'effectiveEstimatedCost', 'current' => $current['effectiveEstimatedCost'], 'next' => $next['effectiveEstimatedCost'], 'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'generatedRowidTape', 'current' => $current['generatedRowidTape'], 'next' => $next['generatedRowidTape'], 'changed' => $current['generatedRowidTape'] !== $next['generatedRowidTape']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedHiddenRowidCostReplanReasons142(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root' => 'json-table-generated-hidden-rowid-root-changed',
+                'rowidConstraintSignature' => 'json-table-generated-hidden-rowid-constraint-changed',
+                'generatedMatchedRowCount' => 'json-table-generated-hidden-rowid-generated-count-changed',
+                'rowidMatchedRowCount' => 'json-table-generated-hidden-rowid-rowid-count-changed',
+                'intersectedRowids', 'intersectedFullkeys' => 'json-table-generated-hidden-rowid-rowset-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-generated-hidden-rowid-cost-changed',
+                'generatedRowidTape' => 'json-table-generated-hidden-rowid-tape-changed',
+                default => 'json-table-generated-hidden-rowid-state-changed',
             };
         }
 

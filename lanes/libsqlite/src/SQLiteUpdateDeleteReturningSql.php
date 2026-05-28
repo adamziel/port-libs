@@ -617,6 +617,13 @@ final class SQLiteUpdateDeleteReturningSql
 
             return isset($match[2]) && trim($match[2]) !== '' ? !$result : $result;
         }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $term, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIsDistinctFrom($left, $right);
+
+            return isset($match[2]) && trim($match[2]) !== '' ? !$result : $result;
+        }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
@@ -761,6 +768,16 @@ final class SQLiteUpdateDeleteReturningSql
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
             $right = self::rowValueExpressions($match[3], $row);
             $result = self::rowValueIs($left, $right);
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = !$result;
+            }
+
+            return $result ? 1 : 0;
+        }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIsDistinctFrom($left, $right);
             if (isset($match[2]) && trim($match[2]) !== '') {
                 $result = !$result;
             }
@@ -975,6 +992,57 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return true;
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     */
+    private static function rowValueIsDistinctFrom(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value arity mismatch');
+        }
+        foreach ($left as $index => $leftValue) {
+            $rightValue = $right[$index];
+            if ($leftValue === null || $rightValue === null) {
+                if ($leftValue !== $rightValue) {
+                    return true;
+                }
+                continue;
+            }
+            if (self::compareDistinctValues($leftValue, $rightValue) !== 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function compareDistinctValues(mixed $left, mixed $right): int
+    {
+        $leftRank = self::distinctSortRank($left);
+        $rightRank = self::distinctSortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+        if ($leftRank === 1) {
+            return ((float) $left) <=> ((float) $right);
+        }
+
+        return strcmp((string) $left, (string) $right);
+    }
+
+    private static function distinctSortRank(mixed $value): int
+    {
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+
+        throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value DISTINCT values must be scalar or NULL');
     }
 
     /**
