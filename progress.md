@@ -48,6 +48,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell samples 06:08 UTC):
+  Batch114/115 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `ef7be518feafbe83e521e736730de0f56d9167a5` (`Integrate libsqlite batch
+  114 115 subset`) accepted 11 current-source libsqlite handoffs. Conflicting
+  `compound114`, `jsonagg114`, `schema114`, `rowvalue115`, `vfs115`,
+  `runner106`, and `jsonvt104` handoffs remain queued for targeted rebase
+  because their source patches still conflict. Verification passed: php-lint
+  for `34` changed/untracked PHP files, 10 changed WordPress
+  examples/self-tests, git diff --check, focused changed tests `11 test files / 1434
+  assertions / 0 failures / 680 PASS lines`, full libsqlite `800 test files /
+  90494 assertions / 0 failures / 45302 PASS lines`, and root `1013 test
+  files / 114962 assertions / 0 failures / 48330 PASS lines` with
+  `opcache.enable_cli=0` and `memory_limit=512M`. This is `+680` public
+  libsqlite PASS-line movement over batch109/113 (`44622 -> 45302`); mapped
+  coverage remains conservative at `604 / 1589` because the accepted worker
+  evidence did not claim fresh manifest-backed mapped rows. tmux `main` has
+  10 active libsqlite next117 Codex workers and no long sleepers while
+  status/dashboard publication proceeds.
+
 - 2026-05-28 supervisor continuation (shell samples 05:55 UTC):
   Batch109-113 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
