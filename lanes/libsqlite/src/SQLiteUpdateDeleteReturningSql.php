@@ -1022,11 +1022,11 @@ final class SQLiteUpdateDeleteReturningSql
     {
         $unknown = false;
         foreach ($tuples as $right) {
-            $comparison = self::rowValueCompare($left, $right);
-            if ($comparison === 0) {
+            $equals = self::rowValueEqualsNullable($left, $right);
+            if ($equals === true) {
                 return true;
             }
-            if ($comparison === null) {
+            if ($equals === null) {
                 $unknown = true;
             }
         }
