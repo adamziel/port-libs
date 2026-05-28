@@ -2360,6 +2360,65 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext180(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext177(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization180(
+            $currentSource,
+            $plan['currentGeneratedPathRowidXFilterProgram177'],
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceMaterialization180(
+            $nextSource,
+            $plan['nextGeneratedPathRowidXFilterProgram177'],
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions180($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons180($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceMaterialization180'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceMaterialization180'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceMaterialization180Transitions'] = $transitions;
+        $plan['next180ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next177ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next180ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-materialization-next180-until-rowset-drain';
+        $plan['nextReaderPolicy'] = $plan['next180ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-materialization-next180'
+            : 'prepare-next-json-table-generated-path-rowid-materialization-next180';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next180'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidCostCurrentSourceNext170(
         string $function,
         array $currentSource,
@@ -11166,6 +11225,234 @@ final class SQLiteJsonTablePlan
                 'remainingRowids', 'yieldedRowids', 'skippedRowids', 'eofAfterYield' => 'json-table-generated-path-rowid-yield-rowset-changed',
                 'yieldCost', 'costClass' => 'json-table-generated-path-rowid-yield-cost-changed',
                 default => 'json-table-generated-path-rowid-yield-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $program177
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterialization180(array $source, array $program177): array
+    {
+        $sourceGeneration = self::jsonTableGeneratedPathRowidCurrentSourceGeneration175($source);
+        $rowids = array_values(array_map('intval', $program177['yieldRowids'] ?? []));
+        $paths = array_values(array_map('strval', $program177['yieldPaths'] ?? []));
+        $resetRequired = (bool) ($program177['resetRequired'] ?? true);
+        $conflict = (bool) ($program177['conflictingRowidAliases'] ?? false);
+        $currentSourcePinned = (bool) ($program177['currentSourcePinned'] ?? false);
+        $residualColumns = array_values(array_map('strval', $program177['residualConstraintColumns'] ?? []));
+        $xFilterOpcode = (string) ($program177['xFilterOpcode'] ?? '');
+        $programFingerprint = (string) ($program177['programFingerprint'] ?? '');
+        $canMaterialize = !$resetRequired
+            && !$conflict
+            && $currentSourcePinned
+            && $rowids !== []
+            && $programFingerprint !== ''
+            && !str_contains($xFilterOpcode, 'empty');
+        $materializationOpcode = self::jsonTableGeneratedPathRowidMaterializationOpcode180(
+            $canMaterialize,
+            $resetRequired,
+            $conflict,
+            $residualColumns,
+            $rowids,
+        );
+
+        $seekTape = [];
+        foreach ($rowids as $index => $rowid) {
+            $path = $paths[$index] ?? null;
+            $seekTape[] = [
+                'step' => $index + 1,
+                'rowid' => $rowid,
+                'path' => $path,
+                'sourceGeneration' => $sourceGeneration,
+                'programFingerprint' => $programFingerprint,
+                'covered' => $canMaterialize && $residualColumns === [],
+            ];
+        }
+
+        $materializedRows = [];
+        if ($canMaterialize) {
+            foreach ($seekTape as $entry) {
+                $materializedRows[] = [
+                    'rowid' => $entry['rowid'],
+                    'id' => $entry['rowid'],
+                    'path' => $entry['path'],
+                    'source_option_id' => $program177['sourceOptionId'] ?? null,
+                    'generated_path' => $program177['generatedPath'] ?? null,
+                    'source_generation' => $sourceGeneration,
+                    'current_source_pinned' => $currentSourcePinned,
+                ];
+            }
+        }
+
+        $estimatedRows = $canMaterialize ? count($materializedRows) : 0;
+        $estimatedCost = self::jsonTableGeneratedPathRowidMaterializationCost180(
+            $canMaterialize,
+            (int) ($program177['estimatedCost'] ?? 1000000),
+            count($seekTape),
+            count($residualColumns),
+        );
+
+        return [
+            'sourceGeneration' => $sourceGeneration,
+            'sourceOptionId' => $program177['sourceOptionId'] ?? null,
+            'generatedPath' => $program177['generatedPath'] ?? null,
+            'xFilterOpcode' => $xFilterOpcode,
+            'programFingerprint' => $programFingerprint,
+            'materializationOpcode' => $materializationOpcode,
+            'resetRequired' => $resetRequired,
+            'currentSourcePinned' => $currentSourcePinned,
+            'residualColumns' => $residualColumns,
+            'seekTape' => $seekTape,
+            'materializedRows' => $materializedRows,
+            'materializedRowids' => array_values(array_map(static fn (array $row): int => (int) $row['rowid'], $materializedRows)),
+            'materializedPaths' => array_values(array_map(static fn (array $row): ?string => is_string($row['path']) ? $row['path'] : null, $materializedRows)),
+            'rowidAliasColumns' => ['rowid', '_rowid_', 'oid', 'id'],
+            'omittedConstraintColumns' => array_values(array_map('strval', $program177['omittedConstraintColumns'] ?? [])),
+            'residualConstraintColumns' => $residualColumns,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidMaterializationCostClass180($materializationOpcode, $estimatedRows, $estimatedCost, count($residualColumns)),
+            'materializationFingerprint' => hash('sha256', json_encode([
+                $sourceGeneration,
+                $programFingerprint,
+                $materializationOpcode,
+                $seekTape,
+                $materializedRows,
+                $estimatedCost,
+            ], JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @param list<string> $residualColumns
+     * @param list<int> $rowids
+     */
+    private static function jsonTableGeneratedPathRowidMaterializationOpcode180(
+        bool $canMaterialize,
+        bool $resetRequired,
+        bool $conflict,
+        array $residualColumns,
+        array $rowids,
+    ): string {
+        if ($conflict) {
+            return 'materialize-empty-rowid-alias-contradiction-next180';
+        }
+        if ($resetRequired) {
+            return 'materialize-reset-stale-current-source-next180';
+        }
+        if ($rowids === []) {
+            return 'materialize-empty-current-source-rowset-next180';
+        }
+        if ($residualColumns !== []) {
+            return 'materialize-current-source-residual-rowset-next180';
+        }
+        if ($canMaterialize) {
+            return 'materialize-current-source-covered-rowset-next180';
+        }
+
+        return 'materialize-current-source-blocked-next180';
+    }
+
+    private static function jsonTableGeneratedPathRowidMaterializationCost180(
+        bool $canMaterialize,
+        int $programCost,
+        int $seekCount,
+        int $residualCount,
+    ): int {
+        if (!$canMaterialize) {
+            return 1000000;
+        }
+
+        return max(1, min($programCost, max(1, $seekCount)) + $residualCount);
+    }
+
+    private static function jsonTableGeneratedPathRowidMaterializationCostClass180(
+        string $opcode,
+        int $estimatedRows,
+        int $estimatedCost,
+        int $residualCount,
+    ): string {
+        if (str_contains($opcode, 'contradiction')) {
+            return 'json-table-generated-path-rowid-materialization-contradiction-empty-next180';
+        }
+        if (str_contains($opcode, 'reset-stale')) {
+            return 'json-table-generated-path-rowid-materialization-reset-next180';
+        }
+        if ($estimatedRows === 0 || $estimatedCost >= 1000000) {
+            return 'json-table-generated-path-rowid-materialization-empty-next180';
+        }
+        if ($residualCount > 0) {
+            return 'json-table-generated-path-rowid-materialization-residual-next180';
+        }
+        if ($estimatedRows === 1) {
+            return 'json-table-generated-path-rowid-materialization-point-next180';
+        }
+
+        return 'json-table-generated-path-rowid-materialization-range-next180';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationTransitions180(array $current, array $next): array
+    {
+        $fields = [
+            'sourceGeneration',
+            'sourceOptionId',
+            'generatedPath',
+            'xFilterOpcode',
+            'programFingerprint',
+            'materializationOpcode',
+            'resetRequired',
+            'currentSourcePinned',
+            'seekTape',
+            'materializedRowids',
+            'materializedPaths',
+            'residualConstraintColumns',
+            'estimatedRows',
+            'estimatedCost',
+            'costClass',
+            'materializationFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceMaterializationReplanReasons180(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'sourceGeneration', 'sourceOptionId', 'generatedPath' => 'json-table-generated-path-rowid-materialization-next180-source-changed',
+                'xFilterOpcode', 'programFingerprint', 'materializationOpcode', 'resetRequired', 'currentSourcePinned' => 'json-table-generated-path-rowid-materialization-next180-program-changed',
+                'seekTape', 'materializedRowids', 'materializedPaths' => 'json-table-generated-path-rowid-materialization-next180-rowset-changed',
+                'residualConstraintColumns' => 'json-table-generated-path-rowid-materialization-next180-residual-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-materialization-next180-cost-changed',
+                'materializationFingerprint' => 'json-table-generated-path-rowid-materialization-next180-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-materialization-next180-state-changed',
             };
         }
 
