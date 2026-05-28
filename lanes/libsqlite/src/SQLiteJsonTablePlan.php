@@ -2681,6 +2681,85 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $nextSource
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projection
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext191(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+    ): array {
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext188(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+            $projection,
+        );
+
+        $currentFilter = self::jsonTableGeneratedPathRowidXFilterRecheck191(
+            $function,
+            $currentSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            false,
+        );
+        $nextFilter = self::jsonTableGeneratedPathRowidXFilterRecheck191(
+            $function,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $rootColumn,
+            $plan['currentGeneratedPathRowidCurrentSourceResume185'],
+            (bool) ($plan['generatedPathRowidDeletedResume188']['restartRequired'] ?? true),
+        );
+        $transitions = self::jsonTableGeneratedPathRowidXFilterRecheckTransitions191($currentFilter, $nextFilter);
+        $reasons = self::jsonTableGeneratedPathRowidXFilterRecheckReasons191($transitions);
+        $restartRequired188 = (bool) ($plan['generatedPathRowidDeletedResume188']['restartRequired'] ?? true);
+
+        $plan['currentGeneratedPathRowidXFilterRecheck191'] = $currentFilter;
+        $plan['nextGeneratedPathRowidXFilterRecheck191'] = $nextFilter;
+        $plan['generatedPathRowidXFilterRecheck191Transitions'] = $transitions;
+        $plan['next191ReplanReasons'] = array_values(array_unique(array_merge(
+            $restartRequired188 ? $plan['next188ReplanReasons'] : [],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next191ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'xfilter-recheck-current-json-table-generated-path-rowid-next191';
+        $plan['nextReaderPolicy'] = $nextFilter['checkpointReusable']
+            ? 'reuse-xfilter-current-json-table-generated-path-rowid-next191'
+            : 'restart-xfilter-next-json-table-generated-path-rowid-next191';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next191'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
@@ -13342,6 +13421,251 @@ final class SQLiteJsonTablePlan
         }
 
         return 'json-table-generated-path-rowid-resume-blocked-next188';
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param array<string,mixed> $resume
+     * @return array<string,mixed>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterRecheck191(
+        string $function,
+        array $source,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        ?string $rootColumn,
+        array $resume,
+        bool $staleAfterNextSource,
+    ): array {
+        $function = self::normalizeFunction($function);
+        if (!array_key_exists($jsonColumn, $source)) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid xFilter next191 is missing {$jsonColumn}");
+        }
+        if (!array_key_exists($generatedPathColumn, $source) || !is_string($source[$generatedPathColumn])) {
+            throw new \InvalidArgumentException("SQLite JSON table generated-path rowid xFilter next191 is missing {$generatedPathColumn}");
+        }
+        if (!SQLiteJsonPath::isWellFormed($source[$generatedPathColumn])) {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xFilter next191 generated path is not well formed');
+        }
+
+        $root = '$';
+        if ($rootColumn !== null && array_key_exists($rootColumn, $source)) {
+            if (!is_string($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xFilter next191 root must be text');
+            }
+            if (!SQLiteJsonPath::isWellFormed($source[$rootColumn])) {
+                throw new \InvalidArgumentException('SQLite JSON table generated-path rowid xFilter next191 root is not well formed');
+            }
+            $root = $source[$rootColumn];
+        }
+
+        $rows = $function === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$source[$jsonColumn], $root])
+            : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$source[$jsonColumn], $root]);
+        $rowsById = [];
+        foreach ($rows as $row) {
+            $rowid = self::jsonTableRowid181($row);
+            if ($rowid !== null) {
+                $rowsById[$rowid] = $row;
+            }
+        }
+
+        $generatedPath = $source[$generatedPathColumn];
+        $projectedRows = array_values(array_filter(
+            $resume['projectedRows'] ?? [],
+            static fn (mixed $row): bool => is_array($row),
+        ));
+        $checkpointRowids = array_values(array_map(
+            static fn (array $row): int => (int) ($row['rowid'] ?? 0),
+            $projectedRows,
+        ));
+        $accepted = [];
+        $rejected = [];
+        $tape = [];
+        foreach ($projectedRows as $row) {
+            $rowid = (int) ($row['rowid'] ?? 0);
+            $sourceRow = $rowsById[$rowid] ?? null;
+            $sourcePath = is_array($sourceRow) && is_string($sourceRow['path'] ?? null) ? $sourceRow['path'] : null;
+            $sourceFullkey = is_array($sourceRow) && is_string($sourceRow['fullkey'] ?? null) ? $sourceRow['fullkey'] : null;
+            $pathMatched = is_array($sourceRow)
+                && ($sourcePath === $generatedPath
+                    || $sourceFullkey === $generatedPath
+                    || ($sourcePath !== null && str_starts_with($sourcePath, $generatedPath . '['))
+                    || ($sourcePath !== null && str_starts_with($sourcePath, $generatedPath . '.'))
+                    || ($sourceFullkey !== null && str_starts_with($sourceFullkey, $generatedPath . '['))
+                    || ($sourceFullkey !== null && str_starts_with($sourceFullkey, $generatedPath . '.')));
+            $valueMatched = is_array($sourceRow)
+                && (!array_key_exists('value', $row) || ($sourceRow['value'] ?? null) === $row['value']);
+            $acceptedRow = !$staleAfterNextSource && $pathMatched && $valueMatched;
+
+            if ($acceptedRow) {
+                $accepted[] = $rowid;
+            } else {
+                $rejected[] = $rowid;
+            }
+
+            $tape[] = [
+                'rowid' => $rowid,
+                'generatedPath' => $generatedPath,
+                'sourcePath' => $sourcePath,
+                'sourceFullkey' => $sourceFullkey,
+                'pathMatched' => $pathMatched,
+                'valueMatched' => $valueMatched,
+                'accepted' => $acceptedRow,
+            ];
+        }
+
+        $checkpointReusable = !$staleAfterNextSource
+            && $checkpointRowids !== []
+            && $rejected === []
+            && $accepted === $checkpointRowids;
+        $opcode = self::jsonTableGeneratedPathRowidXFilterOpcode191($checkpointReusable, $staleAfterNextSource, $accepted, $rejected);
+        $fingerprint = hash('sha256', json_encode([
+            'function' => $function,
+            'root' => $root,
+            'generatedPath' => $generatedPath,
+            'sourceGeneration' => $source['source_generation'] ?? $source['sourceGeneration'] ?? null,
+            'resumeToken' => $resume['resumeToken'] ?? null,
+            'checkpointRowids' => $checkpointRowids,
+            'accepted' => $accepted,
+            'rejected' => $rejected,
+            'staleAfterNextSource' => $staleAfterNextSource,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        return [
+            'function' => $function,
+            'root' => $root,
+            'generatedPath' => $generatedPath,
+            'sourceGeneration' => (string) ($source['source_generation'] ?? $source['sourceGeneration'] ?? ''),
+            'resumeToken' => is_string($resume['resumeToken'] ?? null) ? $resume['resumeToken'] : null,
+            'checkpointRowids' => $checkpointRowids,
+            'acceptedRowids' => $accepted,
+            'rejectedRowids' => $rejected,
+            'xFilterArgv' => [
+                'json' => $jsonColumn,
+                'root' => $root,
+                'generatedPath' => $generatedPath,
+                'rowids' => $checkpointRowids,
+            ],
+            'xFilterTape' => $tape,
+            'staleAfterNextSource' => $staleAfterNextSource,
+            'checkpointReusable' => $checkpointReusable,
+            'estimatedRows' => $checkpointReusable ? count($accepted) : 0,
+            'estimatedCost' => $checkpointReusable ? max(1, count($accepted)) : 1000000,
+            'xFilterOpcode' => $opcode,
+            'costClass' => self::jsonTableGeneratedPathRowidXFilterCostClass191($opcode, $accepted, $rejected),
+            'filterFingerprint' => $fingerprint,
+        ];
+    }
+
+    /**
+     * @param list<int> $accepted
+     * @param list<int> $rejected
+     */
+    private static function jsonTableGeneratedPathRowidXFilterOpcode191(
+        bool $checkpointReusable,
+        bool $staleAfterNextSource,
+        array $accepted,
+        array $rejected,
+    ): string {
+        if ($staleAfterNextSource) {
+            return 'restart-next-source-generated-path-rowid-xfilter-next191';
+        }
+        if ($checkpointReusable) {
+            return count($accepted) === 1
+                ? 'seek-current-source-generated-path-rowid-xfilter-next191'
+                : 'scan-current-source-generated-path-rowid-xfilter-next191';
+        }
+        if ($rejected !== []) {
+            return 'reject-current-source-generated-path-rowid-xfilter-next191';
+        }
+
+        return 'block-current-source-generated-path-rowid-xfilter-next191';
+    }
+
+    /**
+     * @param list<int> $accepted
+     * @param list<int> $rejected
+     */
+    private static function jsonTableGeneratedPathRowidXFilterCostClass191(
+        string $opcode,
+        array $accepted,
+        array $rejected,
+    ): string {
+        if (str_starts_with($opcode, 'restart-next-source')) {
+            return 'json-table-generated-path-rowid-xfilter-restart-next191';
+        }
+        if (str_starts_with($opcode, 'reject-current-source')) {
+            return 'json-table-generated-path-rowid-xfilter-reject-next191';
+        }
+        if (str_starts_with($opcode, 'block-current-source')) {
+            return 'json-table-generated-path-rowid-xfilter-blocked-next191';
+        }
+        if (count($accepted) === 1 && $rejected === []) {
+            return 'json-table-generated-path-rowid-xfilter-point-next191';
+        }
+
+        return 'json-table-generated-path-rowid-xfilter-range-next191';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterRecheckTransitions191(array $current, array $next): array
+    {
+        $fields = [
+            'root',
+            'generatedPath',
+            'sourceGeneration',
+            'resumeToken',
+            'checkpointRowids',
+            'acceptedRowids',
+            'rejectedRowids',
+            'xFilterArgv',
+            'staleAfterNextSource',
+            'checkpointReusable',
+            'estimatedRows',
+            'estimatedCost',
+            'xFilterOpcode',
+            'costClass',
+            'filterFingerprint',
+        ];
+
+        return array_map(
+            static fn (string $field): array => [
+                'field' => $field,
+                'current' => $current[$field] ?? null,
+                'next' => $next[$field] ?? null,
+                'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+            ],
+            $fields,
+        );
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidXFilterRecheckReasons191(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'root', 'generatedPath', 'sourceGeneration', 'resumeToken', 'xFilterArgv', 'staleAfterNextSource', 'filterFingerprint' => 'json-table-generated-path-rowid-xfilter-source-changed-next191',
+                'checkpointRowids', 'acceptedRowids', 'rejectedRowids' => 'json-table-generated-path-rowid-xfilter-rowset-changed-next191',
+                'checkpointReusable' => 'json-table-generated-path-rowid-xfilter-reuse-changed-next191',
+                'estimatedRows', 'estimatedCost', 'xFilterOpcode', 'costClass' => 'json-table-generated-path-rowid-xfilter-cost-changed-next191',
+                default => 'json-table-generated-path-rowid-xfilter-state-changed-next191',
+            };
+        }
+
+        return array_values(array_unique($reasons));
     }
 
     /**

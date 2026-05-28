@@ -863,6 +863,11 @@ final class SQLiteUpdateDeleteReturningSql
     private static function evaluateExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        $predicate = self::evaluateRowValueExpressionPredicate($expression, $row);
+        if ($predicate['matched']) {
+            return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
+        }
+
         $concatParts = self::splitOperator($expression, '||');
         if (count($concatParts) > 1) {
             $pieces = [];
@@ -901,6 +906,85 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return self::literal($expression);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array{matched:bool,value:?bool}
+     */
+    private static function evaluateRowValueExpressionPredicate(string $expression, array $row): array
+    {
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $value = self::rowValue($row, self::rowValueColumns($match[1]));
+            $lower = self::rowValueExpressions($match[3], $row);
+            $upper = self::rowValueExpressions($match[4], $row);
+            $result = self::nullableAnd(
+                self::rowValueCompareBoolean($value, '>=', $lower),
+                self::rowValueCompareBoolean($value, '<=', $upper),
+            );
+
+            return [
+                'matched' => true,
+                'value' => isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result,
+            ];
+        }
+        if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $tuples = self::rowValueTupleList($match[3], $row);
+            $result = self::rowValueIn($left, $tuples);
+
+            return [
+                'matched' => true,
+                'value' => isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result,
+            ];
+        }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIs($left, $right);
+
+            return [
+                'matched' => true,
+                'value' => isset($match[2]) && trim($match[2]) !== '' ? !$result : $result,
+            ];
+        }
+        if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            $result = self::rowValueIsDistinctFrom($left, $right);
+
+            return [
+                'matched' => true,
+                'value' => isset($match[2]) && trim($match[2]) !== '' ? !$result : $result,
+            ];
+        }
+        if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
+            $left = self::rowValue($row, self::rowValueColumns($match[1]));
+            $right = self::rowValueExpressions($match[3], $row);
+            if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
+                $equals = self::rowValueEqualsNullable($left, $right);
+                $result = match ($match[2]) {
+                    '=' => $equals,
+                    '<>', '!=' => self::negateNullable($equals),
+                    default => false,
+                };
+
+                return ['matched' => true, 'value' => $result];
+            }
+
+            $comparison = self::rowValueCompare($left, $right);
+            $result = match ($match[2]) {
+                '>' => $comparison === null ? null : $comparison > 0,
+                '>=' => $comparison === null ? null : $comparison >= 0,
+                '<' => $comparison === null ? null : $comparison < 0,
+                '<=' => $comparison === null ? null : $comparison <= 0,
+                default => false,
+            };
+
+            return ['matched' => true, 'value' => $result];
+        }
+
+        return ['matched' => false, 'value' => null];
     }
 
     /**
