@@ -157,6 +157,8 @@ final class SQLiteSchemaDdlReparsePlan
                 'rootpage' => 0,
                 'rowid' => $record->rowId,
                 'source_tables' => $metadata['source_tables'],
+                'source_views' => $metadata['source_views'],
+                'view_references' => $metadata['view_references'],
                 'indexed_by' => $metadata['indexed_by'],
                 'generated_column_references' => $metadata['generated_column_references'],
                 'generated_column_reference_count' => count($metadata['generated_column_references']),
@@ -674,26 +676,51 @@ final class SQLiteSchemaDdlReparsePlan
 
     /**
      * @param list<SQLiteSchemaRecord> $records
-     * @return array{source_tables:list<string>, indexed_by:list<string>, generated_column_references:list<string>, generated_index_references:list<string>, star_expansion_records:list<string>, current_source_reparse:bool}
+     * @return array{source_tables:list<string>, source_views:list<string>, view_references:list<string>, indexed_by:list<string>, generated_column_references:list<string>, generated_index_references:list<string>, star_expansion_records:list<string>, current_source_reparse:bool}
      */
     private static function viewReparseMetadata(array $records, string $createViewSql, string $viewName): array
     {
-        $sourceTables = self::viewSourceTables($createViewSql);
+        $sources = self::viewSources($createViewSql);
+        $sourceTables = [];
+        $sourceViews = [];
+        $viewReferences = [];
         $indexedBy = self::viewIndexedByNames($createViewSql);
         $generatedColumnReferences = [];
         $generatedIndexReferences = [];
         $starExpansionRecords = self::viewUsesStarProjection($createViewSql) ? ['view:' . $viewName] : [];
 
-        foreach ($sourceTables as $table) {
-            if (self::findRecordIndex($records, 'table', $table) === null) {
-                throw new InvalidArgumentException("SQLite schema DDL reparse cannot create view {$viewName} from missing table {$table}");
+        foreach ($sources as $source) {
+            if (self::findRecordIndex($records, 'table', $source) !== null) {
+                $sourceTables[] = $source;
+                foreach (self::generatedColumnNames($records, $source) as $column) {
+                    if (self::sqlReferencesIdentifier($createViewSql, $column) && !in_array($column, $generatedColumnReferences, true)) {
+                        $generatedColumnReferences[] = $column;
+                    }
+                }
+                continue;
             }
 
-            foreach (self::generatedColumnNames($records, $table) as $column) {
-                if (self::sqlReferencesIdentifier($createViewSql, $column) && !in_array($column, $generatedColumnReferences, true)) {
-                    $generatedColumnReferences[] = $column;
+            $view = self::findRecord($records, 'view', $source);
+            if ($view !== null) {
+                $sourceViews[] = $source;
+                $viewReferences[] = 'view:' . $source;
+                if ($view->sql !== null) {
+                    $viewMetadata = self::viewReparseMetadata($records, $view->sql, $view->name);
+                    foreach ($viewMetadata['generated_column_references'] as $column) {
+                        if (!in_array($column, $generatedColumnReferences, true)) {
+                            $generatedColumnReferences[] = $column;
+                        }
+                    }
+                    foreach ($viewMetadata['generated_index_references'] as $indexName) {
+                        if (!in_array($indexName, $generatedIndexReferences, true)) {
+                            $generatedIndexReferences[] = $indexName;
+                        }
+                    }
                 }
+                continue;
             }
+
+            throw new InvalidArgumentException("SQLite schema DDL reparse cannot create view {$viewName} from missing table or view {$source}");
         }
 
         foreach ($indexedBy as $indexName) {
@@ -713,30 +740,32 @@ final class SQLiteSchemaDdlReparsePlan
 
         return [
             'source_tables' => $sourceTables,
+            'source_views' => $sourceViews,
+            'view_references' => $viewReferences,
             'indexed_by' => $indexedBy,
             'generated_column_references' => $generatedColumnReferences,
             'generated_index_references' => $generatedIndexReferences,
             'star_expansion_records' => $starExpansionRecords,
-            'current_source_reparse' => $generatedColumnReferences !== [] || $generatedIndexReferences !== [] || $starExpansionRecords !== [],
+            'current_source_reparse' => $generatedColumnReferences !== [] || $generatedIndexReferences !== [] || $viewReferences !== [] || $starExpansionRecords !== [],
         ];
     }
 
     /**
      * @return list<string>
      */
-    private static function viewSourceTables(string $sql): array
+    private static function viewSources(string $sql): array
     {
-        $tables = [];
+        $sources = [];
         if (preg_match_all('/\b(?:from|join)\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?!\s*\()/i', $sql, $matches) !== false) {
             foreach ($matches['table'] as $table) {
                 $name = self::unquoteIdentifier($table);
-                if (!in_array($name, $tables, true)) {
-                    $tables[] = $name;
+                if (!in_array($name, $sources, true)) {
+                    $sources[] = $name;
                 }
             }
         }
 
-        return $tables;
+        return $sources;
     }
 
     /**
@@ -791,6 +820,21 @@ final class SQLiteSchemaDdlReparsePlan
             if ($view !== null) {
                 $views[] = $source;
                 $viewReferences[] = 'view:' . $source;
+                if ($view->sql !== null) {
+                    $viewMetadata = self::viewReparseMetadata($records, $view->sql, $view->name);
+                    if ($viewMetadata['source_views'] !== []) {
+                        foreach ($viewMetadata['generated_column_references'] as $column) {
+                            if (!in_array($column, $generatedColumnReferences, true)) {
+                                $generatedColumnReferences[] = $column;
+                            }
+                        }
+                        foreach ($viewMetadata['generated_index_references'] as $indexName) {
+                            if (!in_array($indexName, $generatedIndexReferences, true)) {
+                                $generatedIndexReferences[] = $indexName;
+                            }
+                        }
+                    }
+                }
             }
         }
 

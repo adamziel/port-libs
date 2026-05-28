@@ -804,6 +804,15 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param array<string,mixed> $plan
+     * @return list<array<string,mixed>>
+     */
+    public static function executeCompoundPlanForDiagnostics(array $plan): array
+    {
+        return self::executeCompoundPlan($plan);
+    }
+
+    /**
      * @param array<string,mixed> $arm
      * @return list<string>
      */

@@ -40,6 +40,7 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
         $inserted = [];
         $updated = [];
         $skipped = [];
+        $ignored = [];
         $rollbackReason = null;
         $statement = 0;
 
@@ -51,6 +52,11 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
                 $action = 'insert';
                 $beforeEffects = self::triggerEffects('before', $action, $old, $candidate, $triggers);
                 $triggerEffects = array_merge($triggerEffects, $beforeEffects);
+                if (($ignoreReason = self::ignoreReason($beforeEffects)) !== null) {
+                    $ignored[] = self::ignoredRow($statement, $action, $candidate, $ignoreReason);
+                    ++$statement;
+                    continue;
+                }
 
                 $returningRow = self::projectReturning($returning, $candidate, $old, $action, $statement);
                 $returningRows[] = $returningRow;
@@ -88,6 +94,11 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
             $action = 'update';
             $beforeEffects = self::triggerEffects('before', $action, $old, $candidate, $triggers);
             $triggerEffects = array_merge($triggerEffects, $beforeEffects);
+            if (($ignoreReason = self::ignoreReason($beforeEffects)) !== null) {
+                $ignored[] = self::ignoredRow($statement, $action, $incoming, $ignoreReason);
+                ++$statement;
+                continue;
+            }
 
             $returningRow = self::projectReturning($returning, $candidate, $old, $action, $statement);
             $returningRows[] = $returningRow;
@@ -123,6 +134,7 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
             'inserted_rows' => $rolledBack ? [] : $inserted,
             'updated_rows' => $rolledBack ? [] : $updated,
             'skipped_rows' => $skipped,
+            'ignored_rows' => $ignored,
             'trigger_effects_before_rollback' => $triggerEffects,
             'rolled_back_to_savepoint' => $rolledBack,
             'rollback_reason' => $rollbackReason,
@@ -134,6 +146,7 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
                 'sqlite-returning-yield-before-savepoint-rollback',
                 'sqlite-after-trigger-mutation-hidden-from-returning',
                 'sqlite-savepoint-restores-current-source-after-trigger-rollback',
+                'sqlite-trigger-raise-ignore-suppresses-returning-row',
             ],
         ];
     }
@@ -349,6 +362,34 @@ final class SQLiteTriggerUpsertSavepointReturningCurrentSourceNext132Plan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $effects
+     */
+    private static function ignoreReason(array $effects): ?string
+    {
+        foreach ($effects as $effect) {
+            if (($effect['raise'] ?? null) === 'ignore') {
+                return (string) ($effect['reason'] ?? $effect['trigger'] ?? 'trigger ignore');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array{statement:int,action:string,reason:string,row:array<string,mixed>}
+     */
+    private static function ignoredRow(int $statement, string $action, array $row, string $reason): array
+    {
+        return [
+            'statement' => $statement,
+            'action' => $action,
+            'reason' => $reason,
+            'row' => $row,
+        ];
     }
 
     /**
