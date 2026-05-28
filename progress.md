@@ -48,6 +48,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-28 supervisor continuation (shell/live samples 04:26 UTC):
+  Batch94 clean subset is integrated and root-verified in the rolling
+  integration worktree. Source commit
+  `beb259c39c4923b0ec07f35f62d4078091e83118` (`Integrate libsqlite batch
+  94 subset`) accepted 11 current-source libsqlite handoffs. Integration
+  preserved batch93 JSON table rowid alias diagnostics by recording original
+  rowid alias constraints while keeping normalized `id` usage for execution.
+  Verification passed: php -l `33` changed/untracked PHP files, 10 changed
+  WordPress examples/self-tests, conflict-marker scan, git diff --check,
+  focused changed tests `11 test files / 2000 assertions / 0 failures / 640
+  PASS lines`, full libsqlite `680 test files / 78156 assertions /
+  0 failures / 38278 PASS lines`, and root `893 test files / 102624
+  assertions / 0 failures / 41306 PASS lines` with `memory_limit=512M`.
+  This is `+570` libsqlite PASS lines over batch93 (`37708 -> 38278`);
+  mapped coverage advances from `557 / 1589` to `568 / 1589`. The worker
+  pool drained during verification and was refilled with batch98 reserve lanes
+  while dashboard publication proceeds.
+
 - 2026-05-28 supervisor continuation (shell/live samples 04:14 UTC):
   Batch93 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
