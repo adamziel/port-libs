@@ -12,6 +12,7 @@ final class SQLiteSchemaDdlReparsePlan
      * @param list<SQLiteSchemaRecord> $records
      * @param list<string> $ddl
      * @param list<array{id:string,schema_cookie:int,sql:string,target?:string}> $preparedStatements
+     * @param array<string,list<array<string,mixed>>> $currentRowsByTable
      * @return array{
      *     status:string,
      *     schema:string,
@@ -33,6 +34,7 @@ final class SQLiteSchemaDdlReparsePlan
         int $schemaCookie = 1,
         string $schema = 'main',
         array $preparedStatements = [],
+        array $currentRowsByTable = [],
     ): array {
         $schema = self::normalizeIdentifier($schema, 'schema');
         $nextRecords = self::sortRecords($records);
@@ -42,7 +44,7 @@ final class SQLiteSchemaDdlReparsePlan
         $changed = 0;
 
         foreach ($ddl as $sql) {
-            $operation = self::applyOne($nextRecords, $sql, $nextRowId, $nextRootPage);
+            $operation = self::applyOne($nextRecords, $sql, $nextRowId, $nextRootPage, $currentRowsByTable);
             $operations[] = $operation;
             if ($operation['changed']) {
                 $changed++;
@@ -80,7 +82,7 @@ final class SQLiteSchemaDdlReparsePlan
      * @param list<SQLiteSchemaRecord> $records
      * @return array<string,mixed>
      */
-    private static function applyOne(array &$records, string $sql, int &$nextRowId, int &$nextRootPage): array
+    private static function applyOne(array &$records, string $sql, int &$nextRowId, int &$nextRootPage, array $currentRowsByTable): array
     {
         $trimmed = trim(rtrim($sql, " \t\r\n;"));
         if ($trimmed === '') {
@@ -349,7 +351,56 @@ final class SQLiteSchemaDdlReparsePlan
             ];
         }
 
+        if (preg_match('/^alter\s+table\s+(?<table>"(?:[^"]|"")+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+add\s+(?:column\s+)?(?<definition>.+)$/is', $trimmed, $matches)) {
+            $tableName = self::unquoteIdentifier($matches['table']);
+            $table = self::findRecordIndex($records, 'table', $tableName);
+            if ($table === null) {
+                throw new InvalidArgumentException("SQLite schema DDL reparse cannot add a column on missing table {$tableName}");
+            }
+
+            $addPlan = SQLiteAlterTableColumnCorpus::addColumn(
+                $records[$table],
+                $trimmed,
+                self::currentRowsForTable($currentRowsByTable, $tableName),
+            );
+
+            $records[$table] = new SQLiteSchemaRecord(
+                $records[$table]->type,
+                $records[$table]->name,
+                $records[$table]->tableName,
+                $records[$table]->rootPage,
+                $addPlan['sql'],
+                $records[$table]->rowId,
+            );
+
+            return [
+                'kind' => 'alter_table_add_column',
+                'table' => $tableName,
+                'column' => $addPlan['column'],
+                'column_count' => $addPlan['column_count'],
+                'checked_rows' => $addPlan['checked_rows'],
+                'current_row_count' => $addPlan['current_row_count'],
+                'generated' => $addPlan['generated'],
+                'changed' => true,
+            ];
+        }
+
         throw new InvalidArgumentException("Unsupported SQLite schema DDL reparse SQL: {$sql}");
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $currentRowsByTable
+     * @return list<array<string,mixed>>
+     */
+    private static function currentRowsForTable(array $currentRowsByTable, string $tableName): array
+    {
+        foreach ($currentRowsByTable as $name => $rows) {
+            if (strcasecmp((string) $name, $tableName) === 0) {
+                return $rows;
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -579,9 +630,12 @@ final class SQLiteSchemaDdlReparsePlan
                     $samples["index_list:{$table}"] = $catalog->execute("PRAGMA index_list(\"{$table}\")");
                 }
             }
-            if (($operation['kind'] ?? '') === 'create_table' || ($operation['kind'] ?? '') === 'alter_table_rename' || ($operation['kind'] ?? '') === 'alter_table_rename_column') {
+            if (($operation['kind'] ?? '') === 'create_table' || ($operation['kind'] ?? '') === 'alter_table_rename' || ($operation['kind'] ?? '') === 'alter_table_rename_column' || ($operation['kind'] ?? '') === 'alter_table_add_column') {
                 $table = (string) (($operation['new_name'] ?? null) ?: ($operation['name'] ?? ''));
                 if (($operation['kind'] ?? '') === 'alter_table_rename_column') {
+                    $table = (string) ($operation['table'] ?? '');
+                }
+                if (($operation['kind'] ?? '') === 'alter_table_add_column') {
                     $table = (string) ($operation['table'] ?? '');
                 }
                 if ($table !== '') {

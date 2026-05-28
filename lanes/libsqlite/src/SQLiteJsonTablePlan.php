@@ -1174,6 +1174,61 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourcePathHiddenRowidCostNext126(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+    ): array {
+        $plan = self::currentSourcePathConstraintPushdownNext123(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTablePathHiddenRowidCostProfile126(
+            $plan['current'],
+            $plan['currentIndexedConstraintCost'],
+            $plan['currentPathConstraint'],
+        );
+        $nextProfile = self::jsonTablePathHiddenRowidCostProfile126(
+            $plan['next'],
+            $plan['nextIndexedConstraintCost'],
+            $plan['nextPathConstraint'],
+        );
+        $transitions = self::jsonTablePathHiddenRowidCostTransitions126($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathHiddenRowidCostReplanReasons126($transitions);
+
+        $plan['currentPathHiddenRowidCost'] = $currentProfile;
+        $plan['nextPathHiddenRowidCost'] = $nextProfile;
+        $plan['pathHiddenRowidCostTransitions'] = $transitions;
+        $plan['next126ReplanReasons'] = array_values(array_unique(array_merge($plan['next123ReplanReasons'], $reasons)));
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-path-rowid-cost-source-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next126ReplanReasons'] === []
+            ? 'reuse-current-json-table-path-rowid-cost-source-plan'
+            : 'prepare-next-json-table-path-rowid-cost-source-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-path-hidden-rowid-cost-current-source-next126'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceIndexedHiddenOrderNext122(
         string $function,
         array $currentSource,
@@ -4737,6 +4792,184 @@ final class SQLiteJsonTablePlan
                 'blockSortPenalty', 'effectiveEstimatedCost', 'costClass' => 'json-table-partial-order-cost-changed',
                 'rowOrder' => 'json-table-partial-order-output-changed',
                 default => 'json-table-partial-order-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param array<string,mixed> $indexedCost
+     * @param array<string,mixed> $pathCost
+     * @return array{pathSignature:string|null,rowidSignature:string|null,compositeSignature:string|null,scanStrategy:string,pathEstimatedCost:int,rowidEstimatedCost:int,intersectedEstimatedRows:int,intersectedEstimatedCost:int,effectiveEstimatedCost:int,costClass:string,rowCount:int,rowids:list<int>,pathRowidTape:list<array{path:string|null,rowid:int|null}>,firstPathRowid:array{path:string|null,rowid:int|null}|null,lastPathRowid:array{path:string|null,rowid:int|null}|null}
+     */
+    private static function jsonTablePathHiddenRowidCostProfile126(array $plan, array $indexedCost, array $pathCost): array
+    {
+        $rowid = null;
+        foreach ($indexedCost['indexedConstraints'] as $constraint) {
+            if (($constraint['column'] ?? null) !== 'id') {
+                continue;
+            }
+
+            $rowid = $constraint;
+            break;
+        }
+
+        $path = $pathCost['selectedPath'];
+        $pathSignature = $pathCost['selectedPathSignature'];
+        $rowidSignature = $rowid === null ? null : self::jsonTableIndexedConstraintSignature119($rowid);
+        $rowids = self::rowidsFromRows94($plan['rows']);
+        $pathRowidTape = self::jsonTablePathRowidTape126($plan['rows']);
+
+        if (!$plan['runnable']) {
+            $scanStrategy = 'unrunnable-json-table';
+            $intersectedRows = 0;
+            $intersectedCost = 1000000;
+            $effectiveCost = 1000000;
+        } elseif ($path !== null && $rowid !== null) {
+            $scanStrategy = 'path-rowid-intersection';
+            $intersectedRows = min((int) $path['indexedEstimatedRows'], (int) $rowid['indexedEstimatedRows']);
+            $intersectedRows = max(1, min($intersectedRows, max(1, count($pathRowidTape))));
+            $intersectedCost = max(1, intdiv((int) $path['indexedEstimatedCost'] + (int) $rowid['indexedEstimatedCost'] + 1, 2));
+            $effectiveCost = $intersectedCost + (int) $indexedCost['sortPenalty'];
+        } elseif ($rowid !== null) {
+            $scanStrategy = 'rowid-only-lookup';
+            $intersectedRows = (int) $rowid['indexedEstimatedRows'];
+            $intersectedCost = (int) $rowid['indexedEstimatedCost'];
+            $effectiveCost = $intersectedCost + (int) $indexedCost['sortPenalty'];
+        } elseif ($path !== null) {
+            $scanStrategy = 'path-only-lookup';
+            $intersectedRows = (int) $path['indexedEstimatedRows'];
+            $intersectedCost = (int) $path['indexedEstimatedCost'];
+            $effectiveCost = $intersectedCost + (int) $indexedCost['sortPenalty'];
+        } else {
+            $scanStrategy = 'full-json-table-scan';
+            $intersectedRows = (int) $plan['estimatedRows'];
+            $intersectedCost = (int) $plan['estimatedCost'];
+            $effectiveCost = (int) $indexedCost['effectiveEstimatedCost'];
+        }
+
+        return [
+            'pathSignature' => $pathSignature,
+            'rowidSignature' => $rowidSignature,
+            'compositeSignature' => $pathSignature !== null && $rowidSignature !== null ? $pathSignature . '&&' . $rowidSignature : null,
+            'scanStrategy' => $scanStrategy,
+            'pathEstimatedCost' => $path === null ? (int) $pathCost['pathEstimatedCost'] : (int) $path['indexedEstimatedCost'],
+            'rowidEstimatedCost' => $rowid === null ? (int) $indexedCost['indexedEstimatedCost'] : (int) $rowid['indexedEstimatedCost'],
+            'intersectedEstimatedRows' => $intersectedRows,
+            'intersectedEstimatedCost' => $intersectedCost,
+            'effectiveEstimatedCost' => $effectiveCost,
+            'costClass' => self::jsonTablePathHiddenRowidCostClass126($scanStrategy, $effectiveCost),
+            'rowCount' => count($pathRowidTape),
+            'rowids' => $rowids,
+            'pathRowidTape' => $pathRowidTape,
+            'firstPathRowid' => $pathRowidTape[0] ?? null,
+            'lastPathRowid' => $pathRowidTape === [] ? null : $pathRowidTape[array_key_last($pathRowidTape)],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{path:string|null,rowid:int|null}>
+     */
+    private static function jsonTablePathRowidTape126(array $rows): array
+    {
+        $tape = [];
+        foreach ($rows as $row) {
+            $tape[] = [
+                'path' => isset($row['path']) && is_string($row['path']) ? $row['path'] : null,
+                'rowid' => isset($row['id']) ? (int) $row['id'] : null,
+            ];
+        }
+
+        return $tape;
+    }
+
+    private static function jsonTablePathHiddenRowidCostClass126(string $scanStrategy, int $effectiveCost): string
+    {
+        if ($scanStrategy === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if ($scanStrategy === 'path-rowid-intersection') {
+            return $effectiveCost <= 2 ? 'json-table-path-rowid-point-intersection' : 'json-table-path-rowid-intersection';
+        }
+        if ($scanStrategy === 'rowid-only-lookup') {
+            return 'json-table-rowid-point-lookup';
+        }
+        if ($scanStrategy === 'path-only-lookup') {
+            return 'json-table-path-only-lookup';
+        }
+
+        return $effectiveCost <= 10 ? 'json-table-path-rowid-narrow-full-scan' : 'json-table-path-rowid-full-scan';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTablePathHiddenRowidCostTransitions126(array $current, array $next): array
+    {
+        return [
+            [
+                'field' => 'compositeSignature',
+                'current' => $current['compositeSignature'],
+                'next' => $next['compositeSignature'],
+                'changed' => $current['compositeSignature'] !== $next['compositeSignature'],
+            ],
+            [
+                'field' => 'scanStrategy',
+                'current' => $current['scanStrategy'],
+                'next' => $next['scanStrategy'],
+                'changed' => $current['scanStrategy'] !== $next['scanStrategy'],
+            ],
+            [
+                'field' => 'effectiveEstimatedCost',
+                'current' => $current['effectiveEstimatedCost'],
+                'next' => $next['effectiveEstimatedCost'],
+                'changed' => $current['effectiveEstimatedCost'] !== $next['effectiveEstimatedCost'],
+            ],
+            [
+                'field' => 'costClass',
+                'current' => $current['costClass'],
+                'next' => $next['costClass'],
+                'changed' => $current['costClass'] !== $next['costClass'],
+            ],
+            [
+                'field' => 'rowids',
+                'current' => $current['rowids'],
+                'next' => $next['rowids'],
+                'changed' => $current['rowids'] !== $next['rowids'],
+            ],
+            [
+                'field' => 'pathRowidTape',
+                'current' => $current['pathRowidTape'],
+                'next' => $next['pathRowidTape'],
+                'changed' => $current['pathRowidTape'] !== $next['pathRowidTape'],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTablePathHiddenRowidCostReplanReasons126(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'compositeSignature' => 'json-table-path-rowid-constraint-changed',
+                'scanStrategy' => 'json-table-path-rowid-scan-strategy-changed',
+                'effectiveEstimatedCost', 'costClass' => 'json-table-path-rowid-cost-changed',
+                'rowids' => 'json-table-path-rowid-rowset-changed',
+                'pathRowidTape' => 'json-table-path-rowid-tape-changed',
+                default => 'json-table-path-rowid-state-changed',
             };
         }
 
