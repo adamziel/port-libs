@@ -66,12 +66,16 @@
   This is `+434` libsqlite PASS lines over the published batch68 pager subset
   (`25580 -> 26014`) and mapped upstream coverage moves `463 -> 464 / 1589`
   via accepted current-next68 suite-denominator evidence without claiming
-  release/all parity. Operationally, the live `main` tmux session was
-  underfilled at 5 active isolated libsqlite workers with no long sleepers, and
-  `/` was critically tight at about 3.8G free; next decision is to publish the
-  dashboard/status, consume the accepted remaining batch68 handoffs, then
-  restore 10-11 active libsqlite workers by reusing existing worktrees or
-  retiring only clean stale scratch state while preserving dirty output.
+  release/all parity. Operationally, the live `main` tmux session had drained
+  during publication, then was restored to 11 active isolated libsqlite workers
+  with no long sleepers using batch70 B-tree, pager, WAL, SQL, JSON, encoding,
+  and suite-countability slices. `/` remains critically tight at about 3.8G
+  free; a bounded cleanup attempted to remove old worktrees with `git worktree
+  remove`, but all sampled worktrees were dirty or otherwise not safely
+  removable without force. Next decision: integrate remaining ready batch68
+  btree/pragma/trigger markers and ready batch69 attach/json/pager/select/
+  suite/vfs/wal markers by expected PASS-line movement while the batch70
+  workers run.
 
 - 2026-05-28 supervisor continuation (shell/live samples 00:44 UTC):
   Batch68 is integrated and verified by reusing the rolling clean integration
