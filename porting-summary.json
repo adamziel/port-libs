@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-28 10:00:42 UTC",
-    "sourceCommit": "bc9033ad33a05ec30a91b1015e7685e570dd8398",
-    "sourceCommitShort": "bc9033ad33a0",
+    "generated": "2026-05-28 10:12:35 UTC",
+    "sourceCommit": "3e39625e92167f6259397d4cf1c8955c65593d9b",
+    "sourceCommitShort": "3e39625e9216",
     "sourceBranch": "unknown",
-    "dashboardCommit": "bc9033ad33a05ec30a91b1015e7685e570dd8398",
-    "dashboardCommitShort": "bc9033ad33a0",
+    "dashboardCommit": "3e39625e92167f6259397d4cf1c8955c65593d9b",
+    "dashboardCommitShort": "3e39625e9216",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "606",
             "coverage": "606 / 1589",
-            "php": "67368 pass / 0 fail",
+            "php": "68257 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "accepted batch145 subset covering B-tree, compound SELE...",
-            "audit": "Implementation commit f222b755f0cd0ea8f93...",
-            "currentWork": "Accepted verified batch145 behavior subset; public dashboard/status is being updated whil...",
-            "nextTarget": "Publish dashboard/status for batch145, consume accepted marker triplets, keep 10-11 real...",
-            "blocker": "No blocker for the accepted batch145 behavior subset: focused, full libsq...",
-            "commit": "f222b75"
+            "phase": "accepted batch146 subset covering B-tree, compound SELE...",
+            "audit": "Implementation commit 463ba35151d98ca50b6...",
+            "currentWork": "Accepted verified batch146 behavior subset; public dashboard/status is being updated whil...",
+            "nextTarget": "Publish dashboard/status for batch146, consume accepted marker triplets, keep 10-11 real...",
+            "blocker": "No blocker for the accepted batch146 behavior subset: focused, full libsq...",
+            "commit": "463ba35"
         },
         {
             "library": "LightningCSS",
