@@ -11058,3 +11058,33 @@ accepted release-blocker closure-record, artifact-set admission, focused-runner
 admission, active-runner pgrep filtering, foreground snapshot parsing, and
 release rerun/exclusion ledger work by covering only directory-level
 accepted-HEAD provenance over already produced bounded-runner artifacts.
+
+## Upstream Runner Evidence: veryquick shard current-source next164
+
+Date: 2026-05-28
+
+This isolated upstream-suite micro-slice did not launch a broad SQLite
+`testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
+`SQLiteUpstreamSuiteEvidence::upstreamVeryquickShardCurrentSourceNext164()`,
+which admits one lane-local zero-error guarded veryquick shard row only when
+the launcher Base accepted HEAD, current integration source heads, concrete
+`.test` selections, duplicate-runner gate, removed-blocker classification, and
+focused PHP PASS-line output all match the next164 evidence record.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from `610` to `611`. The slice records focused current-source veryquick
+shard countability only; release/all parity remains gated on a separate
+accepted zero-error broad artifact.
+
+Focused verification: `php tools/run-tests.php
+lanes/libsqlite/tests/SQLiteUpstreamVeryquickShardCurrentSourceNext164Test.php`
+passed with `1 test files, 1122 assertions, 0 failures` and 71 PASS lines.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+bounded runner metadata, accepted source provenance checks, active-runner
+gating, and focused `TestRunner` output parsing.
+
+Non-overlap: this avoids accepted batch153 next161 veryquick evidence,
+suite155/157/159, exact-shard next148, queued runner106/jsonvt104 rebase work,
+and accepted B-tree, JSON, VFS/WAL, planner, PRAGMA, ATTACH, window, and VDBE
+behavior surfaces.

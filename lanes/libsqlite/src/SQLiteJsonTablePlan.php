@@ -2182,6 +2182,72 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext164(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path rowid current-source limit must be non-negative');
+        }
+
+        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext161(
+            $function,
+            $currentSource,
+            $nextSource,
+            $jsonColumn,
+            $generatedPathColumn,
+            $constraints,
+            $rootColumn,
+            $orderBy,
+        );
+
+        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceOrderProfile164(
+            $plan['currentGeneratedPathRowidCurrentSourceAdmission'],
+            $orderBy,
+            $limit,
+        );
+        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceOrderProfile164(
+            $plan['nextGeneratedPathRowidCurrentSourceAdmission'],
+            $orderBy,
+            $limit,
+        );
+        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceOrderTransitions164($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceOrderReplanReasons164($transitions);
+
+        $plan['currentGeneratedPathRowidCurrentSourceOrder'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceOrder'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceOrderTransitions'] = $transitions;
+        $plan['next164ReplanReasons'] = array_values(array_unique(array_merge(
+            $plan['next161ReplanReasons'],
+            $reasons,
+        )));
+        $plan['replanRequired'] = $plan['next164ReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-current-source-next164-until-cursor-reset';
+        $plan['nextReaderPolicy'] = $plan['next164ReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-cost-current-source-next164-plan'
+            : 'prepare-next-json-table-generated-path-rowid-cost-current-source-next164-plan';
+        $plan['dependencies'] = array_values(array_unique(array_merge(
+            $plan['dependencies'],
+            ['sqlite-json-table-generated-path-rowid-cost-current-source-next164'],
+        )));
+
+        return $plan;
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
     public static function currentSourceGeneratedPathRowidSeekCostNext159(
         string $function,
         array $currentSource,
@@ -7609,6 +7675,155 @@ final class SQLiteJsonTablePlan
                 'cursorAdmission', 'currentSourcePinned' => 'json-table-generated-path-rowid-best-index-admission-changed',
                 'planFingerprint' => 'json-table-generated-path-rowid-best-index-fingerprint-changed',
                 default => 'json-table-generated-path-rowid-best-index-state-changed',
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+    /**
+     * @param array<string,mixed> $admission
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{orderBy:list<array{column:string,direction:string}>,limit:int|null,orderByConsumed:bool,scanDirection:string,requiresSorter:bool,sorterReason:string|null,orderedSeekRowids:list<int>,firstOutputRowid:int|null,lastOutputRowid:int|null,estimatedRows:int,estimatedCost:int,costClass:string,idxStr:string}
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceOrderProfile164(
+        array $admission,
+        array $orderBy,
+        ?int $limit,
+    ): array {
+        $normalizedOrder = [];
+        foreach ($orderBy as $term) {
+            $column = self::normalizeConstraintColumn((string) ($term['column'] ?? ''));
+            $direction = strtoupper((string) ($term['direction'] ?? 'ASC'));
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON table generated path rowid current-source ORDER BY direction must be ASC or DESC');
+            }
+            $normalizedOrder[] = [
+                'column' => $column,
+                'direction' => $direction,
+            ];
+        }
+
+        $sourceReusable = (bool) ($admission['currentSourceReusable'] ?? false);
+        $rowidSeekable = (bool) ($admission['rowidSeekable'] ?? false);
+        $matched = array_values(array_map('intval', $admission['matchedSeekRowids'] ?? []));
+        $baseCost = (int) ($admission['estimatedCost'] ?? 1000000);
+        $baseRows = (int) ($admission['estimatedRows'] ?? 0);
+        $scanDirection = 'forward';
+        $orderByConsumed = false;
+        $sorterReason = null;
+
+        if (($admission['costClass'] ?? null) === 'unrunnable-json-table' || !$sourceReusable) {
+            $sorterReason = 'current-source-reprepare-required';
+        } elseif ($normalizedOrder === []) {
+            $orderByConsumed = true;
+            $sorterReason = null;
+        } elseif (count($normalizedOrder) === 1 && $normalizedOrder[0]['column'] === 'id' && $rowidSeekable) {
+            $orderByConsumed = true;
+            $scanDirection = $normalizedOrder[0]['direction'] === 'DESC' ? 'reverse' : 'forward';
+        } elseif (count($matched) <= 1 && $rowidSeekable) {
+            $orderByConsumed = true;
+            $sorterReason = null;
+        } else {
+            $sorterReason = 'order-by-not-covered-by-rowid-current-source';
+        }
+
+        $ordered = $matched;
+        sort($ordered);
+        if ($scanDirection === 'reverse') {
+            $ordered = array_reverse($ordered);
+        }
+        if ($limit !== null) {
+            $ordered = array_slice($ordered, 0, $limit);
+        }
+
+        $estimatedRows = $limit === null ? $baseRows : min($baseRows, $limit);
+        $sortPenalty = $orderByConsumed ? 0 : max(1, $baseRows);
+        $estimatedCost = $baseCost >= 1000000
+            ? 1000000
+            : max(1, min(1000000, ($limit === null ? $baseCost : min($baseCost, max(1, $limit))) + $sortPenalty));
+
+        return [
+            'orderBy' => $normalizedOrder,
+            'limit' => $limit,
+            'orderByConsumed' => $orderByConsumed,
+            'scanDirection' => $scanDirection,
+            'requiresSorter' => !$orderByConsumed,
+            'sorterReason' => $sorterReason,
+            'orderedSeekRowids' => $ordered,
+            'firstOutputRowid' => $ordered[0] ?? null,
+            'lastOutputRowid' => $ordered === [] ? null : $ordered[array_key_last($ordered)],
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceOrderCostClass164(
+                (string) ($admission['costClass'] ?? 'unrunnable-json-table'),
+                $orderByConsumed,
+                $scanDirection,
+                $limit,
+            ),
+            'idxStr' => (string) ($admission['idxStr'] ?? '') . ($orderByConsumed ? '|orderby:consumed' : '|orderby:sorter'),
+        ];
+    }
+
+    private static function jsonTableGeneratedPathRowidCurrentSourceOrderCostClass164(
+        string $admissionClass,
+        bool $orderByConsumed,
+        string $scanDirection,
+        ?int $limit,
+    ): string {
+        if ($admissionClass === 'unrunnable-json-table') {
+            return 'unrunnable-json-table';
+        }
+        if (!$orderByConsumed) {
+            return 'json-table-generated-path-rowid-current-source-order-sorter';
+        }
+        if ($limit !== null) {
+            return 'json-table-generated-path-rowid-current-source-order-limit';
+        }
+        if ($scanDirection === 'reverse') {
+            return 'json-table-generated-path-rowid-current-source-order-reverse';
+        }
+
+        return 'json-table-generated-path-rowid-current-source-order-forward';
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceOrderTransitions164(array $current, array $next): array
+    {
+        return [
+            ['field' => 'orderByConsumed', 'current' => $current['orderByConsumed'], 'next' => $next['orderByConsumed'], 'changed' => $current['orderByConsumed'] !== $next['orderByConsumed']],
+            ['field' => 'scanDirection', 'current' => $current['scanDirection'], 'next' => $next['scanDirection'], 'changed' => $current['scanDirection'] !== $next['scanDirection']],
+            ['field' => 'requiresSorter', 'current' => $current['requiresSorter'], 'next' => $next['requiresSorter'], 'changed' => $current['requiresSorter'] !== $next['requiresSorter']],
+            ['field' => 'orderedSeekRowids', 'current' => $current['orderedSeekRowids'], 'next' => $next['orderedSeekRowids'], 'changed' => $current['orderedSeekRowids'] !== $next['orderedSeekRowids']],
+            ['field' => 'estimatedRows', 'current' => $current['estimatedRows'], 'next' => $next['estimatedRows'], 'changed' => $current['estimatedRows'] !== $next['estimatedRows']],
+            ['field' => 'estimatedCost', 'current' => $current['estimatedCost'], 'next' => $next['estimatedCost'], 'changed' => $current['estimatedCost'] !== $next['estimatedCost']],
+            ['field' => 'costClass', 'current' => $current['costClass'], 'next' => $next['costClass'], 'changed' => $current['costClass'] !== $next['costClass']],
+            ['field' => 'idxStr', 'current' => $current['idxStr'], 'next' => $next['idxStr'], 'changed' => $current['idxStr'] !== $next['idxStr']],
+        ];
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function jsonTableGeneratedPathRowidCurrentSourceOrderReplanReasons164(array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+
+            $reasons[] = match ($transition['field']) {
+                'orderByConsumed', 'requiresSorter', 'idxStr' => 'json-table-generated-path-rowid-current-source-order-usage-changed',
+                'scanDirection', 'orderedSeekRowids' => 'json-table-generated-path-rowid-current-source-order-rowset-changed',
+                'estimatedRows' => 'json-table-generated-path-rowid-current-source-order-row-estimate-changed',
+                'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-order-cost-changed',
+                default => 'json-table-generated-path-rowid-current-source-order-state-changed',
             };
         }
 
