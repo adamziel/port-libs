@@ -39,7 +39,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointPlan::executeDistinctSubquer
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-distinct-savepoint-current-source-next225',
+    'scenario' => 'wordpress-rowvalue-distinct-subquery-savepoint-rollback',
     'status' => $plan['status'],
     'attempt_selected' => $plan['attempt_statements'][0]['selected_ids'],
     'retry_selected' => $plan['retry_statements'][0]['selected_ids'],
@@ -54,7 +54,7 @@ if ($summary['status'] !== 'rowvalue-update-delete-returning-distinct-subquery-s
     || $summary['retry_selected'] !== [9, 8]
     || $summary['final_option_ids'] !== [7, 8, 9]
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-distinct-savepoint-current-source-next225 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-distinct-subquery-savepoint-rollback self-test failed\n");
     exit(1);
 }
 

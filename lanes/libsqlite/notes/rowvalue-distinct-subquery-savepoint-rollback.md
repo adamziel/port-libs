@@ -1,4 +1,4 @@
-# Row-Value UPDATE/DELETE RETURNING Savepoint Current Source Next225
+# Row-Value DISTINCT Subquery Savepoint Rollback
 
 ## Behavior
 
@@ -7,14 +7,14 @@ Adds native row-value `IN (SELECT DISTINCT ...)` tuple-source handling for bound
 ## Evidence
 
 - `php -l lanes/libsqlite/src/SQLiteUpdateDeleteReturningSql.php`
-- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext225Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext225Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-distinct-savepoint-current-source-next225.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext225Test.php`
+- `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteRowValueDistinctSubquerySavepointRollbackTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-rollback.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueDistinctSubquerySavepointRollbackTest.php`
   - `1 test files, 65 assertions, 0 failures`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext219Test.php`
   - `1 test files, 64 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-distinct-savepoint-current-source-next225.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-distinct-subquery-savepoint-rollback.php --self-test`
   - WordPress smoke passed and reported `attempt_selected` `[7, 8]`, `retry_selected` `[9, 8]`, and final option ids `[7, 8, 9]`.
 
 ## Non-Overlap

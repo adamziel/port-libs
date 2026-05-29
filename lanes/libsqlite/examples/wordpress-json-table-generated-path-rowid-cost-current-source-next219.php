@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-219-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAliasLimit(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceLimitAdmission(
     'json_tree',
     $current,
     $next,

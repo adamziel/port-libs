@@ -137,7 +137,7 @@ $cases225 = [
 
 $tests = [];
 foreach ($cases225 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next225 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue distinct subquery savepoint rollback ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

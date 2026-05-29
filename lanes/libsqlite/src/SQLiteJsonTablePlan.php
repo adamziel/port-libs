@@ -6765,7 +6765,10 @@ final class SQLiteJsonTablePlan
             : 'prepare-next-json-table-hidden-rowid-order-source';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-hidden-rowid-order-current-source-next135'],
+            [
+                'sqlite-json-table-hidden-rowid-order-current-source-next135',
+                'sqlite-json-table-hidden-rowid-source-current-next94',
+            ],
         )));
 
         return $plan;
