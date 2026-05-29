@@ -87,7 +87,7 @@ SELECT id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext225(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareLagLastValueFence(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

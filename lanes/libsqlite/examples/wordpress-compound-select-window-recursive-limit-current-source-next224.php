@@ -42,7 +42,7 @@ SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY au
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224(
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence(
     $sql,
     ['wp_options' => $current],
     ['wp_options' => $next],

@@ -1,6 +1,6 @@
 # SQLite planner STAT4 expression partial current-source next750-765
 
-Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` with `materializeNext750765()`, a direct follow-on to the merged next734-749 preparation fence. The new fence threads the next734-749 handoff signature, rechecks each carried current-source row projection, and prepares slices 750-765 only when the prior projected rows still match the current source.
+Behavior: extends `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan` with `materializePreparedHandoffFirstContinuation()`, a direct follow-on to the merged next734-749 preparation fence. The new fence threads the next734-749 handoff signature, rechecks each carried current-source row projection, and prepares slices 750-765 only when the prior projected rows still match the current source.
 
 Files:
 - `SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php`

@@ -23,17 +23,17 @@ $payload = static fn (array $row): array => [
 ];
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-handoff-next766781',
-    'schemaCookie' => 3852,
-    'stat4Generation' => 366,
+    'name' => 'prepared-wp-options-stat4-handoff-next798813',
+    'schemaCookie' => 3868,
+    'stat4Generation' => 382,
     'rows' => [
         ['rowid' => 20, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'forms-old', 'updated_at' => 20],
         ['rowid' => 30, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo-old', 'updated_at' => 30],
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next766781',
-        'rootPage' => 38521,
+        'name' => 'idx_wp_options_lower_handoff_next798813',
+        'rootPage' => 38681,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
         'collation' => 'BINARY',
@@ -63,10 +63,10 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-handoff-next766781';
-$current['schemaCookie'] = 4002;
-$current['stat4Generation'] = 934;
-$current['indexes'][0]['rootPage'] = 40028;
+$current['name'] = 'current-wp-options-stat4-handoff-next798813';
+$current['schemaCookie'] = 4018;
+$current['stat4Generation'] = 950;
+$current['indexes'][0]['rootPage'] = 40188;
 $current['indexes'][0]['stat1'] = ['rows' => '6 2 1'];
 $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '3 3', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_forms', 20, 1]],
@@ -84,7 +84,7 @@ $current['rows'] = [
 ];
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext766781(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffFourthContinuation(
     $prepared,
     $current,
     [
@@ -99,18 +99,18 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next766-781-prepared');
-    assert($plan['stat4Next766781PreparationFence']['preparedSlices'] === range(766, 781));
-    assert($plan['stat4Next766781PreparationFence']['handoffWindows'][0]['continuesSlice'] === 750);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next766-781 self-test passed\n";
+    assert($plan['status'] === 'stat4-expression-partial-current-source-next798-813-prepared');
+    assert($plan['stat4Next798813PreparationFence']['preparedSlices'] === range(798, 813));
+    assert($plan['stat4Next798813PreparationFence']['handoffWindows'][0]['continuesSlice'] === 782);
+    echo "wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fourth-continuation self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next766-781',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next750-765 current-source STAT4 handoff into next766-781 only when projected current rows still match.',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-fourth-continuation',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next782-797 current-source STAT4 handoff into next798-813 only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
-    'preparedSlices' => $plan['stat4Next766781PreparationFence']['preparedSlices'],
-    'handoffSignature' => $plan['stat4Next766781PreparationFence']['handoffSignature'],
+    'preparedSlices' => $plan['stat4Next798813PreparationFence']['preparedSlices'],
+    'handoffSignature' => $plan['stat4Next798813PreparationFence']['handoffSignature'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

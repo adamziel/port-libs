@@ -54,7 +54,7 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary224 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224($sql224, $currentTables224, $nextTables224, $cursor);
+$summary224 = static fn (?array $cursor = null): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence($sql224, $currentTables224, $nextTables224, $cursor);
 $tests = [];
 
 $tests['compound select window recursive limit current source next224 status dependencies'] = static function (TestRunner $t) use ($summary224): void {
@@ -152,7 +152,7 @@ $tests['compound select window recursive limit current source next224 replan rea
 };
 
 $tests['compound select window recursive limit current source next224 rejects missing except'] = static function (TestRunner $t) use ($currentTables224): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options INTERSECT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options ORDER BY rn, label LIMIT 3 OFFSET 1",
         $currentTables224,
         $currentTables224,
@@ -160,7 +160,7 @@ $tests['compound select window recursive limit current source next224 rejects mi
 };
 
 $tests['compound select window recursive limit current source next224 rejects missing recursive offset'] = static function (TestRunner $t) use ($currentTables224): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 140) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 8 LIMIT 6) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options INTERSECT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options EXCEPT SELECT option_id, option_name, row_number() OVER (ORDER BY score DESC, option_id) FROM wp_options ORDER BY rn, label LIMIT 3 OFFSET 1",
         $currentTables224,
         $currentTables224,
@@ -181,8 +181,8 @@ foreach (range(1, 60) as $case) {
         $nextTables = $tables;
         $nextTables['wp_options'][] = ['option_id' => 6, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 95 + $case];
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 6 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC, id) AS rn FROM q UNION ALL SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS rn FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS rn FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_id AS id, option_name AS label, row_number() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS rn FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY rn, label LIMIT 3 OFFSET 1";
-        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224($sql, $tables, $nextTables);
-        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext224($sql, $tables, $nextTables, $plan['cursor']);
+        $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence($sql, $tables, $nextTables);
+        $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareMixedCompoundRankFence($sql, $tables, $nextTables, $plan['cursor']);
 
         $t->same(['rewrite_' . $case, 'blog_' . $case], array_column($plan['currentRows'], 'label'));
         $t->same(['home_' . $case, 'rewrite_' . $case, 'blog_' . $case], array_column($plan['nextRows'], 'label'));
