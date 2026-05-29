@@ -1,6 +1,6 @@
-# Window Frame EXCLUDE/FILTER Current-Source Next116
+# Window Frame EXCLUDE/FILTER Current-Source Next
 
-Status delta: added `SQLiteWindowFrameExcludeFilterCurrentSourceNext116`, a
+Status delta: added `SQLiteWindowFrameExcludeFilterCurrentSourceNext`, a
 bounded current/next source planner for VDBE-style window frames that composes
 `EXCLUDE CURRENT ROW`/`EXCLUDE GROUP`/`EXCLUDE TIES` with aggregate `FILTER`
 truthiness across source transitions.
@@ -12,13 +12,13 @@ rows and window configuration.
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLiteWindowFrameExcludeFilterCurrentSourceNext116.php`
-- `php -l lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNext116Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next116.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNext116Test.php`
+- `php -l lanes/libsqlite/src/SQLiteWindowFrameExcludeFilterCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNextTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWindowFrameExcludeFilterCurrentSourceNextTest.php`
   -> `1 test files, 55 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next116.php --self-test`
-  -> `wordpress-window-frame-exclude-filter-current-source-next116 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-window-frame-exclude-filter-current-source-next.php --self-test`
+  -> `wordpress-window-frame-exclude-filter-current-source-next self-test passed`
 
 Non-overlap: avoids accepted parser-level SELECT window text, named-window
 subqueries, JSON aggregate/window, VDBE GROUPS EXCLUDE/FILTER cursor basics,

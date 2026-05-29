@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -23,7 +23,7 @@ unset($nextRows[2]);
 $nextRows = array_values($nextRows);
 $nextRows[] = ['option_id' => 9, 'site' => 2, 'autoload' => 'yes', 'option_name' => 'network', 'priority' => '1.0', 'bytes' => 18, 'enabled' => 1];
 
-$plan = static fn (): array => SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSources(
+$plan = static fn (): array => SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan::compareWindowSources(
     $currentRows,
     $nextRows,
     'option_id',
@@ -50,8 +50,8 @@ $valueAt = static function (array $value, string $path): mixed {
 };
 
 $cases = [
-    'status' => ['status', 'vdbe-affinity-sorter-window-current-source-next147-ready'],
-    'source token' => ['sourceToken', 'vdbe-affinity-sorter-window-current-source-next147'],
+    'status' => ['status', 'vdbe-affinity-sorter-window-current-source-next-ready'],
+    'source token' => ['sourceToken', 'vdbe-affinity-sorter-window-current-source-next'],
     'current source row count' => ['currentSource.rowCount', 8],
     'current source window count' => ['currentSource.windowCount', 8],
     'next source row count' => ['nextSource.rowCount', 8],
@@ -116,13 +116,13 @@ $cases = [
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['vdbe affinity sorter window current source next147 ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
+    $tests['vdbe affinity sorter window current source next ' . $name] = static function (TestRunner $t) use ($plan, $valueAt, $path, $expected): void {
         $t->same($expected, $valueAt($plan(), $path));
     };
 }
 
-$tests['vdbe affinity sorter window current source next147 unchanged source reports unchanged'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSources(
+$tests['vdbe affinity sorter window current source next unchanged source reports unchanged'] = static function (TestRunner $t) use ($currentRows): void {
+    $plan = SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan::compareWindowSources(
         $currentRows,
         $currentRows,
         'option_id',
@@ -145,8 +145,8 @@ $tests['vdbe affinity sorter window current source next147 unchanged source repo
     $t->same([], $plan['deleted']);
 };
 
-$tests['vdbe affinity sorter window current source next147 rejects missing rowid'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSources(
+$tests['vdbe affinity sorter window current source next rejects missing rowid'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan::compareWindowSources(
         [['bytes' => 1, 'ord' => 1]],
         [],
         'option_id',
@@ -156,8 +156,8 @@ $tests['vdbe affinity sorter window current source next147 rejects missing rowid
     ));
 };
 
-$tests['vdbe affinity sorter window current source next147 rejects empty source token'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSources(
+$tests['vdbe affinity sorter window current source next rejects empty source token'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan::compareWindowSources(
         [],
         [],
         'option_id',

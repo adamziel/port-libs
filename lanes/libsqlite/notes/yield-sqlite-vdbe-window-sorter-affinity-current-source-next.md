@@ -1,4 +1,4 @@
-# VDBE window sorter affinity current-source next149
+# VDBE window sorter affinity current-source next
 
 ## Scope
 
@@ -10,16 +10,16 @@ aggregate values before the sorter advances.
 
 ## Verification
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Test.php`
-- `php lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next149.php`
-- `php -l lanes/libsqlite/src/SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next149.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNextTest.php`
+- `php lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next.php`
+- `php -l lanes/libsqlite/src/SQLiteVdbeWindowSorterAffinityCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVdbeWindowSorterAffinityCurrentSourceNextTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-vdbe-window-sorter-affinity-current-source-next.php`
 - `git diff --check -- lanes/libsqlite`
 
 ## Non-overlap
 
-This avoids accepted next145 sorter/window frame recalculation, DISTINCT
+This avoids accepted next sorter/window frame recalculation, DISTINCT
 sorter, expression `ORDER BY`, standalone window frame/filter/exclude,
 compound SELECT/window, JSON, WAL, B-tree, and VFS clusters. The new behavior
 is the current-source sorter loop diagnostic over sorter-fed window frames.

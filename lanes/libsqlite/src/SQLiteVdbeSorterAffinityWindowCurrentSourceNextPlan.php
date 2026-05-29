@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
+final class SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -36,13 +36,13 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
         $separator = $options['separator'] ?? ',';
 
         if (!is_array($sortAffinities) && !is_string($sortAffinities)) {
-            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next145 sort affinities must be a string or list');
+            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next sort affinities must be a string or list');
         }
         if (!is_array($partitionAffinities) && !is_string($partitionAffinities)) {
-            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next145 partition affinities must be a string or list');
+            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next partition affinities must be a string or list');
         }
         if (!is_array($orderAffinities) && !is_string($orderAffinities)) {
-            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next145 order affinities must be a string or list');
+            throw new \InvalidArgumentException('SQLite VDBE sorter affinity window current-source next order affinities must be a string or list');
         }
 
         $sorter = SQLiteVdbeAffinityCollationSorterSourcePlan::compareSources(
@@ -134,7 +134,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
             'partitionColumns' => $partitionColumns,
             'orderColumns' => $orderColumns,
             'dependencies' => [
-                'sqlite-vdbe-sorter-affinity-current-source-next145',
+                'sqlite-vdbe-sorter-affinity-current-source-next',
                 'sqlite-vdbe-window-current-source-yield',
                 'sqlite-affinity-comparison',
                 'sqlite-collation-sequence',
@@ -226,7 +226,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     private static function name(mixed $value, string $label): string
     {
         if (!is_string($value) || trim($value) === '') {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} must be a non-empty string");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} must be a non-empty string");
         }
 
         return trim($value);
@@ -235,7 +235,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     private static function number(mixed $value, string $label): int|float
     {
         if (!is_int($value) && !is_float($value)) {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} must be numeric");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} must be numeric");
         }
 
         return $value;
@@ -248,7 +248,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     {
         $columns = self::stringList($columns, $label);
         if (!$allowEmpty && $columns === []) {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} columns must not be empty");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} columns must not be empty");
         }
 
         return $columns;
@@ -260,7 +260,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     private static function stringList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} list must be a list");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} list must be a list");
         }
         foreach ($values as $value) {
             self::name($value, $label);
@@ -275,11 +275,11 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     private static function boolList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} list must be a list");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} list must be a list");
         }
         foreach ($values as $value) {
             if (!is_bool($value)) {
-                throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} values must be booleans");
+                throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} values must be booleans");
             }
         }
 
@@ -292,7 +292,7 @@ final class SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan
     private static function nullableStringList(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
-            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next145 {$label} list must be a list");
+            throw new \InvalidArgumentException("SQLite VDBE sorter affinity window current-source next {$label} list must be a list");
         }
         foreach ($values as $value) {
             if ($value !== null) {

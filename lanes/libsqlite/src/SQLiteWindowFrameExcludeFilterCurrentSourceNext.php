@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteWindowFrameExcludeFilterCurrentSourceNext116
+final class SQLiteWindowFrameExcludeFilterCurrentSourceNext
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -71,7 +71,7 @@ final class SQLiteWindowFrameExcludeFilterCurrentSourceNext116
             'dependencies' => [
                 'sqlite-vdbe-window-frame-exclude-filter',
                 'sqlite-current-source-yield-cursor',
-                'sqlite-window-current-source-next116',
+                'sqlite-window-current-source-next',
             ],
         ];
     }

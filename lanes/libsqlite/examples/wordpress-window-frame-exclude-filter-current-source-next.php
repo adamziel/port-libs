@@ -6,7 +6,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteWindowFrameExcludeFilterCurrentSourceNext116;
+use PortLibs\LibSqlite\SQLiteWindowFrameExcludeFilterCurrentSourceNext;
 
 $currentRows = [
     ['rowid' => 1, 'site' => 1, 'option_name' => 'active_plugins', 'autoload' => 'yes', 'bytes' => 20, 'include' => 1],
@@ -25,7 +25,7 @@ $nextRows = [
     ['rowid' => 6, 'site' => 2, 'option_name' => 'network_options', 'autoload' => 'yes', 'bytes' => 35, 'include' => '0.5'],
 ];
 
-$plan = SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan($currentRows, $nextRows, [
+$plan = SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan($currentRows, $nextRows, [
     'valueColumn' => 'bytes',
     'partitionColumns' => ['site'],
     'orderColumns' => ['bytes', 'option_name'],
@@ -67,7 +67,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($output['next'][1]['filteredRowids'] ?? null) !== [7]) {
         throw new RuntimeException('expected next source to include translation update row');
     }
-    echo "wordpress-window-frame-exclude-filter-current-source-next116 self-test passed\n";
+    echo "wordpress-window-frame-exclude-filter-current-source-next self-test passed\n";
     exit(0);
 }
 

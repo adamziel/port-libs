@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLiteVdbeWindowSorterAffinityCurrentSourceNextPlan;
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
@@ -18,7 +18,7 @@ $nextRows = [
     ['rowid' => 4, 'site' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_2', 'priority' => '2', 'bytes' => 50, 'include' => 1],
 ];
 
-$plan = SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Plan::compare(
+$plan = SQLiteVdbeWindowSorterAffinityCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
     ['site', 'autoload', 'priority', 'option_name'],
@@ -42,7 +42,7 @@ $plan = SQLiteVdbeWindowSorterAffinityCurrentSourceNext149Plan::compare(
 );
 
 $result = [
-    'scenario' => 'wordpress-vdbe-window-sorter-affinity-current-source-next149',
+    'scenario' => 'wordpress-vdbe-window-sorter-affinity-current-source-next',
     'wordpressUse' => 'Copied wp_options import previews can read VDBE sorter current rows, window frames, and the next sorter row in the same loop before advancing OP_SorterNext, preserving SQLite affinity/collation behavior without ext/sqlite.',
     'status' => $plan['status'],
     'nextOrder' => $plan['nextOrder'],
@@ -54,7 +54,7 @@ $result = [
 ];
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    if ($result['status'] !== 'window-sorter-affinity-current-source-next149-changed') {
+    if ($result['status'] !== 'window-sorter-affinity-current-source-next-changed') {
         fwrite(STDERR, "unexpected VDBE sorter/window status\n");
         exit(1);
     }
@@ -66,7 +66,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "unexpected inserted peer window frame\n");
         exit(1);
     }
-    echo "wordpress-vdbe-window-sorter-affinity-current-source-next149 self-test passed\n";
+    echo "wordpress-vdbe-window-sorter-affinity-current-source-next self-test passed\n";
 }
 
 return $result;

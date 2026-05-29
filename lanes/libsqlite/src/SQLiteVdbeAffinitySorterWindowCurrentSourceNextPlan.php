@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan
+final class SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -51,16 +51,16 @@ final class SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan
         array $orderNulls = [],
         string $frameUnit = 'ROWS',
         string $excludeMode = 'NO OTHERS',
-        string $sourceToken = 'vdbe-affinity-sorter-window-current-source-next147'
+        string $sourceToken = 'vdbe-affinity-sorter-window-current-source-next'
     ): array {
         if ($rowIdColumn === '') {
-            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next147 row id column must be non-empty');
+            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next row id column must be non-empty');
         }
         if ($valueColumn === '') {
-            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next147 value column must be non-empty');
+            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next value column must be non-empty');
         }
         if ($sourceToken === '') {
-            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next147 source token must be non-empty');
+            throw new \InvalidArgumentException('SQLite VDBE affinity sorter window next source token must be non-empty');
         }
 
         $currentWindows = self::windowSummaries($currentRows, $rowIdColumn, $valueColumn, $partitionColumns, $orderColumns, $filterColumn, $preceding, $following, $partitionAffinities, $partitionCollations, $orderAffinities, $orderCollations, $orderDescending, $orderNulls, $frameUnit, $excludeMode);
@@ -93,7 +93,7 @@ final class SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan
         }
 
         return [
-            'status' => 'vdbe-affinity-sorter-window-current-source-next147-ready',
+            'status' => 'vdbe-affinity-sorter-window-current-source-next-ready',
             'sourceToken' => $sourceToken,
             'currentSource' => [
                 'rowCount' => count($currentRows),
@@ -154,7 +154,7 @@ final class SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan
     ): array {
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite VDBE affinity sorter window next147 row is missing id column {$rowIdColumn}");
+                throw new \InvalidArgumentException("SQLite VDBE affinity sorter window next row is missing id column {$rowIdColumn}");
             }
         }
 

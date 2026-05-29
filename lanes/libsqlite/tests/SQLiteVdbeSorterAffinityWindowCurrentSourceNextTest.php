@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $options = [
     'separator' => '|',
 ];
 
-$plan = static fn (array $extra = []): array => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare(
+$plan = static fn (array $extra = []): array => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare(
     $currentRows,
     $nextRows,
     ['site', 'autoload', 'priority', 'name'],
@@ -74,7 +74,7 @@ $cases = [
     'inserted plugin row' => [static fn (): mixed => $plan()['inserted'], [9]],
     'moved rows include priority mutation' => [static fn (): mixed => array_column($plan()['moved'], 'id'), [1]],
     'stable ties are tracked for inserted duplicate' => [static fn (): mixed => $plan()['stableTieIds'], [9]],
-    'dependency records next145 sorter' => [static fn (): mixed => $plan()['dependencies'][0], 'sqlite-vdbe-sorter-affinity-current-source-next145'],
+    'dependency records next sorter' => [static fn (): mixed => $plan()['dependencies'][0], 'sqlite-vdbe-sorter-affinity-current-source-next'],
     'dependency records window yield' => [static fn (): mixed => $plan()['dependencies'][1], 'sqlite-vdbe-window-current-source-yield'],
     'dependency closure names no new component' => [static fn (): mixed => str_contains($plan()['dependency_closure'], 'no new support component'), true],
     'non overlap names distinct window recalculation' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'next-source window frame recalculation'), true],
@@ -112,24 +112,24 @@ $cases = [
     'no filter includes false rows in sums' => [static fn (): mixed => $field($plan(['filterColumn' => null])['nextWindow'], 'sum')[2], 70],
     'nulls first moves network late before yes group' => [static fn (): mixed => $field($plan(['sortNulls' => [null, 'FIRST', 'LAST', null], 'orderNulls' => ['FIRST', 'LAST', null]])['nextWindow'], 'currentRowid'), [5, 1, 3, 2, 9, 8, 6, 7]],
     'descending site starts with network rows' => [static fn (): mixed => $field($plan(['sortDescending' => [true, false, false, false]])['nextWindow'], 'currentRowid'), [1, 3, 2, 9, 5, 6, 7, 8]],
-    'empty sources remain stable' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([], [], ['site'], 'rowid')['status'], 'sorter-affinity-window-current-source-stable'],
-    'empty sources have no current window' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([], [], ['site'], 'rowid')['currentWindow'], []],
-    'empty sources have no next window' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([], [], ['site'], 'rowid')['nextWindow'], []],
-    'identical sources have no inserted rows' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['inserted'], []],
-    'identical sources have no deleted rows' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['deleted'], []],
-    'identical sources with same window are stable' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['status'], 'sorter-affinity-window-current-source-stable'],
+    'empty sources remain stable' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([], [], ['site'], 'rowid')['status'], 'sorter-affinity-window-current-source-stable'],
+    'empty sources have no current window' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([], [], ['site'], 'rowid')['currentWindow'], []],
+    'empty sources have no next window' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([], [], ['site'], 'rowid')['nextWindow'], []],
+    'identical sources have no inserted rows' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['inserted'], []],
+    'identical sources have no deleted rows' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['deleted'], []],
+    'identical sources with same window are stable' => [static fn (): mixed => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare($currentRows, $currentRows, ['site'], 'rowid', ['valueColumn' => 'bytes'])['status'], 'sorter-affinity-window-current-source-stable'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['vdbe sorter affinity window current source next145 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['vdbe sorter affinity window current source next ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
 $throws = [
-    'rejects missing row id' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([['site' => 1]], [], ['site'], 'rowid'),
-    'rejects empty row id' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([], [], ['site'], ''),
-    'rejects empty sort columns' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare([], [], [], 'rowid'),
+    'rejects missing row id' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([['site' => 1]], [], ['site'], 'rowid'),
+    'rejects empty row id' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([], [], ['site'], ''),
+    'rejects empty sort columns' => static fn () => SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare([], [], [], 'rowid'),
     'rejects bad sort collation list' => static fn () => $plan(['sortCollations' => 'NOCASE']),
     'rejects bad sort descending list' => static fn () => $plan(['sortDescending' => [1]]),
     'rejects bad sort nulls list' => static fn () => $plan(['sortNulls' => 'LAST']),
@@ -140,7 +140,7 @@ $throws = [
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['vdbe sorter affinity window current source next145 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['vdbe sorter affinity window current source next ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(InvalidArgumentException::class, $callback);
     };
 }

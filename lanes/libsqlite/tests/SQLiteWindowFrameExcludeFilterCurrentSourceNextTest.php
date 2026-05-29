@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWindowFrameExcludeFilterCurrentSourceNext116;
+use PortLibs\LibSqlite\SQLiteWindowFrameExcludeFilterCurrentSourceNext;
 
 $currentRows = [
     ['rowid' => 1, 'site' => 1, 'option_name' => 'active_plugins', 'autoload' => 'yes', 'bytes' => 20, 'include' => 1],
@@ -40,7 +40,7 @@ $options = [
     'separator' => '|',
 ];
 
-$planFor = static fn (array $extra = []): array => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan($currentRows, $nextRows, array_replace($options, $extra));
+$planFor = static fn (array $extra = []): array => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan($currentRows, $nextRows, array_replace($options, $extra));
 $field = static fn (array $rows, string $name): array => array_column($rows, $name);
 $currentField = static fn (string $name): array => $field($planFor()['current'], $name);
 $nextField = static fn (string $name): array => $field($planFor()['next'], $name);
@@ -54,7 +54,7 @@ $cases = [
     'next source row count recorded' => [static fn (): mixed => $planFor()['next_count'], 7],
     'current offset defaults to zero' => [static fn (): mixed => $planFor()['current_offset'], 0],
     'next offset defaults to zero' => [static fn (): mixed => $planFor()['next_offset'], 0],
-    'dependency tags identify current source window slice' => [static fn (): mixed => in_array('sqlite-window-current-source-next116', $planFor()['dependencies'], true), true],
+    'dependency tags identify current source window slice' => [static fn (): mixed => in_array('sqlite-window-current-source-next', $planFor()['dependencies'], true), true],
     'current rows preserve sorted row numbers' => [static fn (): mixed => $currentField('row_number'), [1, 2, 3, 4, 5, 6, 7]],
     'next rows preserve sorted row numbers' => [static fn (): mixed => $nextField('row_number'), [1, 2, 3, 4, 5, 6, 7]],
     'current raw frames include current and following groups' => [static fn (): mixed => $currentField('rawFrameRowids'), [[1, 2], [2, 3], [3, 4], [4], [5, 6], [6, 7], [7]]],
@@ -79,7 +79,7 @@ $cases = [
     'next group concat uses supplied separator' => [static fn (): mixed => $nextField('groupConcat'), ['30', null, '40', null, '35', '45', null]],
     'next same peer captures translation duplicate bytes' => [static fn (): mixed => $nextField('nextSamePeer'), [false, false, false, false, false, false, false]],
     'current source id differs when next source rows differ' => [static fn (): mixed => $planFor()['current_source_id'] === $planFor()['next_source_id'], false],
-    'identical sources report unchanged' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan($currentRows, $currentRows, $options)['source_changed'], false],
+    'identical sources report unchanged' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan($currentRows, $currentRows, $options)['source_changed'], false],
     'resume current offset skips sorted current rows' => [static fn (): mixed => array_column($planFor(['cursor' => ['current_offset' => 2, 'next_offset' => 1]])['current'], 'currentRowid'), [3, 4, 5, 6, 7]],
     'resume next offset skips sorted next rows' => [static fn (): mixed => array_column($planFor(['cursor' => ['current_offset' => 2, 'next_offset' => 1]])['next'], 'currentRowid'), [3, 4, 8, 5, 7, 9]],
     'resume source cursor accepts matching ids' => [static fn (): mixed => (static function () use ($planFor): int {
@@ -94,12 +94,12 @@ $cases = [
     'descending order is source-stable' => [static fn (): mixed => array_column($planFor(['orderDescending' => [true, false]])['current'], 'currentRowid'), [4, 3, 1, 2, 7, 5, 6]],
     'offset at source end returns empty current summaries' => [static fn (): mixed => $planFor(['cursor' => ['current_offset' => 7]])['current'], []],
     'offset at source end returns empty next summaries' => [static fn (): mixed => $planFor(['cursor' => ['next_offset' => 7]])['next'], []],
-    'empty current source is accepted' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan([], $nextRows, $options)['current'], []],
-    'empty next source is accepted' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan($currentRows, [], $options)['next'], []],
+    'empty current source is accepted' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan([], $nextRows, $options)['current'], []],
+    'empty next source is accepted' => [static fn (): mixed => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan($currentRows, [], $options)['next'], []],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['window frame exclude filter current source next116 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['window frame exclude filter current source next ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
@@ -109,16 +109,16 @@ $throws = [
     'rejects stale next source cursor' => static fn () => $planFor(['cursor' => ['next_source_id' => str_repeat('1', 64)]]),
     'rejects negative current offset' => static fn () => $planFor(['cursor' => ['current_offset' => -1]]),
     'rejects too large next offset' => static fn () => $planFor(['cursor' => ['next_offset' => 8]]),
-    'rejects non-list current rows' => static fn () => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan([2 => $currentRows[0]], $nextRows, $options),
+    'rejects non-list current rows' => static fn () => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan([2 => $currentRows[0]], $nextRows, $options),
     'rejects empty value column' => static fn () => $planFor(['valueColumn' => '']),
     'rejects empty order columns' => static fn () => $planFor(['orderColumns' => []]),
     'rejects bad order descending list' => static fn () => $planFor(['orderDescending' => ['no']]),
     'rejects bad frame offset type' => static fn () => $planFor(['following' => '1']),
-    'rejects missing row value column through cursor' => static fn () => SQLiteWindowFrameExcludeFilterCurrentSourceNext116::plan([['rowid' => 1]], [], $options),
+    'rejects missing row value column through cursor' => static fn () => SQLiteWindowFrameExcludeFilterCurrentSourceNext::plan([['rowid' => 1]], [], $options),
 ];
 
 foreach ($throws as $name => $callback) {
-    $tests['window frame exclude filter current source next116 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['window frame exclude filter current source next ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->throws(InvalidArgumentException::class, $callback);
     };
 }

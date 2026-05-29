@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -23,7 +23,7 @@ unset($nextRows[2]);
 $nextRows = array_values($nextRows);
 $nextRows[] = ['option_id' => 9, 'site' => 2, 'autoload' => 'yes', 'option_name' => 'network', 'priority' => '1.0', 'bytes' => 18, 'enabled' => 1];
 
-$plan = SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSources(
+$plan = SQLiteVdbeAffinitySorterWindowCurrentSourceNextPlan::compareWindowSources(
     $currentRows,
     $nextRows,
     'option_id',
@@ -42,7 +42,7 @@ $plan = SQLiteVdbeAffinitySorterWindowCurrentSourceNext147Plan::compareWindowSou
 );
 
 $summary = [
-    'scenario' => 'wordpress-vdbe-affinity-sorter-window-current-source-next147',
+    'scenario' => 'wordpress-vdbe-affinity-sorter-window-current-source-next',
     'wordpressUse' => 'Copied wp_options imports can compare current and next VDBE sorter/window sources with SQLite affinity, collation, FILTER, and non-advancing current/next frame summaries before replacing option rows.',
     'status' => $plan['status'],
     'currentOrder' => $plan['currentOrder'],
@@ -60,12 +60,12 @@ $summary = [
     'dependencyClosure' => 'no new support component needed; reuses native VDBE sorter, affinity comparison, collation, and window current/next cursor helpers',
 ];
 
-if (($summary['status'] ?? null) !== 'vdbe-affinity-sorter-window-current-source-next147-ready'
+if (($summary['status'] ?? null) !== 'vdbe-affinity-sorter-window-current-source-next-ready'
     || $summary['inserted'] !== [9]
     || $summary['deleted'] !== [3]
     || $summary['nextInsertedWindow']['groupConcat'] !== '18'
 ) {
-    fwrite(STDERR, "wordpress-vdbe-affinity-sorter-window-current-source-next147 self-test failed\n");
+    fwrite(STDERR, "wordpress-vdbe-affinity-sorter-window-current-source-next self-test failed\n");
     exit(1);
 }
 

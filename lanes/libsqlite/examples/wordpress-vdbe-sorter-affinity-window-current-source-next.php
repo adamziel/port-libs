@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan;
+use PortLibs\LibSqlite\SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan;
 
 $currentOptions = [
     ['rowid' => 11, 'blog_id' => '1', 'autoload' => 'yes', 'option_name' => 'active_plugins', 'priority' => '10', 'bytes' => 130, 'include' => 1],
@@ -21,7 +21,7 @@ $nextOptions = [
     ['rowid' => 15, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_cache', 'priority' => '2', 'bytes' => 45, 'include' => 1],
 ];
 
-$plan = SQLiteVdbeSorterAffinityWindowCurrentSourceNext145Plan::compare(
+$plan = SQLiteVdbeSorterAffinityWindowCurrentSourceNextPlan::compare(
     $currentOptions,
     $nextOptions,
     ['blog_id', 'autoload', 'priority', 'option_name'],
@@ -50,7 +50,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['nextOrder'] === [13, 11, 12, 15, 14]);
     assert(array_column($plan['nextWindow'], 'sum') === [130, 35, 45, 35, null]);
     assert(count($plan['peerChanges']) === 3);
-    echo "wordpress-vdbe-sorter-affinity-window-current-source-next145 self-test passed\n";
+    echo "wordpress-vdbe-sorter-affinity-window-current-source-next self-test passed\n";
     return;
 }
 
