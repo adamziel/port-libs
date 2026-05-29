@@ -10,7 +10,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
      * @param list<array<string, mixed>> $rows
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan $basePlan,
         public readonly array $rows,
     ) {
     }
@@ -25,7 +25,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127TableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -45,7 +45,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
         bool $secureDelete = false,
         ?callable $overflowReader = null,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127IndexLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan::indexLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -55,7 +55,7 @@ final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan $basePlan): self
     {
         $released = array_fill_keys($basePlan->releasedOverflowPages(), true);
         $truncated = array_fill_keys($basePlan->truncatePlan->truncatedPageNumbers, true);
