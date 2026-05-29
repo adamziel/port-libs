@@ -23,7 +23,7 @@ $recovered = [
 ];
 $sourceBefore = 'wp-next159-before-current-master-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext159(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderCacheRebaseWithWrites(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/old-plugin-next159.sqlite-journal\n",

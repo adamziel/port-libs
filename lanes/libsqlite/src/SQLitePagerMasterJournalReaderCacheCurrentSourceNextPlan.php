@@ -701,7 +701,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext159(string $databasePath,
+    public static function currentSourceReaderCacheRebaseWithWrites(string $databasePath,
         string $masterJournalPath,
         ?string $cachedMasterJournalBytes,
         ?string $currentMasterJournalBytes,
