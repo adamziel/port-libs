@@ -43,10 +43,28 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 112G available, 76% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current sample reports `/` at 452G size with about 54G available, 89% used; `/tmp` has about 8.7G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-29 supervisor continuation (shell samples 19:47 UTC):
+  Seventy-fourth safe consolidation follow-up is integrated and pushed as
+  `588eb53ee`. The batch accepts 1 stale-base trigger RETURNING handoff
+  originally based on `147fe0e2` and replayed cleanly with a 3-way apply on
+  top of `0733ea93`: `tagCurrentNextSourceRows()` and
+  `tagCurrentNextDrainRows()` in
+  `SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan` were renamed to
+  stable descriptive sequence/drain fence helpers. Validation passed PHP lint,
+  direct trigger tests `3 files / 264 assertions / 0 failures`, broad trigger
+  RETURNING selection `109 files / 10129 assertions / 0 failures`,
+  `git diff --check`, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`, production numbered file/class audits at `0`,
+  numbered production helper-method audit `1746`, and unique numbered
+  production symbol audit `1978`. Public pass/mapped counters remain `154019
+  pass / 0 fail` and `830 / 1589` because this is consolidation-only. The
+  visible pool remains in the requested band with current-head workers active
+  and no long sleepers.
 
 - 2026-05-29 supervisor continuation (shell samples 19:34 UTC):
   Seventy-third safe consolidation follow-up is integrated and pushed as
