@@ -47,7 +47,7 @@ $customPlan223 = static fn (): array => SQLiteRowValueYieldReturningSavepointCur
     [$attemptUpdate223],
     [$retryUpdate223],
     $unique223,
-    'wp_custom_next223',
+    'wp_custom_yield',
 );
 
 $cases223 = [
@@ -79,12 +79,12 @@ $cases223 = [
     'retry delete selected ids includes restored transient' => [static fn (): mixed => $retryDeleteResult223()['plan']->selectedIds, [3, 10]],
     'retry delete returning flags' => [static fn (): mixed => array_column($retryDeleteResult223()['returning'], 'retry_keep'), [1, 0]],
     'retry delete final ids' => [static fn (): mixed => array_column($retryDeleteResult223()['tables']['wp_options'], 'option_id'), [1, 2, 4, 5, 6, 7, 8, 9]],
-    'plan status' => [static fn (): mixed => $plan223()['status'], 'rowvalue-update-delete-returning-yield-savepoint-current-source-next223'],
-    'plan savepoint' => [static fn (): mixed => $plan223()['savepoint'], 'wp_options_rowvalue_yield_next223'],
-    'plan yielded survives flag' => [static fn (): mixed => $plan223()['yielded_rows_survive_rollback_next223'], true],
-    'plan attempted suppressed flag' => [static fn (): mixed => $plan223()['attempted_rows_suppressed_next223'], true],
-    'plan retry image flag' => [static fn (): mixed => $plan223()['retry_reads_savepoint_image_next223'], true],
-    'plan savepoint active flag' => [static fn (): mixed => $plan223()['savepoint_remains_active_next223'], true],
+    'plan status' => [static fn (): mixed => $plan223()['status'], 'rowvalue-update-delete-returning-yield-savepoint-current-source'],
+    'plan savepoint' => [static fn (): mixed => $plan223()['savepoint'], 'wp_options_rowvalue_yield'],
+    'plan yielded survives flag' => [static fn (): mixed => $plan223()['yielded_rows_survive_rollback'], true],
+    'plan attempted suppressed flag' => [static fn (): mixed => $plan223()['attempted_rows_suppressed'], true],
+    'plan retry image flag' => [static fn (): mixed => $plan223()['retry_reads_savepoint_image'], true],
+    'plan savepoint active flag' => [static fn (): mixed => $plan223()['savepoint_remains_active'], true],
     'plan yield current deleted row three' => [static fn (): mixed => in_array(3, array_column($plan223()['yield_current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan attempt current deleted row eight' => [static fn (): mixed => in_array(8, array_column($plan223()['attempt_current_source_tables']['wp_options'], 'option_id'), true), false],
     'plan rollback restores original image' => [static fn (): mixed => $plan223()['rollback_current_source_tables'], $plan223()['savepoint_image_tables']],
@@ -102,17 +102,17 @@ $cases223 = [
     'plan yield change count' => [static fn (): mixed => $plan223()['yield_change_count'], 3],
     'plan attempt change count' => [static fn (): mixed => $plan223()['attempt_change_count'], 4],
     'plan retry change count' => [static fn (): mixed => $plan223()['retry_change_count'], 4],
-    'plan statement phases' => [static fn (): mixed => array_column($plan223()['yield_statements'], 'phase'), ['yield-before-rollback-to-next223', 'yield-before-rollback-to-next223']],
-    'plan attempt phases' => [static fn (): mixed => array_column($plan223()['attempt_statements'], 'phase'), ['attempt-after-yield-before-rollback-to-next223', 'attempt-after-yield-before-rollback-to-next223']],
-    'plan retry phases' => [static fn (): mixed => array_column($plan223()['retry_statements'], 'phase'), ['retry-after-yield-rollback-to-next223', 'retry-after-yield-rollback-to-next223']],
-    'plan receipt yielded ids' => [static fn (): mixed => $plan223()['yield_receipt_next223']['yielded_ids'], [5, 7, 3]],
-    'plan receipt suppressed ids' => [static fn (): mixed => $plan223()['yield_receipt_next223']['suppressed_ids'], [5, 7, 4, 8]],
-    'plan receipt retry ids' => [static fn (): mixed => $plan223()['yield_receipt_next223']['retry_ids'], [5, 7, 3, 10]],
+    'plan statement phases' => [static fn (): mixed => array_column($plan223()['yield_statements'], 'phase'), ['yield-before-rollback-to-savepoint', 'yield-before-rollback-to-savepoint']],
+    'plan attempt phases' => [static fn (): mixed => array_column($plan223()['attempt_statements'], 'phase'), ['attempt-after-yield-before-rollback-to-savepoint', 'attempt-after-yield-before-rollback-to-savepoint']],
+    'plan retry phases' => [static fn (): mixed => array_column($plan223()['retry_statements'], 'phase'), ['retry-after-yield-rollback-to-savepoint', 'retry-after-yield-rollback-to-savepoint']],
+    'plan receipt yielded ids' => [static fn (): mixed => $plan223()['yield_receipt']['yielded_ids'], [5, 7, 3]],
+    'plan receipt suppressed ids' => [static fn (): mixed => $plan223()['yield_receipt']['suppressed_ids'], [5, 7, 4, 8]],
+    'plan receipt retry ids' => [static fn (): mixed => $plan223()['yield_receipt']['retry_ids'], [5, 7, 3, 10]],
     'plan changed tables after retry' => [static fn (): mixed => $plan223()['changed_tables_after_retry'], ['wp_options']],
     'plan row count after retry' => [static fn (): mixed => $plan223()['row_counts']['wp_options'], 8],
-    'plan dependency yield' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-yield-before-rollback-next223', $plan223()['dependencies'], true), true],
-    'plan non overlap mentions next218' => [static fn (): mixed => str_contains($plan223()['non_overlap_next223'], 'next218'), true],
-    'custom plan savepoint' => [static fn (): mixed => $customPlan223()['savepoint'], 'wp_custom_next223'],
+    'plan dependency yield' => [static fn (): mixed => in_array('sqlite-rowvalue-returning-yield-before-rollback', $plan223()['dependencies'], true), true],
+    'plan non overlap names rollback surface' => [static fn (): mixed => str_contains($plan223()['non_overlap'], 'rollback-to-current-source'), true],
+    'custom plan savepoint' => [static fn (): mixed => $customPlan223()['savepoint'], 'wp_custom_yield'],
     'custom yielded count' => [static fn (): mixed => $customPlan223()['yielded_returning_count'], 2],
     'custom suppressed count' => [static fn (): mixed => $customPlan223()['suppressed_returning_count'], 2],
     'custom retry count' => [static fn (): mixed => $customPlan223()['retry_returning_count'], 2],
@@ -126,7 +126,7 @@ $cases223 = [
 
 $tests = [];
 foreach ($cases223 as $name => [$callback, $expected]) {
-    $tests['rowvalue yield returning savepoint current source next223 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue yield returning savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

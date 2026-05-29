@@ -40,7 +40,7 @@ $plan = SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan::execute(
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-yield-returning-savepoint-current-source-next223',
+    'scenario' => 'wordpress-rowvalue-yield-returning-savepoint-current-source',
     'wordpressUse' => 'Model a copied wp_options import where a client already consumed row-value UPDATE/DELETE RETURNING rows before ROLLBACK TO; later attempted rows are suppressed and retry starts from the savepoint image.',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
@@ -48,17 +48,17 @@ $summary = [
     'suppressedReturningCount' => $plan['suppressed_returning_count'],
     'retryReturningCount' => $plan['retry_returning_count'],
     'finalOptionIds' => array_column($plan['current_source_tables']['wp_options'], 'option_id'),
-    'dependencyClosure' => $plan['dependency_closure_next223'],
+    'dependencyClosure' => $plan['dependency_closure'],
 ];
 
 if (
-    $summary['status'] !== 'rowvalue-update-delete-returning-yield-savepoint-current-source-next223'
+    $summary['status'] !== 'rowvalue-update-delete-returning-yield-savepoint-current-source'
     || $summary['yieldedReturningCount'] !== 3
     || $summary['suppressedReturningCount'] !== 3
     || $summary['retryReturningCount'] !== 4
     || $summary['finalOptionIds'] !== [1, 3, 4, 5]
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-yield-returning-savepoint-current-source-next223 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-yield-returning-savepoint-current-source self-test failed\n");
     exit(1);
 }
 

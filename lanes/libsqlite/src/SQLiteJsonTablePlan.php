@@ -3429,21 +3429,21 @@ final class SQLiteJsonTablePlan
         $transitions = self::jsonTableGeneratedPathRowidYieldNextTransitions($currentProfile, $nextProfile);
         $reasons = self::jsonTableGeneratedPathRowidYieldNextReasons($transitions);
 
-        $plan['currentGeneratedPathRowidYieldNext233'] = $currentProfile;
-        $plan['nextGeneratedPathRowidYieldNext233'] = $nextProfile;
-        $plan['generatedPathRowidYieldNext233Transitions'] = $transitions;
-        $plan['next233ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidYieldNext'] = $currentProfile;
+        $plan['nextGeneratedPathRowidYieldNext'] = $nextProfile;
+        $plan['generatedPathRowidYieldNextTransitions'] = $transitions;
+        $plan['generatedPathRowidYieldNextReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next224ReplanReasons'] ?? [],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next233ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'yield-next-json-table-generated-path-rowid-next233';
+        $plan['replanRequired'] = $plan['generatedPathRowidYieldNextReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'yield-next-json-table-generated-path-rowid';
         $plan['nextReaderPolicy'] = $nextProfile['yieldNextReusable']
-            ? 'reuse-yield-next-json-table-generated-path-rowid-next233'
-            : 'restart-yield-next-json-table-generated-path-rowid-next233';
+            ? 'reuse-yield-next-json-table-generated-path-rowid'
+            : 'restart-yield-next-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next233'],
+            ['sqlite-json-table-generated-path-rowid-yield-next'],
         )));
 
         return $plan;
@@ -3509,21 +3509,21 @@ final class SQLiteJsonTablePlan
         $transitions = self::jsonTableGeneratedPathRowidXNextResumeTransitions($currentProfile, $nextProfile);
         $reasons = self::jsonTableGeneratedPathRowidXNextResumeReasons($transitions);
 
-        $plan['currentGeneratedPathRowidXNextResume234'] = $currentProfile;
-        $plan['nextGeneratedPathRowidXNextResume234'] = $nextProfile;
-        $plan['generatedPathRowidXNextResume234Transitions'] = $transitions;
-        $plan['next234ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidXNextResume'] = $currentProfile;
+        $plan['nextGeneratedPathRowidXNextResume'] = $nextProfile;
+        $plan['generatedPathRowidXNextResumeTransitions'] = $transitions;
+        $plan['generatedPathRowidXNextResumeReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next224ReplanReasons'] ?? [],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next234ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'xnext-resume-current-json-table-generated-path-rowid-next234';
+        $plan['replanRequired'] = $plan['generatedPathRowidXNextResumeReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'xnext-resume-current-json-table-generated-path-rowid';
         $plan['nextReaderPolicy'] = $nextProfile['xNextResumeReusable']
-            ? 'reuse-xnext-resume-current-json-table-generated-path-rowid-next234'
-            : 'restart-xnext-resume-json-table-generated-path-rowid-next234';
+            ? 'reuse-xnext-resume-current-json-table-generated-path-rowid'
+            : 'restart-xnext-resume-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next234'],
+            ['sqlite-json-table-generated-path-rowid-xnext-resume'],
         )));
 
         return $plan;
@@ -3584,21 +3584,21 @@ final class SQLiteJsonTablePlan
         $transitions = self::jsonTableGeneratedPathRowidCurrentSourceYieldTransitions($currentProfile, $nextProfile);
         $reasons = self::jsonTableGeneratedPathRowidCurrentSourceYieldReasons($transitions);
 
-        $plan['currentGeneratedPathRowidCurrentSourceYield235'] = $currentProfile;
-        $plan['nextGeneratedPathRowidCurrentSourceYield235'] = $nextProfile;
-        $plan['generatedPathRowidCurrentSourceYield235Transitions'] = $transitions;
-        $plan['next235ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidCurrentSourceYield'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSourceYield'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceYieldTransitions'] = $transitions;
+        $plan['generatedPathRowidCurrentSourceYieldReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next224ReplanReasons'] ?? [],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next235ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'yield-current-source-json-table-generated-path-rowid-next235';
+        $plan['replanRequired'] = $plan['generatedPathRowidCurrentSourceYieldReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'yield-current-source-json-table-generated-path-rowid';
         $plan['nextReaderPolicy'] = $nextProfile['yieldTapeReusable']
-            ? 'reuse-yield-current-source-json-table-generated-path-rowid-next235'
-            : 'restart-yield-current-source-json-table-generated-path-rowid-next235';
+            ? 'reuse-yield-current-source-json-table-generated-path-rowid'
+            : 'restart-yield-current-source-json-table-generated-path-rowid';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next235'],
+            ['sqlite-json-table-generated-path-rowid-current-source-yield'],
         )));
 
         return $plan;
@@ -26056,22 +26056,22 @@ final class SQLiteJsonTablePlan
         ?int $nextRowid,
     ): string {
         if ($yieldNextReusable && $nextRowid !== null) {
-            return 'OP_JsonTableGeneratedPathRowidYieldNextNext233';
+            return 'OP_JsonTableGeneratedPathRowidYieldNext';
         }
         if ($yieldNextReusable && $nextRowid === null) {
-            return 'OP_JsonTableGeneratedPathRowidYieldNextEofNext233';
+            return 'OP_JsonTableGeneratedPathRowidYieldNextEof';
         }
         if (!$sourceReusable) {
-            return 'OP_JsonTableGeneratedPathRowidYieldNextReprepareNext233';
+            return 'OP_JsonTableGeneratedPathRowidYieldNextReprepare';
         }
         if (!$yieldGuardReusable) {
-            return 'OP_JsonTableGeneratedPathRowidYieldNextRestartGuardNext233';
+            return 'OP_JsonTableGeneratedPathRowidYieldNextRestartGuard';
         }
         if ($lastDeliveredRowid === null) {
-            return 'OP_JsonTableGeneratedPathRowidYieldNextNoYieldNext233';
+            return 'OP_JsonTableGeneratedPathRowidYieldNextNoYield';
         }
 
-        return 'OP_JsonTableGeneratedPathRowidYieldNextRestartNext233';
+        return 'OP_JsonTableGeneratedPathRowidYieldNextRestart';
     }
 
     /**
@@ -26080,13 +26080,13 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidYieldNextCostClass(string $opcode, array $resumeRowids): string
     {
         return match ($opcode) {
-            'OP_JsonTableGeneratedPathRowidYieldNextNext233' => count($resumeRowids) === 1
-                ? 'json-table-generated-path-rowid-yield-next-single-next233'
-                : 'json-table-generated-path-rowid-yield-next-range-next233',
-            'OP_JsonTableGeneratedPathRowidYieldNextEofNext233' => 'json-table-generated-path-rowid-yield-next-eof-next233',
-            'OP_JsonTableGeneratedPathRowidYieldNextRestartGuardNext233' => 'json-table-generated-path-rowid-yield-next-guard-restart-next233',
-            'OP_JsonTableGeneratedPathRowidYieldNextNoYieldNext233' => 'json-table-generated-path-rowid-yield-next-no-yield-next233',
-            default => 'json-table-generated-path-rowid-yield-next-reprepare-next233',
+            'OP_JsonTableGeneratedPathRowidYieldNext' => count($resumeRowids) === 1
+                ? 'json-table-generated-path-rowid-yield-next-single'
+                : 'json-table-generated-path-rowid-yield-next-range',
+            'OP_JsonTableGeneratedPathRowidYieldNextEof' => 'json-table-generated-path-rowid-yield-next-eof',
+            'OP_JsonTableGeneratedPathRowidYieldNextRestartGuard' => 'json-table-generated-path-rowid-yield-next-guard-restart',
+            'OP_JsonTableGeneratedPathRowidYieldNextNoYield' => 'json-table-generated-path-rowid-yield-next-no-yield',
+            default => 'json-table-generated-path-rowid-yield-next-reprepare',
         };
     }
 
@@ -26147,11 +26147,11 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'function', 'root', 'generatedPath', 'sourceGeneration', 'yieldGuardFingerprint', 'actualXCurrentFingerprint', 'yieldNextFingerprint' => 'json-table-generated-path-rowid-yield-next-source-changed-next233',
-                'observedActiveRowid', 'actualActiveRowid', 'deliveredRowids', 'remainingRowids', 'resumeRowids', 'restartRowids', 'lastDeliveredRowid', 'nextRowid', 'eofAfterYield' => 'json-table-generated-path-rowid-yield-next-rowset-changed-next233',
-                'sourceReusable', 'yieldGuardReusable', 'upstreamReplanRequired', 'yieldNextReusable', 'yieldNextOpcode' => 'json-table-generated-path-rowid-yield-next-admission-changed-next233',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-yield-next-cost-changed-next233',
-                default => 'json-table-generated-path-rowid-yield-next-state-changed-next233',
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'yieldGuardFingerprint', 'actualXCurrentFingerprint', 'yieldNextFingerprint' => 'json-table-generated-path-rowid-yield-next-source-changed',
+                'observedActiveRowid', 'actualActiveRowid', 'deliveredRowids', 'remainingRowids', 'resumeRowids', 'restartRowids', 'lastDeliveredRowid', 'nextRowid', 'eofAfterYield' => 'json-table-generated-path-rowid-yield-next-rowset-changed',
+                'sourceReusable', 'yieldGuardReusable', 'upstreamReplanRequired', 'yieldNextReusable', 'yieldNextOpcode' => 'json-table-generated-path-rowid-yield-next-admission-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-yield-next-cost-changed',
+                default => 'json-table-generated-path-rowid-yield-next-state-changed',
             };
         }
 
@@ -26245,22 +26245,22 @@ final class SQLiteJsonTablePlan
         ?int $nextRowid,
     ): string {
         if ($resumeReusable) {
-            return 'OP_JsonTableGeneratedPathRowidXNextResumeNext234';
+            return 'OP_JsonTableGeneratedPathRowidXNextResume';
         }
         if (!$sourceReusable) {
-            return 'OP_JsonTableGeneratedPathRowidXNextReprepareNext234';
+            return 'OP_JsonTableGeneratedPathRowidXNextReprepare';
         }
         if (!$fingerprintMatches) {
-            return 'OP_JsonTableGeneratedPathRowidXNextRestartFingerprintNext234';
+            return 'OP_JsonTableGeneratedPathRowidXNextRestartFingerprint';
         }
         if (!$deliveredMatches) {
-            return 'OP_JsonTableGeneratedPathRowidXNextRestartDeliveredRowidsNext234';
+            return 'OP_JsonTableGeneratedPathRowidXNextRestartDeliveredRowids';
         }
         if ($nextRowid === null) {
-            return 'OP_JsonTableGeneratedPathRowidXNextEofNext234';
+            return 'OP_JsonTableGeneratedPathRowidXNextEof';
         }
 
-        return 'OP_JsonTableGeneratedPathRowidXNextRestartNext234';
+        return 'OP_JsonTableGeneratedPathRowidXNextRestart';
     }
 
     /**
@@ -26269,13 +26269,13 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidXNextResumeCostClass(string $opcode, array $pendingRowids): string
     {
         return match ($opcode) {
-            'OP_JsonTableGeneratedPathRowidXNextResumeNext234' => $pendingRowids === []
-                ? 'json-table-generated-path-rowid-xnext-point-next234'
-                : 'json-table-generated-path-rowid-xnext-range-next234',
-            'OP_JsonTableGeneratedPathRowidXNextRestartFingerprintNext234' => 'json-table-generated-path-rowid-xnext-stale-fingerprint-next234',
-            'OP_JsonTableGeneratedPathRowidXNextRestartDeliveredRowidsNext234' => 'json-table-generated-path-rowid-xnext-stale-delivered-rowids-next234',
-            'OP_JsonTableGeneratedPathRowidXNextEofNext234' => 'json-table-generated-path-rowid-xnext-eof-next234',
-            default => 'json-table-generated-path-rowid-xnext-reprepare-next234',
+            'OP_JsonTableGeneratedPathRowidXNextResume' => $pendingRowids === []
+                ? 'json-table-generated-path-rowid-xnext-point'
+                : 'json-table-generated-path-rowid-xnext-range',
+            'OP_JsonTableGeneratedPathRowidXNextRestartFingerprint' => 'json-table-generated-path-rowid-xnext-stale-fingerprint',
+            'OP_JsonTableGeneratedPathRowidXNextRestartDeliveredRowids' => 'json-table-generated-path-rowid-xnext-stale-delivered-rowids',
+            'OP_JsonTableGeneratedPathRowidXNextEof' => 'json-table-generated-path-rowid-xnext-eof',
+            default => 'json-table-generated-path-rowid-xnext-reprepare',
         };
     }
 
@@ -26335,13 +26335,13 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'function', 'root', 'generatedPath', 'sourceGeneration', 'actualYieldGuardFingerprint', 'xNextResumeFingerprint' => 'json-table-generated-path-rowid-xnext-source-changed-next234',
-                'observedYieldGuardFingerprint', 'yieldGuardFingerprintMatches' => 'json-table-generated-path-rowid-xnext-fingerprint-changed-next234',
-                'observedDeliveredRowids', 'actualDeliveredRowids', 'deliveredRowidsMatch' => 'json-table-generated-path-rowid-xnext-delivered-rowids-changed-next234',
-                'remainingRowids', 'restartRowids', 'nextRowid', 'advancedRowids', 'pendingRowids' => 'json-table-generated-path-rowid-xnext-rowset-changed-next234',
-                'sourceReusable', 'upstreamReplanRequired', 'xNextResumeReusable', 'xNextResumeOpcode' => 'json-table-generated-path-rowid-xnext-admission-changed-next234',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xnext-cost-changed-next234',
-                default => 'json-table-generated-path-rowid-xnext-state-changed-next234',
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'actualYieldGuardFingerprint', 'xNextResumeFingerprint' => 'json-table-generated-path-rowid-xnext-source-changed',
+                'observedYieldGuardFingerprint', 'yieldGuardFingerprintMatches' => 'json-table-generated-path-rowid-xnext-fingerprint-changed',
+                'observedDeliveredRowids', 'actualDeliveredRowids', 'deliveredRowidsMatch' => 'json-table-generated-path-rowid-xnext-delivered-rowids-changed',
+                'remainingRowids', 'restartRowids', 'nextRowid', 'advancedRowids', 'pendingRowids' => 'json-table-generated-path-rowid-xnext-rowset-changed',
+                'sourceReusable', 'upstreamReplanRequired', 'xNextResumeReusable', 'xNextResumeOpcode' => 'json-table-generated-path-rowid-xnext-admission-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-xnext-cost-changed',
+                default => 'json-table-generated-path-rowid-xnext-state-changed',
             };
         }
 
@@ -26440,22 +26440,22 @@ final class SQLiteJsonTablePlan
         ?int $actualLastYieldedRowid,
     ): string {
         if ($yieldTapeReusable) {
-            return 'OP_JsonTableGeneratedPathRowidYieldCurrentSourceNext235';
+            return 'OP_JsonTableGeneratedPathRowidYieldCurrentSource';
         }
         if (!$guardReusable) {
-            return 'OP_JsonTableGeneratedPathRowidYieldReprepareNext235';
+            return 'OP_JsonTableGeneratedPathRowidYieldReprepare';
         }
         if (!$fingerprintMatches) {
-            return 'OP_JsonTableGeneratedPathRowidYieldRestartFingerprintNext235';
+            return 'OP_JsonTableGeneratedPathRowidYieldRestartFingerprint';
         }
         if (!$lastYieldedMatches) {
-            return 'OP_JsonTableGeneratedPathRowidYieldRestartRowidNext235';
+            return 'OP_JsonTableGeneratedPathRowidYieldRestartRowid';
         }
         if ($actualLastYieldedRowid === null) {
-            return 'OP_JsonTableGeneratedPathRowidYieldEofNext235';
+            return 'OP_JsonTableGeneratedPathRowidYieldEof';
         }
 
-        return 'OP_JsonTableGeneratedPathRowidYieldRestartNext235';
+        return 'OP_JsonTableGeneratedPathRowidYieldRestart';
     }
 
     /**
@@ -26464,13 +26464,13 @@ final class SQLiteJsonTablePlan
     private static function jsonTableGeneratedPathRowidCurrentSourceYieldCostClass(string $opcode, array $resumeRowids): string
     {
         return match ($opcode) {
-            'OP_JsonTableGeneratedPathRowidYieldCurrentSourceNext235' => $resumeRowids === []
-                ? 'json-table-generated-path-rowid-yield-current-source-point-next235'
-                : 'json-table-generated-path-rowid-yield-current-source-resume-next235',
-            'OP_JsonTableGeneratedPathRowidYieldRestartFingerprintNext235' => 'json-table-generated-path-rowid-yield-current-source-stale-fingerprint-next235',
-            'OP_JsonTableGeneratedPathRowidYieldRestartRowidNext235' => 'json-table-generated-path-rowid-yield-current-source-stale-rowid-next235',
-            'OP_JsonTableGeneratedPathRowidYieldEofNext235' => 'json-table-generated-path-rowid-yield-current-source-eof-next235',
-            default => 'json-table-generated-path-rowid-yield-current-source-reprepare-next235',
+            'OP_JsonTableGeneratedPathRowidYieldCurrentSource' => $resumeRowids === []
+                ? 'json-table-generated-path-rowid-yield-current-source-point'
+                : 'json-table-generated-path-rowid-yield-current-source-resume',
+            'OP_JsonTableGeneratedPathRowidYieldRestartFingerprint' => 'json-table-generated-path-rowid-yield-current-source-stale-fingerprint',
+            'OP_JsonTableGeneratedPathRowidYieldRestartRowid' => 'json-table-generated-path-rowid-yield-current-source-stale-rowid',
+            'OP_JsonTableGeneratedPathRowidYieldEof' => 'json-table-generated-path-rowid-yield-current-source-eof',
+            default => 'json-table-generated-path-rowid-yield-current-source-reprepare',
         };
     }
 
@@ -26528,13 +26528,13 @@ final class SQLiteJsonTablePlan
                 continue;
             }
             $reasons[] = match ($transition['field']) {
-                'function', 'root', 'generatedPath', 'sourceGeneration', 'actualYieldFingerprint', 'yieldTapeFingerprint' => 'json-table-generated-path-rowid-yield-current-source-changed-next235',
-                'observedYieldFingerprint', 'yieldFingerprintMatches' => 'json-table-generated-path-rowid-yield-current-source-fingerprint-changed-next235',
-                'observedLastYieldedRowid', 'actualLastYieldedRowid', 'lastYieldedRowidMatches', 'deliveredRowids', 'resumeRowids' => 'json-table-generated-path-rowid-yield-current-source-rowid-changed-next235',
-                'activeProjectedColumns' => 'json-table-generated-path-rowid-yield-current-source-row-changed-next235',
-                'yieldGuardReusable', 'upstreamReplanRequired', 'yieldTapeReusable', 'yieldTapeOpcode' => 'json-table-generated-path-rowid-yield-current-source-admission-changed-next235',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-yield-current-source-cost-changed-next235',
-                default => 'json-table-generated-path-rowid-yield-current-source-state-changed-next235',
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'actualYieldFingerprint', 'yieldTapeFingerprint' => 'json-table-generated-path-rowid-yield-current-source-changed',
+                'observedYieldFingerprint', 'yieldFingerprintMatches' => 'json-table-generated-path-rowid-yield-current-source-fingerprint-changed',
+                'observedLastYieldedRowid', 'actualLastYieldedRowid', 'lastYieldedRowidMatches', 'deliveredRowids', 'resumeRowids' => 'json-table-generated-path-rowid-yield-current-source-rowid-changed',
+                'activeProjectedColumns' => 'json-table-generated-path-rowid-yield-current-source-row-changed',
+                'yieldGuardReusable', 'upstreamReplanRequired', 'yieldTapeReusable', 'yieldTapeOpcode' => 'json-table-generated-path-rowid-yield-current-source-admission-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-yield-current-source-cost-changed',
+                default => 'json-table-generated-path-rowid-yield-current-source-state-changed',
             };
         }
 

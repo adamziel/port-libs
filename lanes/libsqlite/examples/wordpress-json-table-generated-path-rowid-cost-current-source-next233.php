@@ -47,18 +47,18 @@ $payload = [
     'wordpressUse' => 'Copied wp_options JSON diagnostics can advance a generated-path json_tree rowid cursor from the already-yielded xCurrent row only when the yield guard and source fingerprint remain valid; changed next-source settings restart instead of yielding stale rows.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'currentOpcode' => $plan['currentGeneratedPathRowidYieldNext233']['yieldNextOpcode'],
-    'currentDeliveredRowids' => $plan['currentGeneratedPathRowidYieldNext233']['deliveredRowids'],
-    'currentResumeRowids' => $plan['currentGeneratedPathRowidYieldNext233']['resumeRowids'],
-    'currentNextRowid' => $plan['currentGeneratedPathRowidYieldNext233']['nextRowid'],
-    'nextOpcode' => $plan['nextGeneratedPathRowidYieldNext233']['yieldNextOpcode'],
-    'nextReusable' => $plan['nextGeneratedPathRowidYieldNext233']['yieldNextReusable'],
-    'replanReasons' => $plan['next233ReplanReasons'],
+    'currentOpcode' => $plan['currentGeneratedPathRowidYieldNext']['yieldNextOpcode'],
+    'currentDeliveredRowids' => $plan['currentGeneratedPathRowidYieldNext']['deliveredRowids'],
+    'currentResumeRowids' => $plan['currentGeneratedPathRowidYieldNext']['resumeRowids'],
+    'currentNextRowid' => $plan['currentGeneratedPathRowidYieldNext']['nextRowid'],
+    'nextOpcode' => $plan['nextGeneratedPathRowidYieldNext']['yieldNextOpcode'],
+    'nextReusable' => $plan['nextGeneratedPathRowidYieldNext']['yieldNextReusable'],
+    'replanReasons' => $plan['generatedPathRowidYieldNextReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path rowid xCurrent yield guards and source fingerprints',
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($payload['currentOpcode'] !== 'OP_JsonTableGeneratedPathRowidYieldNextNext233') {
+    if ($payload['currentOpcode'] !== 'OP_JsonTableGeneratedPathRowidYieldNext') {
         fwrite(STDERR, "unexpected next233 current opcode\n");
         exit(1);
     }
@@ -74,7 +74,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "unexpected next233 next rowid\n");
         exit(1);
     }
-    if ($payload['nextOpcode'] !== 'OP_JsonTableGeneratedPathRowidYieldNextReprepareNext233') {
+    if ($payload['nextOpcode'] !== 'OP_JsonTableGeneratedPathRowidYieldNextReprepare') {
         fwrite(STDERR, "unexpected next233 next opcode\n");
         exit(1);
     }
@@ -82,7 +82,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "unexpected next233 next reuse\n");
         exit(1);
     }
-    if (!in_array('json-table-generated-path-rowid-yield-next-source-changed-next233', $payload['replanReasons'], true)) {
+    if (!in_array('json-table-generated-path-rowid-yield-next-source-changed', $payload['replanReasons'], true)) {
         fwrite(STDERR, "missing next233 source replan reason\n");
         exit(1);
     }

@@ -47,17 +47,17 @@ $payload = [
     'wordpressUse' => 'Copied wp_options JSON diagnostics can advance a generated-path json_tree rowid cursor with xNext only when the delivered rowid tape and yield-guard fingerprint still match the pinned current source.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
-    'currentOpcode' => $plan['currentGeneratedPathRowidXNextResume234']['xNextResumeOpcode'],
-    'currentAdvancedRowids' => $plan['currentGeneratedPathRowidXNextResume234']['advancedRowids'],
-    'currentPendingRowids' => $plan['currentGeneratedPathRowidXNextResume234']['pendingRowids'],
-    'nextOpcode' => $plan['nextGeneratedPathRowidXNextResume234']['xNextResumeOpcode'],
-    'nextReusable' => $plan['nextGeneratedPathRowidXNextResume234']['xNextResumeReusable'],
-    'replanReasons' => $plan['next234ReplanReasons'],
+    'currentOpcode' => $plan['currentGeneratedPathRowidXNextResume']['xNextResumeOpcode'],
+    'currentAdvancedRowids' => $plan['currentGeneratedPathRowidXNextResume']['advancedRowids'],
+    'currentPendingRowids' => $plan['currentGeneratedPathRowidXNextResume']['pendingRowids'],
+    'nextOpcode' => $plan['nextGeneratedPathRowidXNextResume']['xNextResumeOpcode'],
+    'nextReusable' => $plan['nextGeneratedPathRowidXNextResume']['xNextResumeReusable'],
+    'replanReasons' => $plan['generatedPathRowidXNextResumeReplanReasons'],
     'dependencyClosure' => 'no new support component needed; reuses native JSON table generated-path rowid yield guards, rowid aliases, and current-source fingerprints',
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($payload['currentOpcode'] !== 'OP_JsonTableGeneratedPathRowidXNextResumeNext234') {
+    if ($payload['currentOpcode'] !== 'OP_JsonTableGeneratedPathRowidXNextResume') {
         fwrite(STDERR, "unexpected next234 current opcode\n");
         exit(1);
     }
@@ -69,7 +69,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "unexpected next234 pending rowids\n");
         exit(1);
     }
-    if ($payload['nextOpcode'] !== 'OP_JsonTableGeneratedPathRowidXNextReprepareNext234') {
+    if ($payload['nextOpcode'] !== 'OP_JsonTableGeneratedPathRowidXNextReprepare') {
         fwrite(STDERR, "unexpected next234 next opcode\n");
         exit(1);
     }
@@ -77,7 +77,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "unexpected next234 next reuse\n");
         exit(1);
     }
-    if (!in_array('json-table-generated-path-rowid-xnext-source-changed-next234', $payload['replanReasons'], true)) {
+    if (!in_array('json-table-generated-path-rowid-xnext-source-changed', $payload['replanReasons'], true)) {
         fwrite(STDERR, "missing next234 source replan reason\n");
         exit(1);
     }

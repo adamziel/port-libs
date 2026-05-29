@@ -20,23 +20,23 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_yield_next223',
+        string $savepoint = 'wp_options_rowvalue_yield',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value yield next223 needs yield statements');
+            throw new \InvalidArgumentException('SQLite row-value yield savepoint needs yield statements');
         }
         if ($attemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value yield next223 needs attempted statements');
+            throw new \InvalidArgumentException('SQLite row-value yield savepoint needs attempted statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value yield next223 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value yield savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value yield next223 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value yield savepoint needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value yield next223 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value yield savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeTables($tables);
@@ -45,14 +45,14 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
             $yieldStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'yield-before-rollback-to-next223',
+            'yield-before-rollback-to-savepoint',
         );
         [$attemptCurrent, $attemptExecuted, $attemptedReturning] = self::runStatements(
             $yieldCurrent,
             $attemptStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'attempt-after-yield-before-rollback-to-next223',
+            'attempt-after-yield-before-rollback-to-savepoint',
         );
 
         $rollbackCurrent = $savepointImage;
@@ -61,7 +61,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-yield-rollback-to-next223',
+            'retry-after-yield-rollback-to-savepoint',
         );
 
         $yieldedRows = self::flattenReturning($yieldedReturning);
@@ -69,7 +69,7 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         $retryRows = self::flattenReturning($retryReturning);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-yield-savepoint-current-source-next223',
+            'status' => 'rowvalue-update-delete-returning-yield-savepoint-current-source',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'yield_current_source_tables' => $yieldCurrent,
@@ -92,14 +92,14 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
             'yield_change_count' => self::changeCount($yieldExecuted),
             'attempt_change_count' => self::changeCount($attemptExecuted),
             'retry_change_count' => self::changeCount($retryExecuted),
-            'rollback_to_savepoint_next223' => true,
-            'yielded_rows_survive_rollback_next223' => true,
-            'attempted_rows_suppressed_next223' => true,
-            'retry_reads_savepoint_image_next223' => true,
-            'savepoint_remains_active_next223' => true,
+            'rollback_to_savepoint' => true,
+            'yielded_rows_survive_rollback' => true,
+            'attempted_rows_suppressed' => true,
+            'retry_reads_savepoint_image' => true,
+            'savepoint_remains_active' => true,
             'changed_tables_after_retry' => self::changedTables($savepointImage, $retryCurrent),
             'row_counts' => self::rowCounts($retryCurrent),
-            'yield_receipt_next223' => [
+            'yield_receipt' => [
                 'savepoint' => $savepoint,
                 'yielded_count' => count($yieldedRows),
                 'suppressed_count' => count($suppressedRows),
@@ -108,13 +108,13 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
                 'suppressed_ids' => array_values(array_filter(array_column($suppressedRows, $rowIdColumn), static fn ($id): bool => is_int($id) || is_string($id))),
                 'retry_ids' => array_values(array_filter(array_column($retryRows, $rowIdColumn), static fn ($id): bool => is_int($id) || is_string($id))),
             ],
-            'dependency_closure_next223' => 'no new support component needed; next223 reuses native row-value UPDATE/DELETE RETURNING execution and row-array savepoint images',
+            'dependency_closure' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution and row-array savepoint images',
             'dependencies' => [
-                'sqlite-rowvalue-returning-yield-before-rollback-next223',
-                'sqlite-rowvalue-returning-suppressed-after-rollback-to-next223',
-                'wordpress-rowvalue-update-delete-returning-yield-savepoint-current-source-next223',
+                'sqlite-rowvalue-returning-yield-before-rollback',
+                'sqlite-rowvalue-returning-suppressed-after-rollback-to-savepoint',
+                'wordpress-rowvalue-update-delete-returning-yield-savepoint-current-source',
             ],
-            'non_overlap_next223' => 'adds RETURNING-yield fencing across ROLLBACK TO for row-value UPDATE/DELETE retries; avoids accepted next218 rollback-to-current-source, next217 transaction OR ROLLBACK, next211 OR IGNORE, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap' => 'adds RETURNING-yield fencing across ROLLBACK TO for row-value UPDATE/DELETE retries; avoids accepted rollback-to-current-source, transaction OR ROLLBACK, OR IGNORE, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -180,11 +180,11 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value yield next223 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value yield savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value yield next223 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value yield savepoint rows must be arrays');
                 }
             }
         }
@@ -207,11 +207,11 @@ final class SQLiteRowValueYieldReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value yield next223 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value yield savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value yield next223 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value yield savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
