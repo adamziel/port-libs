@@ -35,7 +35,7 @@ Focused evidence:
 - `php lanes/libsqlite/examples/wordpress-rowvalue-fail-statement-retry.php --self-test`
 - Touched production/test/example worker-token scan: no matches for the removed
   direct caller tokens
-- `rg -n "CurrentSourceNext150|CurrentNext150|Next150" lanes/libsqlite/src lanes/libsqlite/tests lanes/libsqlite/examples | wc -l`
+- Protected numbered-suffix scan across `src`, `tests`, and `examples`
   -> `0`
 
 Dependency closure: no new support component is needed; this is a

@@ -1533,7 +1533,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_staged_sources?:int,max_depth?:int,savepoint?:string,current_generation?:string,first_next_generation?:string,second_next_generation?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext162(
+    public static function executeStagedReturningSourceQueue(
         array $rows,
         array $currentRoots,
         array $firstNextRoots,
@@ -1543,11 +1543,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $releaseCount = self::releaseCountNext162($options['release_staged_sources'] ?? 0);
-        $currentGeneration = self::tokenNext162((string) ($options['current_generation'] ?? 'wp-import-current-162'), 'current generation');
-        $firstNextGeneration = self::tokenNext162((string) ($options['first_next_generation'] ?? 'wp-import-next-162-a'), 'first next generation');
-        $secondNextGeneration = self::tokenNext162((string) ($options['second_next_generation'] ?? 'wp-import-next-162-b'), 'second next generation');
-        $savepoint = self::tokenNext162((string) ($options['savepoint'] ?? 'wp_recursive_view_next162'), 'savepoint');
+        $releaseCount = self::releaseCountStagedReturningSourceQueue($options['release_staged_sources'] ?? 0);
+        $currentGeneration = self::tokenStagedReturningSourceQueue((string) ($options['current_generation'] ?? 'wp-import-current-162'), 'current generation');
+        $firstNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['first_next_generation'] ?? 'wp-import-next-162-a'), 'first next generation');
+        $secondNextGeneration = self::tokenStagedReturningSourceQueue((string) ($options['second_next_generation'] ?? 'wp-import-next-162-b'), 'second next generation');
+        $savepoint = self::tokenStagedReturningSourceQueue((string) ($options['savepoint'] ?? 'wp_recursive_view_next162'), 'savepoint');
         $maxDepth = $options['max_depth'] ?? 8;
 
         $first = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
@@ -1651,7 +1651,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function releaseCountNext162(mixed $value): int
+    private static function releaseCountStagedReturningSourceQueue(mixed $value): int
     {
         $count = (int) $value;
         if ($count < 0 || $count > 2) {
@@ -1661,7 +1661,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $count;
     }
 
-    private static function tokenNext162(string $value, string $label): string
+    private static function tokenStagedReturningSourceQueue(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next162 {$label} is malformed");
@@ -1682,7 +1682,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_next_source?:bool,max_depth?:int,savepoint?:string,current_generation?:string,next_generation?:string,trigger_child_prefix?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext163(
+    public static function executeRecursiveChildSourceRelease(
         array $rows,
         array $currentRoots,
         array $nextRoots,
@@ -1691,11 +1691,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $prefix = self::tokenNext163((string) ($options['trigger_child_prefix'] ?? 'audit-child'), 'trigger child prefix');
+        $prefix = self::tokenRecursiveChildSourceRelease((string) ($options['trigger_child_prefix'] ?? 'audit-child'), 'trigger child prefix');
         $releaseNext = (bool) ($options['release_next_source'] ?? false);
-        $currentRows = self::normalizeRowsNext163($rows);
-        $currentView = self::normalizeViewNext163($currentView, 'current view');
-        $nextView = self::normalizeViewNext163($nextView, 'next view');
+        $currentRows = self::normalizeRowsRecursiveChildSourceRelease($rows);
+        $currentView = self::normalizeViewRecursiveChildSourceRelease($currentView, 'current view');
+        $nextView = self::normalizeViewRecursiveChildSourceRelease($nextView, 'next view');
 
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceGenerationBarrier(
             $currentRows,
@@ -1713,12 +1713,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $generatedRows = self::triggerGeneratedChildrenNext163($base['current_returning_rows'], $prefix, $currentView);
-        $currentNames = self::namesNext163($base['current_recursive_rows']);
-        $generatedNames = self::namesNext163($generatedRows);
+        $generatedRows = self::triggerGeneratedChildrenRecursiveChildSourceRelease($base['current_returning_rows'], $prefix, $currentView);
+        $currentNames = self::namesRecursiveChildSourceRelease($base['current_recursive_rows']);
+        $generatedNames = self::namesRecursiveChildSourceRelease($generatedRows);
         $suppressed = array_values(array_intersect($generatedNames, $currentNames));
-        $seededNextRows = self::releasedNextRowsNext163($currentRows, $base, $generatedRows, $nextRoots, $nextView, $returning);
-        $seededNextNames = self::namesNext163($seededNextRows['recursive_rows']);
+        $seededNextRows = self::releasedNextRowsRecursiveChildSourceRelease($currentRows, $base, $generatedRows, $nextRoots, $nextView, $returning);
+        $seededNextNames = self::namesRecursiveChildSourceRelease($seededNextRows['recursive_rows']);
 
         $base['status'] = $releaseNext
             ? 'trigger-recursive-view-returning-snapshot-release-next163'
@@ -1765,7 +1765,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function normalizeRowsNext163(array $rows): array
+    private static function normalizeRowsRecursiveChildSourceRelease(array $rows): array
     {
         if (!array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next163 rows must be a list');
@@ -1784,7 +1784,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $view
      * @return array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,order_by:?string}
      */
-    private static function normalizeViewNext163(array $view, string $label): array
+    private static function normalizeViewRecursiveChildSourceRelease(array $view, string $label): array
     {
         $columns = $view['columns'] ?? null;
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
@@ -1792,14 +1792,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         return [
-            'name' => self::identifierNext163((string) ($view['name'] ?? ''), $label . ' name'),
-            'source' => self::tokenNext163((string) ($view['source'] ?? ''), $label . ' source'),
-            'trigger' => self::identifierNext163((string) ($view['trigger'] ?? ''), $label . ' trigger'),
-            'trigger_source' => self::tokenNext163((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
-            'root_key' => self::identifierNext163((string) ($view['root_key'] ?? ''), $label . ' root key'),
-            'parent_key' => self::identifierNext163((string) ($view['parent_key'] ?? ''), $label . ' parent key'),
-            'columns' => array_map(static fn (mixed $column): string => self::identifierNext163((string) $column, $label . ' column'), $columns),
-            'order_by' => isset($view['order_by']) ? self::identifierNext163((string) $view['order_by'], $label . ' order column') : null,
+            'name' => self::identifierRecursiveChildSourceRelease((string) ($view['name'] ?? ''), $label . ' name'),
+            'source' => self::tokenRecursiveChildSourceRelease((string) ($view['source'] ?? ''), $label . ' source'),
+            'trigger' => self::identifierRecursiveChildSourceRelease((string) ($view['trigger'] ?? ''), $label . ' trigger'),
+            'trigger_source' => self::tokenRecursiveChildSourceRelease((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
+            'root_key' => self::identifierRecursiveChildSourceRelease((string) ($view['root_key'] ?? ''), $label . ' root key'),
+            'parent_key' => self::identifierRecursiveChildSourceRelease((string) ($view['parent_key'] ?? ''), $label . ' parent key'),
+            'columns' => array_map(static fn (mixed $column): string => self::identifierRecursiveChildSourceRelease((string) $column, $label . ' column'), $columns),
+            'order_by' => isset($view['order_by']) ? self::identifierRecursiveChildSourceRelease((string) $view['order_by'], $label . ' order column') : null,
         ];
     }
 
@@ -1808,7 +1808,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,order_by:?string} $view
      * @return list<array<string,mixed>>
      */
-    private static function triggerGeneratedChildrenNext163(array $returningRows, string $prefix, array $view): array
+    private static function triggerGeneratedChildrenRecursiveChildSourceRelease(array $returningRows, string $prefix, array $view): array
     {
         $out = [];
         foreach ($returningRows as $ordinal => $row) {
@@ -1840,7 +1840,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string,int):mixed> $returning
      * @return array{recursive_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>}
      */
-    private static function releasedNextRowsNext163(array $baseRows, array $base, array $generatedRows, array $nextRoots, array $nextView, array $returning): array
+    private static function releasedNextRowsRecursiveChildSourceRelease(array $baseRows, array $base, array $generatedRows, array $nextRoots, array $nextView, array $returning): array
     {
         if ($generatedRows === []) {
             return ['recursive_rows' => [], 'returning_rows' => []];
@@ -1863,7 +1863,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $generated = array_flip(self::namesNext163($generatedRows));
+        $generated = array_flip(self::namesRecursiveChildSourceRelease($generatedRows));
         $recursiveRows = [];
         foreach ($probe['attempted_next_recursive_rows'] as $ordinal => $row) {
             if (!isset($generated[(string) ($row['option_name'] ?? '')])) {
@@ -1897,12 +1897,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function namesNext163(array $rows): array
+    private static function namesRecursiveChildSourceRelease(array $rows): array
     {
         return array_values(array_map(static fn (array $row): string => (string) ($row['option_name'] ?? ''), $rows));
     }
 
-    private static function identifierNext163(string $value, string $label): string
+    private static function identifierRecursiveChildSourceRelease(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next163 {$label} is malformed");
@@ -1911,7 +1911,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext163(string $value, string $label): string
+    private static function tokenRecursiveChildSourceRelease(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next163 {$label} is malformed");
@@ -1932,7 +1932,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext164(
+    public static function executeRecursiveViewUpsertAdmission(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -1941,8 +1941,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifierNext164((string) ($options['key'] ?? 'option_name'), 'key');
-        $savepoint = self::tokenNext164((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_164'), 'savepoint');
+        $key = self::identifierRecursiveViewUpsertAdmission((string) ($options['key'] ?? 'option_name'), 'key');
+        $savepoint = self::tokenRecursiveViewUpsertAdmission((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_164'), 'savepoint');
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
         if ($maxDepth < 0) {
@@ -1952,20 +1952,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite recursive view RETURNING next164 projection cannot be empty');
         }
 
-        $skipColumn = self::identifierNext164((string) ($options['skip_column'] ?? 'autoload_flag'), 'skip column');
+        $skipColumn = self::identifierRecursiveViewUpsertAdmission((string) ($options['skip_column'] ?? 'autoload_flag'), 'skip column');
         $skipValue = $options['skip_value'] ?? 'skip';
         $conflictAction = strtolower((string) ($options['conflict_action'] ?? 'replace'));
         if (!in_array($conflictAction, ['replace', 'ignore'], true)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next164 conflict action must be replace or ignore');
         }
 
-        $baseRows = self::normalizeRowsNext164($rows, $key);
-        $currentView = self::normalizeViewNext164($currentView, 'current view');
-        $nextView = self::normalizeViewNext164($nextView, 'next view');
+        $baseRows = self::normalizeRowsRecursiveViewUpsertAdmission($rows, $key);
+        $currentView = self::normalizeViewRecursiveViewUpsertAdmission($currentView, 'current view');
+        $nextView = self::normalizeViewRecursiveViewUpsertAdmission($nextView, 'next view');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
 
-        $current = self::runViewSourceNext164($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, $skipColumn, $skipValue, $conflictAction, 'current');
-        $nextAttempt = self::runViewSourceNext164($admitNext ? $current['rows'] : $baseRows, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, $skipColumn, $skipValue, $conflictAction, 'next');
+        $current = self::runViewSourceRecursiveViewUpsertAdmission($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, $skipColumn, $skipValue, $conflictAction, 'current');
+        $nextAttempt = self::runViewSourceRecursiveViewUpsertAdmission($admitNext ? $current['rows'] : $baseRows, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, $skipColumn, $skipValue, $conflictAction, 'next');
 
         return [
             'status' => $admitNext
@@ -1978,9 +1978,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'skip_column' => $skipColumn,
             'skip_value' => $skipValue,
             'conflict_action' => $conflictAction,
-            'current_view' => self::viewSummaryNext164($currentView),
-            'next_view' => self::viewSummaryNext164($nextView),
-            'visible_view' => self::viewSummaryNext164($admitNext ? $nextView : $currentView),
+            'current_view' => self::viewSummaryRecursiveViewUpsertAdmission($currentView),
+            'next_view' => self::viewSummaryRecursiveViewUpsertAdmission($nextView),
+            'visible_view' => self::viewSummaryRecursiveViewUpsertAdmission($admitNext ? $nextView : $currentView),
             'before_rows' => $baseRows,
             'current_rows' => $current['rows'],
             'after_savepoint' => $admitNext ? $nextAttempt['rows'] : $baseRows,
@@ -2023,7 +2023,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function normalizeRowsNext164(array $rows, string $key): array
+    private static function normalizeRowsRecursiveViewUpsertAdmission(array $rows, string $key): array
     {
         if (!array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next164 rows must be a list');
@@ -2047,7 +2047,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $view
      * @return array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string}
      */
-    private static function normalizeViewNext164(array $view, string $label): array
+    private static function normalizeViewRecursiveViewUpsertAdmission(array $view, string $label): array
     {
         $columns = $view['columns'] ?? null;
         $mapping = $view['mapping'] ?? null;
@@ -2059,22 +2059,22 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         $normalized = [
-            'name' => self::identifierNext164((string) ($view['name'] ?? ''), $label . ' name'),
-            'source' => self::tokenNext164((string) ($view['source'] ?? ''), $label . ' source'),
-            'trigger' => self::identifierNext164((string) ($view['trigger'] ?? ''), $label . ' trigger'),
-            'trigger_source' => self::tokenNext164((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
-            'columns' => array_map(static fn (mixed $column): string => self::identifierNext164((string) $column, $label . ' column'), $columns),
+            'name' => self::identifierRecursiveViewUpsertAdmission((string) ($view['name'] ?? ''), $label . ' name'),
+            'source' => self::tokenRecursiveViewUpsertAdmission((string) ($view['source'] ?? ''), $label . ' source'),
+            'trigger' => self::identifierRecursiveViewUpsertAdmission((string) ($view['trigger'] ?? ''), $label . ' trigger'),
+            'trigger_source' => self::tokenRecursiveViewUpsertAdmission((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
+            'columns' => array_map(static fn (mixed $column): string => self::identifierRecursiveViewUpsertAdmission((string) $column, $label . ' column'), $columns),
             'mapping' => [],
-            'recursive_column' => self::identifierNext164((string) ($view['recursive_column'] ?? 'name'), $label . ' recursive column'),
-            'recursive_suffix' => self::tokenNext164((string) ($view['recursive_suffix'] ?? '_child'), $label . ' recursive suffix'),
-            'audit_label' => self::tokenNext164((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
+            'recursive_column' => self::identifierRecursiveViewUpsertAdmission((string) ($view['recursive_column'] ?? 'name'), $label . ' recursive column'),
+            'recursive_suffix' => self::tokenRecursiveViewUpsertAdmission((string) ($view['recursive_suffix'] ?? '_child'), $label . ' recursive suffix'),
+            'audit_label' => self::tokenRecursiveViewUpsertAdmission((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
         ];
         foreach ($mapping as $viewColumn => $tableColumn) {
-            $viewColumn = self::identifierNext164((string) $viewColumn, $label . ' mapping view column');
+            $viewColumn = self::identifierRecursiveViewUpsertAdmission((string) $viewColumn, $label . ' mapping view column');
             if (!in_array($viewColumn, $normalized['columns'], true)) {
                 throw new InvalidArgumentException("SQLite recursive view RETURNING next164 {$label} mapping column {$viewColumn} is not visible");
             }
-            $normalized['mapping'][$viewColumn] = self::identifierNext164((string) $tableColumn, $label . ' mapping table column');
+            $normalized['mapping'][$viewColumn] = self::identifierRecursiveViewUpsertAdmission((string) $tableColumn, $label . ' mapping table column');
         }
         if (!array_key_exists($normalized['recursive_column'], $normalized['mapping'])) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next164 {$label} recursive column is not mapped");
@@ -2090,7 +2090,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,?array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array{rows:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,replaced_keys:list<string>,recursive_edges:list<array<string,mixed>>,changes:int,statement_rows:int}
      */
-    private static function runViewSourceNext164(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $skipColumn, mixed $skipValue, string $conflictAction, string $phase): array
+    private static function runViewSourceRecursiveViewUpsertAdmission(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $skipColumn, mixed $skipValue, string $conflictAction, string $phase): array
     {
         $queue = [];
         foreach (array_values($input) as $ordinal => $row) {
@@ -2110,16 +2110,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         while ($queue !== []) {
             $item = array_shift($queue);
-            $incoming = self::projectViewRowNext164($item['view_row'], $view);
+            $incoming = self::projectViewRowRecursiveViewUpsertAdmission($item['view_row'], $view);
             $rowKey = (string) ($incoming[$key] ?? '');
             if ($rowKey === '') {
                 throw new InvalidArgumentException("SQLite recursive view RETURNING next164 projected key {$key} is empty");
             }
-            $event = self::rowIndexNext164($rows, $key, $rowKey) === null ? 'insert' : 'update';
+            $event = self::rowIndexRecursiveViewUpsertAdmission($rows, $key, $rowKey) === null ? 'insert' : 'update';
             $skip = ($item['view_row']['raise_ignore'] ?? false) === true
                 || (array_key_exists($skipColumn, $item['view_row']) && $item['view_row'][$skipColumn] === $skipValue);
             if ($skip) {
-                $envelope = self::returningEnvelopeNext164($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, [
+                $envelope = self::returningEnvelopeRecursiveViewUpsertAdmission($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, [
                     'option_name' => $rowKey,
                     'skip_reason' => 'raise-ignore',
                 ]);
@@ -2128,10 +2128,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
 
-            $oldIndex = self::rowIndexNext164($rows, $key, $rowKey);
+            $oldIndex = self::rowIndexRecursiveViewUpsertAdmission($rows, $key, $rowKey);
             $old = $oldIndex === null ? null : $rows[$oldIndex];
             if ($old !== null && $conflictAction === 'ignore') {
-                $envelope = self::returningEnvelopeNext164($phase, $view, (int) $item['ordinal'], (int) $item['depth'], 'conflict-ignore', [
+                $envelope = self::returningEnvelopeRecursiveViewUpsertAdmission($phase, $view, (int) $item['ordinal'], (int) $item['depth'], 'conflict-ignore', [
                     'option_name' => $rowKey,
                     'skip_reason' => 'conflict-ignore',
                 ]);
@@ -2140,12 +2140,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
 
-            $rows = self::upsertRowNext164($rows, $key, $incoming);
+            $rows = self::upsertRowRecursiveViewUpsertAdmission($rows, $key, $incoming);
             if ($old !== null) {
                 $replaced[] = $rowKey;
             }
-            $returningRow = self::returningRowNext164($returning, $incoming, $item['view_row'], $old, $event, (int) $item['ordinal'], (int) $item['depth'], $view['trigger_source']);
-            $envelope = self::returningEnvelopeNext164($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, $returningRow);
+            $returningRow = self::returningRowRecursiveViewUpsertAdmission($returning, $incoming, $item['view_row'], $old, $event, (int) $item['ordinal'], (int) $item['depth'], $view['trigger_source']);
+            $envelope = self::returningEnvelopeRecursiveViewUpsertAdmission($phase, $view, (int) $item['ordinal'], (int) $item['depth'], $event, $returningRow);
             $returningRows[] = $envelope;
             $yield[] = $envelope + [
                 'status' => 'changed',
@@ -2160,7 +2160,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 continue;
             }
 
-            $childViewRow = self::childViewRowNext164($item['view_row'], $view);
+            $childViewRow = self::childViewRowRecursiveViewUpsertAdmission($item['view_row'], $view);
             $queue[] = [
                 'view_row' => $childViewRow,
                 'ordinal' => $statementRows,
@@ -2195,7 +2195,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function projectViewRowNext164(array $viewRow, array $view): array
+    private static function projectViewRowRecursiveViewUpsertAdmission(array $viewRow, array $view): array
     {
         $row = [];
         foreach ($view['mapping'] as $viewColumn => $tableColumn) {
@@ -2213,7 +2213,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function childViewRowNext164(array $viewRow, array $view): array
+    private static function childViewRowRecursiveViewUpsertAdmission(array $viewRow, array $view): array
     {
         $child = $viewRow;
         $column = $view['recursive_column'];
@@ -2232,9 +2232,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function upsertRowNext164(array $rows, string $key, array $incoming): array
+    private static function upsertRowRecursiveViewUpsertAdmission(array $rows, string $key, array $incoming): array
     {
-        $index = self::rowIndexNext164($rows, $key, (string) $incoming[$key]);
+        $index = self::rowIndexRecursiveViewUpsertAdmission($rows, $key, (string) $incoming[$key]);
         if ($index === null) {
             $rows[] = $incoming;
             return $rows;
@@ -2244,7 +2244,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $rows;
     }
 
-    private static function rowIndexNext164(array $rows, string $key, string $value): ?int
+    private static function rowIndexRecursiveViewUpsertAdmission(array $rows, string $key, string $value): ?int
     {
         foreach ($rows as $index => $row) {
             if ((string) ($row[$key] ?? '') === $value) {
@@ -2259,19 +2259,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,?array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array<string,mixed>
      */
-    private static function returningRowNext164(array $returning, array $new, array $viewRow, ?array $old, string $event, int $ordinal, int $depth, string $source): array
+    private static function returningRowRecursiveViewUpsertAdmission(array $returning, array $new, array $viewRow, ?array $old, string $event, int $ordinal, int $depth, string $source): array
     {
         $out = [];
         foreach (array_values($returning) as $index => $expr) {
             if (is_string($expr)) {
                 $alias = str_starts_with($expr, 'new.') ? substr($expr, 4) : $expr;
-                $out[$alias] = self::exprValueNext164($expr, $new, $viewRow, $old, $event, $ordinal, $depth, $source);
+                $out[$alias] = self::exprValueRecursiveViewUpsertAdmission($expr, $new, $viewRow, $old, $event, $ordinal, $depth, $source);
                 continue;
             }
             if (is_array($expr)) {
                 $sql = (string) ($expr['expr'] ?? '');
                 $alias = (string) ($expr['as'] ?? (str_starts_with($sql, 'new.') ? substr($sql, 4) : $sql));
-                $out[self::identifierNext164($alias, 'RETURNING alias')] = self::exprValueNext164($sql, $new, $viewRow, $old, $event, $ordinal, $depth, $source);
+                $out[self::identifierRecursiveViewUpsertAdmission($alias, 'RETURNING alias')] = self::exprValueRecursiveViewUpsertAdmission($sql, $new, $viewRow, $old, $event, $ordinal, $depth, $source);
                 continue;
             }
             if (is_callable($expr)) {
@@ -2284,7 +2284,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $out;
     }
 
-    private static function exprValueNext164(string $expr, array $new, array $viewRow, ?array $old, string $event, int $ordinal, int $depth, string $source): mixed
+    private static function exprValueRecursiveViewUpsertAdmission(string $expr, array $new, array $viewRow, ?array $old, string $event, int $ordinal, int $depth, string $source): mixed
     {
         return match ($expr) {
             'event' => $event,
@@ -2305,7 +2305,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function returningEnvelopeNext164(string $phase, array $view, int $ordinal, int $depth, string $event, array $returning): array
+    private static function returningEnvelopeRecursiveViewUpsertAdmission(string $phase, array $view, int $ordinal, int $depth, string $event, array $returning): array
     {
         return [
             'phase' => $phase,
@@ -2324,7 +2324,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,recursive_column:string,recursive_suffix:string,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function viewSummaryNext164(array $view): array
+    private static function viewSummaryRecursiveViewUpsertAdmission(array $view): array
     {
         return [
             'name' => $view['name'],
@@ -2339,7 +2339,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function identifierNext164(string $value, string $label): string
+    private static function identifierRecursiveViewUpsertAdmission(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next164 {$label} is malformed");
@@ -2348,7 +2348,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext164(string $value, string $label): string
+    private static function tokenRecursiveViewUpsertAdmission(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next164 {$label} is malformed");
@@ -2370,7 +2370,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_staged_sources?:int,max_depth?:int,savepoint?:string,current_generation?:string,first_next_generation?:string,second_next_generation?:string,cursor_name?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext165(
+    public static function executeCurrentDrainBeforeStagedSources(
         array $rows,
         array $currentRoots,
         array $firstNextRoots,
@@ -2380,10 +2380,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $cursor = self::tokenNext165((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_165'), 'cursor');
-        $releaseCount = self::releaseCountNext165($options['release_staged_sources'] ?? 0);
+        $cursor = self::tokenCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_165'), 'cursor');
+        $releaseCount = self::releaseCountCurrentDrainBeforeStagedSources($options['release_staged_sources'] ?? 0);
 
-        $queue = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext162(
+        $queue = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeStagedReturningSourceQueue(
             $rows,
             $currentRoots,
             $firstNextRoots,
@@ -2406,19 +2406,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite trigger recursive view next165 first stage is malformed');
         }
 
-        $currentRows = self::rowsNext165($first['current_returning_rows'] ?? [], 'current returning rows');
-        $firstRows = self::rowsNext165($first['attempted_next_returning_rows'] ?? [], 'first next returning rows');
+        $currentRows = self::rowsCurrentDrainBeforeStagedSources($first['current_returning_rows'] ?? [], 'current returning rows');
+        $firstRows = self::rowsCurrentDrainBeforeStagedSources($first['attempted_next_returning_rows'] ?? [], 'first next returning rows');
         $second = $queue['second_stage'] ?? null;
         if (!is_array($second)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next165 second stage is malformed');
         }
-        $secondRows = self::rowsNext165($second['attempted_next_returning_rows'] ?? [], 'second next returning rows');
+        $secondRows = self::rowsCurrentDrainBeforeStagedSources($second['attempted_next_returning_rows'] ?? [], 'second next returning rows');
 
         $currentKeys = array_column($currentRows, 'visibility_key');
         $firstKeys = array_column($firstRows, 'visibility_key');
         $secondKeys = array_column($secondRows, 'visibility_key');
-        $visibleKeys = self::stringListNext165($queue['returning_visibility']['visible'] ?? [], 'visible returning keys');
-        $suppressedKeys = self::stringListNext165($queue['returning_visibility']['suppressed'] ?? [], 'suppressed returning keys');
+        $visibleKeys = self::stringListCurrentDrainBeforeStagedSources($queue['returning_visibility']['visible'] ?? [], 'visible returning keys');
+        $suppressedKeys = self::stringListCurrentDrainBeforeStagedSources($queue['returning_visibility']['suppressed'] ?? [], 'suppressed returning keys');
         $currentGeneration = (string) $queue['current_generation'];
         $visibleGeneration = (string) $queue['visible_generation'];
 
@@ -2473,7 +2473,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'staged_source_steps' => count($firstKeys) + count($secondKeys),
             'visible_steps' => count($visibleSteps),
             'held_steps' => count($heldSteps),
-            'current_drained_before_staged' => self::currentBeforeStagedNext165($steps),
+            'current_drained_before_staged' => self::currentBeforeStagedCurrentDrainBeforeStagedSources($steps),
             'visible_keys' => array_column($visibleSteps, 'visibility_key'),
             'held_keys' => array_column($heldSteps, 'visibility_key'),
             'first_next_visible' => $releaseCount >= 1,
@@ -2518,7 +2518,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function releaseCountNext165(mixed $value): int
+    private static function releaseCountCurrentDrainBeforeStagedSources(mixed $value): int
     {
         $count = (int) $value;
         if ($count < 0 || $count > 2) {
@@ -2528,7 +2528,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $count;
     }
 
-    private static function tokenNext165(string $value, string $label): string
+    private static function tokenCurrentDrainBeforeStagedSources(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next165 {$label} is malformed");
@@ -2541,7 +2541,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext165(mixed $rows, string $label): array
+    private static function rowsCurrentDrainBeforeStagedSources(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite trigger recursive view next165 {$label} are malformed");
@@ -2554,7 +2554,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringListNext165(mixed $values, string $label): array
+    private static function stringListCurrentDrainBeforeStagedSources(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite trigger recursive view next165 {$label} are malformed");
@@ -2566,7 +2566,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $steps
      */
-    private static function currentBeforeStagedNext165(array $steps): bool
+    private static function currentBeforeStagedCurrentDrainBeforeStagedSources(array $steps): bool
     {
         $seenStaged = false;
         foreach ($steps as $step) {
@@ -2593,7 +2593,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_next_source?:bool,max_depth?:int,savepoint?:string,current_generation?:string,next_generation?:string,trigger_child_prefix?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext166(
+    public static function executeStagedSourceReleaseAfterDrain(
         array $rows,
         array $currentRoots,
         array $nextRoots,
@@ -2603,11 +2603,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $options = [],
     ): array {
         $releaseNext = (bool) ($options['release_next_source'] ?? true);
-        $currentGeneration = self::tokenNext166((string) ($options['current_generation'] ?? 'current-source-next166'), 'current generation');
-        $nextGeneration = self::tokenNext166((string) ($options['next_generation'] ?? 'next-source-next166'), 'next generation');
-        $savepoint = self::tokenNext166((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next166'), 'savepoint');
+        $currentGeneration = self::tokenStagedSourceReleaseAfterDrain((string) ($options['current_generation'] ?? 'current-source-next166'), 'current generation');
+        $nextGeneration = self::tokenStagedSourceReleaseAfterDrain((string) ($options['next_generation'] ?? 'next-source-next166'), 'next generation');
+        $savepoint = self::tokenStagedSourceReleaseAfterDrain((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next166'), 'savepoint');
 
-        $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163(
+        $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveChildSourceRelease(
             $rows,
             $currentRoots,
             $nextRoots,
@@ -2624,7 +2624,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $held = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163(
+        $held = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveChildSourceRelease(
             $rows,
             $currentRoots,
             $nextRoots,
@@ -2640,7 +2640,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'trigger_child_prefix' => $options['trigger_child_prefix'] ?? 'audit-child',
             ],
         );
-        $releasedProbe = $releaseNext ? $plan : SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163(
+        $releasedProbe = $releaseNext ? $plan : SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveChildSourceRelease(
             $rows,
             $currentRoots,
             $nextRoots,
@@ -2657,10 +2657,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentTimeline = self::timelineRowsNext166($plan['current_returning_rows'], 'current-returning-drain', $currentGeneration, 0, true);
+        $currentTimeline = self::timelineRowsStagedSourceReleaseAfterDrain($plan['current_returning_rows'], 'current-returning-drain', $currentGeneration, 0, true);
         $nextTimeline = $releaseNext
-            ? self::timelineRowsNext166($plan['next_returning_rows'], 'next-source-after-current-drain', $nextGeneration, count($currentTimeline), true)
-            : self::timelineRowsNext166($releasedProbe['next_returning_rows'], 'next-source-held-until-current-drain', $nextGeneration, count($currentTimeline), false);
+            ? self::timelineRowsStagedSourceReleaseAfterDrain($plan['next_returning_rows'], 'next-source-after-current-drain', $nextGeneration, count($currentTimeline), true)
+            : self::timelineRowsStagedSourceReleaseAfterDrain($releasedProbe['next_returning_rows'], 'next-source-held-until-current-drain', $nextGeneration, count($currentTimeline), false);
 
         $visible = array_values(array_filter(array_merge($currentTimeline, $nextTimeline), static fn (array $row): bool => (bool) $row['visible']));
         $suppressed = array_values(array_filter(array_merge($currentTimeline, $nextTimeline), static fn (array $row): bool => !(bool) $row['visible']));
@@ -2711,7 +2711,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function timelineRowsNext166(array $rows, string $phase, string $generation, int $offset, bool $visible): array
+    private static function timelineRowsStagedSourceReleaseAfterDrain(array $rows, string $phase, string $generation, int $offset, bool $visible): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -2734,7 +2734,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $out;
     }
 
-    private static function tokenNext166(string $value, string $label): string
+    private static function tokenStagedSourceReleaseAfterDrain(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next166 {$label} is malformed");
@@ -2755,7 +2755,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext167(
+    public static function executeReturningDrainPageCursor(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -2768,9 +2768,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         if ($pageSize < 1) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next167 page size must be positive');
         }
-        $drainCursor = self::tokenNext167((string) ($options['drain_cursor'] ?? 'current-returning-drain-167'), 'drain cursor');
+        $drainCursor = self::tokenReturningDrainPageCursor((string) ($options['drain_cursor'] ?? 'current-returning-drain-167'), 'drain cursor');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext164(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewUpsertAdmission(
             $rows,
             $currentInput,
             $nextInput,
@@ -2780,10 +2780,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $currentPages = self::pagesNext167($base['current_returning_rows'], $pageSize, 'current', $drainCursor);
-        $attemptedNextPages = self::pagesNext167($base['attempted_next_returning_rows'], $pageSize, 'attempted-next', $drainCursor);
-        $nextPages = self::pagesNext167($base['next_returning_rows'], $pageSize, 'next', $drainCursor);
-        $currentComplete = self::pagesDrainedNext167($currentPages);
+        $currentPages = self::pagesReturningDrainPageCursor($base['current_returning_rows'], $pageSize, 'current', $drainCursor);
+        $attemptedNextPages = self::pagesReturningDrainPageCursor($base['attempted_next_returning_rows'], $pageSize, 'attempted-next', $drainCursor);
+        $nextPages = self::pagesReturningDrainPageCursor($base['next_returning_rows'], $pageSize, 'next', $drainCursor);
+        $currentComplete = self::pagesDrainedReturningDrainPageCursor($currentPages);
         $nextSourceAdmitted = (bool) $base['next_source_admitted'];
 
         return $base + [
@@ -2801,9 +2801,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'visible_returning_pages' => $nextSourceAdmitted ? array_merge($currentPages, $nextPages) : $currentPages,
             'blocked_next_source_pages' => $nextSourceAdmitted ? [] : $attemptedNextPages,
             'source_signatures' => [
-                'current' => self::sourceSignatureNext167($base['current_view']),
-                'next' => self::sourceSignatureNext167($base['next_view']),
-                'visible' => self::sourceSignatureNext167($base['visible_view']),
+                'current' => self::sourceSignatureReturningDrainPageCursor($base['current_view']),
+                'next' => self::sourceSignatureReturningDrainPageCursor($base['next_view']),
+                'visible' => self::sourceSignatureReturningDrainPageCursor($base['visible_view']),
             ],
             'yield_boundary_next167' => $nextSourceAdmitted
                 ? 'recursive-view-returning-next167-next-source-visible-after-current-pages-drained'
@@ -2820,7 +2820,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function pagesNext167(array $rows, int $pageSize, string $phase, string $cursor): array
+    private static function pagesReturningDrainPageCursor(array $rows, int $pageSize, string $phase, string $cursor): array
     {
         $pages = [];
         foreach (array_chunk($rows, $pageSize) as $index => $chunk) {
@@ -2845,7 +2845,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $pages
      */
-    private static function pagesDrainedNext167(array $pages): bool
+    private static function pagesDrainedReturningDrainPageCursor(array $pages): bool
     {
         foreach ($pages as $page) {
             if (($page['drained'] ?? false) !== true) {
@@ -2859,7 +2859,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $view
      */
-    private static function sourceSignatureNext167(array $view): string
+    private static function sourceSignatureReturningDrainPageCursor(array $view): string
     {
         return implode('|', [
             (string) ($view['name'] ?? ''),
@@ -2870,7 +2870,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ]);
     }
 
-    private static function tokenNext167(string $value, string $label): string
+    private static function tokenReturningDrainPageCursor(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next167 {$label} is malformed");
@@ -2893,7 +2893,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_staged_sources?:int,max_depth?:int,savepoint?:string,current_generation?:string,nested_generation?:string,first_next_generation?:string,second_next_generation?:string,cursor_name?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext169(
+    public static function executeNestedCurrentDrainBeforeStagedSources(
         array $rows,
         array $currentRoots,
         array $nestedCurrentRoots,
@@ -2904,19 +2904,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $releaseCount = self::releaseCountNext169($options['release_staged_sources'] ?? 0);
-        $cursor = self::tokenNext169((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_169'), 'cursor');
-        $savepoint = self::tokenNext169((string) ($options['savepoint'] ?? 'wp_recursive_view_next169'), 'savepoint');
-        $currentGeneration = self::tokenNext169((string) ($options['current_generation'] ?? 'wp-import-current-169'), 'current generation');
-        $nestedGeneration = self::tokenNext169((string) ($options['nested_generation'] ?? 'wp-import-current-169-nested'), 'nested generation');
-        $firstNextGeneration = self::tokenNext169((string) ($options['first_next_generation'] ?? 'wp-import-next-169-a'), 'first next generation');
-        $secondNextGeneration = self::tokenNext169((string) ($options['second_next_generation'] ?? 'wp-import-next-169-b'), 'second next generation');
+        $releaseCount = self::releaseCountNestedCurrentDrainBeforeStagedSources($options['release_staged_sources'] ?? 0);
+        $cursor = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_169'), 'cursor');
+        $savepoint = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['savepoint'] ?? 'wp_recursive_view_next169'), 'savepoint');
+        $currentGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['current_generation'] ?? 'wp-import-current-169'), 'current generation');
+        $nestedGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['nested_generation'] ?? 'wp-import-current-169-nested'), 'nested generation');
+        $firstNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['first_next_generation'] ?? 'wp-import-next-169-a'), 'first next generation');
+        $secondNextGeneration = self::tokenNestedCurrentDrainBeforeStagedSources((string) ($options['second_next_generation'] ?? 'wp-import-next-169-b'), 'second next generation');
         $maxDepth = (int) ($options['max_depth'] ?? 8);
         if ($maxDepth < 1) {
             throw new InvalidArgumentException('SQLite trigger recursive view next169 max depth must be positive');
         }
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext165(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentDrainBeforeStagedSources(
             $rows,
             $currentRoots,
             $firstNextRoots,
@@ -2935,7 +2935,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $nested = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext165(
+        $nested = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentDrainBeforeStagedSources(
             $rows,
             $nestedCurrentRoots,
             [],
@@ -2954,10 +2954,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $baseCurrent = self::phaseStepsNext169($base['cursor_steps'], 'current', $cursor, 'current');
-        $nestedCurrent = self::phaseStepsNext169($nested['cursor_steps'], 'current', $cursor, 'nested-current');
-        $firstNext = self::phaseStepsNext169($base['cursor_steps'], 'first-next', $cursor, 'first-next');
-        $secondNext = self::phaseStepsNext169($base['cursor_steps'], 'second-next', $cursor, 'second-next');
+        $baseCurrent = self::phaseStepsNestedCurrentDrainBeforeStagedSources($base['cursor_steps'], 'current', $cursor, 'current');
+        $nestedCurrent = self::phaseStepsNestedCurrentDrainBeforeStagedSources($nested['cursor_steps'], 'current', $cursor, 'nested-current');
+        $firstNext = self::phaseStepsNestedCurrentDrainBeforeStagedSources($base['cursor_steps'], 'first-next', $cursor, 'first-next');
+        $secondNext = self::phaseStepsNestedCurrentDrainBeforeStagedSources($base['cursor_steps'], 'second-next', $cursor, 'second-next');
         $steps = array_values(array_merge($baseCurrent, $nestedCurrent, $firstNext, $secondNext));
 
         $visible = [];
@@ -2989,8 +2989,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'staged_source_steps' => $stagedCount,
             'visible_steps' => count($visible),
             'held_steps' => count($held),
-            'current_drained_before_nested' => self::orderedBeforeNext169($steps, ['current'], ['nested-current']),
-            'nested_drained_before_staged' => self::orderedBeforeNext169($steps, ['current', 'nested-current'], ['first-next', 'second-next']),
+            'current_drained_before_nested' => self::orderedBeforeNestedCurrentDrainBeforeStagedSources($steps, ['current'], ['nested-current']),
+            'nested_drained_before_staged' => self::orderedBeforeNestedCurrentDrainBeforeStagedSources($steps, ['current', 'nested-current'], ['first-next', 'second-next']),
             'current_source_pinned_until_nested_drains' => $held !== [] && $releaseCount === 0,
             'first_next_visible' => $releaseCount >= 1,
             'second_next_visible' => $releaseCount >= 2,
@@ -3037,7 +3037,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function releaseCountNext169(mixed $value): int
+    private static function releaseCountNestedCurrentDrainBeforeStagedSources(mixed $value): int
     {
         $count = (int) $value;
         if ($count < 0 || $count > 2) {
@@ -3047,7 +3047,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $count;
     }
 
-    private static function tokenNext169(string $value, string $label): string
+    private static function tokenNestedCurrentDrainBeforeStagedSources(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next169 {$label} is malformed");
@@ -3060,7 +3060,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $steps
      * @return list<array<string,mixed>>
      */
-    private static function phaseStepsNext169(mixed $steps, string $sourcePhase, string $cursor, string $phase): array
+    private static function phaseStepsNestedCurrentDrainBeforeStagedSources(mixed $steps, string $sourcePhase, string $cursor, string $phase): array
     {
         if (!is_array($steps) || !array_is_list($steps)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next169 cursor steps are malformed');
@@ -3084,7 +3084,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $early
      * @param list<string> $late
      */
-    private static function orderedBeforeNext169(array $steps, array $early, array $late): bool
+    private static function orderedBeforeNestedCurrentDrainBeforeStagedSources(array $steps, array $early, array $late): bool
     {
         $seenLate = false;
         foreach ($steps as $step) {
@@ -3113,7 +3113,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_staged_sources?:int,max_depth?:int,savepoint?:string,current_generation?:string,first_next_generation?:string,second_next_generation?:string,cursor_name?:string,current_schema_cookie?:int,next_schema_cookie?:int,reprepare_token?:string,expected_reprepare_token?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext170(
+    public static function executeSourceReprepareBarrier(
         array $rows,
         array $currentRoots,
         array $firstNextRoots,
@@ -3123,12 +3123,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentCookie = self::nonNegativeIntNext170($options['current_schema_cookie'] ?? 1, 'current schema cookie');
-        $nextCookie = self::nonNegativeIntNext170($options['next_schema_cookie'] ?? $currentCookie, 'next schema cookie');
-        $token = self::tokenNext170((string) ($options['reprepare_token'] ?? 'wp-recursive-view-returning-next170'), 'reprepare token');
-        $expectedToken = self::tokenNext170((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
+        $currentCookie = self::nonNegativeIntSourceReprepareBarrier($options['current_schema_cookie'] ?? 1, 'current schema cookie');
+        $nextCookie = self::nonNegativeIntSourceReprepareBarrier($options['next_schema_cookie'] ?? $currentCookie, 'next schema cookie');
+        $token = self::tokenSourceReprepareBarrier((string) ($options['reprepare_token'] ?? 'wp-recursive-view-returning-next170'), 'reprepare token');
+        $expectedToken = self::tokenSourceReprepareBarrier((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext165(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentDrainBeforeStagedSources(
             $rows,
             $currentRoots,
             $firstNextRoots,
@@ -3147,18 +3147,18 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $sourceChanged = self::sourceChangedNext170($currentView, $nextView) || $currentCookie !== $nextCookie;
+        $sourceChanged = self::sourceChangedSourceReprepareBarrier($currentView, $nextView) || $currentCookie !== $nextCookie;
         $tokenMatches = $token === $expectedToken;
         $releaseRequested = (int) $base['source_next_plan']['release_count'];
         $releaseAllowed = !$sourceChanged || $tokenMatches;
-        $steps = self::barrierStepsNext170($base['cursor_steps'], $sourceChanged, $releaseAllowed, $currentCookie, $nextCookie, $token, $expectedToken);
+        $steps = self::barrierStepsSourceReprepareBarrier($base['cursor_steps'], $sourceChanged, $releaseAllowed, $currentCookie, $nextCookie, $token, $expectedToken);
         $visible = array_values(array_filter($steps, static fn (array $step): bool => $step['visible_after_barrier']));
         $held = array_values(array_filter($steps, static fn (array $step): bool => !$step['visible_after_barrier']));
         $current = array_values(array_filter($steps, static fn (array $step): bool => $step['phase'] === 'current'));
         $staged = array_values(array_filter($steps, static fn (array $step): bool => $step['phase'] !== 'current'));
 
         return [
-            'status' => self::statusNext170($sourceChanged, $releaseRequested, $releaseAllowed),
+            'status' => self::statusSourceReprepareBarrier($sourceChanged, $releaseRequested, $releaseAllowed),
             'savepoint' => $base['savepoint'],
             'cursor' => $base['cursor'],
             'current_schema_cookie' => $currentCookie,
@@ -3182,7 +3182,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'staged_keys' => array_column($staged, 'visibility_key'),
             'statement_rows' => count($visible),
             'attempted_statement_rows' => count($steps),
-            'current_drained_before_next' => self::currentBeforeStagedNext170($steps),
+            'current_drained_before_next' => self::currentBeforeStagedSourceReprepareBarrier($steps),
             'returning_barrier' => [
                 'current_source_visible' => count($current),
                 'staged_source_attempted' => count($staged),
@@ -3208,7 +3208,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $steps
      * @return list<array<string,mixed>>
      */
-    private static function barrierStepsNext170(array $steps, bool $sourceChanged, bool $releaseAllowed, int $currentCookie, int $nextCookie, string $token, string $expectedToken): array
+    private static function barrierStepsSourceReprepareBarrier(array $steps, bool $sourceChanged, bool $releaseAllowed, int $currentCookie, int $nextCookie, string $token, string $expectedToken): array
     {
         $out = [];
         foreach ($steps as $ordinal => $step) {
@@ -3238,7 +3238,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $currentView
      * @param array<string,mixed> $nextView
      */
-    private static function sourceChangedNext170(array $currentView, array $nextView): bool
+    private static function sourceChangedSourceReprepareBarrier(array $currentView, array $nextView): bool
     {
         foreach (['source', 'trigger_source', 'trigger', 'name'] as $key) {
             if ((string) ($currentView[$key] ?? '') !== (string) ($nextView[$key] ?? '')) {
@@ -3249,7 +3249,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return false;
     }
 
-    private static function statusNext170(bool $sourceChanged, int $releaseRequested, bool $releaseAllowed): string
+    private static function statusSourceReprepareBarrier(bool $sourceChanged, int $releaseRequested, bool $releaseAllowed): string
     {
         if ($sourceChanged && !$releaseAllowed) {
             return 'trigger-recursive-view-returning-current-source-reprepare-held-next170';
@@ -3264,7 +3264,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $steps
      */
-    private static function currentBeforeStagedNext170(array $steps): bool
+    private static function currentBeforeStagedSourceReprepareBarrier(array $steps): bool
     {
         $seenStaged = false;
         foreach ($steps as $step) {
@@ -3280,7 +3280,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return true;
     }
 
-    private static function nonNegativeIntNext170(mixed $value, string $label): int
+    private static function nonNegativeIntSourceReprepareBarrier(mixed $value, string $label): int
     {
         $int = (int) $value;
         if ($int < 0) {
@@ -3290,7 +3290,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $int;
     }
 
-    private static function tokenNext170(string $value, string $label): string
+    private static function tokenSourceReprepareBarrier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next170 {$label} is malformed");
@@ -3311,7 +3311,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,acknowledged_current_pages?:int} $options
      * @return array<string,mixed>
      */
-    public static function executeNext171(
+    public static function executeReturningCursorWatermark(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -3325,7 +3325,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite recursive view RETURNING next171 acknowledged pages must be non-negative');
         }
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext167(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeReturningDrainPageCursor(
             $rows,
             $currentInput,
             $nextInput,
@@ -3364,7 +3364,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'next_source_visible_after_cursor_close' => $nextVisible,
             'visible_returning_pages_next171' => $visiblePages,
             'blocked_next_source_pages_next171' => $blockedPages,
-            'cursor_watermark_next171' => self::watermarkNext171($base['drain_cursor'], $acknowledged, $currentPageCount),
+            'cursor_watermark_next171' => self::watermarkReturningCursorWatermark($base['drain_cursor'], $acknowledged, $currentPageCount),
             'yield_boundary_next171' => match (true) {
                 !$fullyAcknowledged => 'recursive-view-returning-next171-open-current-cursor-fences-next-source',
                 $nextVisible => 'recursive-view-returning-next171-current-cursor-closed-next-source-visible',
@@ -3378,7 +3378,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function watermarkNext171(string $cursor, int $acknowledged, int $total): string
+    private static function watermarkReturningCursorWatermark(string $cursor, int $acknowledged, int $total): string
     {
         return $cursor . ':ack-' . $acknowledged . '-of-' . $total;
     }
@@ -3395,7 +3395,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext172(
+    public static function executeRecursiveChildYieldStream(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -3404,12 +3404,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::identifierNext172((string) ($options['key'] ?? 'option_name'), 'key column');
-        $savepoint = self::tokenNext172((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next172'), 'savepoint');
+        $key = self::identifierRecursiveChildYieldStream((string) ($options['key'] ?? 'option_name'), 'key column');
+        $savepoint = self::tokenRecursiveChildYieldStream((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next172'), 'savepoint');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
         $recursive = (bool) ($options['recursive_triggers'] ?? true);
         $maxDepth = (int) ($options['max_depth'] ?? 2);
-        $childSuffix = self::tokenNext172((string) ($options['child_suffix'] ?? ':child'), 'child suffix');
+        $childSuffix = self::tokenRecursiveChildYieldStream((string) ($options['child_suffix'] ?? ':child'), 'child suffix');
         if ($maxDepth < 0 || $maxDepth > 32) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next172 max depth must be between 0 and 32');
         }
@@ -3417,13 +3417,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite recursive view RETURNING next172 projection cannot be empty');
         }
 
-        $baseRows = self::normalizeRowsNext172($baseRows, $key);
-        $currentView = self::normalizeViewNext172($currentView, 'current view');
-        $nextView = self::normalizeViewNext172($nextView, 'next view');
+        $baseRows = self::normalizeRowsRecursiveChildYieldStream($baseRows, $key);
+        $currentView = self::normalizeViewRecursiveChildYieldStream($currentView, 'current view');
+        $nextView = self::normalizeViewRecursiveChildYieldStream($nextView, 'next view');
 
-        $current = self::runSourceNext172($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, $childSuffix, 'current');
+        $current = self::runSourceRecursiveChildYieldStream($baseRows, $currentInput, $currentView, $returning, $key, $recursive, $maxDepth, $childSuffix, 'current');
         $nextBase = $admitNext ? $current['rows'] : $baseRows;
-        $nextAttempt = self::runSourceNext172($nextBase, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, $childSuffix, 'next');
+        $nextAttempt = self::runSourceRecursiveChildYieldStream($nextBase, $nextInput, $nextView, $returning, $key, $recursive, $maxDepth, $childSuffix, 'next');
 
         $attemptedStream = array_merge($current['yield_stream'], $nextAttempt['yield_stream']);
         $visibleStream = $admitNext ? $attemptedStream : $current['yield_stream'];
@@ -3437,17 +3437,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'recursive_triggers' => $recursive,
             'max_depth' => $maxDepth,
             'child_suffix' => $childSuffix,
-            'current_view' => self::viewSummaryNext172($currentView),
-            'next_view' => self::viewSummaryNext172($nextView),
-            'visible_view' => self::viewSummaryNext172($admitNext ? $nextView : $currentView),
+            'current_view' => self::viewSummaryRecursiveChildYieldStream($currentView),
+            'next_view' => self::viewSummaryRecursiveChildYieldStream($nextView),
+            'visible_view' => self::viewSummaryRecursiveChildYieldStream($admitNext ? $nextView : $currentView),
             'before_rows' => $baseRows,
             'current_rows' => $current['rows'],
             'after_savepoint' => $admitNext ? $nextAttempt['rows'] : $baseRows,
             'current_returning_rows' => $current['returning_rows'],
             'next_returning_rows' => $admitNext ? $nextAttempt['returning_rows'] : [],
             'attempted_next_returning_rows' => $nextAttempt['returning_rows'],
-            'visible_returning_rows' => self::returningOnlyNext172($visibleStream),
-            'suppressed_returning_rows' => $admitNext ? [] : self::returningOnlyNext172($nextAttempt['yield_stream']),
+            'visible_returning_rows' => self::returningOnlyRecursiveChildYieldStream($visibleStream),
+            'suppressed_returning_rows' => $admitNext ? [] : self::returningOnlyRecursiveChildYieldStream($nextAttempt['yield_stream']),
             'current_yield_stream' => $current['yield_stream'],
             'next_yield_stream' => $admitNext ? $nextAttempt['yield_stream'] : [],
             'attempted_next_yield_stream' => $nextAttempt['yield_stream'],
@@ -3490,7 +3490,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array{rows:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int,statement_rows:int,recursive_rows:int}
      */
-    private static function runSourceNext172(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $childSuffix, string $phase): array
+    private static function runSourceRecursiveChildYieldStream(array $rows, array $input, array $view, array $returning, string $key, bool $recursive, int $maxDepth, string $childSuffix, string $phase): array
     {
         $yield = [];
         $returningRows = [];
@@ -3503,12 +3503,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             if (!is_array($viewRow)) {
                 throw new InvalidArgumentException('SQLite recursive view RETURNING next172 input row must be an array');
             }
-            $queue[] = [self::projectViewRowNext172($viewRow, $view), (int) $ordinal, 0, 'statement'];
+            $queue[] = [self::projectViewRowRecursiveChildYieldStream($viewRow, $view), (int) $ordinal, 0, 'statement'];
         }
 
         while ($queue !== []) {
             [$incoming, $ordinal, $depth, $origin] = array_shift($queue);
-            $index = self::rowIndexNext172($rows, $incoming, $key);
+            $index = self::rowIndexRecursiveChildYieldStream($rows, $incoming, $key);
             $old = $index === null ? null : $rows[$index];
             $event = $old === null ? 'insert' : 'update';
             $new = $old === null ? $incoming : array_replace($old, $incoming);
@@ -3522,7 +3522,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $rows[$index] = $new;
             }
 
-            $returningRow = self::returningRowNext172($returning, $new, $old, $incoming, $event, $ordinal, $depth, $view['trigger_source']);
+            $returningRow = self::returningRowRecursiveChildYieldStream($returning, $new, $old, $incoming, $event, $ordinal, $depth, $view['trigger_source']);
             $envelope = [
                 'phase' => $phase,
                 'source' => $view['source'],
@@ -3571,7 +3571,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function rowIndexNext172(array $rows, array $incoming, string $key): ?int
+    private static function rowIndexRecursiveChildYieldStream(array $rows, array $incoming, string $key): ?int
     {
         if (!array_key_exists($key, $incoming)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next172 incoming row key {$key} is missing");
@@ -3589,7 +3589,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function normalizeRowsNext172(array $rows, string $key): array
+    private static function normalizeRowsRecursiveChildYieldStream(array $rows, string $key): array
     {
         if (!array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next172 rows must be a list');
@@ -3613,7 +3613,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $view
      * @return array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,audit_label:string}
      */
-    private static function normalizeViewNext172(array $view, string $label): array
+    private static function normalizeViewRecursiveChildYieldStream(array $view, string $label): array
     {
         $columns = $view['columns'] ?? null;
         $mapping = $view['mapping'] ?? null;
@@ -3624,20 +3624,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException("SQLite recursive view RETURNING next172 {$label} mapping must not be empty");
         }
         $normalized = [
-            'name' => self::identifierNext172((string) ($view['name'] ?? ''), $label . ' name'),
-            'source' => self::tokenNext172((string) ($view['source'] ?? ''), $label . ' source'),
-            'trigger' => self::identifierNext172((string) ($view['trigger'] ?? ''), $label . ' trigger'),
-            'trigger_source' => self::tokenNext172((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
-            'columns' => array_map(static fn (mixed $column): string => self::identifierNext172((string) $column, $label . ' column'), $columns),
+            'name' => self::identifierRecursiveChildYieldStream((string) ($view['name'] ?? ''), $label . ' name'),
+            'source' => self::tokenRecursiveChildYieldStream((string) ($view['source'] ?? ''), $label . ' source'),
+            'trigger' => self::identifierRecursiveChildYieldStream((string) ($view['trigger'] ?? ''), $label . ' trigger'),
+            'trigger_source' => self::tokenRecursiveChildYieldStream((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
+            'columns' => array_map(static fn (mixed $column): string => self::identifierRecursiveChildYieldStream((string) $column, $label . ' column'), $columns),
             'mapping' => [],
-            'audit_label' => self::tokenNext172((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
+            'audit_label' => self::tokenRecursiveChildYieldStream((string) ($view['audit_label'] ?? $label), $label . ' audit label'),
         ];
         foreach ($mapping as $viewColumn => $tableColumn) {
-            $viewColumn = self::identifierNext172((string) $viewColumn, $label . ' mapping view column');
+            $viewColumn = self::identifierRecursiveChildYieldStream((string) $viewColumn, $label . ' mapping view column');
             if (!in_array($viewColumn, $normalized['columns'], true)) {
                 throw new InvalidArgumentException("SQLite recursive view RETURNING next172 mapping column {$viewColumn} is not in the view");
             }
-            $normalized['mapping'][$viewColumn] = self::identifierNext172((string) $tableColumn, $label . ' mapping table column');
+            $normalized['mapping'][$viewColumn] = self::identifierRecursiveChildYieldStream((string) $tableColumn, $label . ' mapping table column');
         }
 
         return $normalized;
@@ -3647,7 +3647,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function projectViewRowNext172(array $viewRow, array $view): array
+    private static function projectViewRowRecursiveChildYieldStream(array $viewRow, array $view): array
     {
         $incoming = [];
         foreach ($view['mapping'] as $viewColumn => $tableColumn) {
@@ -3667,7 +3667,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string,int,int,string):mixed> $returning
      * @return array<string,mixed>
      */
-    private static function returningRowNext172(array $returning, array $new, ?array $old, array $incoming, string $event, int $ordinal, int $depth, string $triggerSource): array
+    private static function returningRowRecursiveChildYieldStream(array $returning, array $new, ?array $old, array $incoming, string $event, int $ordinal, int $depth, string $triggerSource): array
     {
         $row = [];
         foreach ($returning as $index => $expr) {
@@ -3677,11 +3677,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             }
             $alias = null;
             if (is_array($expr)) {
-                $alias = isset($expr['as']) ? self::identifierNext172((string) $expr['as'], 'RETURNING alias') : null;
+                $alias = isset($expr['as']) ? self::identifierRecursiveChildYieldStream((string) $expr['as'], 'RETURNING alias') : null;
                 $expr = (string) ($expr['expr'] ?? '');
             }
             $expr = trim((string) $expr);
-            $column = $alias ?? self::identifierNext172(str_replace('.', '_', $expr), 'RETURNING expression');
+            $column = $alias ?? self::identifierRecursiveChildYieldStream(str_replace('.', '_', $expr), 'RETURNING expression');
             $row[$column] = match (true) {
                 str_starts_with($expr, 'new.') => $new[substr($expr, 4)] ?? null,
                 str_starts_with($expr, 'old.') => $old === null ? null : ($old[substr($expr, 4)] ?? null),
@@ -3701,7 +3701,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $stream
      * @return list<array<string,mixed>>
      */
-    private static function returningOnlyNext172(array $stream): array
+    private static function returningOnlyRecursiveChildYieldStream(array $stream): array
     {
         return array_values(array_map(static fn (array $row): array => (array) $row['returning'], $stream));
     }
@@ -3710,7 +3710,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,columns:list<string>,mapping:array<string,string>,audit_label:string} $view
      * @return array<string,mixed>
      */
-    private static function viewSummaryNext172(array $view): array
+    private static function viewSummaryRecursiveChildYieldStream(array $view): array
     {
         return [
             'name' => $view['name'],
@@ -3723,7 +3723,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function identifierNext172(string $value, string $label): string
+    private static function identifierRecursiveChildYieldStream(string $value, string $label): string
     {
         if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next172 invalid {$label}: {$value}");
@@ -3732,7 +3732,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext172(string $value, string $label): string
+    private static function tokenRecursiveChildYieldStream(string $value, string $label): string
     {
         if ($value === '' || preg_match('/\s/', $value)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next172 invalid {$label}: {$value}");
@@ -3753,7 +3753,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext173(
+    public static function executeVisibleSourceGenerationFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -3762,7 +3762,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $prepared = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext167(
+        $prepared = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeReturningDrainPageCursor(
             $rows,
             $currentInput,
             $nextInput,
@@ -3772,15 +3772,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + ['admit_next_source' => true],
         );
 
-        $currentPages = self::pagesNext173($prepared['current_returning_pages'], 'current returning pages');
-        $nextPages = self::pagesNext173($prepared['next_returning_pages'], 'next returning pages');
+        $currentPages = self::pagesVisibleSourceGenerationFence($prepared['current_returning_pages'], 'current returning pages');
+        $nextPages = self::pagesVisibleSourceGenerationFence($prepared['next_returning_pages'], 'next returning pages');
         $currentSignature = (string) ($prepared['source_signatures']['current'] ?? '');
         $resumeSignature = (string) ($options['resume_source_signature'] ?? $currentSignature);
         if ($resumeSignature === '') {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next173 resume source signature is empty');
         }
 
-        $drainedCount = self::drainedCountNext173($options['drained_current_pages'] ?? count($currentPages), count($currentPages));
+        $drainedCount = self::drainedCountVisibleSourceGenerationFence($options['drained_current_pages'] ?? count($currentPages), count($currentPages));
         $drainedCurrentPages = array_slice($currentPages, 0, $drainedCount);
         $pendingCurrentPages = array_slice($currentPages, $drainedCount);
         $currentExhausted = count($pendingCurrentPages) === 0;
@@ -3842,7 +3842,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $pages
      * @return list<array<string,mixed>>
      */
-    private static function pagesNext173(mixed $pages, string $label): array
+    private static function pagesVisibleSourceGenerationFence(mixed $pages, string $label): array
     {
         if (!is_array($pages) || !array_is_list($pages)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next173 {$label} are malformed");
@@ -3851,7 +3851,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $pages;
     }
 
-    private static function drainedCountNext173(mixed $value, int $total): int
+    private static function drainedCountVisibleSourceGenerationFence(mixed $value, int $total): int
     {
         $count = (int) $value;
         if ($count < 0 || $count > $total) {
@@ -3874,7 +3874,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{release_staged_sources?:int,max_depth?:int,savepoint?:string,current_generation?:string,first_next_generation?:string,second_next_generation?:string,cursor_name?:string,current_schema_cookie?:int,next_schema_cookie?:int,reprepare_token?:string,expected_reprepare_token?:string,conflict_key_separator?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext174(
+    public static function executeNextViewSourceHoldFence(
         array $rows,
         array $currentRoots,
         array $firstNextRoots,
@@ -3884,8 +3884,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $separator = self::separatorNext174((string) ($options['conflict_key_separator'] ?? ':'));
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext170(
+        $separator = self::separatorNextViewSourceHoldFence((string) ($options['conflict_key_separator'] ?? ':'));
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSourceReprepareBarrier(
             $rows,
             $currentRoots,
             $firstNextRoots,
@@ -3908,14 +3908,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $steps = self::watermarkedStepsNext174($base['barrier_steps'], $separator);
+        $steps = self::watermarkedStepsNextViewSourceHoldFence($base['barrier_steps'], $separator);
         $visible = array_values(array_filter($steps, static fn (array $step): bool => $step['visible_after_watermark']));
         $held = array_values(array_filter($steps, static fn (array $step): bool => !$step['visible_after_watermark']));
         $conflicts = array_values(array_filter($steps, static fn (array $step): bool => $step['conflicts_with_current_key']));
         $stagedConflicts = array_values(array_filter($conflicts, static fn (array $step): bool => $step['phase'] !== 'current'));
 
         return [
-            'status' => self::statusNext174($base, $stagedConflicts),
+            'status' => self::statusNextViewSourceHoldFence($base, $stagedConflicts),
             'savepoint' => $base['savepoint'],
             'cursor' => $base['cursor'],
             'base' => $base,
@@ -3961,7 +3961,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $steps
      * @return list<array<string,mixed>>
      */
-    private static function watermarkedStepsNext174(mixed $steps, string $separator): array
+    private static function watermarkedStepsNextViewSourceHoldFence(mixed $steps, string $separator): array
     {
         if (!is_array($steps) || !array_is_list($steps)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next174 barrier steps are malformed');
@@ -3973,7 +3973,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             if (!is_array($step) || !isset($step['visibility_key'], $step['phase'])) {
                 throw new InvalidArgumentException('SQLite trigger recursive view next174 barrier step is malformed');
             }
-            $logicalKey = self::logicalKeyNext174((string) $step['visibility_key'], $separator);
+            $logicalKey = self::logicalKeyNextViewSourceHoldFence((string) $step['visibility_key'], $separator);
             $isCurrent = $step['phase'] === 'current';
             if ($isCurrent) {
                 $currentKeys[$logicalKey] = true;
@@ -3991,7 +3991,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $out;
     }
 
-    private static function logicalKeyNext174(string $visibilityKey, string $separator): string
+    private static function logicalKeyNextViewSourceHoldFence(string $visibilityKey, string $separator): string
     {
         $offset = strrpos($visibilityKey, $separator);
         if ($offset === false || $offset === strlen($visibilityKey) - strlen($separator)) {
@@ -4001,7 +4001,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return substr($visibilityKey, $offset + strlen($separator));
     }
 
-    private static function statusNext174(array $base, array $stagedConflicts): string
+    private static function statusNextViewSourceHoldFence(array $base, array $stagedConflicts): string
     {
         if ($stagedConflicts !== []) {
             return 'trigger-recursive-view-returning-current-source-watermark-held-next174';
@@ -4013,7 +4013,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-watermark-drained-next174';
     }
 
-    private static function separatorNext174(string $value): string
+    private static function separatorNextViewSourceHoldFence(string $value): string
     {
         if ($value === '') {
             throw new InvalidArgumentException('SQLite trigger recursive view next174 conflict key separator must not be empty');
@@ -4034,7 +4034,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int} $options
      * @return array<string,mixed>
      */
-    public static function executeNext175(
+    public static function executeCurrentSourceCheckpointFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -4043,11 +4043,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $action = self::actionNext175((string) ($options['savepoint_action'] ?? 'hold'));
-        $restartCursor = self::tokenNext175((string) ($options['restart_cursor'] ?? 'wp-recursive-view-returning-restart-175'), 'restart cursor');
-        $epoch = self::epochNext175($options['current_source_epoch'] ?? 0);
+        $action = self::actionCurrentSourceCheckpointFence((string) ($options['savepoint_action'] ?? 'hold'));
+        $restartCursor = self::tokenCurrentSourceCheckpointFence((string) ($options['restart_cursor'] ?? 'wp-recursive-view-returning-restart-175'), 'restart cursor');
+        $epoch = self::epochCurrentSourceCheckpointFence($options['current_source_epoch'] ?? 0);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext173(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeVisibleSourceGenerationFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -4059,13 +4059,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $currentExhausted = (bool) ($base['current_cursor_exhausted'] ?? false);
         $sourceMatches = (bool) ($base['resume_source_matches_current'] ?? false);
-        $nextPrepared = self::pagesNext175($base['next_returning_pages'] ?? [], 'next returning pages');
+        $nextPrepared = self::pagesCurrentSourceCheckpointFence($base['next_returning_pages'] ?? [], 'next returning pages');
         $nextAdmittedByCursor = (bool) ($base['next_source_admitted_next173'] ?? false);
         $canRelease = $action === 'release' && $currentExhausted && $sourceMatches && $nextAdmittedByCursor;
         $rolledBack = $action === 'rollback';
         $held = !$canRelease;
 
-        $blockedReasons = self::stringsNext175($base['next_source_block_reasons_next173'] ?? [], 'block reasons');
+        $blockedReasons = self::stringsCurrentSourceCheckpointFence($base['next_source_block_reasons_next173'] ?? [], 'block reasons');
         if ($action === 'hold') {
             $blockedReasons[] = 'savepoint-release-not-requested';
         }
@@ -4077,10 +4077,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
         $blockedReasons = array_values(array_unique($blockedReasons));
 
-        $drainedCurrent = self::pagesNext175($base['drained_current_pages'] ?? [], 'drained current pages');
-        $pendingCurrent = self::pagesNext175($base['pending_current_pages'] ?? [], 'pending current pages');
+        $drainedCurrent = self::pagesCurrentSourceCheckpointFence($base['drained_current_pages'] ?? [], 'drained current pages');
+        $pendingCurrent = self::pagesCurrentSourceCheckpointFence($base['pending_current_pages'] ?? [], 'pending current pages');
         $visiblePages = $canRelease
-            ? self::pagesNext175($base['visible_returning_pages_next173'] ?? [], 'visible returning pages')
+            ? self::pagesCurrentSourceCheckpointFence($base['visible_returning_pages_next173'] ?? [], 'visible returning pages')
             : $drainedCurrent;
         $queuedNext = $canRelease ? [] : $nextPrepared;
 
@@ -4136,7 +4136,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function actionNext175(string $action): string
+    private static function actionCurrentSourceCheckpointFence(string $action): string
     {
         if (!in_array($action, ['hold', 'release', 'rollback'], true)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next175 savepoint action is unsupported');
@@ -4145,7 +4145,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $action;
     }
 
-    private static function tokenNext175(string $value, string $label): string
+    private static function tokenCurrentSourceCheckpointFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next175 {$label} is malformed");
@@ -4154,7 +4154,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function epochNext175(mixed $value): int
+    private static function epochCurrentSourceCheckpointFence(mixed $value): int
     {
         $epoch = (int) $value;
         if ($epoch < 0) {
@@ -4168,7 +4168,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $pages
      * @return list<array<string,mixed>>
      */
-    private static function pagesNext175(mixed $pages, string $label): array
+    private static function pagesCurrentSourceCheckpointFence(mixed $pages, string $label): array
     {
         if (!is_array($pages) || !array_is_list($pages)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next175 {$label} are malformed");
@@ -4181,7 +4181,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext175(mixed $values, string $label): array
+    private static function stringsCurrentSourceCheckpointFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next175 {$label} are malformed");
@@ -4202,7 +4202,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,acknowledged_current_page_indexes?:list<int>,resume_source_signature?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext176(
+    public static function executeRecursiveViewReturningCheckpointFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -4211,7 +4211,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $prepared = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext173(
+        $prepared = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeVisibleSourceGenerationFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -4221,9 +4221,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + ['admit_next_source' => true],
         );
 
-        $currentPages = self::pagesNext176($prepared['current_returning_pages'] ?? null);
-        $acknowledged = self::acknowledgedIndexesNext176($options['acknowledged_current_page_indexes'] ?? array_keys($currentPages), count($currentPages));
-        $contiguous = self::isContiguousPrefixNext176($acknowledged);
+        $currentPages = self::pagesRecursiveViewReturningCheckpointFence($prepared['current_returning_pages'] ?? null);
+        $acknowledged = self::acknowledgedIndexesRecursiveViewReturningCheckpointFence($options['acknowledged_current_page_indexes'] ?? array_keys($currentPages), count($currentPages));
+        $contiguous = self::isContiguousPrefixRecursiveViewReturningCheckpointFence($acknowledged);
         $drainedCount = $contiguous ? count($acknowledged) : 0;
 
         $drainOptions = $options;
@@ -4231,7 +4231,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $drainOptions['admit_next_source'] = (bool) ($options['admit_next_source'] ?? false);
         unset($drainOptions['acknowledged_current_page_indexes']);
 
-        $gated = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext173(
+        $gated = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeVisibleSourceGenerationFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -4289,7 +4289,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function pagesNext176(mixed $pages): array
+    private static function pagesRecursiveViewReturningCheckpointFence(mixed $pages): array
     {
         if (!is_array($pages) || !array_is_list($pages)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next176 current pages are malformed');
@@ -4302,7 +4302,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $indexes
      * @return list<int>
      */
-    private static function acknowledgedIndexesNext176(mixed $indexes, int $total): array
+    private static function acknowledgedIndexesRecursiveViewReturningCheckpointFence(mixed $indexes, int $total): array
     {
         if (!is_array($indexes) || !array_is_list($indexes)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next176 acknowledged page indexes must be a list');
@@ -4323,7 +4323,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<int> $indexes
      */
-    private static function isContiguousPrefixNext176(array $indexes): bool
+    private static function isContiguousPrefixRecursiveViewReturningCheckpointFence(array $indexes): bool
     {
         foreach ($indexes as $offset => $index) {
             if ($index !== $offset) {
@@ -4346,7 +4346,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int} $options
      * @return array<string,mixed>
      */
-    public static function executeNext177(
+    public static function executeCurrentSourceDrainTicketFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -4355,14 +4355,14 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $cursor = self::tokenNext177((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_177'), 'cursor name');
-        $currentGeneration = self::tokenNext177((string) ($options['current_generation'] ?? 'wp-current-returning-177'), 'current generation');
-        $nextGeneration = self::tokenNext177((string) ($options['next_generation'] ?? 'wp-next-returning-177'), 'next generation');
-        $token = self::tokenNext177((string) ($options['reprepare_token'] ?? 'wp.reprepare.177'), 'reprepare token');
-        $expectedToken = self::tokenNext177((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
-        $pageSize = self::positiveIntNext177($options['page_size'] ?? 3, 'page size');
+        $cursor = self::tokenCurrentSourceDrainTicketFence((string) ($options['cursor_name'] ?? 'wp_recursive_view_returning_cursor_177'), 'cursor name');
+        $currentGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['current_generation'] ?? 'wp-current-returning-177'), 'current generation');
+        $nextGeneration = self::tokenCurrentSourceDrainTicketFence((string) ($options['next_generation'] ?? 'wp-next-returning-177'), 'next generation');
+        $token = self::tokenCurrentSourceDrainTicketFence((string) ($options['reprepare_token'] ?? 'wp.reprepare.177'), 'reprepare token');
+        $expectedToken = self::tokenCurrentSourceDrainTicketFence((string) ($options['expected_reprepare_token'] ?? $token), 'expected reprepare token');
+        $pageSize = self::positiveIntCurrentSourceDrainTicketFence($options['page_size'] ?? 3, 'page size');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext172(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveChildYieldStream(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -4380,8 +4380,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $tokenMatches = $token === $expectedToken;
-        $currentRows = self::annotateRowsNext177($base['current_yield_stream'], $cursor, $currentGeneration, 'current', true, 0, $pageSize);
-        $attemptedNextRows = self::annotateRowsNext177(
+        $currentRows = self::annotateRowsCurrentSourceDrainTicketFence($base['current_yield_stream'], $cursor, $currentGeneration, 'current', true, 0, $pageSize);
+        $attemptedNextRows = self::annotateRowsCurrentSourceDrainTicketFence(
             $base['attempted_next_yield_stream'],
             $cursor,
             $nextGeneration,
@@ -4400,7 +4400,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $heldNextRows = array_values(array_filter($attemptedNextRows, static fn (array $row): bool => !$row['visible_after_current_source']));
 
         return [
-            'status' => self::statusNext177($base, $tokenMatches, $admittedNextRows, $heldNextRows),
+            'status' => self::statusCurrentSourceDrainTicketFence($base, $tokenMatches, $admittedNextRows, $heldNextRows),
             'savepoint' => $base['savepoint'],
             'cursor' => $cursor,
             'current_generation' => $currentGeneration,
@@ -4423,7 +4423,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'current_last_resume_token' => $currentLastToken,
             'next_first_resume_token' => $nextFirstToken,
             'resume_boundary' => [
-                'current_drained_before_next' => self::currentDrainedBeforeNextNext177($attemptedRows),
+                'current_drained_before_next' => self::currentDrainedBeforeNextCurrentSourceDrainTicketFence($attemptedRows),
                 'current_last_resume_token' => $currentLastToken,
                 'next_first_resume_token' => $nextFirstToken,
                 'next_admitted' => $admittedNextRows !== [],
@@ -4437,7 +4437,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'attempted_next' => count($attemptedNextRows),
                 'visible' => count($visibleRows),
                 'held' => count($heldRows),
-                'pages' => self::pageCountNext177(count($attemptedRows), $pageSize),
+                'pages' => self::pageCountCurrentSourceDrainTicketFence(count($attemptedRows), $pageSize),
             ],
             'yield_boundary' => $heldNextRows === []
                 ? 'recursive-view-returning-current-source-resume-next177-next-visible'
@@ -4456,7 +4456,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function annotateRowsNext177(mixed $rows, string $cursor, string $generation, string $phase, bool $visible, int $offset, int $pageSize): array
+    private static function annotateRowsCurrentSourceDrainTicketFence(mixed $rows, string $cursor, string $generation, string $phase, bool $visible, int $offset, int $pageSize): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next177 rows are malformed');
@@ -4496,7 +4496,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function currentDrainedBeforeNextNext177(array $rows): bool
+    private static function currentDrainedBeforeNextCurrentSourceDrainTicketFence(array $rows): bool
     {
         $seenNext = false;
         foreach ($rows as $row) {
@@ -4512,7 +4512,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return true;
     }
 
-    private static function pageCountNext177(int $rows, int $pageSize): int
+    private static function pageCountCurrentSourceDrainTicketFence(int $rows, int $pageSize): int
     {
         if ($rows === 0) {
             return 0;
@@ -4521,7 +4521,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return (int) ceil($rows / $pageSize);
     }
 
-    private static function statusNext177(array $base, bool $tokenMatches, array $admittedNextRows, array $heldNextRows): string
+    private static function statusCurrentSourceDrainTicketFence(array $base, bool $tokenMatches, array $admittedNextRows, array $heldNextRows): string
     {
         if (!$tokenMatches) {
             return 'trigger-recursive-view-returning-current-source-next177-reprepare-held';
@@ -4536,7 +4536,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next177-current-only';
     }
 
-    private static function tokenNext177(string $value, string $label): string
+    private static function tokenCurrentSourceDrainTicketFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next177 {$label} is malformed");
@@ -4545,7 +4545,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function positiveIntNext177(mixed $value, string $label): int
+    private static function positiveIntCurrentSourceDrainTicketFence(mixed $value, string $label): int
     {
         $int = (int) $value;
         if ($int < 1) {
@@ -4567,7 +4567,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int} $options
      * @return array<string,mixed>
      */
-    public static function executeNext178(
+    public static function executeNextSourcePublicationFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -4576,12 +4576,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $snapshotToken = self::tokenNext178((string) ($options['snapshot_token'] ?? 'wp.recursive.view.returning.snapshot.178'), 'snapshot token');
-        $expectedSnapshotToken = self::tokenNext178((string) ($options['expected_snapshot_token'] ?? $snapshotToken), 'expected snapshot token');
-        $schemaCookie = self::cookieNext178($options['current_schema_cookie'] ?? 178, 'current schema cookie');
-        $expectedSchemaCookie = self::cookieNext178($options['expected_current_schema_cookie'] ?? $schemaCookie, 'expected current schema cookie');
+        $snapshotToken = self::tokenNextSourcePublicationFence((string) ($options['snapshot_token'] ?? 'wp.recursive.view.returning.snapshot.178'), 'snapshot token');
+        $expectedSnapshotToken = self::tokenNextSourcePublicationFence((string) ($options['expected_snapshot_token'] ?? $snapshotToken), 'expected snapshot token');
+        $schemaCookie = self::cookieNextSourcePublicationFence($options['current_schema_cookie'] ?? 178, 'current schema cookie');
+        $expectedSchemaCookie = self::cookieNextSourcePublicationFence($options['expected_current_schema_cookie'] ?? $schemaCookie, 'expected current schema cookie');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext175(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceCheckpointFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -4594,16 +4594,16 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $snapshotMatches = hash_equals($snapshotToken, $expectedSnapshotToken);
         $schemaMatches = $schemaCookie === $expectedSchemaCookie;
         $releaseAllowed = (bool) ($base['savepoint_release_allowed_next175'] ?? false);
-        $currentPages = self::pagesNext178($base['drained_current_pages'] ?? [], 'drained current pages');
-        $nextPages = self::pagesNext178($base['next_returning_pages'] ?? [], 'next returning pages');
-        $visiblePages = self::pagesNext178($base['visible_returning_pages_next175'] ?? [], 'visible returning pages');
+        $currentPages = self::pagesNextSourcePublicationFence($base['drained_current_pages'] ?? [], 'drained current pages');
+        $nextPages = self::pagesNextSourcePublicationFence($base['next_returning_pages'] ?? [], 'next returning pages');
+        $visiblePages = self::pagesNextSourcePublicationFence($base['visible_returning_pages_next175'] ?? [], 'visible returning pages');
         $snapshotStable = $snapshotMatches && $schemaMatches;
 
-        $visibleRows = $snapshotStable ? self::flattenRowsNext178($visiblePages, $snapshotToken, $schemaCookie) : self::flattenRowsNext178($currentPages, $snapshotToken, $schemaCookie);
-        $queuedNextRows = $releaseAllowed && $snapshotStable ? [] : self::flattenRowsNext178($nextPages, $snapshotToken, $schemaCookie);
+        $visibleRows = $snapshotStable ? self::flattenRowsNextSourcePublicationFence($visiblePages, $snapshotToken, $schemaCookie) : self::flattenRowsNextSourcePublicationFence($currentPages, $snapshotToken, $schemaCookie);
+        $queuedNextRows = $releaseAllowed && $snapshotStable ? [] : self::flattenRowsNextSourcePublicationFence($nextPages, $snapshotToken, $schemaCookie);
         $currentRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'current'));
         $nextRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'next'));
-        $blockedReasons = self::stringsNext178($base['blocked_reasons_next175'] ?? [], 'blocked reasons');
+        $blockedReasons = self::stringsNextSourcePublicationFence($base['blocked_reasons_next175'] ?? [], 'blocked reasons');
         if (!$snapshotMatches) {
             $blockedReasons[] = 'current-source-returning-snapshot-token-mismatch';
         }
@@ -4664,7 +4664,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $pages
      * @return list<array<string,mixed>>
      */
-    private static function flattenRowsNext178(array $pages, string $snapshotToken, int $schemaCookie): array
+    private static function flattenRowsNextSourcePublicationFence(array $pages, string $snapshotToken, int $schemaCookie): array
     {
         $rows = [];
         foreach ($pages as $page) {
@@ -4694,7 +4694,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $pages
      * @return list<array<string,mixed>>
      */
-    private static function pagesNext178(mixed $pages, string $label): array
+    private static function pagesNextSourcePublicationFence(mixed $pages, string $label): array
     {
         if (!is_array($pages) || !array_is_list($pages)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next178 {$label} are malformed");
@@ -4707,7 +4707,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext178(mixed $values, string $label): array
+    private static function stringsNextSourcePublicationFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next178 {$label} are malformed");
@@ -4716,7 +4716,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_map(static fn (mixed $value): string => (string) $value, $values);
     }
 
-    private static function cookieNext178(mixed $value, string $label): int
+    private static function cookieNextSourcePublicationFence(mixed $value, string $label): int
     {
         $cookie = (int) $value;
         if ($cookie < 0) {
@@ -4726,7 +4726,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $cookie;
     }
 
-    private static function tokenNext178(string $value, string $label): string
+    private static function tokenNextSourcePublicationFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next178 {$label} is malformed");
@@ -4747,7 +4747,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,current_source_token?:string,expected_current_source_token?:string,drain_ack_token?:string,expected_drain_ack_token?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext180(
+    public static function executeResetGenerationCurrentSourceFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -4756,12 +4756,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentToken = self::tokenNext180((string) ($options['current_source_token'] ?? 'wp.current.source.180'), 'current source token');
-        $expectedCurrentToken = self::tokenNext180((string) ($options['expected_current_source_token'] ?? $currentToken), 'expected current source token');
-        $drainAck = self::tokenNext180((string) ($options['drain_ack_token'] ?? 'wp.returning.drain.180'), 'drain ack token');
-        $expectedDrainAck = self::tokenNext180((string) ($options['expected_drain_ack_token'] ?? $drainAck), 'expected drain ack token');
+        $currentToken = self::tokenResetGenerationCurrentSourceFence((string) ($options['current_source_token'] ?? 'wp.current.source.180'), 'current source token');
+        $expectedCurrentToken = self::tokenResetGenerationCurrentSourceFence((string) ($options['expected_current_source_token'] ?? $currentToken), 'expected current source token');
+        $drainAck = self::tokenResetGenerationCurrentSourceFence((string) ($options['drain_ack_token'] ?? 'wp.returning.drain.180'), 'drain ack token');
+        $expectedDrainAck = self::tokenResetGenerationCurrentSourceFence((string) ($options['expected_drain_ack_token'] ?? $drainAck), 'expected drain ack token');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext177(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDrainTicketFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -4773,23 +4773,23 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $currentSourceMatches = $currentToken === $expectedCurrentToken;
         $drainAckMatches = $drainAck === $expectedDrainAck;
-        $sourceChanged = self::viewSignatureNext180($currentView, $returning) !== self::viewSignatureNext180($nextView, $returning);
+        $sourceChanged = self::viewSignatureResetGenerationCurrentSourceFence($currentView, $returning) !== self::viewSignatureResetGenerationCurrentSourceFence($nextView, $returning);
         $canAdmitNext = $currentSourceMatches
             && $drainAckMatches
             && ($base['resume_boundary']['current_drained_before_next'] ?? false) === true
             && ($base['reprepare_token_matches'] ?? false) === true
             && (($base['base']['status'] ?? null) === 'trigger-recursive-view-returning-current-source-next172-next-admitted');
 
-        $currentFrame = self::frameNext180($currentView, $returning, 'current', $currentToken, $expectedCurrentToken, true);
-        $nextFrame = self::frameNext180($nextView, $returning, 'next', $drainAck, $expectedDrainAck, $canAdmitNext);
-        $currentRows = self::sourceRowsNext180($base['current_source_rows'] ?? [], $currentFrame, true, []);
-        $blockReasons = self::blockReasonsNext180($base, $currentSourceMatches, $drainAckMatches, $sourceChanged, $canAdmitNext);
-        $nextRows = self::sourceRowsNext180($base['attempted_next_source_rows'] ?? [], $nextFrame, $canAdmitNext, $blockReasons);
+        $currentFrame = self::frameResetGenerationCurrentSourceFence($currentView, $returning, 'current', $currentToken, $expectedCurrentToken, true);
+        $nextFrame = self::frameResetGenerationCurrentSourceFence($nextView, $returning, 'next', $drainAck, $expectedDrainAck, $canAdmitNext);
+        $currentRows = self::sourceRowsResetGenerationCurrentSourceFence($base['current_source_rows'] ?? [], $currentFrame, true, []);
+        $blockReasons = self::blockReasonsResetGenerationCurrentSourceFence($base, $currentSourceMatches, $drainAckMatches, $sourceChanged, $canAdmitNext);
+        $nextRows = self::sourceRowsResetGenerationCurrentSourceFence($base['attempted_next_source_rows'] ?? [], $nextFrame, $canAdmitNext, $blockReasons);
         $visibleRows = array_values(array_filter(array_merge($currentRows, $nextRows), static fn (array $row): bool => $row['visible_after_source_snapshot']));
         $heldRows = array_values(array_filter($nextRows, static fn (array $row): bool => !$row['visible_after_source_snapshot']));
 
         return [
-            'status_next180' => self::statusNext180($canAdmitNext, $currentSourceMatches, $drainAckMatches, $base),
+            'status_next180' => self::statusResetGenerationCurrentSourceFence($canAdmitNext, $currentSourceMatches, $drainAckMatches, $base),
             'savepoint' => $base['savepoint'],
             'cursor' => $base['cursor'],
             'base' => $base,
@@ -4838,21 +4838,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return array<string,mixed>
      */
-    private static function frameNext180(array $view, array $returning, string $phase, string $token, string $expectedToken, bool $admitted): array
+    private static function frameResetGenerationCurrentSourceFence(array $view, array $returning, string $phase, string $token, string $expectedToken, bool $admitted): array
     {
-        $columns = self::stringsNext180($view['columns'] ?? [], "{$phase} view columns");
-        $mapping = self::mappingNext180($view['mapping'] ?? [], "{$phase} view mapping");
+        $columns = self::stringsResetGenerationCurrentSourceFence($view['columns'] ?? [], "{$phase} view columns");
+        $mapping = self::mappingResetGenerationCurrentSourceFence($view['mapping'] ?? [], "{$phase} view mapping");
 
         return [
             'phase' => $phase,
-            'view' => self::identifierNext180((string) ($view['name'] ?? ''), "{$phase} view name"),
-            'source' => self::tokenNext180((string) ($view['source'] ?? ''), "{$phase} source"),
-            'trigger' => self::identifierNext180((string) ($view['trigger'] ?? ''), "{$phase} trigger"),
-            'trigger_source' => self::tokenNext180((string) ($view['trigger_source'] ?? ''), "{$phase} trigger source"),
+            'view' => self::identifierResetGenerationCurrentSourceFence((string) ($view['name'] ?? ''), "{$phase} view name"),
+            'source' => self::tokenResetGenerationCurrentSourceFence((string) ($view['source'] ?? ''), "{$phase} source"),
+            'trigger' => self::identifierResetGenerationCurrentSourceFence((string) ($view['trigger'] ?? ''), "{$phase} trigger"),
+            'trigger_source' => self::tokenResetGenerationCurrentSourceFence((string) ($view['trigger_source'] ?? ''), "{$phase} trigger source"),
             'columns' => $columns,
             'mapping' => $mapping,
-            'returning_aliases' => self::returningAliasesNext180($returning),
-            'source_signature' => self::viewSignatureNext180($view, $returning),
+            'returning_aliases' => self::returningAliasesResetGenerationCurrentSourceFence($returning),
+            'source_signature' => self::viewSignatureResetGenerationCurrentSourceFence($view, $returning),
             'token' => $token,
             'expected_token' => $expectedToken,
             'token_matches' => $token === $expectedToken,
@@ -4866,7 +4866,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockReasons
      * @return list<array<string,mixed>>
      */
-    private static function sourceRowsNext180(mixed $rows, array $frame, bool $visible, array $blockReasons): array
+    private static function sourceRowsResetGenerationCurrentSourceFence(mixed $rows, array $frame, bool $visible, array $blockReasons): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite trigger recursive view RETURNING next180 rows are malformed');
@@ -4892,7 +4892,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockReasonsNext180(array $base, bool $currentSourceMatches, bool $drainAckMatches, bool $sourceChanged, bool $canAdmitNext): array
+    private static function blockReasonsResetGenerationCurrentSourceFence(array $base, bool $currentSourceMatches, bool $drainAckMatches, bool $sourceChanged, bool $canAdmitNext): array
     {
         if ($canAdmitNext) {
             return [];
@@ -4918,7 +4918,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext180(bool $canAdmitNext, bool $currentSourceMatches, bool $drainAckMatches, array $base): string
+    private static function statusResetGenerationCurrentSourceFence(bool $canAdmitNext, bool $currentSourceMatches, bool $drainAckMatches, array $base): string
     {
         if ($canAdmitNext) {
             return 'trigger-recursive-view-returning-current-source-next180-next-admitted';
@@ -4939,7 +4939,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function viewSignatureNext180(array $view, array $returning): string
+    private static function viewSignatureResetGenerationCurrentSourceFence(array $view, array $returning): string
     {
         $payload = [
             'name' => (string) ($view['name'] ?? ''),
@@ -4948,7 +4948,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'trigger_source' => (string) ($view['trigger_source'] ?? ''),
             'columns' => array_values((array) ($view['columns'] ?? [])),
             'mapping' => (array) ($view['mapping'] ?? []),
-            'returning' => self::returningAliasesNext180($returning),
+            'returning' => self::returningAliasesResetGenerationCurrentSourceFence($returning),
         ];
 
         return substr(hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR)), 0, 16);
@@ -4958,7 +4958,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return list<string>
      */
-    private static function returningAliasesNext180(array $returning): array
+    private static function returningAliasesResetGenerationCurrentSourceFence(array $returning): array
     {
         $aliases = [];
         foreach ($returning as $index => $term) {
@@ -4988,20 +4988,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext180(mixed $values, string $label): array
+    private static function stringsResetGenerationCurrentSourceFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values) || $values === []) {
             throw new InvalidArgumentException("SQLite trigger recursive view RETURNING next180 {$label} must be a non-empty list");
         }
 
-        return array_map(static fn (mixed $value): string => self::identifierNext180((string) $value, $label), $values);
+        return array_map(static fn (mixed $value): string => self::identifierResetGenerationCurrentSourceFence((string) $value, $label), $values);
     }
 
     /**
      * @param mixed $mapping
      * @return array<string,string>
      */
-    private static function mappingNext180(mixed $mapping, string $label): array
+    private static function mappingResetGenerationCurrentSourceFence(mixed $mapping, string $label): array
     {
         if (!is_array($mapping) || $mapping === []) {
             throw new InvalidArgumentException("SQLite trigger recursive view RETURNING next180 {$label} must not be empty");
@@ -5009,13 +5009,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
 
         $out = [];
         foreach ($mapping as $from => $to) {
-            $out[self::identifierNext180((string) $from, $label)] = self::identifierNext180((string) $to, $label);
+            $out[self::identifierResetGenerationCurrentSourceFence((string) $from, $label)] = self::identifierResetGenerationCurrentSourceFence((string) $to, $label);
         }
 
         return $out;
     }
 
-    private static function identifierNext180(string $value, string $label): string
+    private static function identifierResetGenerationCurrentSourceFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view RETURNING next180 {$label} is malformed");
@@ -5024,7 +5024,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext180(string $value, string $label): string
+    private static function tokenResetGenerationCurrentSourceFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view RETURNING next180 {$label} is malformed");
@@ -5045,7 +5045,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,checkpoint_name?:string,commit_visible_checkpoints?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext181(
+    public static function executeNestedCurrentCheckpointFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -5054,7 +5054,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $checkpoint = self::tokenNext181((string) ($options['checkpoint_name'] ?? 'wp_recursive_view_returning_checkpoint_181'), 'checkpoint name');
+        $checkpoint = self::tokenNestedCurrentCheckpointFence((string) ($options['checkpoint_name'] ?? 'wp_recursive_view_returning_checkpoint_181'), 'checkpoint name');
         $commitVisible = (bool) ($options['commit_visible_checkpoints'] ?? true);
         $baseOptions = $options + [
             'cursor_name' => 'wp_recursive_view_returning_cursor_181',
@@ -5063,7 +5063,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'savepoint' => 'wp_recursive_view_returning_next181',
         ];
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext177(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDrainTicketFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5073,10 +5073,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $groups = self::checkpointGroupsNext181($base['current_source_rows'], $base['attempted_next_source_rows']);
+        $groups = self::checkpointGroupsNestedCurrentCheckpointFence($base['current_source_rows'], $base['attempted_next_source_rows']);
         $checkpoints = [];
         foreach ($groups as $key => $rows) {
-            $checkpoints[] = self::checkpointRowNext181($checkpoint, $key, $rows, $commitVisible);
+            $checkpoints[] = self::checkpointRowNestedCurrentCheckpointFence($checkpoint, $key, $rows, $commitVisible);
         }
 
         $visible = array_values(array_filter($checkpoints, static fn (array $row): bool => $row['visible']));
@@ -5084,7 +5084,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $durable = array_values(array_filter($visible, static fn (array $row): bool => $row['durable']));
 
         return [
-            'status' => self::statusNext181($base, $pending),
+            'status' => self::statusNestedCurrentCheckpointFence($base, $pending),
             'checkpoint_name' => $checkpoint,
             'base' => $base,
             'checkpoints' => $checkpoints,
@@ -5130,7 +5130,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $nextRows
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function checkpointGroupsNext181(mixed $currentRows, mixed $nextRows): array
+    private static function checkpointGroupsNestedCurrentCheckpointFence(mixed $currentRows, mixed $nextRows): array
     {
         if (!is_array($currentRows) || !array_is_list($currentRows) || !is_array($nextRows) || !array_is_list($nextRows)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next181 checkpoint rows are malformed');
@@ -5152,7 +5152,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function checkpointRowNext181(string $checkpoint, string $key, array $rows, bool $commitVisible): array
+    private static function checkpointRowNestedCurrentCheckpointFence(string $checkpoint, string $key, array $rows, bool $commitVisible): array
     {
         [$phase, $generation, $page] = explode(':', $key, 3);
         $visible = array_values(array_unique(array_column($rows, 'visible_after_current_source'))) === [true];
@@ -5182,7 +5182,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $pending
      */
-    private static function statusNext181(array $base, array $pending): string
+    private static function statusNestedCurrentCheckpointFence(array $base, array $pending): string
     {
         if ($pending !== []) {
             return ($base['reprepare_token_matches'] ?? false)
@@ -5193,7 +5193,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next181-checkpoints-admitted';
     }
 
-    private static function tokenNext181(string $value, string $label): string
+    private static function tokenNestedCurrentCheckpointFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next181 {$label} is malformed");
@@ -5214,7 +5214,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext182(
+    public static function executeNextSourceQuarantineFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -5223,13 +5223,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $currentGeneration = self::tokenNext182((string) ($options['current_source_generation'] ?? 'wp.recursive.view.current.182'), 'current source generation');
-        $expectedCurrentGeneration = self::tokenNext182((string) ($options['expected_current_source_generation'] ?? $currentGeneration), 'expected current source generation');
-        $triggerGeneration = self::tokenNext182((string) ($options['trigger_source_generation'] ?? 'wp.recursive.trigger.current.182'), 'trigger source generation');
-        $expectedTriggerGeneration = self::tokenNext182((string) ($options['expected_trigger_source_generation'] ?? $triggerGeneration), 'expected trigger source generation');
-        $cursorGeneration = self::tokenNext182((string) ($options['returning_cursor_generation'] ?? 'wp.recursive.returning.cursor.182'), 'returning cursor generation');
+        $currentGeneration = self::tokenNextSourceQuarantineFence((string) ($options['current_source_generation'] ?? 'wp.recursive.view.current.182'), 'current source generation');
+        $expectedCurrentGeneration = self::tokenNextSourceQuarantineFence((string) ($options['expected_current_source_generation'] ?? $currentGeneration), 'expected current source generation');
+        $triggerGeneration = self::tokenNextSourceQuarantineFence((string) ($options['trigger_source_generation'] ?? 'wp.recursive.trigger.current.182'), 'trigger source generation');
+        $expectedTriggerGeneration = self::tokenNextSourceQuarantineFence((string) ($options['expected_trigger_source_generation'] ?? $triggerGeneration), 'expected trigger source generation');
+        $cursorGeneration = self::tokenNextSourceQuarantineFence((string) ($options['returning_cursor_generation'] ?? 'wp.recursive.returning.cursor.182'), 'returning cursor generation');
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext178(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourcePublicationFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -5246,19 +5246,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $generationStable = $snapshotStable && $currentMatches && $triggerMatches;
         $publishNext = $generationStable && $releaseAllowed;
 
-        $baseVisibleRows = self::rowsNext182($base['visible_returning_rows_next178'] ?? [], 'visible rows');
-        $baseCurrentRows = self::rowsNext182($base['current_source_returning_rows_next178'] ?? [], 'current rows');
-        $baseNextRows = self::rowsNext182($base['next_source_returning_rows_next178'] ?? [], 'next rows');
-        $baseQueuedNextRows = self::rowsNext182($base['queued_next_source_rows_next178'] ?? [], 'queued next rows');
+        $baseVisibleRows = self::rowsNextSourceQuarantineFence($base['visible_returning_rows_next178'] ?? [], 'visible rows');
+        $baseCurrentRows = self::rowsNextSourceQuarantineFence($base['current_source_returning_rows_next178'] ?? [], 'current rows');
+        $baseNextRows = self::rowsNextSourceQuarantineFence($base['next_source_returning_rows_next178'] ?? [], 'next rows');
+        $baseQueuedNextRows = self::rowsNextSourceQuarantineFence($base['queued_next_source_rows_next178'] ?? [], 'queued next rows');
 
-        $visibleRows = self::tagRowsNext182($publishNext ? $baseVisibleRows : $baseCurrentRows, $currentGeneration, $triggerGeneration, $cursorGeneration);
+        $visibleRows = self::tagRowsNextSourceQuarantineFence($publishNext ? $baseVisibleRows : $baseCurrentRows, $currentGeneration, $triggerGeneration, $cursorGeneration);
         $currentRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'current'));
         $nextRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'next'));
 
-        $quarantinedNext = $publishNext ? [] : self::tagRowsNext182(array_merge($baseNextRows, $baseQueuedNextRows), $currentGeneration, $triggerGeneration, $cursorGeneration);
-        $quarantinedNext = self::dedupeRowsNext182($quarantinedNext);
+        $quarantinedNext = $publishNext ? [] : self::tagRowsNextSourceQuarantineFence(array_merge($baseNextRows, $baseQueuedNextRows), $currentGeneration, $triggerGeneration, $cursorGeneration);
+        $quarantinedNext = self::dedupeRowsNextSourceQuarantineFence($quarantinedNext);
 
-        $blockedReasons = self::stringsNext182($base['blocked_reasons_next178'] ?? [], 'blocked reasons');
+        $blockedReasons = self::stringsNextSourceQuarantineFence($base['blocked_reasons_next178'] ?? [], 'blocked reasons');
         if (!$currentMatches) {
             $blockedReasons[] = 'current-view-source-generation-mismatch';
         }
@@ -5322,7 +5322,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext182(array $rows, string $currentGeneration, string $triggerGeneration, string $cursorGeneration): array
+    private static function tagRowsNextSourceQuarantineFence(array $rows, string $currentGeneration, string $triggerGeneration, string $cursorGeneration): array
     {
         $out = [];
         foreach ($rows as $ordinal => $row) {
@@ -5341,7 +5341,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function dedupeRowsNext182(array $rows): array
+    private static function dedupeRowsNextSourceQuarantineFence(array $rows): array
     {
         $seen = [];
         $out = [];
@@ -5361,7 +5361,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext182(mixed $rows, string $label): array
+    private static function rowsNextSourceQuarantineFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next182 {$label} are malformed");
@@ -5379,7 +5379,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext182(mixed $values, string $label): array
+    private static function stringsNextSourceQuarantineFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next182 {$label} are malformed");
@@ -5388,7 +5388,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_map(static fn (mixed $value): string => (string) $value, $values);
     }
 
-    private static function tokenNext182(string $value, string $label): string
+    private static function tokenNextSourceQuarantineFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next182 {$label} is malformed");
@@ -5409,7 +5409,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,current_source_token?:string,expected_current_source_token?:string,drain_ack_token?:string,expected_drain_ack_token?:string,rollback_current_source?:bool,rollback_token?:string,expected_rollback_token?:string,commit_current_source?:bool,reset_generation?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext183(
+    public static function executeCurrentSourceResetGenerationFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -5418,13 +5418,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $rollbackToken = self::tokenNext183((string) ($options['rollback_token'] ?? 'wp.rollback.current.183'), 'rollback token');
-        $expectedRollbackToken = self::tokenNext183((string) ($options['expected_rollback_token'] ?? $rollbackToken), 'expected rollback token');
-        $resetGeneration = self::tokenNext183((string) ($options['reset_generation'] ?? 'wp-current-reset-183'), 'reset generation');
+        $rollbackToken = self::tokenCurrentSourceResetGenerationFence((string) ($options['rollback_token'] ?? 'wp.rollback.current.183'), 'rollback token');
+        $expectedRollbackToken = self::tokenCurrentSourceResetGenerationFence((string) ($options['expected_rollback_token'] ?? $rollbackToken), 'expected rollback token');
+        $resetGeneration = self::tokenCurrentSourceResetGenerationFence((string) ($options['reset_generation'] ?? 'wp-current-reset-183'), 'reset generation');
         $rollbackRequested = (bool) ($options['rollback_current_source'] ?? true);
         $commitCurrent = (bool) ($options['commit_current_source'] ?? false);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext180(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeResetGenerationCurrentSourceFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5435,22 +5435,22 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         );
 
         $rollbackTokenMatches = $rollbackToken === $expectedRollbackToken;
-        $currentRows = self::rowsNext183($base['current_source_rows_next180'] ?? [], 'current rows');
-        $attemptedNextRows = self::rowsNext183($base['attempted_next_source_rows_next180'] ?? [], 'attempted next rows');
+        $currentRows = self::rowsCurrentSourceResetGenerationFence($base['current_source_rows_next180'] ?? [], 'current rows');
+        $attemptedNextRows = self::rowsCurrentSourceResetGenerationFence($base['attempted_next_source_rows_next180'] ?? [], 'attempted next rows');
         $currentRollbackApplied = $rollbackRequested && $rollbackTokenMatches && !$commitCurrent;
         $nextBaseAdmitted = (bool) ($base['next_source_admitted_next180'] ?? false);
         $nextVisible = $nextBaseAdmitted && $commitCurrent && !$currentRollbackApplied && $rollbackTokenMatches;
 
-        $currentAfterBarrier = self::barrierRowsNext183(
+        $currentAfterBarrier = self::barrierRowsCurrentSourceResetGenerationFence(
             $currentRows,
             !$currentRollbackApplied,
             $currentRollbackApplied ? ['current-source-rollback-token-applied'] : [],
             $resetGeneration,
         );
-        $nextAfterBarrier = self::barrierRowsNext183(
+        $nextAfterBarrier = self::barrierRowsCurrentSourceResetGenerationFence(
             $attemptedNextRows,
             $nextVisible,
-            self::nextBarrierReasonsNext183($base, $currentRollbackApplied, $rollbackTokenMatches, $commitCurrent),
+            self::nextBarrierReasonsCurrentSourceResetGenerationFence($base, $currentRollbackApplied, $rollbackTokenMatches, $commitCurrent),
             $resetGeneration,
         );
         $visibleRows = array_values(array_filter(
@@ -5467,7 +5467,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return [
-            'status_next183' => self::statusNext183($currentRollbackApplied, $rollbackRequested, $rollbackTokenMatches, $commitCurrent, $nextBaseAdmitted),
+            'status_next183' => self::statusCurrentSourceResetGenerationFence($currentRollbackApplied, $rollbackRequested, $rollbackTokenMatches, $commitCurrent, $nextBaseAdmitted),
             'savepoint' => $base['savepoint'],
             'cursor' => $base['cursor'],
             'base' => $base,
@@ -5517,7 +5517,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext183(mixed $rows, string $label): array
+    private static function rowsCurrentSourceResetGenerationFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next183 {$label} must be a list");
@@ -5536,7 +5536,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function barrierRowsNext183(array $rows, bool $visible, array $reasons, string $resetGeneration): array
+    private static function barrierRowsCurrentSourceResetGenerationFence(array $rows, bool $visible, array $reasons, string $resetGeneration): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -5553,7 +5553,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function nextBarrierReasonsNext183(array $base, bool $currentRollbackApplied, bool $rollbackTokenMatches, bool $commitCurrent): array
+    private static function nextBarrierReasonsCurrentSourceResetGenerationFence(array $base, bool $currentRollbackApplied, bool $rollbackTokenMatches, bool $commitCurrent): array
     {
         if ($currentRollbackApplied) {
             return ['current-source-rolled-back-before-next-source'];
@@ -5571,7 +5571,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return [];
     }
 
-    private static function statusNext183(bool $rollbackApplied, bool $rollbackRequested, bool $tokenMatches, bool $commitCurrent, bool $nextBaseAdmitted): string
+    private static function statusCurrentSourceResetGenerationFence(bool $rollbackApplied, bool $rollbackRequested, bool $tokenMatches, bool $commitCurrent, bool $nextBaseAdmitted): string
     {
         if ($rollbackApplied) {
             return 'trigger-recursive-view-returning-current-source-next183-rolled-back';
@@ -5589,7 +5589,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next183-next-held';
     }
 
-    private static function tokenNext183(string $value, string $label): string
+    private static function tokenCurrentSourceResetGenerationFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next183 {$label} is malformed");
@@ -5629,7 +5629,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'savepoint' => 'wp_recursive_view_returning_next184',
         ];
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext181(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNestedCurrentCheckpointFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -5873,7 +5873,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string,nested_epoch?:string,expected_nested_epoch?:string,drained_nested_depths?:list<int>,required_nested_depths?:list<int>,outer_publish_requested?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext185(
+    public static function executeNestedCurrentReturningVisibilityFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -5882,13 +5882,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $nestedEpoch = self::tokenNext185((string) ($options['nested_epoch'] ?? 'wp.recursive.view.nested.185'), 'nested epoch');
-        $expectedNestedEpoch = self::tokenNext185((string) ($options['expected_nested_epoch'] ?? $nestedEpoch), 'expected nested epoch');
-        $requiredDepths = self::depthsNext185($options['required_nested_depths'] ?? [1, 2], 'required nested depths');
-        $drainedDepths = self::depthsNext185($options['drained_nested_depths'] ?? $requiredDepths, 'drained nested depths');
+        $nestedEpoch = self::tokenNestedCurrentReturningVisibilityFence((string) ($options['nested_epoch'] ?? 'wp.recursive.view.nested.185'), 'nested epoch');
+        $expectedNestedEpoch = self::tokenNestedCurrentReturningVisibilityFence((string) ($options['expected_nested_epoch'] ?? $nestedEpoch), 'expected nested epoch');
+        $requiredDepths = self::depthsNestedCurrentReturningVisibilityFence($options['required_nested_depths'] ?? [1, 2], 'required nested depths');
+        $drainedDepths = self::depthsNestedCurrentReturningVisibilityFence($options['drained_nested_depths'] ?? $requiredDepths, 'drained nested depths');
         $outerPublishRequested = (bool) ($options['outer_publish_requested'] ?? true);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext182(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourceQuarantineFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -5898,10 +5898,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + ['savepoint_action' => 'release'],
         );
 
-        $baseVisibleRows = self::rowsNext185($base['visible_returning_rows_next182'] ?? [], 'visible rows');
-        $baseCurrentRows = self::rowsNext185($base['current_source_returning_rows_next182'] ?? [], 'current rows');
-        $baseNextRows = self::rowsNext185($base['next_source_returning_rows_next182'] ?? [], 'next rows');
-        $baseQuarantinedRows = self::rowsNext185($base['quarantined_next_source_rows_next182'] ?? [], 'quarantined rows');
+        $baseVisibleRows = self::rowsNestedCurrentReturningVisibilityFence($base['visible_returning_rows_next182'] ?? [], 'visible rows');
+        $baseCurrentRows = self::rowsNestedCurrentReturningVisibilityFence($base['current_source_returning_rows_next182'] ?? [], 'current rows');
+        $baseNextRows = self::rowsNestedCurrentReturningVisibilityFence($base['next_source_returning_rows_next182'] ?? [], 'next rows');
+        $baseQuarantinedRows = self::rowsNestedCurrentReturningVisibilityFence($base['quarantined_next_source_rows_next182'] ?? [], 'quarantined rows');
 
         $nestedRows = array_values(array_filter($baseCurrentRows, static fn (array $row): bool => (int) ($row['depth_value'] ?? $row['depth'] ?? 0) > 0));
         $outerRows = array_values(array_filter($baseCurrentRows, static fn (array $row): bool => (int) ($row['depth_value'] ?? $row['depth'] ?? 0) === 0));
@@ -5911,13 +5911,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $basePublishAllowed = (bool) ($base['next_source_publish_allowed_next182'] ?? false);
         $outerPublishAllowed = $basePublishAllowed && $outerPublishRequested && $nestedEpochMatches && $nestedDepthsDrained;
 
-        $visibleRows = self::tagRowsNext185($outerPublishAllowed ? $baseVisibleRows : $baseCurrentRows, $nestedEpoch);
+        $visibleRows = self::tagRowsNestedCurrentReturningVisibilityFence($outerPublishAllowed ? $baseVisibleRows : $baseCurrentRows, $nestedEpoch);
         $visibleCurrentRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'current'));
         $visibleNextRows = array_values(array_filter($visibleRows, static fn (array $row): bool => $row['statement_source'] === 'next'));
-        $heldNextRows = $outerPublishAllowed ? [] : self::tagRowsNext185(array_merge($baseNextRows, $baseQuarantinedRows), $nestedEpoch);
-        $heldNextRows = self::dedupeRowsNext185($heldNextRows);
+        $heldNextRows = $outerPublishAllowed ? [] : self::tagRowsNestedCurrentReturningVisibilityFence(array_merge($baseNextRows, $baseQuarantinedRows), $nestedEpoch);
+        $heldNextRows = self::dedupeRowsNestedCurrentReturningVisibilityFence($heldNextRows);
 
-        $blockedReasons = self::stringsNext185($base['blocked_reasons_next182'] ?? [], 'blocked reasons');
+        $blockedReasons = self::stringsNestedCurrentReturningVisibilityFence($base['blocked_reasons_next182'] ?? [], 'blocked reasons');
         if (!$outerPublishRequested) {
             $blockedReasons[] = 'outer-returning-publish-not-requested';
         }
@@ -5944,8 +5944,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'nested_depths_drained_next185' => $nestedDepthsDrained,
             'outer_publish_requested_next185' => $outerPublishRequested,
             'outer_publish_allowed_next185' => $outerPublishAllowed,
-            'outer_current_returning_rows_next185' => self::tagRowsNext185($outerRows, $nestedEpoch),
-            'nested_current_returning_rows_next185' => self::tagRowsNext185($nestedRows, $nestedEpoch),
+            'outer_current_returning_rows_next185' => self::tagRowsNestedCurrentReturningVisibilityFence($outerRows, $nestedEpoch),
+            'nested_current_returning_rows_next185' => self::tagRowsNestedCurrentReturningVisibilityFence($nestedRows, $nestedEpoch),
             'visible_returning_rows_next185' => $visibleRows,
             'visible_current_returning_rows_next185' => $visibleCurrentRows,
             'visible_next_returning_rows_next185' => $visibleNextRows,
@@ -5988,7 +5988,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext185(array $rows, string $nestedEpoch): array
+    private static function tagRowsNestedCurrentReturningVisibilityFence(array $rows, string $nestedEpoch): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -6007,7 +6007,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function dedupeRowsNext185(array $rows): array
+    private static function dedupeRowsNestedCurrentReturningVisibilityFence(array $rows): array
     {
         $seen = [];
         $out = [];
@@ -6027,7 +6027,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext185(mixed $rows, string $label): array
+    private static function rowsNestedCurrentReturningVisibilityFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next185 {$label} are malformed");
@@ -6045,7 +6045,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<int>
      */
-    private static function depthsNext185(mixed $values, string $label): array
+    private static function depthsNestedCurrentReturningVisibilityFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next185 {$label} are malformed");
@@ -6069,7 +6069,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext185(mixed $values, string $label): array
+    private static function stringsNestedCurrentReturningVisibilityFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next185 {$label} are malformed");
@@ -6078,7 +6078,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_map(static fn (mixed $value): string => (string) $value, $values);
     }
 
-    private static function tokenNext185(string $value, string $label): string
+    private static function tokenNestedCurrentReturningVisibilityFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next185 {$label} is malformed");
@@ -6099,7 +6099,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,current_source_token?:string,expected_current_source_token?:string,drain_ack_token?:string,expected_drain_ack_token?:string,rollback_current_source?:bool,rollback_token?:string,expected_rollback_token?:string,commit_current_source?:bool,reset_generation?:string,post_reset_current_source_token?:string,expected_post_reset_current_source_token?:string,post_reset_cursor?:string,post_reset_view?:array<string,mixed>,post_reset_input?:list<array<string,mixed>>,reuse_stale_returning_cursor?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext186(
+    public static function executePostResetCurrentSourceRebind(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6108,12 +6108,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $postResetToken = self::tokenNext186((string) ($options['post_reset_current_source_token'] ?? 'wp.current.source.postreset.186'), 'post reset current source token');
-        $expectedPostResetToken = self::tokenNext186((string) ($options['expected_post_reset_current_source_token'] ?? $postResetToken), 'expected post reset current source token');
-        $postResetCursor = self::tokenNext186((string) ($options['post_reset_cursor'] ?? 'wp.returning.postreset.cursor.186'), 'post reset cursor');
+        $postResetToken = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_current_source_token'] ?? 'wp.current.source.postreset.186'), 'post reset current source token');
+        $expectedPostResetToken = self::tokenPostResetCurrentSourceRebind((string) ($options['expected_post_reset_current_source_token'] ?? $postResetToken), 'expected post reset current source token');
+        $postResetCursor = self::tokenPostResetCurrentSourceRebind((string) ($options['post_reset_cursor'] ?? 'wp.returning.postreset.cursor.186'), 'post reset cursor');
         $reuseStaleCursor = (bool) ($options['reuse_stale_returning_cursor'] ?? false);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext183(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceResetGenerationFence(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -6123,19 +6123,19 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $postResetView = self::viewNext186($options['post_reset_view'] ?? $currentView);
-        $postResetInput = self::rowsNext186($options['post_reset_input'] ?? $currentInput, 'post reset input');
+        $postResetView = self::viewPostResetCurrentSourceRebind($options['post_reset_view'] ?? $currentView);
+        $postResetInput = self::rowsPostResetCurrentSourceRebind($options['post_reset_input'] ?? $currentInput, 'post reset input');
         $tokenMatches = hash_equals($postResetToken, $expectedPostResetToken);
         $resetApplied = (bool) ($base['current_source_rollback_applied_next183'] ?? false);
-        $staleRows = self::rowsNext186($base['invalidated_current_rows_next183'] ?? [], 'invalidated current rows');
+        $staleRows = self::rowsPostResetCurrentSourceRebind($base['invalidated_current_rows_next183'] ?? [], 'invalidated current rows');
         $staleReturningRows = array_column($staleRows, 'returning');
         $freshRows = ($resetApplied && $tokenMatches && !$reuseStaleCursor)
-            ? self::freshRowsNext186($postResetInput, $postResetView, $returning, $postResetToken, $postResetCursor, (string) $base['reset_generation_next183'])
+            ? self::freshRowsPostResetCurrentSourceRebind($postResetInput, $postResetView, $returning, $postResetToken, $postResetCursor, (string) $base['reset_generation_next183'])
             : [];
-        $blockedReasons = self::blockedReasonsNext186($resetApplied, $tokenMatches, $reuseStaleCursor, $base);
+        $blockedReasons = self::blockedReasonsPostResetCurrentSourceRebind($resetApplied, $tokenMatches, $reuseStaleCursor, $base);
 
         return [
-            'status_next186' => self::statusNext186($resetApplied, $tokenMatches, $reuseStaleCursor),
+            'status_next186' => self::statusPostResetCurrentSourceRebind($resetApplied, $tokenMatches, $reuseStaleCursor),
             'savepoint' => $base['savepoint'],
             'cursor' => $base['cursor'],
             'base' => $base,
@@ -6144,7 +6144,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'post_reset_current_source_token_matches_next186' => $tokenMatches,
             'post_reset_cursor_next186' => $postResetCursor,
             'reuse_stale_returning_cursor_next186' => $reuseStaleCursor,
-            'post_reset_view_signature_next186' => self::signatureNext186($postResetView, $returning),
+            'post_reset_view_signature_next186' => self::signaturePostResetCurrentSourceRebind($postResetView, $returning),
             'stale_returning_rows_discarded_next186' => $resetApplied,
             'stale_returning_rows_next186' => $staleReturningRows,
             'stale_returning_row_count_next186' => count($staleReturningRows),
@@ -6159,7 +6159,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'stale_cursor_reuse_requested' => $reuseStaleCursor,
                 'stale_rows_discarded' => $resetApplied ? count($staleReturningRows) : 0,
                 'fresh_rows_bound' => count($freshRows),
-                'decision' => self::decisionNext186($resetApplied, $tokenMatches, $reuseStaleCursor),
+                'decision' => self::decisionPostResetCurrentSourceRebind($resetApplied, $tokenMatches, $reuseStaleCursor),
             ],
             'yield_boundary_next186' => $freshRows !== []
                 ? 'recursive-view-returning-next186-post-reset-current-source-rebound'
@@ -6179,13 +6179,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return list<array<string,mixed>>
      */
-    private static function freshRowsNext186(array $input, array $view, array $returning, string $token, string $cursor, string $resetGeneration): array
+    private static function freshRowsPostResetCurrentSourceRebind(array $input, array $view, array $returning, string $token, string $cursor, string $resetGeneration): array
     {
-        $mapping = self::mappingNext186($view['mapping'] ?? []);
+        $mapping = self::mappingPostResetCurrentSourceRebind($view['mapping'] ?? []);
         $out = [];
         foreach ($input as $ordinal => $row) {
-            $new = self::mappedRowNext186($row, $mapping);
-            $payload = self::returningPayloadNext186($returning, $new, $view, $ordinal);
+            $new = self::mappedRowPostResetCurrentSourceRebind($row, $mapping);
+            $payload = self::returningPayloadPostResetCurrentSourceRebind($returning, $new, $view, $ordinal);
             $out[] = [
                 'statement_source' => 'post-reset-current',
                 'returning_row_ordinal' => $ordinal,
@@ -6194,7 +6194,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'post_reset_current_source_token_next186' => $token,
                 'post_reset_cursor_next186' => $cursor,
                 'reset_generation_next186' => $resetGeneration,
-                'source_signature_next186' => self::signatureNext186($view, $returning),
+                'source_signature_next186' => self::signaturePostResetCurrentSourceRebind($view, $returning),
                 'stale_cursor_reused_next186' => false,
             ];
         }
@@ -6206,7 +6206,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return array<string,mixed>
      */
-    private static function returningPayloadNext186(array $returning, array $new, array $view, int $ordinal): array
+    private static function returningPayloadPostResetCurrentSourceRebind(array $returning, array $new, array $view, int $ordinal): array
     {
         $payload = [];
         foreach ($returning as $term) {
@@ -6236,7 +6236,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,string> $mapping
      * @return array<string,mixed>
      */
-    private static function mappedRowNext186(array $row, array $mapping): array
+    private static function mappedRowPostResetCurrentSourceRebind(array $row, array $mapping): array
     {
         $mapped = $row;
         foreach ($mapping as $source => $target) {
@@ -6251,7 +6251,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,string>
      */
-    private static function mappingNext186(mixed $mapping): array
+    private static function mappingPostResetCurrentSourceRebind(mixed $mapping): array
     {
         if (!is_array($mapping)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next186 view mapping is malformed');
@@ -6270,12 +6270,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function viewNext186(mixed $view): array
+    private static function viewPostResetCurrentSourceRebind(mixed $view): array
     {
         if (!is_array($view)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next186 post reset view is malformed');
         }
-        self::mappingNext186($view['mapping'] ?? []);
+        self::mappingPostResetCurrentSourceRebind($view['mapping'] ?? []);
 
         return $view;
     }
@@ -6283,7 +6283,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext186(mixed $rows, string $label): array
+    private static function rowsPostResetCurrentSourceRebind(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next186 {$label} must be a list");
@@ -6300,7 +6300,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function signatureNext186(array $view, array $returning): string
+    private static function signaturePostResetCurrentSourceRebind(array $view, array $returning): string
     {
         $aliases = [];
         foreach ($returning as $index => $term) {
@@ -6320,7 +6320,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext186(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor, array $base): array
+    private static function blockedReasonsPostResetCurrentSourceRebind(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor, array $base): array
     {
         $reasons = [];
         if (!$resetApplied) {
@@ -6339,7 +6339,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext186(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor): string
+    private static function statusPostResetCurrentSourceRebind(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor): string
     {
         if ($resetApplied && $tokenMatches && !$reuseStaleCursor) {
             return 'trigger-recursive-view-returning-current-source-next186-post-reset-rebound';
@@ -6354,7 +6354,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next186-reset-held';
     }
 
-    private static function decisionNext186(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor): string
+    private static function decisionPostResetCurrentSourceRebind(bool $resetApplied, bool $tokenMatches, bool $reuseStaleCursor): string
     {
         if ($resetApplied && $tokenMatches && !$reuseStaleCursor) {
             return 'bind-fresh-post-reset-current-source';
@@ -6369,7 +6369,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'hold-until-current-source-reset';
     }
 
-    private static function tokenNext186(string $value, string $label): string
+    private static function tokenPostResetCurrentSourceRebind(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next186 {$label} is malformed");
@@ -6390,7 +6390,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,checkpoint_name?:string,commit_visible_checkpoints?:bool,handoff_token?:string,expected_handoff_token?:string,acknowledged_current_checkpoints?:list<string>,auto_ack_current?:bool,drain_ticket?:string,expected_drain_ticket?:string,drain_ticket_prefix?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext187(
+    public static function executeCurrentCheckpointDrainTicket(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6418,22 +6418,22 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $prefix = self::tokenNext187((string) ($options['drain_ticket_prefix'] ?? 'wp.returning.current.source.drain.187'), 'drain ticket prefix');
-        $expectedTicket = self::tokenNext187((string) ($options['expected_drain_ticket'] ?? self::ticketNext187($prefix, $base['required_current_checkpoints'] ?? [])), 'expected drain ticket');
-        $actualTicket = self::tokenNext187((string) ($options['drain_ticket'] ?? self::ticketNext187($prefix, $base['acknowledged_current_checkpoints'] ?? [])), 'drain ticket');
+        $prefix = self::tokenCurrentCheckpointDrainTicket((string) ($options['drain_ticket_prefix'] ?? 'wp.returning.current.source.drain.187'), 'drain ticket prefix');
+        $expectedTicket = self::tokenCurrentCheckpointDrainTicket((string) ($options['expected_drain_ticket'] ?? self::ticketCurrentCheckpointDrainTicket($prefix, $base['required_current_checkpoints'] ?? [])), 'expected drain ticket');
+        $actualTicket = self::tokenCurrentCheckpointDrainTicket((string) ($options['drain_ticket'] ?? self::ticketCurrentCheckpointDrainTicket($prefix, $base['acknowledged_current_checkpoints'] ?? [])), 'drain ticket');
         $ticketMatches = $actualTicket === $expectedTicket;
         $baseExposed = (bool) ($base['next_source_exposed_after_handoff'] ?? false);
         $ticketAdmitted = !$baseExposed || $ticketMatches;
         $canExposeNext = $baseExposed && $ticketAdmitted;
-        $blockReasons = self::blockReasonsNext187($base['block_reasons'] ?? [], $ticketAdmitted, $baseExposed);
+        $blockReasons = self::blockReasonsCurrentCheckpointDrainTicket($base['block_reasons'] ?? [], $ticketAdmitted, $baseExposed);
 
-        $currentRows = self::ticketRowsNext187($base['current_source_rows'] ?? [], $actualTicket, true, []);
-        $attemptedNextRows = self::ticketRowsNext187($base['attempted_next_source_rows'] ?? [], $actualTicket, $canExposeNext, $blockReasons);
+        $currentRows = self::ticketRowsCurrentCheckpointDrainTicket($base['current_source_rows'] ?? [], $actualTicket, true, []);
+        $attemptedNextRows = self::ticketRowsCurrentCheckpointDrainTicket($base['attempted_next_source_rows'] ?? [], $actualTicket, $canExposeNext, $blockReasons);
         $visibleRows = array_values(array_filter(array_merge($currentRows, $attemptedNextRows), static fn (array $row): bool => $row['visible_after_drain_ticket']));
         $heldRows = array_values(array_filter($attemptedNextRows, static fn (array $row): bool => !$row['visible_after_drain_ticket']));
 
         return [
-            'status' => self::statusNext187($canExposeNext, $ticketAdmitted, $baseExposed),
+            'status' => self::statusCurrentCheckpointDrainTicket($canExposeNext, $ticketAdmitted, $baseExposed),
             'base' => $base,
             'drain_ticket_prefix' => $prefix,
             'drain_ticket' => $actualTicket,
@@ -6450,8 +6450,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'block_reasons' => $blockReasons,
             'ticket_plan' => [
                 'prefix' => $prefix,
-                'required_checkpoint_count' => count(self::tokenListNext187($base['required_current_checkpoints'] ?? [], 'required current checkpoints')),
-                'acknowledged_checkpoint_count' => count(self::tokenListNext187($base['acknowledged_current_checkpoints'] ?? [], 'acknowledged current checkpoints')),
+                'required_checkpoint_count' => count(self::tokenListCurrentCheckpointDrainTicket($base['required_current_checkpoints'] ?? [], 'required current checkpoints')),
+                'acknowledged_checkpoint_count' => count(self::tokenListCurrentCheckpointDrainTicket($base['acknowledged_current_checkpoints'] ?? [], 'acknowledged current checkpoints')),
                 'expected_ticket' => $expectedTicket,
                 'actual_ticket' => $actualTicket,
                 'ticket_matches' => $ticketMatches,
@@ -6485,7 +6485,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockReasons
      * @return list<array<string,mixed>>
      */
-    private static function ticketRowsNext187(mixed $rows, string $ticket, bool $visible, array $blockReasons): array
+    private static function ticketRowsCurrentCheckpointDrainTicket(mixed $rows, string $ticket, bool $visible, array $blockReasons): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next187 rows are malformed');
@@ -6510,9 +6510,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockReasonsNext187(mixed $baseReasons, bool $ticketMatches, bool $baseExposed): array
+    private static function blockReasonsCurrentCheckpointDrainTicket(mixed $baseReasons, bool $ticketMatches, bool $baseExposed): array
     {
-        $reasons = self::stringsNext187($baseReasons, 'base block reasons');
+        $reasons = self::stringsCurrentCheckpointDrainTicket($baseReasons, 'base block reasons');
         if (!$ticketMatches) {
             $reasons[] = 'current-source-drain-ticket-mismatch';
         }
@@ -6523,7 +6523,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext187(bool $canExposeNext, bool $ticketMatches, bool $baseExposed): string
+    private static function statusCurrentCheckpointDrainTicket(bool $canExposeNext, bool $ticketMatches, bool $baseExposed): string
     {
         if ($canExposeNext) {
             return 'trigger-recursive-view-returning-current-source-next187-next-exposed';
@@ -6541,9 +6541,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param mixed $tokens
      */
-    private static function ticketNext187(string $prefix, mixed $tokens): string
+    private static function ticketCurrentCheckpointDrainTicket(string $prefix, mixed $tokens): string
     {
-        $normalized = self::tokenListNext187($tokens, 'drain ticket checkpoint tokens');
+        $normalized = self::tokenListCurrentCheckpointDrainTicket($tokens, 'drain ticket checkpoint tokens');
         sort($normalized);
 
         return $prefix . ':' . substr(hash('sha256', implode('|', $normalized)), 0, 16);
@@ -6553,20 +6553,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $tokens
      * @return list<string>
      */
-    private static function tokenListNext187(mixed $tokens, string $label): array
+    private static function tokenListCurrentCheckpointDrainTicket(mixed $tokens, string $label): array
     {
         if (!is_array($tokens) || !array_is_list($tokens)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next187 {$label} must be a list");
         }
 
-        return array_values(array_unique(array_map(static fn (mixed $token): string => self::tokenNext187((string) $token, $label), $tokens)));
+        return array_values(array_unique(array_map(static fn (mixed $token): string => self::tokenCurrentCheckpointDrainTicket((string) $token, $label), $tokens)));
     }
 
     /**
      * @param mixed $values
      * @return list<string>
      */
-    private static function stringsNext187(mixed $values, string $label): array
+    private static function stringsCurrentCheckpointDrainTicket(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next187 {$label} must be a list");
@@ -6575,7 +6575,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_map(static fn (mixed $value): string => (string) $value, $values);
     }
 
-    private static function tokenNext187(string $value, string $label): string
+    private static function tokenCurrentCheckpointDrainTicket(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next187 {$label} is malformed");
@@ -6596,7 +6596,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,recursive_triggers?:bool,max_depth?:int,admit_next_source?:bool,skip_column?:string,skip_value?:mixed,conflict_action?:string,page_size?:int,drain_cursor?:string,drained_current_pages?:int,resume_source_signature?:string,savepoint_action?:string,restart_cursor?:string,current_source_epoch?:int,snapshot_token?:string,expected_snapshot_token?:string,current_schema_cookie?:int,expected_current_schema_cookie?:int,current_source_generation?:string,expected_current_source_generation?:string,trigger_source_generation?:string,expected_trigger_source_generation?:string,returning_cursor_generation?:string,nested_epoch?:string,expected_nested_epoch?:string,drained_nested_depths?:list<int>,required_nested_depths?:list<int>,outer_publish_requested?:bool,current_watermark?:string,expected_current_watermark?:string,acknowledged_current_ordinals?:list<int>,auto_ack_current_ordinals?:bool,require_contiguous_ordinals?:bool} $options
      * @return array<string,mixed>
      */
-    public static function executeNext188(
+    public static function executeCurrentWatermarkOrdinalFence(
         array $rows,
         array $currentInput,
         array $nextInput,
@@ -6605,11 +6605,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $watermark = self::tokenNext188((string) ($options['current_watermark'] ?? 'wp.recursive.view.current.watermark.188'), 'current watermark');
-        $expectedWatermark = self::tokenNext188((string) ($options['expected_current_watermark'] ?? $watermark), 'expected current watermark');
+        $watermark = self::tokenCurrentWatermarkOrdinalFence((string) ($options['current_watermark'] ?? 'wp.recursive.view.current.watermark.188'), 'current watermark');
+        $expectedWatermark = self::tokenCurrentWatermarkOrdinalFence((string) ($options['expected_current_watermark'] ?? $watermark), 'expected current watermark');
         $requireContiguous = (bool) ($options['require_contiguous_ordinals'] ?? true);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext185(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNestedCurrentReturningVisibilityFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -6619,22 +6619,22 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options + ['savepoint_action' => 'release'],
         );
 
-        $currentRows = self::rowsNext188($base['visible_current_returning_rows_next185'] ?? [], 'current rows');
-        $baseNextRows = self::rowsNext188($base['visible_next_returning_rows_next185'] ?? [], 'next rows');
-        $heldNextRows = self::rowsNext188($base['held_next_source_rows_next185'] ?? [], 'held next rows');
-        $attemptedNextRows = self::dedupeRowsNext188(array_merge($baseNextRows, $heldNextRows));
-        $requiredOrdinals = self::requiredOrdinalsNext188($currentRows);
-        $acknowledgedOrdinals = self::acknowledgedOrdinalsNext188($options, $requiredOrdinals);
+        $currentRows = self::rowsCurrentWatermarkOrdinalFence($base['visible_current_returning_rows_next185'] ?? [], 'current rows');
+        $baseNextRows = self::rowsCurrentWatermarkOrdinalFence($base['visible_next_returning_rows_next185'] ?? [], 'next rows');
+        $heldNextRows = self::rowsCurrentWatermarkOrdinalFence($base['held_next_source_rows_next185'] ?? [], 'held next rows');
+        $attemptedNextRows = self::dedupeRowsCurrentWatermarkOrdinalFence(array_merge($baseNextRows, $heldNextRows));
+        $requiredOrdinals = self::requiredOrdinalsCurrentWatermarkOrdinalFence($currentRows);
+        $acknowledgedOrdinals = self::acknowledgedOrdinalsCurrentWatermarkOrdinalFence($options, $requiredOrdinals);
         $missingOrdinals = array_values(array_diff($requiredOrdinals, $acknowledgedOrdinals));
         $unexpectedOrdinals = array_values(array_diff($acknowledgedOrdinals, $requiredOrdinals));
-        $contiguous = self::contiguousNext188($acknowledgedOrdinals, $requiredOrdinals);
+        $contiguous = self::contiguousCurrentWatermarkOrdinalFence($acknowledgedOrdinals, $requiredOrdinals);
         $watermarkMatches = hash_equals($watermark, $expectedWatermark);
         $basePublishAllowed = (bool) ($base['outer_publish_allowed_next185'] ?? false);
         $ordinalFenceClear = $missingOrdinals === [] && $unexpectedOrdinals === [] && (!$requireContiguous || $contiguous);
         $nextPublishAllowed = $basePublishAllowed && $watermarkMatches && $ordinalFenceClear;
 
-        $taggedCurrentRows = self::tagRowsNext188($currentRows, 'current', true, $watermark, []);
-        $blockedReasons = self::blockedReasonsNext188(
+        $taggedCurrentRows = self::tagRowsCurrentWatermarkOrdinalFence($currentRows, 'current', true, $watermark, []);
+        $blockedReasons = self::blockedReasonsCurrentWatermarkOrdinalFence(
             $base['blocked_reasons_next185'] ?? [],
             $basePublishAllowed,
             $watermarkMatches,
@@ -6643,7 +6643,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $requireContiguous,
             $contiguous,
         );
-        $taggedNextRows = self::tagRowsNext188($attemptedNextRows, 'next', $nextPublishAllowed, $watermark, $blockedReasons);
+        $taggedNextRows = self::tagRowsCurrentWatermarkOrdinalFence($attemptedNextRows, 'next', $nextPublishAllowed, $watermark, $blockedReasons);
         $visibleRows = array_values(array_filter(
             array_merge($taggedCurrentRows, $taggedNextRows),
             static fn (array $row): bool => $row['visible_after_current_watermark_next188']
@@ -6654,7 +6654,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ));
 
         return $base + [
-            'status_next188' => self::statusNext188($basePublishAllowed, $watermarkMatches, $ordinalFenceClear, $nextPublishAllowed),
+            'status_next188' => self::statusCurrentWatermarkOrdinalFence($basePublishAllowed, $watermarkMatches, $ordinalFenceClear, $nextPublishAllowed),
             'current_watermark_next188' => $watermark,
             'expected_current_watermark_next188' => $expectedWatermark,
             'current_watermark_matches_next188' => $watermarkMatches,
@@ -6708,7 +6708,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<int>
      */
-    private static function requiredOrdinalsNext188(array $rows): array
+    private static function requiredOrdinalsCurrentWatermarkOrdinalFence(array $rows): array
     {
         $ordinals = [];
         foreach ($rows as $index => $row) {
@@ -6725,20 +6725,20 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $requiredOrdinals
      * @return list<int>
      */
-    private static function acknowledgedOrdinalsNext188(array $options, array $requiredOrdinals): array
+    private static function acknowledgedOrdinalsCurrentWatermarkOrdinalFence(array $options, array $requiredOrdinals): array
     {
         if (($options['auto_ack_current_ordinals'] ?? false) === true) {
             return $requiredOrdinals;
         }
 
-        return self::ordinalListNext188($options['acknowledged_current_ordinals'] ?? [], 'acknowledged current ordinals');
+        return self::ordinalListCurrentWatermarkOrdinalFence($options['acknowledged_current_ordinals'] ?? [], 'acknowledged current ordinals');
     }
 
     /**
      * @param mixed $values
      * @return list<int>
      */
-    private static function ordinalListNext188(mixed $values, string $label): array
+    private static function ordinalListCurrentWatermarkOrdinalFence(mixed $values, string $label): array
     {
         if (!is_array($values) || !array_is_list($values)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next188 {$label} must be a list");
@@ -6762,7 +6762,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $acknowledged
      * @param list<int> $required
      */
-    private static function contiguousNext188(array $acknowledged, array $required): bool
+    private static function contiguousCurrentWatermarkOrdinalFence(array $acknowledged, array $required): bool
     {
         if ($acknowledged === []) {
             return $required === [];
@@ -6778,7 +6778,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $reasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext188(array $rows, string $phase, bool $visible, string $watermark, array $reasons): array
+    private static function tagRowsCurrentWatermarkOrdinalFence(array $rows, string $phase, bool $visible, string $watermark, array $reasons): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -6799,7 +6799,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext188(mixed $rows, string $label): array
+    private static function rowsCurrentWatermarkOrdinalFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next188 {$label} are malformed");
@@ -6817,7 +6817,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function dedupeRowsNext188(array $rows): array
+    private static function dedupeRowsCurrentWatermarkOrdinalFence(array $rows): array
     {
         $seen = [];
         $out = [];
@@ -6839,7 +6839,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $unexpectedOrdinals
      * @return list<string>
      */
-    private static function blockedReasonsNext188(
+    private static function blockedReasonsCurrentWatermarkOrdinalFence(
         mixed $baseReasons,
         bool $basePublishAllowed,
         bool $watermarkMatches,
@@ -6871,7 +6871,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext188(bool $basePublishAllowed, bool $watermarkMatches, bool $ordinalFenceClear, bool $nextPublishAllowed): string
+    private static function statusCurrentWatermarkOrdinalFence(bool $basePublishAllowed, bool $watermarkMatches, bool $ordinalFenceClear, bool $nextPublishAllowed): string
     {
         if ($nextPublishAllowed) {
             return 'trigger-recursive-view-returning-current-source-watermark-released-next188';
@@ -6889,7 +6889,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-watermark-held-next188';
     }
 
-    private static function tokenNext188(string $value, string $label): string
+    private static function tokenCurrentWatermarkOrdinalFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@\\/-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next188 {$label} is malformed");
@@ -6910,7 +6910,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,current_source_token?:string,expected_current_source_token?:string,drain_ack_token?:string,expected_drain_ack_token?:string,rollback_current_source?:bool,rollback_token?:string,expected_rollback_token?:string,commit_current_source?:bool,reset_generation?:string,post_reset_current_source_token?:string,expected_post_reset_current_source_token?:string,post_reset_cursor?:string,post_reset_view?:array<string,mixed>,post_reset_input?:list<array<string,mixed>>,reuse_stale_returning_cursor?:bool,fresh_acknowledged_ordinals?:list<int>,next_source_token?:string,expected_next_source_token?:string,next_cursor?:string,expected_reset_generation?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext189(
+    public static function executeNextSourceAdmissionAfterFreshAck(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -6919,7 +6919,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext186(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executePostResetCurrentSourceRebind(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -6929,23 +6929,23 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $acknowledged = self::ordinalsNext189($options['fresh_acknowledged_ordinals'] ?? []);
-        $nextToken = self::tokenNext189((string) ($options['next_source_token'] ?? 'wp.next.source.189'), 'next source token');
-        $expectedNextToken = self::tokenNext189((string) ($options['expected_next_source_token'] ?? $nextToken), 'expected next source token');
-        $nextCursor = self::tokenNext189((string) ($options['next_cursor'] ?? 'wp.returning.next.cursor.189'), 'next cursor');
-        $expectedResetGeneration = self::tokenNext189((string) ($options['expected_reset_generation'] ?? ($base['post_reset_rebind_plan_next186']['reset_generation'] ?? '')), 'expected reset generation');
+        $acknowledged = self::ordinalsNextSourceAdmissionAfterFreshAck($options['fresh_acknowledged_ordinals'] ?? []);
+        $nextToken = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_source_token'] ?? 'wp.next.source.189'), 'next source token');
+        $expectedNextToken = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['expected_next_source_token'] ?? $nextToken), 'expected next source token');
+        $nextCursor = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['next_cursor'] ?? 'wp.returning.next.cursor.189'), 'next cursor');
+        $expectedResetGeneration = self::tokenNextSourceAdmissionAfterFreshAck((string) ($options['expected_reset_generation'] ?? ($base['post_reset_rebind_plan_next186']['reset_generation'] ?? '')), 'expected reset generation');
         $resetGenerationMatches = hash_equals($expectedResetGeneration, (string) ($base['post_reset_rebind_plan_next186']['reset_generation'] ?? ''));
         $tokenMatches = hash_equals($nextToken, $expectedNextToken);
-        $freshRows = self::rowsNext189($base['fresh_returning_rows_next186'] ?? [], 'fresh rows');
+        $freshRows = self::rowsNextSourceAdmissionAfterFreshAck($base['fresh_returning_rows_next186'] ?? [], 'fresh rows');
         $freshOrdinals = array_column($freshRows, 'returning_row_ordinal');
-        $currentRowsAcknowledged = $freshRows !== [] && self::acknowledgesAllFreshRowsNext189($freshOrdinals, $acknowledged);
+        $currentRowsAcknowledged = $freshRows !== [] && self::acknowledgesAllFreshRowsNextSourceAdmissionAfterFreshAck($freshOrdinals, $acknowledged);
         $canAdmitNext = $currentRowsAcknowledged && $tokenMatches && $resetGenerationMatches && $base['blocked_reasons_next186'] === [];
         $nextRows = $canAdmitNext
-            ? self::nextRowsNext189($nextInput, self::viewNext189($nextView), $returning, $nextToken, $nextCursor, (string) ($options['next_generation'] ?? 'wp-next-returning-189'))
+            ? self::nextRowsNextSourceAdmissionAfterFreshAck($nextInput, self::viewNextSourceAdmissionAfterFreshAck($nextView), $returning, $nextToken, $nextCursor, (string) ($options['next_generation'] ?? 'wp-next-returning-189'))
             : [];
 
         return [
-            'status_next189' => self::statusNext189($canAdmitNext, $currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
+            'status_next189' => self::statusNextSourceAdmissionAfterFreshAck($canAdmitNext, $currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'fresh_acknowledged_ordinals_next189' => $acknowledged,
@@ -6960,12 +6960,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'next_source_rows_next189' => $nextRows,
             'next_source_payloads_next189' => array_column($nextRows, 'returning'),
             'next_source_row_count_next189' => count($nextRows),
-            'blocked_reasons_next189' => self::blockedReasonsNext189($currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
+            'blocked_reasons_next189' => self::blockedReasonsNextSourceAdmissionAfterFreshAck($currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
             'handoff_plan_next189' => [
                 'fresh_rows_required' => count($freshRows),
                 'fresh_rows_acknowledged' => count(array_intersect($freshOrdinals, $acknowledged)),
                 'next_rows_visible' => count($nextRows),
-                'decision' => self::decisionNext189($canAdmitNext, $currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
+                'decision' => self::decisionNextSourceAdmissionAfterFreshAck($canAdmitNext, $currentRowsAcknowledged, $tokenMatches, $resetGenerationMatches, $base),
                 'resume_after_fresh_ordinal' => $freshRows === [] ? null : max($freshOrdinals),
                 'next_cursor' => $nextCursor,
             ],
@@ -6986,7 +6986,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<int> $required
      * @param list<int> $acknowledged
      */
-    private static function acknowledgesAllFreshRowsNext189(array $required, array $acknowledged): bool
+    private static function acknowledgesAllFreshRowsNextSourceAdmissionAfterFreshAck(array $required, array $acknowledged): bool
     {
         if ($required === []) {
             return false;
@@ -7002,21 +7002,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return list<array<string,mixed>>
      */
-    private static function nextRowsNext189(array $input, array $view, array $returning, string $token, string $cursor, string $generation): array
+    private static function nextRowsNextSourceAdmissionAfterFreshAck(array $input, array $view, array $returning, string $token, string $cursor, string $generation): array
     {
-        $mapping = self::mappingNext189($view['mapping'] ?? []);
+        $mapping = self::mappingNextSourceAdmissionAfterFreshAck($view['mapping'] ?? []);
         $out = [];
-        foreach (self::rowsNext189($input, 'next input') as $ordinal => $row) {
-            $new = self::mappedRowNext189($row, $mapping);
+        foreach (self::rowsNextSourceAdmissionAfterFreshAck($input, 'next input') as $ordinal => $row) {
+            $new = self::mappedRowNextSourceAdmissionAfterFreshAck($row, $mapping);
             $out[] = [
                 'statement_source' => 'next-source',
                 'returning_row_ordinal' => $ordinal,
-                'returning' => self::returningPayloadNext189($returning, $new, $view, $ordinal),
+                'returning' => self::returningPayloadNextSourceAdmissionAfterFreshAck($returning, $new, $view, $ordinal),
                 'returning_option_name' => (string) ($new['option_name'] ?? $new['name'] ?? ''),
                 'next_source_token_next189' => $token,
                 'next_cursor_next189' => $cursor,
                 'next_generation_next189' => $generation,
-                'source_signature_next189' => self::signatureNext189($view, $returning),
+                'source_signature_next189' => self::signatureNextSourceAdmissionAfterFreshAck($view, $returning),
             ];
         }
 
@@ -7027,7 +7027,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      * @return array<string,mixed>
      */
-    private static function returningPayloadNext189(array $returning, array $new, array $view, int $ordinal): array
+    private static function returningPayloadNextSourceAdmissionAfterFreshAck(array $returning, array $new, array $view, int $ordinal): array
     {
         $payload = [];
         foreach ($returning as $term) {
@@ -7057,7 +7057,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,string> $mapping
      * @return array<string,mixed>
      */
-    private static function mappedRowNext189(array $row, array $mapping): array
+    private static function mappedRowNextSourceAdmissionAfterFreshAck(array $row, array $mapping): array
     {
         $mapped = $row;
         foreach ($mapping as $source => $target) {
@@ -7072,7 +7072,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,string>
      */
-    private static function mappingNext189(mixed $mapping): array
+    private static function mappingNextSourceAdmissionAfterFreshAck(mixed $mapping): array
     {
         if (!is_array($mapping)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next189 view mapping is malformed');
@@ -7091,12 +7091,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return array<string,mixed>
      */
-    private static function viewNext189(mixed $view): array
+    private static function viewNextSourceAdmissionAfterFreshAck(mixed $view): array
     {
         if (!is_array($view)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next189 view is malformed');
         }
-        self::mappingNext189($view['mapping'] ?? []);
+        self::mappingNextSourceAdmissionAfterFreshAck($view['mapping'] ?? []);
 
         return $view;
     }
@@ -7104,7 +7104,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext189(mixed $rows, string $label): array
+    private static function rowsNextSourceAdmissionAfterFreshAck(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next189 {$label} must be a list");
@@ -7121,7 +7121,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function ordinalsNext189(mixed $ordinals): array
+    private static function ordinalsNextSourceAdmissionAfterFreshAck(mixed $ordinals): array
     {
         if (!is_array($ordinals) || !array_is_list($ordinals)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next189 acknowledged ordinals must be a list');
@@ -7140,7 +7140,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function signatureNext189(array $view, array $returning): string
+    private static function signatureNextSourceAdmissionAfterFreshAck(array $view, array $returning): string
     {
         $aliases = [];
         foreach ($returning as $index => $term) {
@@ -7157,7 +7157,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ], JSON_THROW_ON_ERROR)), 0, 16);
     }
 
-    private static function statusNext189(bool $canAdmitNext, bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): string
+    private static function statusNextSourceAdmissionAfterFreshAck(bool $canAdmitNext, bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): string
     {
         if ($canAdmitNext) {
             return 'trigger-recursive-view-returning-current-source-next189-next-source-visible';
@@ -7181,7 +7181,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext189(bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): array
+    private static function blockedReasonsNextSourceAdmissionAfterFreshAck(bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): array
     {
         $reasons = $base['blocked_reasons_next186'];
         if (!$currentRowsAcknowledged) {
@@ -7197,7 +7197,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function decisionNext189(bool $canAdmitNext, bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): string
+    private static function decisionNextSourceAdmissionAfterFreshAck(bool $canAdmitNext, bool $currentRowsAcknowledged, bool $tokenMatches, bool $resetGenerationMatches, array $base): string
     {
         if ($canAdmitNext) {
             return 'admit-next-source-after-post-reset-current-acks';
@@ -7218,7 +7218,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'hold-next-source';
     }
 
-    private static function tokenNext189(string $token, string $label): string
+    private static function tokenNextSourceAdmissionAfterFreshAck(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next189 {$label} is malformed");
@@ -7239,7 +7239,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{key?:string,savepoint?:string,admit_next_source?:bool,recursive_triggers?:bool,max_depth?:int,child_suffix?:string,cursor_name?:string,current_generation?:string,next_generation?:string,reprepare_token?:string,expected_reprepare_token?:string,page_size?:int,checkpoint_name?:string,commit_visible_checkpoints?:bool,handoff_token?:string,expected_handoff_token?:string,acknowledged_current_checkpoints?:list<string>,auto_ack_current?:bool,drain_ticket?:string,expected_drain_ticket?:string,drain_ticket_prefix?:string,resume_source_token?:string,expected_resume_source_token?:string,resume_source_prefix?:string,next_source_resume_token?:string,expected_next_source_resume_token?:string,source_signature?:string,expected_source_signature?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext190(
+    public static function executeCurrentSourceResumeFence(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -7258,7 +7258,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'drain_ticket_prefix' => 'wp.returning.current.source.drain.190',
         ];
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext187(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointDrainTicket(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -7268,44 +7268,44 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $baseOptions,
         );
 
-        $currentRows = self::rowsNext190($base['current_source_rows'] ?? [], 'current source rows');
-        $attemptedNextRows = self::rowsNext190($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
+        $currentRows = self::rowsCurrentSourceResumeFence($base['current_source_rows'] ?? [], 'current source rows');
+        $attemptedNextRows = self::rowsCurrentSourceResumeFence($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
         $lastCurrentResume = $currentRows === [] ? null : (string) $currentRows[array_key_last($currentRows)]['resume_token'];
         $firstNextResume = $attemptedNextRows === [] ? null : (string) $attemptedNextRows[0]['resume_token'];
-        $prefix = self::tokenNext190((string) ($options['resume_source_prefix'] ?? 'wp.returning.current.source.resume.190'), 'resume source prefix');
-        $expectedResumeSource = self::tokenNext190(
-            (string) ($options['expected_resume_source_token'] ?? self::resumeTokenNext190($prefix, $lastCurrentResume, $currentView, $returning)),
+        $prefix = self::tokenCurrentSourceResumeFence((string) ($options['resume_source_prefix'] ?? 'wp.returning.current.source.resume.190'), 'resume source prefix');
+        $expectedResumeSource = self::tokenCurrentSourceResumeFence(
+            (string) ($options['expected_resume_source_token'] ?? self::resumeTokenCurrentSourceResumeFence($prefix, $lastCurrentResume, $currentView, $returning)),
             'expected resume source token',
         );
-        $actualResumeSource = self::tokenNext190(
-            (string) ($options['resume_source_token'] ?? self::resumeTokenNext190($prefix, $lastCurrentResume, $currentView, $returning)),
+        $actualResumeSource = self::tokenCurrentSourceResumeFence(
+            (string) ($options['resume_source_token'] ?? self::resumeTokenCurrentSourceResumeFence($prefix, $lastCurrentResume, $currentView, $returning)),
             'resume source token',
         );
-        $expectedNextResume = self::tokenNext190(
+        $expectedNextResume = self::tokenCurrentSourceResumeFence(
             (string) ($options['expected_next_source_resume_token'] ?? ($firstNextResume ?? 'no-next-source-row')),
             'expected next source resume token',
         );
-        $actualNextResume = self::tokenNext190(
+        $actualNextResume = self::tokenCurrentSourceResumeFence(
             (string) ($options['next_source_resume_token'] ?? ($firstNextResume ?? 'no-next-source-row')),
             'next source resume token',
         );
-        $expectedSignature = self::signatureOptionNext190($options['expected_source_signature'] ?? self::sourceSignatureNext190($currentView, $returning), 'expected source signature');
-        $actualSignature = self::signatureOptionNext190($options['source_signature'] ?? self::sourceSignatureNext190($currentView, $returning), 'source signature');
+        $expectedSignature = self::signatureOptionCurrentSourceResumeFence($options['expected_source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'expected source signature');
+        $actualSignature = self::signatureOptionCurrentSourceResumeFence($options['source_signature'] ?? self::sourceSignatureCurrentSourceResumeFence($currentView, $returning), 'source signature');
 
         $resumeMatches = hash_equals($expectedResumeSource, $actualResumeSource);
         $nextResumeMatches = hash_equals($expectedNextResume, $actualNextResume);
         $signatureMatches = hash_equals($expectedSignature, $actualSignature);
         $baseExposed = (bool) ($base['next_source_exposed_after_drain_ticket'] ?? false);
         $resumeAdmitsNext = $baseExposed && $resumeMatches && $nextResumeMatches && $signatureMatches;
-        $blockReasons = self::blockReasonsNext190($base['block_reasons'] ?? [], $baseExposed, $resumeMatches, $nextResumeMatches, $signatureMatches);
+        $blockReasons = self::blockReasonsCurrentSourceResumeFence($base['block_reasons'] ?? [], $baseExposed, $resumeMatches, $nextResumeMatches, $signatureMatches);
 
-        $gatedCurrentRows = self::resumeRowsNext190($currentRows, $actualResumeSource, true, []);
-        $gatedNextRows = self::resumeRowsNext190($attemptedNextRows, $actualResumeSource, $resumeAdmitsNext, $blockReasons);
+        $gatedCurrentRows = self::resumeRowsCurrentSourceResumeFence($currentRows, $actualResumeSource, true, []);
+        $gatedNextRows = self::resumeRowsCurrentSourceResumeFence($attemptedNextRows, $actualResumeSource, $resumeAdmitsNext, $blockReasons);
         $visibleRows = array_values(array_filter(array_merge($gatedCurrentRows, $gatedNextRows), static fn (array $row): bool => $row['visible_after_resume_source']));
         $heldRows = array_values(array_filter($gatedNextRows, static fn (array $row): bool => !$row['visible_after_resume_source']));
 
         return [
-            'status' => self::statusNext190($resumeAdmitsNext, $baseExposed, $resumeMatches, $nextResumeMatches, $signatureMatches),
+            'status' => self::statusCurrentSourceResumeFence($resumeAdmitsNext, $baseExposed, $resumeMatches, $nextResumeMatches, $signatureMatches),
             'base' => $base,
             'resume_source_prefix' => $prefix,
             'resume_source_token' => $actualResumeSource,
@@ -7367,7 +7367,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockReasons
      * @return list<array<string,mixed>>
      */
-    private static function resumeRowsNext190(array $rows, string $resumeSource, bool $visible, array $blockReasons): array
+    private static function resumeRowsCurrentSourceResumeFence(array $rows, string $resumeSource, bool $visible, array $blockReasons): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -7385,7 +7385,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $rows
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext190(mixed $rows, string $label): array
+    private static function rowsCurrentSourceResumeFence(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next190 {$label} must be a list");
@@ -7403,7 +7403,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockReasonsNext190(mixed $baseReasons, bool $baseExposed, bool $resumeMatches, bool $nextResumeMatches, bool $signatureMatches): array
+    private static function blockReasonsCurrentSourceResumeFence(mixed $baseReasons, bool $baseExposed, bool $resumeMatches, bool $nextResumeMatches, bool $signatureMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next190 base block reasons must be a list');
@@ -7426,7 +7426,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext190(bool $admitted, bool $baseExposed, bool $resumeMatches, bool $nextResumeMatches, bool $signatureMatches): string
+    private static function statusCurrentSourceResumeFence(bool $admitted, bool $baseExposed, bool $resumeMatches, bool $nextResumeMatches, bool $signatureMatches): string
     {
         if ($admitted) {
             return 'trigger-recursive-view-returning-current-source-next190-next-exposed';
@@ -7450,9 +7450,9 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function resumeTokenNext190(string $prefix, ?string $lastCurrentResume, array $view, array $returning): string
+    private static function resumeTokenCurrentSourceResumeFence(string $prefix, ?string $lastCurrentResume, array $view, array $returning): string
     {
-        $material = ($lastCurrentResume ?? 'no-current-row') . '|' . self::sourceSignatureNext190($view, $returning);
+        $material = ($lastCurrentResume ?? 'no-current-row') . '|' . self::sourceSignatureCurrentSourceResumeFence($view, $returning);
 
         return $prefix . ':' . substr(hash('sha256', $material), 0, 16);
     }
@@ -7460,7 +7460,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function sourceSignatureNext190(array $view, array $returning): string
+    private static function sourceSignatureCurrentSourceResumeFence(array $view, array $returning): string
     {
         $parts = [
             (string) ($view['name'] ?? ''),
@@ -7479,7 +7479,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'sig190:' . substr(hash('sha256', implode('|', $parts)), 0, 16);
     }
 
-    private static function signatureOptionNext190(mixed $value, string $label): string
+    private static function signatureOptionCurrentSourceResumeFence(mixed $value, string $label): string
     {
         $string = (string) $value;
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $string) !== 1) {
@@ -7489,7 +7489,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $string;
     }
 
-    private static function tokenNext190(string $value, string $label): string
+    private static function tokenCurrentSourceResumeFence(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next190 {$label} is malformed");
@@ -7523,7 +7523,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $expectedSalt = self::currentSourceFingerprintToken((string) ($options['expected_fingerprint_salt'] ?? $salt), 'expected fingerprint salt');
         $requireOrder = (bool) ($options['require_fingerprint_order'] ?? true);
 
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext188(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentWatermarkOrdinalFence(
             $rows,
             $currentInput,
             $nextInput,
@@ -7834,7 +7834,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext189(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourceAdmissionAfterFreshAck(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -8173,7 +8173,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext189(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNextSourceAdmissionAfterFreshAck(
             $baseRows,
             $currentInput,
             $nextInput,
@@ -8429,7 +8429,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext190(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceResumeFence(
             $baseRows,
             $currentInput,
             $nextInput,

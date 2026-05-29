@@ -458,15 +458,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === [] || $innerStatements === [] || $afterRollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 needs outer, inner, and after-rollback statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch needs outer, inner, and after-rollback statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch needs unique constraints');
         }
         $outerSavepoint = self::nestedSavepointIdentifier($outerSavepoint, 'outer savepoint');
         $innerSavepoint = self::nestedSavepointIdentifier($innerSavepoint, 'inner savepoint');
         if (strcasecmp($outerSavepoint, $innerSavepoint) === 0) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 needs distinct savepoint names');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch needs distinct savepoint names');
         }
 
         $transactionImage = self::normalizeNestedSavepointTables($tables);
@@ -474,7 +474,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         $outer = self::runNestedSavepointStatements($outerStatements, $outerImage, $uniqueConstraints, $rowIdColumn);
         if ($outer['failed_statement'] !== null) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 outer statement failed: ' . $outer['failed_statement']['reason']);
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch outer statement failed: ' . $outer['failed_statement']['reason']);
         }
 
         $innerImage = $outer['tables'];
@@ -484,7 +484,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         $after = self::runNestedSavepointStatements($afterRollbackStatements, $afterRollbackStart, $uniqueConstraints, $rowIdColumn);
         if ($after['failed_statement'] !== null) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 after-rollback statement failed: ' . $after['failed_statement']['reason']);
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch after-rollback statement failed: ' . $after['failed_statement']['reason']);
         }
 
         $final = $after['tables'];
@@ -519,7 +519,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'row_counts' => self::nestedSavepointRowCounts($final),
             'changed_tables' => self::nestedSavepointChangedTables($transactionImage, $final),
             'dependencies' => [
-                'sqlite-rowvalue-update-delete-returning-savepoint-current-source-next157',
+                'sqlite-rowvalue-update-delete-returning-nested-savepoint-rollback-batch',
                 'sqlite-rollback-to-inner-savepoint-discards-returning-stream',
                 'sqlite-outer-savepoint-current-source-survives-inner-rollback',
             ],
@@ -604,11 +604,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value nested savepoint next157 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value nested savepoint rollback batch rows must be arrays');
                 }
             }
         }
@@ -619,7 +619,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function nestedSavepointIdentifier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value nested savepoint next157 {$label} is malformed");
+            throw new \InvalidArgumentException("SQLite row-value nested savepoint rollback batch {$label} is malformed");
         }
 
         return $value;
@@ -640,11 +640,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next157 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint rollback batch rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next157 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint rollback batch rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -13229,7 +13229,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rollback-to-savepoint-suppresses-update-delete-returning-yields-next160',
                 'sqlite-current-source-after-rollback-restarts-from-savepoint-image-next160',
             ],
-            'non_overlap' => 'covers explicit ROLLBACK TO savepoint over a mixed row-value UPDATE RETURNING and DELETE RETURNING protected batch; avoids accepted next148 DISTINCT retry, next156 conflict yielding, and next157 nested inner-savepoint rollback surfaces',
+            'non_overlap' => 'covers explicit ROLLBACK TO savepoint over a mixed row-value UPDATE RETURNING and DELETE RETURNING protected batch; avoids accepted distinct retry, conflict-yielding, and nested inner-savepoint rollback surfaces',
         ];
     }
 

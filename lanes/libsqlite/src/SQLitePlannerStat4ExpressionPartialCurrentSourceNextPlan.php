@@ -35064,7 +35064,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializePreparedHandoffValidationWindow(
+    public static function materializePreparedHandoffValidationContinuation(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35111,7 +35111,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeLatePreparedHandoff(
+    public static function materializeLatePreparedHandoffContinuation(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35119,7 +35119,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializePreparedHandoffValidationWindow($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializePreparedHandoffValidationContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next878893PreparationFence", 894, 909, "next878-893");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next878-893-prepared"
             && $fence["allSlicesPrepared"]
@@ -35158,7 +35158,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeContinuationPreparedHandoff(
+    public static function materializeFinalPreparedHandoffContinuation(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35166,7 +35166,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeLatePreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializeLatePreparedHandoffContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next894909PreparationFence", 910, 925, "next894-909");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next894-909-prepared"
             && $fence["allSlicesPrepared"]
@@ -35205,7 +35205,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeAdvancedPreparedHandoff(
+    public static function materializeAdvancedPreparedHandoffContinuation(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -35213,7 +35213,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeContinuationPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializeFinalPreparedHandoffContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next910925PreparationFence", 926, 941, "next910-925");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next910-925-prepared"
             && $fence["allSlicesPrepared"]
@@ -35260,7 +35260,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeAdvancedPreparedHandoff($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializeAdvancedPreparedHandoffContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::preparedHandoffFenceForRange($base, $currentSource, $neededColumns, "stat4Next926941PreparationFence", 942, 957, "advanced prepared");
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next926-941-prepared"
             && $fence["allSlicesPrepared"]

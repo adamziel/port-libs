@@ -45,7 +45,7 @@ Verification:
 - `php lanes/libsqlite/examples/wordpress-json-table-generated-rowid-order.php --self-test`
 - Exact removed JSON-table method/dependency scan across `src`, `tests`, and
   `examples`: no matches.
-- Exact user-named `Next150` scan across `src`, `tests`, and `examples`: no
+- Exact protected numbered-suffix scan across `src`, `tests`, and `examples`: no
   matches.
 - `git diff --check -- lanes/libsqlite`
 

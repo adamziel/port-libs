@@ -1969,7 +1969,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
         $rows = self::buildPublishRows($sourcePlan);
         $errors = self::publishErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next244 publish cursor failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source publish-ordering cursor failed: ' . implode('; ', $errors));
         }
 
         return new self($sourcePlan, $rows);
@@ -2047,7 +2047,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
         $sourceSummary = $this->sourcePlan->sourceSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next244-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-publish-ordering-ready',
             'publish_row_count' => count($this->publishRows),
             'publish_pages' => $this->publishPages(),
             'next_publish_pages' => $this->nextPublishPages(),
@@ -2064,16 +2064,16 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
             'all_tail_pages_excluded_from_publish' => !in_array(false, array_column($this->publishRows, 'tail_page_excluded_from_publish'), true),
             'publish_errors' => $this->publishErrors(),
             'publish_signature' => self::signature($this->publishTokens()),
-            'current_source_next244_token' => self::signature(array_merge(
-                ['next244', $sourceSummary['current_source_cursor_token']],
+            'current_source_publish_ordering_token' => self::signature(array_merge(
+                ['publish-ordering', $sourceSummary['current_source_cursor_token']],
                 $this->publishPages(),
                 $this->publishTokens(),
             )),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-cursor',
-                'sqlite-current-source-next244',
+                'sqlite-btree-vacuum-pointermap-freeblock-publish-ordering',
             ],
-            'dependency_closure' => 'no new support component needed; next244 reuses current-source cursor rows and adds publish-order validation only',
+            'dependency_closure' => 'no new support component needed; publish-ordering reuses current-source cursor rows and adds publish-order validation only',
             'non_overlap' => 'adds current-source publish-order validation after cursor visibility; does not repeat cursor row construction, freelist-link admission, checkpoint admission, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
@@ -2084,7 +2084,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next244',
+            'action' => 'btree-vacuum-pointermap-freeblock-publish-ordering',
             'publish_summary' => $this->publishSummary(),
             'publish_errors' => $this->publishErrors(),
             'publish_rows' => $this->publishRows,
@@ -2141,7 +2141,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
             $duplicatePointerMap = $channel === 'pointer-map' && ($publishedPointerMaps[$pageNumber] ?? 0) > 1;
             $nextPublishPage = $sourceRows[$index + 1]['source_page'] ?? null;
             $token = self::signature(array_merge(
-                ['next244', $previousPublishToken ?? 'initial', $sourceRow['source_token']],
+                ['publish-ordering', $previousPublishToken ?? 'initial', $sourceRow['source_token']],
                 [$ordinal, $pageNumber, $nextPublishPage ?? 'eof', $channel, $payloadPublishable, $duplicatePointerMap],
                 self::generationParts($publishedPointerMaps),
                 self::sortedIntKeys($publishedPayloads),
@@ -2166,7 +2166,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
                 'duplicate_pointer_map_republished' => !$duplicatePointerMap || ($publishedPointerMaps[$pageNumber] ?? 0) > 1,
                 'freeblock_receipt_published' => $channel !== 'payload' || $sourceRow['payload_page_keeps_freeblock_receipt'] === true,
                 'tail_page_excluded_from_publish' => $sourceRow['tail_page_remains_excluded'] === true,
-                'publish_state' => 'current-source-next244-publish-cursor-visible',
+                'publish_state' => 'current-source-publish-ordering-cursor-visible',
                 'publish_token' => $token,
             ];
 
@@ -2187,7 +2187,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublishOrderingVari
         $previousToken = null;
 
         foreach ($rows as $row) {
-            if ($row['publish_state'] !== 'current-source-next244-publish-cursor-visible') {
+            if ($row['publish_state'] !== 'current-source-publish-ordering-cursor-visible') {
                 $errors[] = "publish {$row['publish_ordinal']} is not visible";
             }
             if ((int) $row['publish_ordinal'] !== $previousOrdinal + 1) {
@@ -3035,16 +3035,16 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCheckpointVariant
             'checkpoint_errors' => $this->checkpointErrors(),
             'checkpoint_signature' => self::signature($this->checkpointTokens()),
             'current_source_next247_token' => self::signature(array_merge(
-                ['next247', $publishSummary['current_source_next244_token']],
+                ['next247', $publishSummary['current_source_publish_ordering_token']],
                 $this->checkpointPages(),
                 $this->checkpointTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next244',
+                'sqlite-btree-vacuum-pointermap-freeblock-publish-ordering',
                 'sqlite-current-source-next247',
             ],
-            'dependency_closure' => 'no new support component needed; next247 reuses next244 publish cursor rows and adds checkpoint admission for pointer-map/freeblock visibility',
-            'non_overlap' => 'adds current-source checkpoint admission after next244 publish visibility; does not repeat next244 publish cursor construction, source cursor rows, freelist-link admission, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; next247 reuses publish-ordering cursor rows and adds checkpoint admission for pointer-map/freeblock visibility',
+            'non_overlap' => 'adds current-source checkpoint admission after publish-ordering visibility; does not repeat publish-ordering cursor construction, source cursor rows, freelist-link admission, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -4016,7 +4016,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceHandoffBarrierVaria
                 'sqlite-current-source-next250',
             ],
             'dependency_closure' => 'no new support component needed; next250 reuses next247 checkpoint rows and validates the next current-source freeblock/payload handoff barriers',
-            'non_overlap' => 'adds current-source next250 handoff barrier validation after next247 checkpoint admission; does not repeat next247 checkpoint construction, next244 publish ordering, source cursor rows, freelist-link admission, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds current-source next250 handoff barrier validation after next247 checkpoint admission; does not repeat next247 checkpoint construction, publish-ordering, source cursor rows, freelist-link admission, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
