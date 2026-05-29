@@ -1850,35 +1850,7 @@ final class SQLiteSelectSql
             return null;
         }
 
-        $aliasSql = trim(substr($sql, $offset));
-        $alias = 'values';
-        $columns = [];
-        if ($aliasSql !== '') {
-            if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/is', $aliasSql, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
-            }
-            $alias = $match[1];
-            self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
-            $tail = trim($match[2]);
-            if ($tail !== '') {
-                if (!str_starts_with($tail, '(')) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
-                }
-                [$columnSql, $columnOffset] = self::consumeParenthesized($tail, 0);
-                if (trim(substr($tail, $columnOffset)) !== '') {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
-                }
-                foreach (self::splitTopLevel($columnSql, ',') as $column) {
-                    $column = trim($column);
-                    self::assertBareIdentifier($column, 'SQLite SELECT SQL VALUES source column alias');
-                    $columns[] = $column;
-                }
-                if ($columns === []) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source column list cannot be empty');
-                }
-            }
-        }
-
+        [$alias, $columns] = self::valuesTableAlias(trim(substr($sql, $offset)));
         $rows = self::executeValuesClause(trim($body));
         if ($columns !== []) {
             $rows = self::renameValuesTableColumns($rows, $columns, $alias);
@@ -1887,8 +1859,49 @@ final class SQLiteSelectSql
         return [
             'name' => 'values',
             'alias' => $alias,
-            'rows' => $columns === [] ? $rows : self::qualifiedRows($rows, $alias),
+            'rows' => $rows,
         ];
+    }
+
+    /**
+     * @return array{0:string,1:list<string>}
+     */
+    private static function valuesTableAlias(string $sql): array
+    {
+        if ($sql === '') {
+            return ['values', []];
+        }
+
+        if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+        }
+
+        $alias = $match[1];
+        self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
+        $tail = trim($match[2]);
+        if ($tail === '') {
+            return [$alias, []];
+        }
+        if (!str_starts_with($tail, '(')) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+        }
+
+        [$columnSql, $offset] = self::consumeParenthesized($tail, 0);
+        if (trim(substr($tail, $offset)) !== '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+        }
+
+        $columns = [];
+        foreach (self::splitTopLevel($columnSql, ',') as $column) {
+            $column = trim($column);
+            self::assertBareIdentifier($column, 'SQLite SELECT SQL VALUES source column alias');
+            $columns[] = $column;
+        }
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source column list cannot be empty');
+        }
+
+        return [$alias, $columns];
     }
 
     /**
