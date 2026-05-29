@@ -62,13 +62,13 @@ $tests['pragma index xinfo foreignkey next254 nullable parent unique key blocker
     $t->same(['NOCASE', 'RTRIM'], $rows[0]['parent_index_collations']);
 };
 
-$tests['pragma index xinfo foreignkey next252-255 handoff keeps next255 out of unrelated clusters'] = static function (TestRunner $t): void {
+$tests['pragma index xinfo foreignkey next252-255 handoff reaches the PRAGMA next255 source'] = static function (TestRunner $t): void {
     $available = get_class_methods(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::class);
 
     $t->same(true, in_array('page252', $available, true));
     $t->same(true, in_array('page253', $available, true));
     $t->same(true, in_array('page254', $available, true));
-    $t->same(false, in_array('page255', $available, true));
+    $t->same(true, in_array('page255', $available, true));
 };
 
 return $tests;

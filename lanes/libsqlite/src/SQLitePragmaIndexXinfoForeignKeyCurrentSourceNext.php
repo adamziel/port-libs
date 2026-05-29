@@ -25351,4 +25351,438 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             }
         }
     }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page255(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::page255258(
+            255,
+            self::page254($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 0, PHP_INT_MAX),
+            self::parentKeyCollationRows255($currentRecords, 'current'),
+            self::parentKeyCollationRows255($nextRecords, 'next'),
+            'foreign_key_parent_key_collation',
+            'sqlite-pragma-foreign-key-parent-key-collation',
+            $offset,
+            $limit,
+            $resume,
+        );
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page256(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::page255258(
+            256,
+            self::page255($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 0, PHP_INT_MAX),
+            self::partialParentKeyRows256($currentRecords, 'current'),
+            self::partialParentKeyRows256($nextRecords, 'next'),
+            'foreign_key_partial_parent_key',
+            'sqlite-pragma-foreign-key-partial-parent-key',
+            $offset,
+            $limit,
+            $resume,
+        );
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page257(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::page255258(
+            257,
+            self::page256($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 0, PHP_INT_MAX),
+            self::expressionParentKeyRows257($currentRecords, 'current'),
+            self::expressionParentKeyRows257($nextRecords, 'next'),
+            'foreign_key_expression_parent_key',
+            'sqlite-pragma-foreign-key-expression-parent-key',
+            $offset,
+            $limit,
+            $resume,
+        );
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page258(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::page255258(
+            258,
+            self::page257($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 0, PHP_INT_MAX),
+            self::descendingParentKeyRows258($currentRecords, 'current'),
+            self::descendingParentKeyRows258($nextRecords, 'next'),
+            'foreign_key_descending_parent_key',
+            'sqlite-pragma-foreign-key-descending-parent-key',
+            $offset,
+            $limit,
+            $resume,
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    private static function page255258(
+        int $slice,
+        array $base,
+        array $currentRows,
+        array $nextRows,
+        string $key,
+        string $dependency,
+        int $offset,
+        int $limit,
+        ?array $resume,
+    ): array {
+        if ($offset < 0) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} offset must be non-negative");
+        }
+        if ($limit < 1) {
+            throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} limit must be positive");
+        }
+
+        $sourceId = hash('sha256', json_encode([
+            'mode' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'base' => $base['source_id'],
+            'current' => self::rowSummary255258($currentRows),
+            'next' => self::rowSummary255258($nextRows),
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        if ($resume !== null) {
+            if (($resume['source_id'] ?? null) !== $sourceId) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor does not match current source");
+            }
+            if (($resume['offset'] ?? null) !== $offset) {
+                throw new InvalidArgumentException("SQLite PRAGMA current-source next{$slice} resume cursor offset mismatch");
+            }
+        }
+
+        $allRows = array_values(array_merge($base['rows'], $currentRows, $nextRows));
+        $pageRows = array_slice($allRows, $offset, $limit);
+        $nextOffset = $offset + count($pageRows);
+        $currentCounts = self::counts255258($currentRows);
+        $nextCounts = self::counts255258($nextRows);
+
+        return [
+            ...$base,
+            'operation' => "pragma-index-xinfo-foreignkey-current-source-next{$slice}",
+            'source_id' => $sourceId,
+            'offset' => $offset,
+            'limit' => $limit,
+            'count' => count($pageRows),
+            'total' => count($allRows),
+            'next' => $nextOffset < count($allRows) ? ['source_id' => $sourceId, 'offset' => $nextOffset] : null,
+            'next_row' => $allRows[$nextOffset] ?? null,
+            'current_source' => [
+                ...$base['current_source'],
+                $key . '_source' => 'pragma_foreign_key_list_parent_columns_plus_pragma_index_xinfo',
+                $key => self::rowSummary255258($currentRows),
+            ],
+            'next_source' => [
+                ...($base['next_source'] ?? []),
+                $key . '_source' => 'pragma_foreign_key_list_parent_columns_plus_pragma_index_xinfo',
+                $key => self::rowSummary255258($nextRows),
+            ],
+            'current' => [
+                ...$base['current'],
+                $key => $currentCounts,
+            ],
+            'next_counts' => [
+                ...$base['next_counts'],
+                $key => $nextCounts,
+            ],
+            'delta' => [
+                ...$base['delta'],
+                $key . '_rows' => $nextCounts['rows'] - $currentCounts['rows'],
+                $key . '_blockers' => $nextCounts['blocked'] - $currentCounts['blocked'],
+                $key . '_repaired' => $currentCounts['blocked'] > 0 && $nextCounts['blocked'] === 0,
+                $key . '_changed' => self::rowSummary255258($currentRows, false) !== self::rowSummary255258($nextRows, false),
+            ],
+            'dependencies' => array_values(array_unique([
+                ...$base['dependencies'],
+                $dependency,
+            ])),
+            'rows' => $pageRows,
+        ];
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function parentKeyCollationRows255(array $records, string $phase = 'current'): array
+    {
+        self::validateRecords254($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeyRows254(self::foreignKeyListRows175($records, $phase)) as $group) {
+            $parent = (string) $group[0]['parent'];
+            $parentColumns = array_map(static fn (array $row): string => (string) ($row['to'] ?? ''), $group);
+            if (in_array('', $parentColumns, true)) {
+                continue;
+            }
+            foreach (self::candidateParentIndexes255258($catalog, $parent, $parentColumns) as $candidate) {
+                if (!$candidate['unique'] || $candidate['partial'] || $candidate['expression_columns'] > 0) {
+                    continue;
+                }
+                $declared = self::declaredColumnCollations255($records, $parent, $parentColumns);
+                if ($declared === $candidate['collations']) {
+                    continue;
+                }
+                $rows[] = self::diagnosticRow255258($phase, $group[0], 'foreign_key_parent_key_collation', 'parent_key_collation_mismatch', $candidate, [
+                    'parent_declared_collations' => $declared,
+                    'blocked' => true,
+                    'message' => "foreign key {$group[0]['table']}->{$parent} parent key {$candidate['index']} uses collations that differ from the parent table declaration",
+                ]);
+            }
+        }
+
+        return self::sortRows255258($rows);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function partialParentKeyRows256(array $records, string $phase = 'current'): array
+    {
+        return self::parentIndexPredicateRows255258($records, $phase, 'foreign_key_partial_parent_key', 'partial_parent_key', static fn (array $candidate): bool => $candidate['unique'] && $candidate['partial']);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function expressionParentKeyRows257(array $records, string $phase = 'current'): array
+    {
+        return self::parentIndexPredicateRows255258($records, $phase, 'foreign_key_expression_parent_key', 'expression_parent_key', static fn (array $candidate): bool => $candidate['unique'] && $candidate['expression_columns'] > 0);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    public static function descendingParentKeyRows258(array $records, string $phase = 'current'): array
+    {
+        return self::parentIndexPredicateRows255258($records, $phase, 'foreign_key_descending_parent_key', 'descending_parent_key', static fn (array $candidate): bool => $candidate['unique'] && $candidate['descending_columns'] > 0);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @return list<array<string,mixed>>
+     */
+    private static function parentIndexPredicateRows255258(array $records, string $phase, string $kind, string $status, callable $predicate): array
+    {
+        self::validateRecords254($records);
+
+        $catalog = new SQLitePragmaSchemaCatalog($records);
+        $rows = [];
+        foreach (self::groupForeignKeyRows254(self::foreignKeyListRows175($records, $phase)) as $group) {
+            $parent = (string) $group[0]['parent'];
+            $parentColumns = array_map(static fn (array $row): string => (string) ($row['to'] ?? ''), $group);
+            if (in_array('', $parentColumns, true)) {
+                continue;
+            }
+            foreach (self::candidateParentIndexes255258($catalog, $parent, $parentColumns) as $candidate) {
+                if (!$predicate($candidate)) {
+                    continue;
+                }
+                $rows[] = self::diagnosticRow255258($phase, $group[0], $kind, $status, $candidate, [
+                    'blocked' => $status !== 'descending_parent_key',
+                    'message' => "foreign key {$group[0]['table']}->{$parent} parent key {$candidate['index']} is visible through PRAGMA index_xinfo as {$status}",
+                ]);
+            }
+        }
+
+        return self::sortRows255258($rows);
+    }
+
+    /**
+     * @param list<string> $parentColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function candidateParentIndexes255258(SQLitePragmaSchemaCatalog $catalog, string $parent, array $parentColumns): array
+    {
+        $wanted = array_map('strtolower', $parentColumns);
+        $candidates = [];
+        foreach ($catalog->indexList($parent) as $index) {
+            $keyRows = array_values(array_filter($catalog->indexXInfo((string) $index['name']), static fn (array $row): bool => (int) ($row['key'] ?? 0) === 1));
+            $columns = array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $keyRows);
+            $expressionColumns = count(array_filter($keyRows, static fn (array $row): bool => (int) ($row['cid'] ?? 0) === -2));
+            if (array_map('strtolower', $columns) !== $wanted && ($expressionColumns === 0 || count($keyRows) !== count($wanted))) {
+                continue;
+            }
+            $candidates[] = [
+                'index' => (string) $index['name'],
+                'unique' => (int) ($index['unique'] ?? 0) === 1,
+                'partial' => (int) ($index['partial'] ?? 0) === 1,
+                'origin' => (string) ($index['origin'] ?? ''),
+                'columns' => $columns,
+                'collations' => array_map(static fn (array $row): string => strtoupper((string) ($row['coll'] ?? 'BINARY')), $keyRows),
+                'descending_columns' => count(array_filter($keyRows, static fn (array $row): bool => (int) ($row['desc'] ?? 0) === 1)),
+                'expression_columns' => $expressionColumns,
+            ];
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $records
+     * @param list<string> $columns
+     * @return list<string>
+     */
+    private static function declaredColumnCollations255(array $records, string $table, array $columns): array
+    {
+        $sql = '';
+        foreach ($records as $record) {
+            if ($record->type === 'table' && strcasecmp($record->name, $table) === 0) {
+                $sql = (string) $record->sql;
+                break;
+            }
+        }
+
+        return array_map(static function (string $column) use ($sql): string {
+            if (preg_match('/(?:^|[(,])\s*["`\[]?' . preg_quote($column, '/') . '["`\]]?\b[^,)]*\bCOLLATE\s+([A-Za-z_][A-Za-z0-9_]*)/i', $sql, $match) === 1) {
+                return strtoupper($match[1]);
+            }
+
+            return 'BINARY';
+        }, $columns);
+    }
+
+    /**
+     * @param array<string,mixed> $foreignKey
+     * @param array<string,mixed> $candidate
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private static function diagnosticRow255258(string $phase, array $foreignKey, string $kind, string $status, array $candidate, array $extra): array
+    {
+        return [
+            'phase' => $phase,
+            'kind' => $kind,
+            'table' => (string) $foreignKey['table'],
+            'foreign_key_id' => (int) $foreignKey['id'],
+            'seq' => (int) $foreignKey['seq'],
+            'parent' => (string) $foreignKey['parent'],
+            'from' => (string) $foreignKey['from'],
+            'to' => (string) ($foreignKey['to'] ?? ''),
+            'parent_unique_index' => $candidate['index'],
+            'parent_index_origin' => $candidate['origin'],
+            'parent_index_columns' => $candidate['columns'],
+            'parent_index_collations' => $candidate['collations'],
+            'parent_index_partial' => $candidate['partial'],
+            'parent_index_descending_columns' => $candidate['descending_columns'],
+            'parent_index_expression_columns' => $candidate['expression_columns'],
+            'status' => $status,
+            ...$extra,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function sortRows255258(array $rows): array
+    {
+        usort($rows, static fn (array $left, array $right): int => [$left['phase'], $left['table'], $left['foreign_key_id'], $left['seq'], $left['kind']]
+            <=> [$right['phase'], $right['table'], $right['foreign_key_id'], $right['seq'], $right['kind']]);
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{rows:int,blocked:int,ok:int,indexes:int}
+     */
+    private static function counts255258(array $rows): array
+    {
+        $indexes = [];
+        $blocked = 0;
+        foreach ($rows as $row) {
+            $indexes[(string) ($row['parent_unique_index'] ?? '')] = true;
+            if (($row['blocked'] ?? false) === true) {
+                $blocked++;
+            }
+        }
+
+        return [
+            'rows' => count($rows),
+            'blocked' => $blocked,
+            'ok' => count($rows) - $blocked,
+            'indexes' => count(array_filter(array_keys($indexes))),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function rowSummary255258(array $rows, bool $includePhase = true): array
+    {
+        $summary = array_map(
+            static fn (array $row): string => implode(':', array_filter([
+                $includePhase ? (string) $row['phase'] : null,
+                (string) $row['kind'],
+                (string) $row['table'] . '#' . (int) $row['foreign_key_id'] . '.' . (int) $row['seq'],
+                (string) $row['from'] . '->' . (string) $row['parent'] . '.' . (string) $row['to'],
+                'index=' . (string) ($row['parent_unique_index'] ?? 'none'),
+                'coll=' . implode(',', (array) ($row['parent_index_collations'] ?? [])),
+                (string) ($row['status'] ?? ''),
+            ], static fn (?string $part): bool => $part !== null)),
+            $rows,
+        );
+        sort($summary);
+
+        return $summary;
+    }
 }

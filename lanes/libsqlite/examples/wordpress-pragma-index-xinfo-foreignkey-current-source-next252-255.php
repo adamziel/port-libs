@@ -33,7 +33,7 @@ $methods = get_class_methods(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::
 
 $summary = [
     'scenario' => 'wordpress-pragma-index-xinfo-foreignkey-current-source-next252-255',
-    'wordpressUse' => 'WordPress taxonomy import checks can keep missing child columns, generated child SET actions, and nullable parent UNIQUE keys visible while avoiding unrelated next255 clusters.',
+    'wordpressUse' => 'WordPress taxonomy import checks can keep missing child columns, generated child SET actions, nullable parent UNIQUE keys, and PRAGMA next255 availability visible.',
     'next252_status' => $next252Rows[0]['status'],
     'next252_missing_from' => $next252Rows[0]['from'],
     'next253_blocked_rows' => count(array_filter($next253Rows, static fn (array $row): bool => ($row['blocked'] ?? false) === true)),
@@ -51,7 +51,7 @@ if (($argv[1] ?? null) === '--self-test') {
         || $summary['next253_statuses'] !== ['set_null_generated_notnull_child', 'set_default_generated_null_child']
         || $summary['next254_nullable_rows'] !== 2
         || $summary['next254_parent_index'] !== 'sqlite_autoindex_wp_terms_254_1'
-        || $summary['pragma_next255_present'] !== false
+        || $summary['pragma_next255_present'] !== true
     ) {
         fwrite(STDERR, "wordpress-pragma-index-xinfo-foreignkey-current-source-next252-255 self-test failed\n");
         exit(1);
