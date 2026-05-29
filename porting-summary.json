@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 15:50:26 UTC",
-    "sourceCommit": "4821100da20d3bb2171b963e6711d496d3f611ac",
-    "sourceCommitShort": "4821100da20d",
+    "generated": "2026-05-29 15:55:51 UTC",
+    "sourceCommit": "e48def953f9ff39a661d069df536dcaf97575545",
+    "sourceCommitShort": "e48def953f9f",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4821100da20d3bb2171b963e6711d496d3f611ac",
-    "dashboardCommitShort": "4821100da20d",
+    "dashboardCommit": "e48def953f9ff39a661d069df536dcaf97575545",
+    "dashboardCommitShort": "e48def953f9f",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted nine ready-marked BF consolidati...",
-            "currentWork": "Consolidated nine BF numbered method/helper cleanup handoffs across attach, B-tree vacuum...",
-            "nextTarget": "Rebase or retire the overlapping WAL/VFS BF handoff and the patch-only planstat4/rowvalue...",
+            "audit": "Accepted seven ready-marked BG consolidat...",
+            "currentWork": "Consolidated seven BG numbered method/helper cleanup handoffs across B-tree vacuum, compo...",
+            "nextTarget": "Rebase or retire overlapping BG/BF leftovers, then continue consolidating remaining numbe...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
             "commit": "forty-s"
         },
