@@ -1,6 +1,6 @@
-# compound-select-window-except-order-current-source-next143
+# compound-select-window-except-order-current-source
 
-Status: focused PHP behavior growth for parser-level compound SELECT output where a windowed current-source rowset feeds `EXCEPT`, then the final compound `ORDER BY` decides the WordPress option boundary.
+Status: consolidated the former numbered compound SELECT EXCEPT/ORDER helper into stable unsuffixed production method names while preserving the focused parser-level behavior where a windowed current-source rowset feeds `EXCEPT`, then the final compound `ORDER BY` decides the WordPress option boundary.
 
 Behavior covered:
 - `row_number() OVER (PARTITION BY autoload ORDER BY freshness DESC, option_id)` is evaluated before the compound `EXCEPT`.
@@ -11,16 +11,20 @@ Behavior covered:
 Focused verification:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowExceptOrderCurrentSourceNext143Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundWindowExceptOrderCurrentSourceTest.php
 ```
+
+Result: `1 test files, 195 assertions, 0 failures`.
 
 WordPress smoke:
 
 ```sh
-php lanes/libsqlite/examples/wordpress-compound-window-except-order-current-source-next143.php --self-test
+php lanes/libsqlite/examples/wordpress-compound-window-except-order-current-source.php --self-test
 ```
 
-Expected dashboard movement: `phpPass +64` from the new focused test file. `benchmarkDenominator.mapped` remains `606 / 1589`; this is current-source PHP behavior over already mapped compound SELECT, window, EXCEPT, and ORDER inventory, not a newly hydrated upstream row.
+Result: `wordpress-compound-window-except-order-current-source self-test passed`.
+
+Expected dashboard movement: no `phpPass` or mapped-coverage movement; this pass is method-wrapper consolidation over already accepted behavior.
 
 Non-overlap: avoids accepted compound recursive/window LIMIT next139, compound LIMIT/window affinity next137, compound CTE/window ORDER next134, compound VALUES affinity/order next127, EXCEPT/INTERSECT affinity tests, SELECT SQL GROUP/JOIN/subquery/ORDER/LIMIT clusters, JSON table source/cursor/constraint work, VFS/WAL/B-tree clusters, VDBE window helper slices, and suite evidence handoffs. The narrower surface is window rank materialization before `EXCEPT` and final compound `ORDER BY` over current/next copied WordPress rows.
 

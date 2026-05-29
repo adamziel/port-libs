@@ -17,7 +17,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext138(
+        public static function materializeCoveringStat4Range(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -34,8 +34,8 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             $selectedSource = (string) ($base['selectedSource'] ?? 'prepared');
             $source = $selectedSource === 'current' ? $currentSource : $preparedSource;
             $plan = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
-            $rows = self::coveredRowsNext138($source, $plan, $predicate, $neededColumns);
-            $bucketed = self::stat4BucketsNext138($plan, $rows);
+            $rows = self::coveredRangeRows($source, $plan, $predicate, $neededColumns);
+            $bucketed = self::stat4RangeBuckets($plan, $rows);
             $ready = ($base['status'] ?? null) === 'covering-range-order-current-source-ready'
                 && ($plan['covering'] ?? false) === true
                 && ($plan['stat4Used'] ?? false) === true
@@ -45,7 +45,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             return array_replace($base, [
                 'status' => $ready ? 'covering-stat4-range-current-source-next138-ready' : 'requires-next-stage',
                 'coveredRows' => $rows,
-                'currentNextRows' => self::currentNextRowsNext138($rows),
+                'currentNextRows' => self::currentAndNextRows($rows),
                 'stat4RangeBuckets' => $bucketed,
                 'stat4BucketCount' => count($bucketed),
                 'stat4RowStreamSignature' => hash('sha256', json_encode(array_column($rows, 'rowid'), JSON_THROW_ON_ERROR)),
@@ -57,7 +57,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
                     'stat4RangeKeys' => array_column($bucketed, 'key'),
                     'rangeRowsAdmitted' => array_column($rows, 'rowid'),
                     'nextSource' => $ready ? 'covering-stat4-range-current-source' : 'table-rowid-lookup',
-                    'cursorProgram' => self::cursorProgramNext138($base, $ready),
+                    'cursorProgram' => self::cursorProgram($base, $ready),
                 ]),
                 'currentSourceFence' => array_replace(
                     is_array($base['currentSourceFence'] ?? null) ? $base['currentSourceFence'] : [],
@@ -89,7 +89,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function coveredRowsNext138(array $source, array $plan, array $predicate, array $neededColumns): array
+        private static function coveredRangeRows(array $source, array $plan, array $predicate, array $neededColumns): array
         {
             $rangeColumn = (string) ($plan['rangeColumn'] ?? '');
             if ($rangeColumn === '' || ($plan['covering'] ?? false) !== true) {
@@ -106,10 +106,10 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite covering STAT4 range current-source rows must be arrays');
                 }
-                if (!self::rowSatisfiesPointTermsNext138($row, $predicate)) {
+                if (!self::rowSatisfiesPointTerms($row, $predicate)) {
                     continue;
                 }
-                if (!array_key_exists($rangeColumn, $row) || !self::withinRangeNext138($row[$rangeColumn], $plan)) {
+                if (!array_key_exists($rangeColumn, $row) || !self::withinRange($row[$rangeColumn], $plan)) {
                     continue;
                 }
 
@@ -126,7 +126,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             }
 
             usort($covered, static function (array $left, array $right): int {
-                $comparison = self::compareNext138($left['rangeKey'] ?? null, $right['rangeKey'] ?? null);
+                $comparison = self::compareValues($left['rangeKey'] ?? null, $right['rangeKey'] ?? null);
                 if ($comparison !== 0) {
                     return $comparison;
                 }
@@ -141,9 +141,9 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param array<string,mixed> $plan
          */
-        private static function rowSatisfiesPointTermsNext138(array $row, array $predicate): bool
+        private static function rowSatisfiesPointTerms(array $row, array $predicate): bool
         {
-            foreach (self::flattenAndTermsNext138($predicate) as $term) {
+            foreach (self::flattenAndTerms($predicate) as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 if (!in_array($operator, ['=', '==', 'IS'], true)) {
                     continue;
@@ -156,7 +156,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
                 if (!is_string($column) || !array_key_exists($column, $row)) {
                     return false;
                 }
-                if (self::compareNext138($row[$column], $term['right'] ?? null) !== 0) {
+                if (self::compareValues($row[$column], $term['right'] ?? null) !== 0) {
                     return false;
                 }
             }
@@ -168,7 +168,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param array<string,mixed> $predicate
          * @return list<array<string,mixed>>
          */
-        private static function flattenAndTermsNext138(array $predicate): array
+        private static function flattenAndTerms(array $predicate): array
         {
             if (strtoupper((string) ($predicate['operator'] ?? '')) !== 'AND') {
                 return [$predicate];
@@ -183,7 +183,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
                 if (!is_array($term)) {
                     throw new \InvalidArgumentException('SQLite covering STAT4 range current-source predicate terms must be arrays');
                 }
-                array_push($flat, ...self::flattenAndTermsNext138($term));
+                array_push($flat, ...self::flattenAndTerms($term));
             }
 
             return $flat;
@@ -192,18 +192,18 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $plan
          */
-        private static function withinRangeNext138(mixed $value, array $plan): bool
+        private static function withinRange(mixed $value, array $plan): bool
         {
             $lower = $plan['rangeLower'] ?? null;
             if ($lower !== null) {
-                $comparison = self::compareNext138($value, $lower);
+                $comparison = self::compareValues($value, $lower);
                 if ($comparison < 0 || ($comparison === 0 && ($plan['lowerInclusive'] ?? false) !== true)) {
                     return false;
                 }
             }
             $upper = $plan['rangeUpper'] ?? null;
             if ($upper !== null) {
-                $comparison = self::compareNext138($value, $upper);
+                $comparison = self::compareValues($value, $upper);
                 if ($comparison > 0 || ($comparison === 0 && ($plan['upperInclusive'] ?? false) !== true)) {
                     return false;
                 }
@@ -217,16 +217,16 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array<string,mixed>>
          */
-        private static function stat4BucketsNext138(array $plan, array $rows): array
+        private static function stat4RangeBuckets(array $plan, array $rows): array
         {
-            $rowKeys = array_fill_keys(array_map(static fn (array $row): string => self::keySignatureNext138($row['rangeKey'] ?? null), $rows), true);
+            $rowKeys = array_fill_keys(array_map(static fn (array $row): string => self::keySignature($row['rangeKey'] ?? null), $rows), true);
             $buckets = [];
             foreach (($plan['stat4CurrentNext'] ?? []) as $pair) {
                 if (!is_array($pair) || !isset($pair['current']) || !is_array($pair['current'])) {
                     continue;
                 }
                 $key = $pair['current']['key'] ?? null;
-                if (!isset($rowKeys[self::keySignatureNext138($key)])) {
+                if (!isset($rowKeys[self::keySignature($key)])) {
                     continue;
                 }
                 $buckets[] = [
@@ -246,7 +246,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{current:array<string,mixed>,next:array<string,mixed>|null}>
          */
-        private static function currentNextRowsNext138(array $rows): array
+        private static function currentAndNextRows(array $rows): array
         {
             $pairs = [];
             foreach ($rows as $offset => $row) {
@@ -263,7 +263,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext138(array $base, bool $ready): array
+        private static function cursorProgram(array $base, bool $ready): array
         {
             $tape = is_array($base['cursorTape'] ?? null) ? $base['cursorTape'] : [];
             $program = is_array($tape['program'] ?? null) ? $tape['program'] : [];
@@ -275,7 +275,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             return $program;
         }
 
-        private static function compareNext138(mixed $left, mixed $right): int
+        private static function compareValues(mixed $left, mixed $right): int
         {
             if (is_numeric($left) && is_numeric($right)) {
                 return (float) $left <=> (float) $right;
@@ -284,7 +284,7 @@ final class SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan
             return strcmp((string) $left, (string) $right) <=> 0;
         }
 
-        private static function keySignatureNext138(mixed $value): string
+        private static function keySignature(mixed $value): string
         {
             return get_debug_type($value) . ':' . (string) $value;
         }

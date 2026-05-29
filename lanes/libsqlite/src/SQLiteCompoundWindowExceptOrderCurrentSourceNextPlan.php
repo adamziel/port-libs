@@ -14,7 +14,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext143(string $sql, array $currentTables, array $nextTables): array
+        public static function compare(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -28,39 +28,39 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
             if (!isset($currentPlan['compound']['orderBy']) || !is_array($currentPlan['compound']['orderBy']) || $currentPlan['compound']['orderBy'] === []) {
                 throw new \InvalidArgumentException('SQLite compound window EXCEPT order current-source plan needs a final ORDER BY');
             }
-            if (self::windowTermsNext143($currentPlan) === []) {
+            if (self::windowTerms($currentPlan) === []) {
                 throw new \InvalidArgumentException('SQLite compound window EXCEPT order current-source plan needs a window function arm');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $preOrderSql = self::withoutFinalOrderNext143($sql);
+            $preOrderSql = self::withoutFinalOrder($sql);
             $currentPreOrder = SQLiteSelectSql::execute($preOrderSql, $currentTables);
             $nextPreOrder = SQLiteSelectSql::execute($preOrderSql, $nextTables);
 
             return [
-                'status' => 'compound-window-except-order-current-source-next143-ready',
+                'status' => 'compound-window-except-order-current-source-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
                 'currentPreOrderRows' => $currentPreOrder,
                 'nextPreOrderRows' => $nextPreOrder,
-                'currentSignatures' => self::rowSignaturesNext143($currentRows),
-                'nextSignatures' => self::rowSignaturesNext143($nextRows),
-                'changedSignatures' => self::changedSignaturesNext143($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignatures($currentRows),
+                'nextSignatures' => self::rowSignatures($nextRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext143($currentPlan),
-                    'orderDirections' => self::orderDirectionsNext143($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
+                    'orderDirections' => self::orderDirections($currentPlan),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext143($currentPlan),
-                    'next' => self::windowTermsNext143($nextPlan),
+                    'current' => self::windowTerms($currentPlan),
+                    'next' => self::windowTerms($nextPlan),
                 ],
                 'exceptTrace' => [
-                    'currentRemoved' => self::removedByExceptNext143($currentPreOrder, $currentTables['wp_options'] ?? []),
-                    'nextRemoved' => self::removedByExceptNext143($nextPreOrder, $nextTables['wp_options'] ?? []),
+                    'currentRemoved' => self::removedByExcept($currentPreOrder, $currentTables['wp_options'] ?? []),
+                    'nextRemoved' => self::removedByExcept($nextPreOrder, $nextTables['wp_options'] ?? []),
                     'currentPreOrderNames' => array_column($currentPreOrder, 'name'),
                     'nextPreOrderNames' => array_column($nextPreOrder, 'name'),
                     'currentOrderedNames' => array_column($currentRows, 'name'),
@@ -71,9 +71,9 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
                     'nextFirst' => $nextRows[0] ?? null,
                     'currentLast' => $currentRows === [] ? null : $currentRows[count($currentRows) - 1],
                     'nextLast' => $nextRows === [] ? null : $nextRows[count($nextRows) - 1],
-                    'rankShiftNames' => self::rankShiftNamesNext143($currentRows, $nextRows),
+                    'rankShiftNames' => self::rankShiftNames($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext143($currentRows, $nextRows, $currentPreOrder, $nextPreOrder, $currentPlan, $nextPlan),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentPreOrder, $nextPreOrder, $currentPlan, $nextPlan),
                 'dependencies' => [
                     'sqlite-select-sql-window-arm-evaluation',
                     'sqlite-select-sql-compound-except',
@@ -87,7 +87,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext143(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -104,7 +104,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderDirectionsNext143(array $plan): array
+        private static function orderDirections(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -121,7 +121,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext143(array $plan): array
+        private static function windowTerms(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -151,10 +151,10 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
             return $windows;
         }
 
-        private static function withoutFinalOrderNext143(string $sql): string
+        private static function withoutFinalOrder(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
-            $offset = self::topLevelKeywordOffsetNext143($trimmed, 'ORDER BY');
+            $offset = self::topLevelKeywordOffset($trimmed, 'ORDER BY');
             if ($offset === null) {
                 throw new \InvalidArgumentException('SQLite compound window EXCEPT order current-source plan cannot isolate final ORDER BY');
             }
@@ -162,7 +162,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
             return rtrim(substr($trimmed, 0, $offset));
         }
 
-        private static function topLevelKeywordOffsetNext143(string $sql, string $keyword): ?int
+        private static function topLevelKeywordOffset(string $sql, string $keyword): ?int
         {
             $length = strlen($sql);
             $keywordLength = strlen($keyword);
@@ -211,7 +211,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $sourceRows
          * @return list<string>
          */
-        private static function removedByExceptNext143(array $preOrderRows, array $sourceRows): array
+        private static function removedByExcept(array $preOrderRows, array $sourceRows): array
         {
             $remaining = array_flip(array_column($preOrderRows, 'name'));
             $removed = [];
@@ -230,7 +230,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function rankShiftNamesNext143(array $currentRows, array $nextRows): array
+        private static function rankShiftNames(array $currentRows, array $nextRows): array
         {
             $current = [];
             foreach ($currentRows as $row) {
@@ -254,7 +254,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext143(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -264,10 +264,10 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext143(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext143($currentRows);
-            $next = self::rowSignaturesNext143($nextRows);
+            $current = self::rowSignatures($currentRows);
+            $next = self::rowSignatures($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -281,22 +281,22 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext143(array $currentRows, array $nextRows, array $currentPreOrder, array $nextPreOrder, array $currentPlan, array $nextPlan): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentPreOrder, array $nextPreOrder, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext143($currentRows) !== self::rowSignaturesNext143($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'ordered-except-rowset-changed';
             }
-            if (self::rowSignaturesNext143($currentPreOrder) !== self::rowSignaturesNext143($nextPreOrder)) {
+            if (self::rowSignatures($currentPreOrder) !== self::rowSignatures($nextPreOrder)) {
                 $reasons[] = 'preorder-except-rowset-changed';
             }
-            if (self::windowTermsNext143($currentPlan) !== []) {
+            if (self::windowTerms($currentPlan) !== []) {
                 $reasons[] = 'window-before-except';
             }
-            if (self::orderColumnsNext143($currentPlan) !== []) {
+            if (self::orderColumns($currentPlan) !== []) {
                 $reasons[] = 'compound-final-order';
             }
-            if (self::windowTermsNext143($currentPlan) !== self::windowTermsNext143($nextPlan)) {
+            if (self::windowTerms($currentPlan) !== self::windowTerms($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 

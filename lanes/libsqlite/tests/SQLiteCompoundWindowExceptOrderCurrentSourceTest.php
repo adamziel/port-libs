@@ -40,12 +40,12 @@ SELECT option_name AS name,
  ORDER BY source_rank DESC, name
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound window except order current source next143 status and dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source status and dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-window-except-order-current-source-next143-ready', $plan['status']);
+    $t->same('compound-window-except-order-current-source-ready', $plan['status']);
     $t->same([
         'sqlite-select-sql-window-arm-evaluation',
         'sqlite-select-sql-compound-except',
@@ -54,7 +54,7 @@ $tests['compound window except order current source next143 status and dependenc
     ], $plan['dependencies']);
 };
 
-$tests['compound window except order current source next143 compound metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source compound metadata'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['EXCEPT'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -63,20 +63,20 @@ $tests['compound window except order current source next143 compound metadata'] 
     $t->same(['DESC', 'ASC'], $compound['orderDirections']);
 };
 
-$tests['compound window except order current source next143 current ordered rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source current ordered rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same(['blogname', 'active_plugins', 'siteurl'], array_column($rows, 'name'));
     $t->same(['yes', 'no', 'yes'], array_column($rows, 'autoload'));
     $t->same([3, 1, 1], array_column($rows, 'source_rank'));
 };
 
-$tests['compound window except order current source next143 next ordered rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source next ordered rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same(['blogname', 'home', 'rewrite_rules', 'active_plugins', 'siteurl', 'plugin_alpha', 'plugin_beta'], array_column($rows, 'name'));
     $t->same([4, 3, 3, 2, 2, 1, 1], array_column($rows, 'source_rank'));
 };
 
-$tests['compound window except order current source next143 window metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source window metadata'] = static function (TestRunner $t) use ($summary): void {
     $windows = $summary()['windows']['current'];
     $t->same(['row_number'], array_column($windows, 'function'));
     $t->same(['source_rank'], array_column($windows, 'alias'));
@@ -84,7 +84,7 @@ $tests['compound window except order current source next143 window metadata'] = 
     $t->same([2], array_column($windows, 'orderCount'));
 };
 
-$tests['compound window except order current source next143 except trace preserves stale current source removals'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source except trace preserves stale current source removals'] = static function (TestRunner $t) use ($summary): void {
     $trace = $summary()['exceptTrace'];
     $t->same(['home', 'rewrite_rules'], $trace['currentRemoved']);
     $t->same([], $trace['nextRemoved']);
@@ -92,7 +92,7 @@ $tests['compound window except order current source next143 except trace preserv
     $t->same(['siteurl', 'home', 'blogname', 'active_plugins', 'rewrite_rules', 'plugin_alpha', 'plugin_beta'], $trace['nextPreOrderNames']);
 };
 
-$tests['compound window except order current source next143 boundary shifts'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source boundary shifts'] = static function (TestRunner $t) use ($summary): void {
     $boundary = $summary()['boundary'];
     $t->same('blogname', $boundary['currentFirst']['name']);
     $t->same('blogname', $boundary['nextFirst']['name']);
@@ -101,7 +101,7 @@ $tests['compound window except order current source next143 boundary shifts'] = 
     $t->same(['blogname', 'active_plugins', 'siteurl'], $boundary['rankShiftNames']);
 };
 
-$tests['compound window except order current source next143 changed signatures and reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound window except order current source changed signatures and reasons'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->true(str_contains($changed, '"name":"plugin_alpha"'));
@@ -112,16 +112,16 @@ $tests['compound window except order current source next143 changed signatures a
     $t->true(in_array('compound-final-order', $plan['replanReasons'], true));
 };
 
-$tests['compound window except order current source next143 rejects non except compound'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143(
+$tests['compound window except order current source rejects non except compound'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compare(
         'SELECT option_name AS name, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options UNION ALL SELECT option_name, source_rank FROM wp_option_current ORDER BY source_rank',
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound window except order current source next143 rejects missing final order'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143(
+$tests['compound window except order current source rejects missing final order'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compare(
         'SELECT option_name AS name, row_number() OVER (ORDER BY option_id) AS source_rank FROM wp_options EXCEPT SELECT option_name, source_rank FROM wp_option_current',
         $currentTables,
         $currentTables,
@@ -129,7 +129,7 @@ $tests['compound window except order current source next143 rejects missing fina
 };
 
 foreach (range(1, 54) as $case) {
-    $tests['compound window except order current source next143 generated stale audit boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound window except order current source generated stale audit boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
             'wp_options' => [
                 ['option_id' => 1, 'option_name' => 'autoload_' . $case, 'autoload' => 'yes', 'freshness' => 100 + $case],

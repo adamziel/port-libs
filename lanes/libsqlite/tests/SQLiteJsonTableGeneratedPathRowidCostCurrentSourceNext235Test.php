@@ -32,7 +32,7 @@ $plan235 = static fn (
     ?array $projection = null,
     ?string $observedYieldFingerprint = null,
     ?int $observedLastYieldedRowid = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext235(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceYieldPlan(
     'json_tree',
     $current ?? $current235,
     $next ?? $next235,

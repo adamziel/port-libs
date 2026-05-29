@@ -66,7 +66,7 @@ $predicate138 = static fn (): array => $and138(
 );
 $order138 = [['column' => 'option_name']];
 $needed138 = ['option_name', 'option_value', 'rowid'];
-$plan138 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan::materializeNext138(
+$plan138 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan::materializeCoveringStat4Range(
     $prepared ?? $preparedSource138(),
     $current ?? $currentSource138(),
     $predicate ?? $predicate138(),

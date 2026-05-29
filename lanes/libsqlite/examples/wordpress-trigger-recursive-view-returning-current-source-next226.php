@@ -32,7 +32,7 @@ $subsequentNextView = $nextView;
 $subsequentNextView['source'] = 'main@view-cookie-226-subsequent-next';
 $subsequentNextView['trigger_source'] = 'main@trigger-cookie-226-subsequent-next';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext226(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingCurrentSeal(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

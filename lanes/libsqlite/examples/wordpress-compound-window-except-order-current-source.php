@@ -39,7 +39,7 @@ SELECT option_name AS name,
  ORDER BY source_rank DESC, name
 SQL;
 
-$summary = SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compareNext143($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'name') !== ['blogname', 'active_plugins', 'siteurl']) {
@@ -54,7 +54,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "missing current-source EXCEPT removal diagnostic\n");
         exit(1);
     }
-    echo "wordpress-compound-window-except-order-current-source-next143 self-test passed\n";
+    echo "wordpress-compound-window-except-order-current-source self-test passed\n";
     exit(0);
 }
 

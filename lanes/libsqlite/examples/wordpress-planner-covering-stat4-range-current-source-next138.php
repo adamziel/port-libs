@@ -42,7 +42,7 @@ $source = static fn (array $rows, int $cookie, int $stat4, int $root): array => 
     ]],
 ];
 
-$plan = SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan::materializeNext138(
+$plan = SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan::materializeCoveringStat4Range(
     $source($preparedRows, 1380, 80, 13801),
     $source($currentRows, 1381, 81, 13811),
     $and(
