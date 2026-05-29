@@ -9515,7 +9515,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             ];
             $handoff['next' . $next . '_handoff'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
 
-            return array_merge($base, [
+            return self::compactReadyPublicationContinuationBase(array_merge($base, [
                 'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
                 'next' . $next . '_handoff' => $handoff,
                 'dependency_closure_next' . $next => "no new support component needed; next{$next} starts the {$range} continuation after the {$previousRangeDescription} row-value RETURNING window seal",
@@ -9525,7 +9525,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
                 ],
                 'non_overlap_next' . $next => "adds handoff metadata over the {$previousRangeDescription} seal; avoids row-value DML execution changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, coordination files, and unrelated private state",
-            ]);
+            ]), $next, $blockStart);
         }
 
         if ($offset === 1) {
@@ -9543,7 +9543,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             ];
             $sourceAudit['next' . $next . '_source_audit'] = hash('sha256', json_encode($sourceAudit, JSON_THROW_ON_ERROR));
 
-            return array_merge($base, [
+            return self::compactReadyPublicationContinuationBase(array_merge($base, [
                 'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
                 'next' . $next . '_source_audit' => $sourceAudit,
                 'dependency_closure_next' . $next => "no new support component needed; next{$next} records current-source hashes and phase window ids from the next{$blockStart} continuation",
@@ -9553,7 +9553,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'wordpress-rowvalue-update-delete-returning-window-source-audit-next' . $next,
                 ],
                 'non_overlap_next' . $next => 'adds source-audit metadata for existing phase windows; avoids row-value parser/executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, lane-status files, and supervisor state',
-            ]);
+            ]), $next, $blockStart);
         }
 
         if ($offset === 2) {
@@ -9576,7 +9576,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             ];
             $preflight['next' . $next . '_preflight'] = hash('sha256', json_encode($preflight, JSON_THROW_ON_ERROR));
 
-            return array_merge($base, [
+            return self::compactReadyPublicationContinuationBase(array_merge($base, [
                 'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
                 'next' . $next . '_preflight' => $preflight,
                 'dependency_closure_next' . $next => "no new support component needed; next{$next} preflights row-value RETURNING phase throughput counters before sealing {$range}",
@@ -9586,7 +9586,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'wordpress-rowvalue-update-delete-returning-window-preflight-next' . $next,
                 ],
                 'non_overlap_next' . $next => 'adds focused throughput counters only; avoids DML execution, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and coordination surfaces',
-            ]);
+            ]), $next, $blockStart);
         }
 
         $handoffKey = 'next' . $blockStart . '_handoff';
@@ -9603,7 +9603,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
         $seal['next' . $next . '_final'] = hash('sha256', json_encode($seal, JSON_THROW_ON_ERROR));
 
-        return array_merge($base, [
+        return self::compactReadyPublicationContinuationBase(array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next' . $next,
             'next' . $next . '_final' => $seal,
             'next' . $next . '_ready' => $base[$previousReady] === true
@@ -9616,7 +9616,49 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'wordpress-rowvalue-update-delete-returning-window-current-source-next' . $next,
             ],
             'non_overlap_next' . $next => "adds the final {$finalNonOverlapRange} inspectable seal; avoids coordination files, broad suite evidence, executor changes, WAL/VFS, JSON table, planner, B-tree, PRAGMA, trigger, and unrelated private state",
-        ]);
+        ]), $next, $blockStart);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return array<string,mixed>
+     */
+    private static function compactReadyPublicationContinuationBase(array $plan, int $next, int $blockStart): array
+    {
+        $keys = array_fill_keys([
+            'status',
+            'yield_window',
+            'suppressed_attempt_window',
+            'retry_window',
+            'current_source_tables',
+            'next_source_tables',
+            'yield_change_count',
+            'attempt_change_count',
+            'retry_change_count',
+            'yielded_returning_count',
+            'suppressed_returning_count',
+            'retry_returning_count',
+        ], true);
+
+        $previousReady = $blockStart === 382 ? 'next381_ready' : 'next' . ($blockStart - 1) . '_ready';
+        $keys[$previousReady] = true;
+
+        for ($step = $blockStart; $step <= min($next, $blockStart + 3); $step++) {
+            foreach ([
+                'next' . $step . '_handoff',
+                'next' . $step . '_source_audit',
+                'next' . $step . '_preflight',
+                'next' . $step . '_final',
+                'next' . $step . '_ready',
+                'dependency_closure_next' . $step,
+                'dependencies_next' . $step,
+                'non_overlap_next' . $step,
+            ] as $key) {
+                $keys[$key] = true;
+            }
+        }
+
+        return array_intersect_key($plan, $keys);
     }
 
     /**
