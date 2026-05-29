@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 19:34 UTC):
+  Seventy-third safe consolidation follow-up is integrated and pushed as
+  `1971ebeb5`. The batch accepts 1 clean replay handoff originally based on
+  `a0619e578` and applied on top of `147fe0e2`: WAL hot-journal savepoint
+  checkpoint current-source after-ready checkpoint wrappers `next1124` through
+  `next1139` were moved to the canonical verification entry point, with
+  `next175` observable metadata retained. Validation passed PHP lint on
+  changed files, direct WAL tests `3 files / 178 assertions / 0 failures`,
+  affected WAL hot-journal checkpoint selection `181 selected files / 11236
+  assertions / 0 failures`, changed WordPress self-test, `git diff --check`,
+  exact user-named 150 suffix scan clean in `src`/`tests`/`examples`,
+  production numbered file/class audits at `0`, numbered production
+  helper-method audit `1746`, and unique numbered production symbol audit
+  `1978`. Public pass/mapped counters remain `154019 pass / 0 fail` and
+  `830 / 1589` because this is consolidation-only.
+
 - 2026-05-29 supervisor continuation (shell samples 19:31 UTC):
   Seventy-second safe consolidation follow-up is integrated and pushed as
   `85136c263`. The batch accepts 1 current-base handoff on top of
