@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePragmaForeignKeyCheck;
 use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteVdbeAggregateOrderCursor;
 
 $tests = [];
@@ -84,6 +85,35 @@ $tests['numeric comparison wiring aggregate order handles prefixes nulls blobs a
     ], 'v', ['k', 'name'], null, 'CG', ['BINARY', 'NOCASE']);
 
     $t->same(['null', 'blob', 'integer', 'overflow', 'nocase', 'prefix'], $cursor->values());
+};
+
+$tests['numeric comparison wiring select order by uses centralized storage class comparison'] = static function (TestRunner $t): void {
+    $rows = [
+        ['label' => 'text-prefix', 'k' => '5e2x', 'name' => 'z'],
+        ['label' => 'overflow-real', 'k' => 9223372036854775808.0, 'name' => 'z'],
+        ['label' => 'int-max', 'k' => PHP_INT_MAX, 'name' => 'z'],
+        ['label' => 'blob', 'k' => new SQLiteBlobValue('5'), 'name' => 'z'],
+        ['label' => 'null', 'k' => null, 'name' => 'z'],
+        ['label' => 'integer', 'k' => 500, 'name' => 'z'],
+        ['label' => 'overflow-text', 'k' => '9223372036854775808', 'name' => 'z'],
+        ['label' => 'nocase-peer', 'k' => '5e2x', 'name' => 'A'],
+    ];
+
+    $ordered = SQLiteSelectResult::orderBy($rows, [
+        ['column' => 'k'],
+        ['column' => 'name', 'collation' => 'NOCASE'],
+    ]);
+
+    $t->same([
+        'null',
+        'integer',
+        'int-max',
+        'overflow-real',
+        'nocase-peer',
+        'text-prefix',
+        'overflow-text',
+        'blob',
+    ], array_column($ordered, 'label'));
 };
 
 return $tests;

@@ -364,26 +364,19 @@ final class SQLiteSelectResult
         if ($leftRank !== $rightRank) {
             return $leftRank <=> $rightRank;
         }
-        if ($left === null || $right === null) {
+        if ($left === null && $right === null) {
             return 0;
         }
-        if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
-            return strcmp($left->bytes, $right->bytes);
-        }
-        if ((is_int($left) || is_float($left) || is_bool($left)) && (is_int($right) || is_float($right) || is_bool($right))) {
-            return self::compareNumericValues($left, $right);
+        if ($left === null || $right === null) {
+            return $left === null ? -1 : 1;
         }
 
-        if (is_string($left) && is_string($right)) {
-            return match ($collation) {
-                'BINARY' => strcmp($left, $right),
-                'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-                'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
-                default => throw new \InvalidArgumentException("Unsupported SQLite ORDER BY collation: {$collation}"),
-            };
+        $comparison = SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', $collation);
+        if ($comparison === null) {
+            throw new \InvalidArgumentException('SQLite ORDER BY comparison unexpectedly returned NULL for non-NULL values');
         }
 
-        return strcmp((string) $left, (string) $right);
+        return $comparison;
     }
 
     private static function compareNullPlacement(mixed $left, mixed $right, string $nulls): ?int
@@ -399,33 +392,6 @@ final class SQLiteSelectResult
         }
 
         return $left === null ? 1 : -1;
-    }
-
-    private static function compareNumericValues(bool|int|float $left, bool|int|float $right): int
-    {
-        if (is_int($left) && is_float($right)) {
-            if ($right >= 9223372036854775808.0) {
-                return -1;
-            }
-            if ($right < -9223372036854775808.0) {
-                return 1;
-            }
-        }
-        if (is_float($left) && is_int($right)) {
-            if ($left >= 9223372036854775808.0) {
-                return 1;
-            }
-            if ($left < -9223372036854775808.0) {
-                return -1;
-            }
-        }
-
-        return ((float) $left) <=> ((float) $right);
-    }
-
-    private static function asciiLower(string $value): string
-    {
-        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }
 
     private static function sortRank(mixed $value): int
