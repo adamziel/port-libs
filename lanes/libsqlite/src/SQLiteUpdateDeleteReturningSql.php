@@ -687,6 +687,15 @@ final class SQLiteUpdateDeleteReturningSql
         if ($not !== null) {
             return self::negateNullable(self::evaluatePredicate($not, $row, $tables));
         }
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+(NOT\s+)?BETWEEN\s+(.+?)\s+AND\s+(.+)$/is', $term, $match) === 1) {
+            $result = self::scalarBetween(
+                self::column($row, $match[1]),
+                self::evaluateExpression(trim($match[3]), $row),
+                self::evaluateExpression(trim($match[4]), $row),
+            );
+
+            return isset($match[2]) && trim($match[2]) !== '' ? self::negateNullable($result) : $result;
+        }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $term, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
             $lower = self::rowValueExpressions($match[3], $row);
@@ -926,6 +935,18 @@ final class SQLiteUpdateDeleteReturningSql
         $predicate = self::evaluateRowValueExpressionPredicate($expression, $row);
         if ($predicate['matched']) {
             return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
+        }
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+(NOT\s+)?BETWEEN\s+(.+?)\s+AND\s+(.+)$/is', $expression, $match) === 1) {
+            $result = self::scalarBetween(
+                self::column($row, $match[1]),
+                self::evaluateExpression(trim($match[3]), $row),
+                self::evaluateExpression(trim($match[4]), $row),
+            );
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = self::negateNullable($result);
+            }
+
+            return $result === null ? null : ($result ? 1 : 0);
         }
 
         $concatParts = self::splitOperator($expression, '||');
@@ -1716,6 +1737,15 @@ final class SQLiteUpdateDeleteReturningSql
     private static function negateNullable(?bool $value): ?bool
     {
         return $value === null ? null : !$value;
+    }
+
+    private static function scalarBetween(mixed $value, mixed $lower, mixed $upper): ?bool
+    {
+        if ($value === null || $lower === null || $upper === null) {
+            return null;
+        }
+
+        return $value >= $lower && $value <= $upper;
     }
 
     private static function nullableAnd(?bool $left, ?bool $right): ?bool

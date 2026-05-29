@@ -73,10 +73,10 @@ $cases = [
     'malformed non dml rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute('SELECT * FROM wp_options', $tables), InvalidArgumentException::class],
     'malformed missing returning rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE autoload = 'no'", $tables), InvalidArgumentException::class],
     'malformed table rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM missing RETURNING option_id", $tables), InvalidArgumentException::class],
-    'malformed order expression rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options RETURNING option_id ORDER BY bytes + 1 LIMIT 1", $tables), InvalidArgumentException::class],
+    'delete order expression selects lowest computed bytes' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options RETURNING option_id ORDER BY bytes + 1 LIMIT 1", $tables)['plan']->selectedIds, [5]],
     'malformed limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options RETURNING option_id LIMIT one", $tables), InvalidArgumentException::class],
     'malformed returning expression rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options RETURNING option_id + 1", $tables), InvalidArgumentException::class],
-    'malformed where predicate rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE bytes BETWEEN 1 AND 2 RETURNING option_id", $tables), InvalidArgumentException::class],
+    'delete scalar between predicate returns empty when no rows match' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE bytes BETWEEN 1 AND 2 RETURNING option_id", $tables)['returning'], []],
     'malformed assignment rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("UPDATE wp_options SET status WHERE option_id = 1 RETURNING option_id", $tables), InvalidArgumentException::class],
 ];
 
