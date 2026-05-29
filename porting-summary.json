@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 19:34:58 UTC",
-    "sourceCommit": "08feb97693be5b088fe26e61ab806968df3a4161",
-    "sourceCommitShort": "08feb97693be",
+    "generated": "2026-05-29 19:44:36 UTC",
+    "sourceCommit": "41f7b31b6052f64eed5f54647ca5ad4b1c39c9ba",
+    "sourceCommitShort": "41f7b31b6052",
     "sourceBranch": "unknown",
-    "dashboardCommit": "08feb97693be5b088fe26e61ab806968df3a4161",
-    "dashboardCommitShort": "08feb97693be",
+    "dashboardCommit": "41f7b31b6052f64eed5f54647ca5ad4b1c39c9ba",
+    "dashboardCommitShort": "41f7b31b6052",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted one clean replay consolidation h...",
-            "currentWork": "Consolidated WAL hot-journal savepoint checkpoint current-source after-ready wrappers nex...",
+            "audit": "Accepted one stale-base trigger RETURNING consolidation h...",
+            "currentWork": "Consolidated trigger recursive-view RETURNING current-source sequence/drain private hel...",
             "nextTarget": "Keep 10-11 current-base libsqlite workers active, intake the next current-head handoffs t...",
             "blocker": "No blocker for the accepted safe subset.",
-            "commit": "1971ebe"
+            "commit": "588eb53"
         },
         {
             "library": "LightningCSS",
