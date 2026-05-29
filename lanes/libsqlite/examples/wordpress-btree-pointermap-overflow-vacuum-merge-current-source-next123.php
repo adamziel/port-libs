@@ -11,9 +11,9 @@ require_once __DIR__ . '/../src/SQLiteFreelistFreePlan.php';
 require_once __DIR__ . '/../src/SQLiteFreelistTruncatePlan.php';
 require_once __DIR__ . '/../src/SQLiteOverflowFreelistReleasePlan.php';
 require_once __DIR__ . '/../src/SQLiteOverflowVacuumTruncatePlan.php';
-require_once __DIR__ . '/../src/SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNext123Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -70,7 +70,7 @@ foreach ([6 => 7, 7 => 0, 11 => 12, 12 => 0] as $pageNumber => $nextPage) {
     $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(65 + $pageNumber), 508);
 }
 
-$plan = SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNext123Plan::fromDeleteResults(
+$plan = SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNextPlan::fromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

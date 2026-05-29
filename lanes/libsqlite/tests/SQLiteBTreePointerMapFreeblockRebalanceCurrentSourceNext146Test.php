@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteHeader;
@@ -82,10 +82,10 @@ $deleteResult146 = static function (SQLiteDatabase $database): array {
     ];
 };
 
-$plan146 = static function (bool $secureDelete = true) use ($database146, $deleteResult146): SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan {
+$plan146 = static function (bool $secureDelete = true) use ($database146, $deleteResult146): SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan {
     $database = $database146();
 
-    return SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan::tableLeafFromCurrentSourceDeleteResult(
+    return SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
         $database,
         3,
         $deleteResult146($database),
@@ -154,15 +154,15 @@ $cases146 = [
     'page image keys' => static fn (): mixed => array_keys($plan146()->pageImages()),
     'non autovacuum rejected' => static fn (): mixed => $throwsMessage146(static function () use ($database146, $deleteResult146): void {
         $database = $database146(false);
-        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 3, 'z');
+        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 3, 'z');
     }),
     'empty payload rejected' => static fn (): mixed => $throwsMessage146(static function () use ($database146, $deleteResult146): void {
         $database = $database146();
-        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 3, '');
+        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 3, '');
     }),
     'bad parent rejected' => static fn (): mixed => $throwsMessage146(static function () use ($database146, $deleteResult146): void {
         $database = $database146();
-        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 1, 'z');
+        SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult($database, 3, $deleteResult146($database), 1, 'z');
     }),
 ];
 

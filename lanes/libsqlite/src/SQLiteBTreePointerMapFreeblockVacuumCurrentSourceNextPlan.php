@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 require_once __DIR__ . '/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 
-final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan
+final class SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $rows

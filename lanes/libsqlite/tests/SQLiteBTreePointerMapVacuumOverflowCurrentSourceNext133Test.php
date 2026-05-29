@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -70,7 +70,7 @@ $deleteResults133 = [[
     'rowids' => [13301],
 ]];
 
-$plan133 = static fn (): SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan::fromDeleteResults(
+$plan133 = static fn (): SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan::fromDeleteResults(
     $database133(),
     $deleteResults133,
     3,
@@ -150,9 +150,9 @@ $cases133 = [
     'row 105 status' => static fn (): mixed => $rowByPage133(105)['page_status'],
     'row 104 status' => static fn (): mixed => $rowByPage133(104)['page_status'],
     'row 106 status' => static fn (): mixed => $rowByPage133(106)['page_status'],
-    'empty payload rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan::fromDeleteResults($database133(), $deleteResults133, 3, 3, '')),
-    'bad parent rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan::fromDeleteResults($database133(), $deleteResults133, 3, 1, 'x')),
-    'no truncation boundary rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan::fromDeleteResults($database133(), $deleteResults133, 1, 3, str_repeat('N', 600))),
+    'empty payload rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan::fromDeleteResults($database133(), $deleteResults133, 3, 3, '')),
+    'bad parent rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan::fromDeleteResults($database133(), $deleteResults133, 3, 1, 'x')),
+    'no truncation boundary rejected' => static fn (): mixed => $throwMessage133(static fn () => SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan::fromDeleteResults($database133(), $deleteResults133, 1, 3, str_repeat('N', 600))),
 ];
 
 $expected133 = [

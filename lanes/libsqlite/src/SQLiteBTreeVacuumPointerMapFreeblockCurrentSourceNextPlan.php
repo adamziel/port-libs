@@ -36921,7 +36921,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154Variant
      * @param list<array<string, mixed>> $currentSourceRows
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan,
+        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan,
         private readonly array $currentSourceRows,
         private readonly array $freeblockSummary,
     ) {
@@ -36937,7 +36937,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154Variant
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -36946,7 +36946,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154Variant
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): self
     {
         return new self(
             $basePlan,
@@ -37022,7 +37022,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154Variant
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCurrentSourceRows(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): array
+    private static function buildCurrentSourceRows(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): array
     {
         $sourceDatabase = $basePlan->basePlan->sourceDatabase;
         $nextDatabase = $basePlan->basePlan->nextDatabase;
@@ -37064,7 +37064,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154Variant
     /**
      * @return array<string, mixed>
      */
-    private static function buildFreeblockSummary(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): array
+    private static function buildFreeblockSummary(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): array
     {
         $pageSize = $basePlan->basePlan->sourceDatabase->header->pageSize;
         $header = SQLiteBTreePageHeader::parsePage($basePlan->basePlan->deletePlan->leafPageImage, $pageSize);
@@ -37103,7 +37103,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Variant
      * @param array<int, string> $btreePageImages
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         public readonly SQLiteFreelistAllocationPlan $allocationPlan,
         public readonly SQLiteDatabase $databaseAfterAllocation,
         public readonly array $rows,
@@ -37115,7 +37115,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Variant
      * @param array<int, string> $btreePageImages
      */
     public static function fromVacuumPlan(
-        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         ?int $parentBtreePageNumber,
         array $btreePageImages,
     ): self {
@@ -37155,7 +37155,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Variant
         bool $secureDelete = false,
     ): self {
         return self::fromVacuumPlan(
-            SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan::tableLeafFromDeleteResult(
+            SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan::tableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -37254,7 +37254,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155Variant
      * @return list<array<string, mixed>>
      */
     private static function buildRows(
-        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         SQLiteFreelistAllocationPlan $allocationPlan,
         SQLiteDatabase $databaseAfterAllocation,
     ): array {
@@ -37440,7 +37440,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154NumberedVari
      * @param list<array<string, mixed>> $currentSourceRows
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan,
+        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan,
         private readonly array $currentSourceRows,
         private readonly array $freeblockSummary,
     ) {
@@ -37456,7 +37456,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154NumberedVari
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan::tableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -37465,7 +37465,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154NumberedVari
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): self
     {
         return new self(
             $basePlan,
@@ -37541,7 +37541,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154NumberedVari
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildCurrentSourceRows(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): array
+    private static function buildCurrentSourceRows(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): array
     {
         $sourceDatabase = $basePlan->basePlan->sourceDatabase;
         $nextDatabase = $basePlan->basePlan->nextDatabase;
@@ -37583,7 +37583,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext154NumberedVari
     /**
      * @return array<string, mixed>
      */
-    private static function buildFreeblockSummary(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $basePlan): array
+    private static function buildFreeblockSummary(SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $basePlan): array
     {
         $pageSize = $basePlan->basePlan->sourceDatabase->header->pageSize;
         $header = SQLiteBTreePageHeader::parsePage($basePlan->basePlan->deletePlan->leafPageImage, $pageSize);
@@ -37622,7 +37622,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155NumberedVari
      * @param array<int, string> $btreePageImages
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        public readonly SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         public readonly SQLiteFreelistAllocationPlan $allocationPlan,
         public readonly SQLiteDatabase $databaseAfterAllocation,
         public readonly array $rows,
@@ -37634,7 +37634,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155NumberedVari
      * @param array<int, string> $btreePageImages
      */
     public static function fromVacuumPlan(
-        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         ?int $parentBtreePageNumber,
         array $btreePageImages,
     ): self {
@@ -37674,7 +37674,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155NumberedVari
         bool $secureDelete = false,
     ): self {
         return self::fromVacuumPlan(
-            SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan::tableLeafFromDeleteResult(
+            SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan::tableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -37773,7 +37773,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext155NumberedVari
      * @return list<array<string, mixed>>
      */
     private static function buildRows(
-        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan $vacuumPlan,
+        SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         SQLiteFreelistAllocationPlan $allocationPlan,
         SQLiteDatabase $databaseAfterAllocation,
     ): array {

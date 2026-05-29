@@ -19,9 +19,9 @@ require __DIR__ . '/../src/SQLiteRecord.php';
 require __DIR__ . '/../src/SQLiteTableLeafCell.php';
 require __DIR__ . '/../src/SQLiteTableLeafPage.php';
 require __DIR__ . '/../src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php';
-require __DIR__ . '/../src/SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan.php';
+require __DIR__ . '/../src/SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -84,7 +84,7 @@ foreach ([
 }
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNext146Plan::tableLeafFromCurrentSourceDeleteResult(
+$plan = SQLiteBTreePointerMapFreeblockRebalanceCurrentSourceNextPlan::tableLeafFromCurrentSourceDeleteResult(
     $database,
     3,
     [

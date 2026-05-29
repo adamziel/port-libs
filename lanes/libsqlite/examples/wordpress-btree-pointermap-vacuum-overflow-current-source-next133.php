@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -48,7 +48,7 @@ $putPointerMapEntry($pages, 104, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3);
 $putPointerMapEntry($pages, 106, SQLitePointerMapEntry::OVERFLOW_PAGE, 104);
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
-$plan = SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan::fromDeleteResults(
+$plan = SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan::fromDeleteResults(
     $database,
     [[
         'source' => 'wp_options-autoload-transient-current-source-next133',

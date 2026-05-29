@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNext123Plan`, a
+Adds `SQLiteBTreePointerMapOverflowVacuumMergeCurrentSourceNextPlan`, a
 current-source B-tree merge view for delete results whose obsolete overflow
 chains are first merged into the freelist and then partially truncated by
 auto-vacuum.

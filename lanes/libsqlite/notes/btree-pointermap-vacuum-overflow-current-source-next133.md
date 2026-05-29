@@ -1,6 +1,6 @@
 # B-tree Pointer-map Vacuum Overflow Current Source Next133
 
-This slice adds `SQLiteBTreePointerMapVacuumOverflowCurrentSourceNext133Plan`.
+This slice adds `SQLiteBTreePointerMapVacuumOverflowCurrentSourceNextPlan`.
 It covers the current-source boundary where a WordPress-sized option delete
 releases tail overflow pages, incremental vacuum truncates those overflow pages
 and the auto-vacuum pointer-map page between them, then the next overflow

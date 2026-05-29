@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -37,7 +37,7 @@ $putPointerMapEntry149 = static function (array &$pages, int $pageNumber, int $t
     );
 };
 
-$fixture149 = static function () use ($makeFirstPage149, $putPointerMapEntry149): SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan {
+$fixture149 = static function () use ($makeFirstPage149, $putPointerMapEntry149): SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan {
     $pageSize = 512;
     $pageCount = 310;
     $releasedPages = [306, 307, 308, 309, 310];
@@ -60,7 +60,7 @@ $fixture149 = static function () use ($makeFirstPage149, $putPointerMapEntry149)
         $pages[$pageNumber] = pack('N', $next) . str_repeat(chr(65 + $index), $pageSize - 4);
     }
 
-    return SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan::fromCurrentSourceOverflowChains(
+    return SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan::fromCurrentSourceOverflowChains(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         [
             [
@@ -94,22 +94,22 @@ $fixture149 = static function () use ($makeFirstPage149, $putPointerMapEntry149)
 };
 
 $cases149 = [
-    'action label' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->toArray()['action'],
-    'released pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->basePlan->releasedOverflowPages(),
-    'truncated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->basePlan->truncatedPageNumbers(),
-    'allocated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->basePlan->allocatedOverflowPages(),
-    'reused current pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->currentSourcePagesReusedAfterVacuum(),
-    'rejected truncated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->truncatedCurrentSourcePagesRejectedForReuse(),
-    'vacuum row pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'page_number'),
-    'vacuum row survived flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'survived_vacuum_as_free_page'),
-    'vacuum row truncated flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'truncated_by_vacuum'),
-    'vacuum row reused flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'reused_as_replacement_overflow'),
-    'vacuum row rejected flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'rejected_for_reuse_after_truncate'),
-    'final pointer types' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'final_pointer_map_type'),
-    'final pointer parents' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => array_column($plan->vacuumRows(), 'final_pointer_map_parent'),
-    'summary reused pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->toArray()['current_source_pages_reused_after_vacuum'],
-    'summary rejected pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->toArray()['truncated_current_source_pages_rejected_for_reuse'],
-    'summary final page count' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan $plan): mixed => $plan->toArray()['final_database_page_count'],
+    'action label' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'released pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->basePlan->releasedOverflowPages(),
+    'truncated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->basePlan->truncatedPageNumbers(),
+    'allocated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->basePlan->allocatedOverflowPages(),
+    'reused current pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->currentSourcePagesReusedAfterVacuum(),
+    'rejected truncated pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->truncatedCurrentSourcePagesRejectedForReuse(),
+    'vacuum row pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'page_number'),
+    'vacuum row survived flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'survived_vacuum_as_free_page'),
+    'vacuum row truncated flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'truncated_by_vacuum'),
+    'vacuum row reused flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'reused_as_replacement_overflow'),
+    'vacuum row rejected flags' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'rejected_for_reuse_after_truncate'),
+    'final pointer types' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'final_pointer_map_type'),
+    'final pointer parents' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->vacuumRows(), 'final_pointer_map_parent'),
+    'summary reused pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['current_source_pages_reused_after_vacuum'],
+    'summary rejected pages' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['truncated_current_source_pages_rejected_for_reuse'],
+    'summary final page count' => static fn (SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_database_page_count'],
 ];
 
 $expected149 = [
@@ -157,7 +157,7 @@ foreach (range(1, 42) as $index) {
 
 $tests['btree pointermap overflow vacuum current source next149 rejects base without current rows'] = static function (TestRunner $t): void {
     try {
-        SQLiteBTreePointerMapOverflowVacuumCurrentSourceNext149Plan::fromBasePlan(new class {
+        SQLiteBTreePointerMapOverflowVacuumCurrentSourceNextPlan::fromBasePlan(new class {
         });
         $message = 'not rejected';
     } catch (TypeError $exception) {
