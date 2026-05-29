@@ -8,7 +8,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
 {
     /**
      * @param array<string,array{schema_cookie:int,wal_schema_cookie?:int|null,temp_schema_cookie?:int|null,wal_frames?:list<array{page:int,schema_cookie?:int|null,commit?:bool}>,tables?:list<string>,next_tables?:list<string>|null,file?:string|null,temp?:bool}> $schemas
-     * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool}> $statements
+     * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool,source?:string}> $statements
      * @return array<string,mixed>
      */
     public static function plan(array $schemas, array $statements, string $sourceSchema = 'main'): array
@@ -60,13 +60,14 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
             $tables = self::statementTables($sql);
             $readOnly = $statement['read_only'] ?? self::statementReadOnly($sql);
             $active = (bool) ($statement['active'] ?? false);
+            $statementSource = self::statementSource($statement, $source, $normalized);
             $transitions = [];
             $requiresReprepare = false;
             $prepareSchemas = [];
             $nextSchemas = [];
             foreach ($tables as $table) {
-                $currentResolution = self::resolveTable($normalized, $order, $table, false);
-                $nextResolution = self::resolveTable($normalized, $order, $table, true);
+                $currentResolution = self::resolveTable($normalized, self::sourceSearchOrder($order, $statementSource), $table, false);
+                $nextResolution = self::resolveTable($normalized, self::sourceSearchOrder($order, $statementSource), $table, true);
                 $prepareCookie = $currentCookies[$currentResolution['schema']] ?? null;
                 $nextCookie = $nextCookies[$nextResolution['schema']] ?? null;
                 $changed = $currentResolution['schema'] !== $nextResolution['schema']
@@ -82,6 +83,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
                 }
                 $transitions[] = [
                     'table' => $table,
+                    'prepare_source_schema' => $statementSource,
                     'prepare_schema' => $currentResolution['schema'],
                     'next_schema' => $nextResolution['schema'],
                     'prepare_found' => $currentResolution['found'],
@@ -114,6 +116,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
             $plans[] = [
                 'name' => $name,
                 'sql' => $sql,
+                'prepare_source_schema' => $statementSource,
                 'tables' => $tables,
                 'read_only' => $readOnly,
                 'active' => $active,
@@ -336,6 +339,41 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
         }
 
         return ['schema' => 'main', 'name' => $name, 'qualified' => false, 'found' => false];
+    }
+
+    /**
+     * @param list<string> $order
+     * @return list<string>
+     */
+    private static function sourceSearchOrder(array $order, string $source): array
+    {
+        if ($source === 'main' || $source === 'temp') {
+            return $order;
+        }
+
+        $sourceOrder = ['temp', $source, 'main'];
+        foreach ($order as $schema) {
+            if (!in_array($schema, $sourceOrder, true)) {
+                $sourceOrder[] = $schema;
+            }
+        }
+
+        return $sourceOrder;
+    }
+
+    /**
+     * @param array<string,array<string,mixed>> $schemas
+     */
+    private static function statementSource(array $statement, string $defaultSource, array $schemas): string
+    {
+        $source = isset($statement['source'])
+            ? self::normalizeName((string) $statement['source'], 'SQLite prepared statement source schema')
+            : $defaultSource;
+        if (!isset($schemas[$source])) {
+            throw new \InvalidArgumentException("SQLite prepared statement source schema {$source} is not attached");
+        }
+
+        return $source;
     }
 
     /**

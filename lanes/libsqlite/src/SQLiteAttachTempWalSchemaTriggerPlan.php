@@ -426,6 +426,123 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
+    public static function currentSourceNext95(
+        SQLiteAttachedSchemaCatalog $current,
+        SQLiteAttachedSchemaCatalog $next,
+        array $preparedTriggers,
+        array $schemaStates = [],
+    ): array {
+        $plan = self::currentSourceNext90($current, $next, $preparedTriggers, $schemaStates);
+        $schemaCookies = self::schemaCookies($schemaStates);
+        $cookieChanged = array_fill_keys($schemaCookies['changed_schemas'], true);
+
+        $reprepare = [];
+        $stable = [];
+        $activeCurrent = [];
+        $resetSchema = [];
+        $nextStepSchema = [];
+        $invalidatedSchemas = [];
+        $walSchemas = [];
+        $tempSchemas = [];
+        $attachedSchemas = [];
+        $dependencyMovedTriggers = [];
+        $cookieExpiredTriggers = [];
+
+        foreach ($preparedTriggers as $trigger) {
+            $name = trim((string) $trigger['name']);
+            $active = (bool) ($trigger['active'] ?? false);
+            $currentSource = $plan['triggers'][$name]['current'];
+            $nextSource = $plan['triggers'][$name]['next'];
+            $currentDependencies = array_column(self::resolvedBodyDependencies($current, $currentSource), 'resolved_schema');
+            $nextDependencies = array_column(self::resolvedBodyDependencies($next, $nextSource), 'resolved_schema');
+            $dependencySchemas = self::orderedSchemaNames(array_merge(
+                [(string) $currentSource['triggerSchema'], (string) $currentSource['targetSchema']],
+                [(string) $nextSource['triggerSchema'], (string) $nextSource['targetSchema']],
+                $currentDependencies,
+                $nextDependencies,
+            ));
+            $dependencyMoved = $currentDependencies !== $nextDependencies;
+            $cookieSchemas = array_values(array_filter(
+                $dependencySchemas,
+                static fn (string $schema): bool => isset($cookieChanged[$schema]),
+            ));
+            $cookieExpired = $cookieSchemas !== [];
+            $requiresReprepare = (bool) $plan['triggers'][$name]['requires_reprepare'] || $dependencyMoved || $cookieExpired;
+
+            if ($requiresReprepare) {
+                $reprepare[] = $name;
+                $invalidatedSchemas = array_merge($invalidatedSchemas, $dependencySchemas);
+                $walSchemas = array_merge($walSchemas, array_values(array_filter($dependencySchemas, static fn (string $schema): bool => $schema !== 'temp')));
+                $tempSchemas = array_merge($tempSchemas, array_values(array_filter($dependencySchemas, static fn (string $schema): bool => $schema === 'temp')));
+                $attachedSchemas = array_merge($attachedSchemas, array_values(array_filter($dependencySchemas, static fn (string $schema): bool => !in_array($schema, ['main', 'temp'], true))));
+                if ($active) {
+                    $action = 'finish_current_source_then_sqlite_schema_on_reset';
+                    $sqliteResult = 'SQLITE_OK';
+                    $activeCurrent[] = $name;
+                    $resetSchema[] = $name;
+                } else {
+                    $action = 'sqlite_schema_on_next_step';
+                    $sqliteResult = 'SQLITE_SCHEMA';
+                    $nextStepSchema[] = $name;
+                }
+            } else {
+                $stable[] = $name;
+                $action = 'reuse_prepared_trigger';
+                $sqliteResult = 'SQLITE_OK';
+            }
+
+            if ($dependencyMoved) {
+                $dependencyMovedTriggers[] = $name;
+            }
+            if ($cookieExpired) {
+                $cookieExpiredTriggers[] = $name;
+            }
+
+            $plan['triggers'][$name]['current_body_dependency_schemas'] = $currentDependencies;
+            $plan['triggers'][$name]['next_body_dependency_schemas'] = $nextDependencies;
+            $plan['triggers'][$name]['dependency_schemas'] = $dependencySchemas;
+            $plan['triggers'][$name]['dependency_moved'] = $dependencyMoved;
+            $plan['triggers'][$name]['cookie_changed_schemas'] = $cookieSchemas;
+            $plan['triggers'][$name]['schema_cookie_changed'] = $cookieExpired;
+            $plan['triggers'][$name]['requires_reprepare'] = $requiresReprepare;
+            $plan['triggers'][$name]['current_step_result'] = $sqliteResult;
+            $plan['triggers'][$name]['next_step_action'] = $action;
+            $plan['triggers'][$name]['current_source_kept_until_reset'] = $active && $requiresReprepare;
+            $plan['triggers'][$name]['invalidated_sources'] = $requiresReprepare ? $dependencySchemas : [];
+            $plan['triggers'][$name]['wal_schemas'] = self::orderedSchemaNames(array_values(array_filter($dependencySchemas, static fn (string $schema): bool => $schema !== 'temp')));
+            $plan['triggers'][$name]['temp_schemas'] = self::orderedSchemaNames(array_values(array_filter($dependencySchemas, static fn (string $schema): bool => $schema === 'temp')));
+            $plan['triggers'][$name]['attached_schemas'] = self::orderedSchemaNames(array_values(array_filter($dependencySchemas, static fn (string $schema): bool => !in_array($schema, ['main', 'temp'], true))));
+        }
+
+        $plan['status'] = $reprepare === [] ? 'trigger_current_source_stable' : 'trigger_current_source_expired';
+        $plan['operation'] = 'attach-temp-wal-schema-trigger-current-source-next95';
+        $plan['reprepare_triggers'] = $reprepare;
+        $plan['stable_triggers'] = $stable;
+        $plan['active_current_snapshot_triggers'] = $activeCurrent;
+        $plan['reset_schema_triggers'] = $resetSchema;
+        $plan['next_step_schema_triggers'] = $nextStepSchema;
+        $plan['requires_reprepare'] = $reprepare !== [];
+        $plan['changed_schemas'] = self::orderedSchemaNames(array_merge($invalidatedSchemas, $schemaCookies['changed_schemas']));
+        $plan['wal_schemas'] = self::orderedSchemaNames(array_merge($walSchemas, $schemaCookies['wal_sources']));
+        $plan['temp_schemas'] = self::orderedSchemaNames($tempSchemas);
+        $plan['attached_schemas'] = self::orderedSchemaNames($attachedSchemas);
+        $plan['dependency_moved_triggers'] = $dependencyMovedTriggers;
+        $plan['cookie_expired_triggers'] = $cookieExpiredTriggers;
+        $plan['dependencies'] = [
+            'sqlite-attach-temp-wal-schema-trigger-current-source-next95',
+            'sqlite-prepared-trigger-current-source-reset',
+            'sqlite-temp-trigger-body-dependency-resolution',
+            'sqlite-wal-page-one-schema-cookie',
+        ];
+
+        return $plan;
+    }
+
+    /**
+     * @param list<array{name:string, active?:bool, statement?:string}> $preparedTriggers
+     * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
+     * @return array<string,mixed>
+     */
     public static function currentSourceNext104(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
