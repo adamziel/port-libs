@@ -48,6 +48,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 19:25 UTC):
+  Seventy-first safe consolidation follow-up is integrated and pushed as
+  `7a5644f02`. The batch accepts 2 current-base handoffs on top of
+  `6ee35c5d`: planner STAT4 expression-partial next318-333 private helper
+  cleanup and trigger RETURNING `savepointBoundaryYield()` canonical entry
+  point with `currentNextYield()` retained as a compatibility alias.
+  Validation passed PHP lint on changed files, direct tests
+  `2 files / 102 assertions / 0 failures`, STAT4 expression-partial family
+  `133 files / 7537 assertions / 0 failures`, trigger RETURNING family
+  `105 files / 9899 assertions / 0 failures`, changed WordPress self-test
+  example, git diff --check, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`, production numbered file/class audits at `0`,
+  numbered production helper-method audit `1750`, and unique numbered
+  production symbol audit `1982`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+
 - 2026-05-29 supervisor continuation (shell samples 19:12 UTC):
   Seventieth safe consolidation follow-up is integrated and pushed as
   `dcc7060a4`. The batch accepts 2 current-base
