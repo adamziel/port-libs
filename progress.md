@@ -3096,3 +3096,11 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Validation passed PHP lint, `git diff --check`, 83 rowvalue current-source /
   publication tests with 2,492 assertions / 0 failures, and the final handoff /
   final publication example self-tests.
+
+## Supervisor Rolling Integration 2026-05-29T21:44Z Compound Expectation Repair
+
+- The next root dashboard gate reached compound recursive-window current-source
+  next192/next194 and exposed two stale non-overlap phrase expectations.
+- Updated both tests to assert the current production `source-token-fence`
+  wording. Focused validation passes with 2 files / 671 assertions /
+  0 failures.
