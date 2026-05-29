@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $prepared = [
-    'name' => 'prepared-wordpress-options-next221',
+    'name' => 'prepared-wordpress-options-stat4-sample-window',
     'schemaCookie' => 2210,
     'stat4Generation' => 221,
     'rows' => [
@@ -15,7 +15,7 @@ $prepared = [
         ['rowid' => 20, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'old-forms', 'updated_at' => 20],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_sample_window_stat4_next221',
+        'name' => 'idx_wp_options_lower_sample_window_stat4_stat4-sample-window',
         'rootPage' => 22101,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -54,7 +54,7 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wordpress-options-next221';
+$current['name'] = 'current-wordpress-options-stat4-sample-window';
 $current['schemaCookie'] = 2218;
 $current['stat4Generation'] = 281;
 $current['indexes'][0]['rootPage'] = 22188;
@@ -77,7 +77,7 @@ $current['rows'] = [
     ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'alpha', 'updated_at' => 10],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext221(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4SampleWindowFence(
     $prepared,
     $current,
     [
@@ -92,8 +92,8 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
     1,
 );
 
-if (($plan['status'] ?? null) !== 'stat4-expression-partial-current-source-next221-ready') {
-    throw new RuntimeException('Expected next221 STAT4 sample-window plan to be ready');
+if (($plan['status'] ?? null) !== 'stat4-expression-partial-current-source-sample-window-ready') {
+    throw new RuntimeException('Expected stat4-sample-window STAT4 sample-window plan to be ready');
 }
 if (($plan['stat4SampleWindowFence']['samplePositions'] ?? null) !== [4, 3, 2, 2, 2, 1]) {
     throw new RuntimeException('Expected yielded rows to remain bracketed by current STAT4 samples');

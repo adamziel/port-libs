@@ -16605,7 +16605,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext221(
+        public static function materializeStat4SampleWindowFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -16622,10 +16622,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $currentIndex = self::indexByNameNext221($currentSource, $selectedName);
-            $fence = self::sampleWindowFenceNext221(
-                self::stat4SampleKeysNext221($currentIndex),
-                self::yieldRowsNext221($base),
+            $currentIndex = self::indexByNameStat4SampleWindowFence($currentSource, $selectedName);
+            $fence = self::buildStat4SampleWindowFence(
+                self::stat4SampleKeysForWindowFence($currentIndex),
+                self::yieldRowsForStat4SampleWindowFence($base),
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next217-ready'
                 && $fence['allRowsCoveredByCurrentStat4Samples'] === true
@@ -16633,70 +16633,70 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 && $fence['rowidsRejectedByCurrentStat4Samples'] === [];
 
             return array_replace($base, [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next221-ready' : 'requires-current-source-stat4-sample-window-reprepare',
+                'status' => $ready ? 'stat4-expression-partial-current-source-sample-window-ready' : 'requires-current-source-stat4-sample-window-reprepare',
                 'stat4SampleWindowFence' => $fence,
                 'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
-                    'next221Ready' => $ready,
-                    'next221CurrentStat4SampleSignature' => $fence['currentStat4SampleSignature'],
-                    'next221ProofSignature' => $fence['proofSignature'],
-                    'next221SamplePositions' => $fence['samplePositions'],
-                    'next221RowsRejectedByCurrentStat4Samples' => $fence['rowidsRejectedByCurrentStat4Samples'],
+                    'stat4SampleWindowReady' => $ready,
+                    'stat4SampleWindowCurrentStat4SampleSignature' => $fence['currentStat4SampleSignature'],
+                    'stat4SampleWindowProofSignature' => $fence['proofSignature'],
+                    'stat4SampleWindowPositions' => $fence['samplePositions'],
+                    'stat4SampleWindowRowsRejectedByCurrentStat4Samples' => $fence['rowidsRejectedByCurrentStat4Samples'],
                 ]),
                 'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
-                    'next221CurrentStat4SampleSignature' => $fence['currentStat4SampleSignature'],
-                    'next221SampleWindowProofSignature' => $fence['proofSignature'],
+                    'stat4SampleWindowCurrentStat4SampleSignature' => $fence['currentStat4SampleSignature'],
+                    'stat4SampleWindowProofSignature' => $fence['proofSignature'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext221(
+                'cursorProgram' => self::cursorProgramWithStat4SampleWindowFence(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
                 ),
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT221 SAMPLE WINDOW FENCE '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE SAMPLE WINDOW FENCE '
                     . $selectedName
                     . ($ready ? ' CURRENT STAT4 SAMPLE WINDOWS PROVED' : ' REQUIRES CURRENT SOURCE STAT4 SAMPLE REPREPARE'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                     [
                         'SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-expression-partial-current-source-next221',
+                        'sqlite-sqlplanner-stat4-expression-partial-current-source-sample-window',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next221 composes current-source STAT4 partial expression yield fences and validates the yielded cursor page against current STAT4 sample windows',
+                'dependency_closure' => 'no new support component needed; stat4 sample-window fence composes current-source STAT4 partial expression yield fences and validates the yielded cursor page against current STAT4 sample windows',
                 'non_overlap' => 'avoids accepted next217 current/next yield continuity, next213 LIKE case checks, next212 grouped LIKE proof, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, and UTF clusters; this slice only proves yielded partial-expression rows remain bracketed by current-source STAT4 samples',
             ]);
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext221(array $source, string $name): array
+        private static function indexByNameStat4SampleWindowFence(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
-                throw new \InvalidArgumentException('SQLite next221 needs source indexes');
+                throw new \InvalidArgumentException('SQLite STAT4 sample-window fence needs source indexes');
             }
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite next221 index entries must be arrays');
+                    throw new \InvalidArgumentException('SQLite STAT4 sample-window fence index entries must be arrays');
                 }
                 if ((string) ($index['name'] ?? '') === $name) {
                     return $index;
                 }
             }
 
-            throw new \InvalidArgumentException('SQLite next221 selected index missing from current source');
+            throw new \InvalidArgumentException('SQLite STAT4 sample-window fence selected index missing from current source');
         }
 
         /** @param array<string,mixed> $index @return list<string> */
-        private static function stat4SampleKeysNext221(array $index): array
+        private static function stat4SampleKeysForWindowFence(array $index): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples) || $samples === []) {
-                throw new \InvalidArgumentException('SQLite next221 selected index needs STAT4 samples');
+                throw new \InvalidArgumentException('SQLite STAT4 sample-window fence selected index needs STAT4 samples');
             }
             $keys = [];
             foreach ($samples as $sample) {
                 if (!is_array($sample) || !isset($sample['sample']) || !is_array($sample['sample']) || !array_key_exists(0, $sample['sample'])) {
-                    throw new \InvalidArgumentException('SQLite next221 STAT4 samples need expression keys');
+                    throw new \InvalidArgumentException('SQLite STAT4 sample-window fence STAT4 samples need expression keys');
                 }
                 $keys[] = strtolower((string) $sample['sample'][0]);
             }
@@ -16707,16 +16707,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $base @return list<array<string,mixed>> */
-        private static function yieldRowsNext221(array $base): array
+        private static function yieldRowsForStat4SampleWindowFence(array $base): array
         {
             $pairs = $base['stat4YieldFence']['currentNextPairs'] ?? null;
             if (!is_array($pairs) || !array_is_list($pairs)) {
-                throw new \InvalidArgumentException('SQLite next221 needs next217 current/next pairs');
+                throw new \InvalidArgumentException('SQLite STAT4 sample-window fence needs next217 current/next pairs');
             }
             $out = [];
             foreach ($pairs as $pair) {
                 if (!is_array($pair)) {
-                    throw new \InvalidArgumentException('SQLite next221 current/next pairs must be arrays');
+                    throw new \InvalidArgumentException('SQLite STAT4 sample-window fence current/next pairs must be arrays');
                 }
                 $out[] = [
                     'rowid' => $pair['rowid'] ?? null,
@@ -16732,7 +16732,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return array<string,mixed>
          */
-        private static function sampleWindowFenceNext221(array $sampleKeys, array $rows): array
+        private static function buildStat4SampleWindowFence(array $sampleKeys, array $rows): array
         {
             $proofs = [];
             $rejected = [];
@@ -16740,9 +16740,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $previousPosition = null;
             $positionRegressions = [];
             foreach ($rows as $row) {
-                $key = self::expressionKeyNext221($row);
-                $rowid = self::rowidNext221($row);
-                $position = self::samplePositionNext221($sampleKeys, $key);
+                $key = self::expressionKeyForStat4SampleWindow($row);
+                $rowid = self::rowidForStat4SampleWindow($row);
+                $position = self::stat4SampleWindowPosition($sampleKeys, $key);
                 $covered = $position !== null;
                 if (!$covered) {
                     $rejected[] = $rowid;
@@ -16765,19 +16765,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             return [
                 'currentStat4SampleKeys' => $sampleKeys,
-                'currentStat4SampleSignature' => self::signatureNext221($sampleKeys),
+                'currentStat4SampleSignature' => self::stat4SampleWindowSignature($sampleKeys),
                 'rowProofs' => $proofs,
                 'samplePositions' => $positions,
                 'allRowsCoveredByCurrentStat4Samples' => $rejected === [],
                 'samplePositionsPreserveDescendingScan' => $positionRegressions === [],
                 'rowidsRejectedByCurrentStat4Samples' => $rejected,
                 'rowidsRejectedByDescendingSampleOrder' => $positionRegressions,
-                'proofSignature' => self::signatureNext221([$sampleKeys, $proofs]),
+                'proofSignature' => self::stat4SampleWindowSignature([$sampleKeys, $proofs]),
             ];
         }
 
         /** @param list<string> $sampleKeys */
-        private static function samplePositionNext221(array $sampleKeys, string $key): ?int
+        private static function stat4SampleWindowPosition(array $sampleKeys, string $key): ?int
         {
             if ($key < $sampleKeys[0]) {
                 return null;
@@ -16794,7 +16794,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionKeyNext221(array $row): string
+        private static function expressionKeyForStat4SampleWindow(array $row): string
         {
             if (array_key_exists('expressionKey', $row)) {
                 return strtolower((string) $row['expressionKey']);
@@ -16804,14 +16804,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 return strtolower((string) $payload['option_name']);
             }
 
-            throw new \InvalidArgumentException('SQLite next221 rows need expression keys');
+            throw new \InvalidArgumentException('SQLite STAT4 sample-window fence rows need expression keys');
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext221(array $row): int
+        private static function rowidForStat4SampleWindow(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
-                throw new \InvalidArgumentException('SQLite next221 rowid must be an integer');
+                throw new \InvalidArgumentException('SQLite STAT4 sample-window fence rowid must be an integer');
             }
 
             return (int) $row['rowid'];
@@ -16822,14 +16822,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext221(array $program, bool $ready, array $fence): array
+        private static function cursorProgramWithStat4SampleWindowFence(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
             }
             $program[] = [
                 'opcode' => 'RecheckStat4SampleWindowYield',
-                'mode' => 'next221-current-source-stat4-expression-partial-sample-window',
+                'mode' => 'current-source-stat4-expression-partial-sample-window',
                 'samplePositions' => $fence['samplePositions'],
                 'signature' => $fence['proofSignature'],
             ];
@@ -16837,7 +16837,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function signatureNext221(mixed $value): string
+        private static function stat4SampleWindowSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }

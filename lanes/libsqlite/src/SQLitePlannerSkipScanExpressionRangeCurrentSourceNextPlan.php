@@ -17,7 +17,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext149(
+        public static function materializeExpressionRangeRecheck(
             array $preparedSource,
             array $currentSource,
             SQLiteIndexPredicate $partialPredicate,
@@ -25,7 +25,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
             array $orderByExpressions,
             array $neededColumns,
         ): array {
-            $base = SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan::materializeNext143(
+            $base = SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $currentSource,
                 $partialPredicate,
@@ -34,44 +34,44 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
                 $neededColumns,
             );
 
-            $selectedPlan = self::arrayValueNext149($base, 'selectedPlan');
-            $currentRows = self::rowsByRowidNext149($currentSource);
-            $rangeAudit = self::rangeAuditNext149($selectedPlan, $currentSource, $currentRows);
-            $residualProgram = self::residualProgramNext149($selectedPlan, $currentSource, $rangeAudit);
-            $ready = ($base['status'] ?? null) === 'expression-skipscan-range-current-source-next143-ready'
+            $selectedPlan = self::arrayValue($base, 'selectedPlan');
+            $currentRows = self::rowsByRowid($currentSource);
+            $rangeAudit = self::rangeAudit($selectedPlan, $currentSource, $currentRows);
+            $residualProgram = self::residualProgram($selectedPlan, $currentSource, $rangeAudit);
+            $ready = ($base['status'] ?? null) === 'expression-skipscan-range-current-source-ready'
                 && ($selectedPlan['expressionSkipScan'] ?? false) === true
                 && ($selectedPlan['usesSkipScan'] ?? false) === true
                 && $rangeAudit['rejectedRowids'] === [];
 
             return array_replace($base, [
-                'status' => $ready ? 'skipscan-expression-range-current-source-next149-ready' : 'requires-current-source-range-recheck',
+                'status' => $ready ? 'skipscan-expression-range-recheck-ready' : 'requires-current-source-range-recheck',
                 'selectedPlan' => array_replace($selectedPlan, [
                     'currentSourceExpressionRangeRecheck' => true,
                     'expressionRangeRecheckOpcode' => 'RecheckExpressionRange',
                     'expressionRangeRowCount' => count($rangeAudit['acceptedRowids']),
                     'expressionRangeRejectedCount' => count($rangeAudit['rejectedRowids']),
                     'detail' => ($selectedPlan['detail'] ?? 'SEARCH USING SKIP-SCAN')
-                        . ' CURRENT-SOURCE EXPRESSION RANGE RECHECK next149',
+                        . ' CURRENT-SOURCE EXPRESSION RANGE RECHECK current-source-expression-range-recheck',
                 ]),
                 'expressionRangeAudit' => $rangeAudit,
                 'expressionRangeResidualProgram' => $residualProgram,
                 'currentSourceFence' => array_replace(
-                    self::arrayValueNext149($base, 'currentSourceFence'),
+                    self::arrayValue($base, 'currentSourceFence'),
                     [
-                        'expressionRangeAuditSignature' => self::signatureNext149($rangeAudit),
+                        'expressionRangeAuditSignature' => self::signature($rangeAudit),
                         'expressionRangeRecheckOpcode' => 'RecheckExpressionRange',
                         'acceptedExpressionRangeRows' => count($rangeAudit['acceptedRowids']),
                         'rejectedExpressionRangeRows' => count($rangeAudit['rejectedRowids']),
                     ],
                 ),
-                'cursorTape' => self::cursorTapeNext149($base, $residualProgram, $rangeAudit),
+                'cursorTape' => self::cursorTape($base, $residualProgram, $rangeAudit),
                 'detail' => ($base['detail'] ?? 'PARTIAL EXPRESSION SKIP-SCAN')
                     . ' current-source-expression-range-recheck=' . ($rangeAudit['rejectedRowids'] === [] ? 'clean' : 'filtered'),
                 'dependencies' => [
                     'SQLitePlannerExpressionSkipScanRangeCurrentSourceNextPlan',
-                    'sqlite-sqlplanner-skipscan-expression-range-current-source-next149',
+                    'sqlite-sqlplanner-skipscan-expression-range-recheck',
                 ],
-                'dependency_closure' => 'no new support component needed; next149 reuses native PHP expression skip-scan range fences and adds current-source residual expression-range rechecks',
+                'dependency_closure' => 'no new support component needed; current-source-expression-range-recheck reuses native PHP expression skip-scan range fences and adds current-source residual expression-range rechecks',
                 'non_overlap' => 'avoids accepted next143 range-fence selection, next145 STAT4 prefix programs, expression-index range cost, SQL expression ORDER BY, and partial predicate change surfaces; this slice verifies selected skip-scan row expression values against current-source lower/upper range bounds before cursor yield',
             ]);
         }
@@ -82,29 +82,29 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
          * @param array<int,array<string,mixed>> $rowsByRowid
          * @return array<string,mixed>
          */
-        private static function rangeAuditNext149(array $plan, array $source, array $rowsByRowid): array
+        private static function rangeAudit(array $plan, array $source, array $rowsByRowid): array
         {
-            $expression = self::stringValueNext149($source, 'rangeExpression');
-            $column = self::stringValueNext149($source, 'rangeColumn');
-            $rangeColumn = self::stringValueNext149($source, 'rangeExpressionColumn');
+            $expression = self::stringValue($source, 'rangeExpression');
+            $column = self::stringValue($source, 'rangeColumn');
+            $rangeColumn = self::stringValue($source, 'rangeExpressionColumn');
             $lower = $source['lowerInclusive'] ?? null;
             $upper = $source['upperBound'] ?? null;
-            $upperInclusive = self::boolValueNext149($source, 'upperInclusive', true);
+            $upperInclusive = self::boolValue($source, 'upperInclusive', true);
             $collation = strtoupper((string) ($source['collation'] ?? 'BINARY'));
             $accepted = [];
             $rejected = [];
             $tape = [];
 
-            foreach (self::intListNext149($plan['rowids'] ?? []) as $rowid) {
+            foreach (self::intList($plan['rowids'] ?? []) as $rowid) {
                 $row = $rowsByRowid[$rowid] ?? null;
                 if ($row === null) {
                     $rejected[] = $rowid;
-                    $tape[] = self::auditRowNext149($rowid, null, null, $lower, $upper, false, 'missing-current-row');
+                    $tape[] = self::auditRow($rowid, null, null, $lower, $upper, false, 'missing-current-row');
                     continue;
                 }
-                $value = self::expressionValueNext149($expression, $column, $rangeColumn, $row);
-                $lowerOk = $lower === null || (($lowerCmp = self::compareNext149($value, $lower, $collation)) !== null && $lowerCmp >= 0);
-                $upperCmp = $upper === null ? null : self::compareNext149($value, $upper, $collation);
+                $value = self::expressionValue($expression, $column, $rangeColumn, $row);
+                $lowerOk = $lower === null || (($lowerCmp = self::compareValues($value, $lower, $collation)) !== null && $lowerCmp >= 0);
+                $upperCmp = $upper === null ? null : self::compareValues($value, $upper, $collation);
                 $upperOk = $upper === null || ($upperCmp !== null && ($upperInclusive ? $upperCmp <= 0 : $upperCmp < 0));
                 $matched = $lowerOk && $upperOk;
                 if ($matched) {
@@ -112,7 +112,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
                 } else {
                     $rejected[] = $rowid;
                 }
-                $tape[] = self::auditRowNext149($rowid, $row, $value, $lower, $upper, $matched, $matched ? 'accepted' : 'range-filtered');
+                $tape[] = self::auditRow($rowid, $row, $value, $lower, $upper, $matched, $matched ? 'accepted' : 'range-filtered');
             }
 
             return [
@@ -133,7 +133,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
          * @param array<string,mixed>|null $row
          * @return array<string,mixed>
          */
-        private static function auditRowNext149(int $rowid, ?array $row, mixed $value, mixed $lower, mixed $upper, bool $matched, string $reason): array
+        private static function auditRow(int $rowid, ?array $row, mixed $value, mixed $lower, mixed $upper, bool $matched, string $reason): array
         {
             return [
                 'rowid' => $rowid,
@@ -147,57 +147,57 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @param array<string,mixed> $source @param array<string,mixed> $audit @return list<array<string,mixed>> */
-        private static function residualProgramNext149(array $plan, array $source, array $audit): array
+        private static function residualProgram(array $plan, array $source, array $audit): array
         {
             return [
                 [
                     'opcode' => 'Column',
                     'source' => 'index',
-                    'column' => self::stringValueNext149($source, 'rangeExpressionColumn'),
+                    'column' => self::stringValue($source, 'rangeExpressionColumn'),
                 ],
                 [
                     'opcode' => 'RecheckExpressionRange',
-                    'expression' => self::stringValueNext149($source, 'rangeExpression'),
+                    'expression' => self::stringValue($source, 'rangeExpression'),
                     'lower' => $source['lowerInclusive'] ?? null,
                     'upper' => $source['upperBound'] ?? null,
-                    'upperInclusive' => self::boolValueNext149($source, 'upperInclusive', true),
+                    'upperInclusive' => self::boolValue($source, 'upperInclusive', true),
                     'collation' => strtoupper((string) ($source['collation'] ?? 'BINARY')),
                 ],
                 [
                     'opcode' => 'IfNot',
                     'target' => ($plan['reverseScan'] ?? false) === true ? 'Prev' : 'Next',
-                    'filteredRowids' => self::intListNext149($audit['rejectedRowids'] ?? []),
+                    'filteredRowids' => self::intList($audit['rejectedRowids'] ?? []),
                 ],
                 [
                     'opcode' => 'ResultRow',
-                    'rowids' => self::intListNext149($audit['acceptedRowids'] ?? []),
+                    'rowids' => self::intList($audit['acceptedRowids'] ?? []),
                 ],
             ];
         }
 
         /** @param array<string,mixed> $base @param list<array<string,mixed>> $program @param array<string,mixed> $audit @return array<string,mixed> */
-        private static function cursorTapeNext149(array $base, array $program, array $audit): array
+        private static function cursorTape(array $base, array $program, array $audit): array
         {
-            $tape = self::arrayValueNext149($base, 'cursorTape');
-            $existing = self::arrayListNext149($tape['program'] ?? []);
+            $tape = self::arrayValue($base, 'cursorTape');
+            $existing = self::arrayList($tape['program'] ?? []);
             array_splice($existing, max(0, count($existing) - 1), 0, $program);
 
             return array_replace($tape, [
                 'program' => $existing,
-                'rowids' => self::intListNext149($audit['acceptedRowids'] ?? []),
-                'rejectedRowids' => self::intListNext149($audit['rejectedRowids'] ?? []),
+                'rowids' => self::intList($audit['acceptedRowids'] ?? []),
+                'rejectedRowids' => self::intList($audit['rejectedRowids'] ?? []),
                 'residualRecheck' => true,
             ]);
         }
 
         /** @param array<string,mixed> $source @return array<int,array<string,mixed>> */
-        private static function rowsByRowidNext149(array $source): array
+        private static function rowsByRowid(array $source): array
         {
             $rows = [];
-            foreach (self::arrayListNext149($source['rows'] ?? []) as $row) {
+            foreach (self::arrayList($source['rows'] ?? []) as $row) {
                 $rowid = $row['rowid'] ?? $row['_rowid_'] ?? $row['oid'] ?? null;
                 if (!is_int($rowid) || $rowid < 0) {
-                    throw new \InvalidArgumentException('SQLite skip-scan expression range next149 rows need non-negative integer rowids');
+                    throw new \InvalidArgumentException('SQLite skip-scan expression range current-source-expression-range-recheck rows need non-negative integer rowids');
                 }
                 $rows[$rowid] = $row;
             }
@@ -206,12 +206,12 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function expressionValueNext149(string $expression, string $column, string $rangeColumn, array $row): mixed
+        private static function expressionValue(string $expression, string $column, string $rangeColumn, array $row): mixed
         {
             if (array_key_exists($rangeColumn, $row)) {
                 return $row[$rangeColumn];
             }
-            $value = self::rowColumnNext149($row, $column);
+            $value = self::rowColumn($row, $column);
             if (preg_match('/^lower\\(([^)]+)\\)$/i', $expression) === 1) {
                 return is_string($value) ? strtolower($value) : $value;
             }
@@ -226,7 +226,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowColumnNext149(array $row, string $column): mixed
+        private static function rowColumn(array $row, string $column): mixed
         {
             foreach ($row as $key => $value) {
                 if (is_string($key) && strcasecmp($key, $column) === 0) {
@@ -237,7 +237,7 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
             return null;
         }
 
-        private static function compareNext149(mixed $left, mixed $right, string $collation): ?int
+        private static function compareValues(mixed $left, mixed $right, string $collation): ?int
         {
             if ($left === null || $right === null) {
                 return null;
@@ -257,49 +257,49 @@ final class SQLitePlannerSkipScanExpressionRangeCurrentSourceNextPlan
         }
 
         /** @return array<string,mixed> */
-        private static function arrayValueNext149(array $source, string $key): array
+        private static function arrayValue(array $source, string $key): array
         {
             $value = $source[$key] ?? [];
             if (!is_array($value)) {
-                throw new \InvalidArgumentException('SQLite skip-scan expression range next149 metadata must be arrays');
+                throw new \InvalidArgumentException('SQLite skip-scan expression range current-source-expression-range-recheck metadata must be arrays');
             }
 
             return $value;
         }
 
         /** @return list<array<string,mixed>> */
-        private static function arrayListNext149(mixed $value): array
+        private static function arrayList(mixed $value): array
         {
             return is_array($value) && array_is_list($value) ? array_values(array_filter($value, 'is_array')) : [];
         }
 
         /** @return list<int> */
-        private static function intListNext149(mixed $value): array
+        private static function intList(mixed $value): array
         {
             return is_array($value) ? array_values(array_map(static fn (mixed $item): int => (int) $item, $value)) : [];
         }
 
-        private static function stringValueNext149(array $source, string $key): string
+        private static function stringValue(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException("SQLite skip-scan expression range next149 needs {$key}");
+                throw new \InvalidArgumentException("SQLite skip-scan expression range current-source-expression-range-recheck needs {$key}");
             }
 
             return $value;
         }
 
-        private static function boolValueNext149(array $source, string $key, bool $default): bool
+        private static function boolValue(array $source, string $key, bool $default): bool
         {
             $value = $source[$key] ?? $default;
             if (!is_bool($value)) {
-                throw new \InvalidArgumentException("SQLite skip-scan expression range next149 needs boolean {$key}");
+                throw new \InvalidArgumentException("SQLite skip-scan expression range current-source-expression-range-recheck needs boolean {$key}");
             }
 
             return $value;
         }
 
-        private static function signatureNext149(array $payload): string
+        private static function signature(array $payload): string
         {
             return hash('sha256', serialize($payload));
         }
