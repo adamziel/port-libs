@@ -31,7 +31,7 @@ $plan200 = static fn (
     ?array $projection = null,
     ?int $yieldedRowid = 6,
     ?string $observedSourceGeneration = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext200(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXFilterArguments(
     'json_tree',
     $current ?? $current200,
     $next ?? $next200,
@@ -181,7 +181,7 @@ $tests['json table generated path rowid cost current source next200 malformed ge
     $t->throws(InvalidArgumentException::class, static fn () => $plan200(array_replace($current200, ['generated_path' => '$.rules[']), $current200));
 };
 $tests['json table generated path rowid cost current source next200 bad function rejected'] = static function (TestRunner $t) use ($current200): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext200('json_bad', $current200, $current200, 'option_value', 'generated_path'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXFilterArguments('json_bad', $current200, $current200, 'option_value', 'generated_path'));
 };
 $tests['json table generated path rowid cost current source next200 dependency closure'] = static function (TestRunner $t): void {
     $t->same('no-new-support-component', 'no-new-support-component');

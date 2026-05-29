@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas957972 = [
+$schemasPublishHandoffWindow = [
     'main' => [
         'schema_cookie' => 956,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next956', 'wp_navigation_rule_locale_publish_gate_next960'],
@@ -57,7 +57,7 @@ $schemas957972 = [
     ],
 ];
 
-$statements957972 = [
+$statementsPublishHandoffWindow = [
     ['name' => 'main-gate-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_gate_next960 INDEXED BY wp_navigation_rule_locale_publish_gate_key_next960 WHERE nav_key = ?', 'active' => true],
     ['name' => 'audit-seal-reader', 'sql' => 'SELECT seal_id FROM audit.wp_schema_audit_seal_next949 INDEXED BY wp_schema_audit_seal_key_next950 WHERE seal_key = ?'],
     ['name' => 'archive-receipt-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_receipt_next952 INDEXED BY wp_schema_archive_receipt_key_next952 WHERE archive_key = ?'],
@@ -68,16 +68,16 @@ $statements957972 = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next957 INDEXED BY wp_schema_report_receipt_key_next957 WHERE report_key = ?'],
 ];
 
-$plan957972 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCachePublishHandoffWindow(
-    $schemas ?? $schemas957972,
-    $statements ?? $statements957972,
+$planPublishHandoffWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCachePublishHandoffWindow(
+    $schemas ?? $schemasPublishHandoffWindow,
+    $statements ?? $statementsPublishHandoffWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next957-972 extends next941-956 handoff'] = static function (TestRunner $t) use ($plan957972): void {
-    $result = $plan957972([
+$tests['attach temp wal schema cache publish handoff window extends report handoff'] = static function (TestRunner $t) use ($planPublishHandoffWindow): void {
+    $result = $planPublishHandoffWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 962, 'table' => 'wp_navigation_rule_locale_publish_batch_next962', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next962'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 964, 'table' => 'wp_theme_stage_publish_token_next964', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next952', 'to' => 'wp_schema_archive_receipt_key_next966'],
@@ -114,8 +114,8 @@ $tests['attach temp wal schema cache current source next957-972 extends next941-
     $t->same(['report-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next957-972 ignores detached staging review'] = static function (TestRunner $t) use ($plan957972): void {
-    $result = $plan957972([
+$tests['attach temp wal schema cache publish handoff window ignores detached staging review'] = static function (TestRunner $t) use ($planPublishHandoffWindow): void {
+    $result = $planPublishHandoffWindow([
         ['op' => 'attach', 'schema' => 'staging', 'schema_cookie' => 957, 'tables' => ['wp_staging_review_next957'], 'indexes' => ['wp_staging_review_key_next957'], 'file' => '/srv/wp/staging-next957.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'staging', 'schema_cookie' => 958, 'table' => 'wp_staging_review_meta_next958', 'indexes' => ['wp_staging_review_meta_key_next958'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'staging'],

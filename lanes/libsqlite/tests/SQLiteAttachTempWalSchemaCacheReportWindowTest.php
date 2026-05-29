@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas941956 = [
+$schemasReportWindow = [
     'main' => [
         'schema_cookie' => 940,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next940', 'wp_navigation_rule_locale_publish_gate_next944'],
@@ -57,7 +57,7 @@ $schemas941956 = [
     ],
 ];
 
-$statements941956 = [
+$statementsReportWindow = [
     ['name' => 'main-gate-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_gate_next944 INDEXED BY wp_navigation_rule_locale_publish_gate_key_next944 WHERE nav_key = ?', 'active' => true],
     ['name' => 'audit-seal-reader', 'sql' => 'SELECT seal_id FROM audit.wp_schema_audit_seal_next933 INDEXED BY wp_schema_audit_seal_key_next934 WHERE seal_key = ?'],
     ['name' => 'archive-receipt-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_receipt_next936 INDEXED BY wp_schema_archive_receipt_key_next936 WHERE archive_key = ?'],
@@ -68,16 +68,16 @@ $statements941956 = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next941 INDEXED BY wp_schema_report_receipt_key_next941 WHERE report_key = ?'],
 ];
 
-$plan941956 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheReportWindow(
-    $schemas ?? $schemas941956,
-    $statements ?? $statements941956,
+$planReportWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheReportWindow(
+    $schemas ?? $schemasReportWindow,
+    $statements ?? $statementsReportWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next941-956 extends next925-940 handoff'] = static function (TestRunner $t) use ($plan941956): void {
-    $result = $plan941956([
+$tests['attach temp wal schema cache report window extends audit handoff'] = static function (TestRunner $t) use ($planReportWindow): void {
+    $result = $planReportWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 946, 'table' => 'wp_navigation_rule_locale_publish_batch_next946', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next946'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 948, 'table' => 'wp_theme_stage_publish_token_next948', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next936', 'to' => 'wp_schema_archive_receipt_key_next950'],
@@ -114,8 +114,8 @@ $tests['attach temp wal schema cache current source next941-956 extends next925-
     $t->same(['report-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next941-956 ignores detached staging review'] = static function (TestRunner $t) use ($plan941956): void {
-    $result = $plan941956([
+$tests['attach temp wal schema cache report window ignores detached staging review'] = static function (TestRunner $t) use ($planReportWindow): void {
+    $result = $planReportWindow([
         ['op' => 'attach', 'schema' => 'staging', 'schema_cookie' => 941, 'tables' => ['wp_staging_review_next941'], 'indexes' => ['wp_staging_review_key_next941'], 'file' => '/srv/wp/staging-next941.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'staging', 'schema_cookie' => 942, 'table' => 'wp_staging_review_meta_next942', 'indexes' => ['wp_staging_review_meta_key_next942'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'staging'],

@@ -31266,7 +31266,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext542557(
+    public static function materializeStat4ExpressionPartialPreparedBridgeHandoff(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -31282,7 +31282,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $limit,
             $offset,
         );
-        $fence = self::handoffFenceNext542557($base, $currentSource, $neededColumns);
+        $fence = self::handoffFenceForStat4ExpressionPartialPreparedBridge($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next526-541-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -31302,7 +31302,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next542557Prepared" => $ready,
                 "next542557HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext542557($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramForStat4ExpressionPartialPreparedBridge($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next542-557-prep"],
@@ -31319,7 +31319,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function handoffFenceNext542557(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFenceForStat4ExpressionPartialPreparedBridge(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next542-557 needs projected columns");
@@ -31335,10 +31335,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next542-557 needs next526-541 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext542557($currentSource);
+        $currentRows = self::rowsByRowidForStat4ExpressionPartialPreparedBridge($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext542557($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListForStat4ExpressionPartialPreparedBridge($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(542, 557) as $slice) {
             $ordinal = $slice - 542;
@@ -31347,12 +31347,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next542-557 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext542557($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValueForStat4ExpressionPartialPreparedBridge($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext542557($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsForStat4ExpressionPartialPreparedBridge($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext542557($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValueForStat4ExpressionPartialPreparedBridge($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -31397,7 +31397,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext542557(array $source): array
+    private static function rowsByRowidForStat4ExpressionPartialPreparedBridge(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next542-557 needs current rows");
@@ -31408,7 +31408,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next542-557 current rows must be arrays");
             }
-            $rowid = self::intValueNext542557($row["rowid"] ?? null, "current rowid");
+            $rowid = self::intValueForStat4ExpressionPartialPreparedBridge($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
@@ -31418,19 +31418,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function intListNext542557(mixed $value, string $label): array
+    private static function intListForStat4ExpressionPartialPreparedBridge(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next542-557 needs " . $label);
         }
 
         return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueNext542557($rowid, $label),
+            static fn (mixed $rowid): int => self::intValueForStat4ExpressionPartialPreparedBridge($rowid, $label),
             $value,
         ));
     }
 
-    private static function intValueNext542557(mixed $value, string $label): int
+    private static function intValueForStat4ExpressionPartialPreparedBridge(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -31447,7 +31447,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function projectedColumnsNext542557(array $row, array $neededColumns): array
+    private static function projectedColumnsForStat4ExpressionPartialPreparedBridge(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -31465,7 +31465,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramNext542557(array $program, bool $ready, array $fence): array
+    private static function cursorProgramForStat4ExpressionPartialPreparedBridge(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -31500,7 +31500,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext542557(
+        $base = self::materializeStat4ExpressionPartialPreparedBridgeHandoff(
             $preparedSource,
             $currentSource,
             $queryTerms,

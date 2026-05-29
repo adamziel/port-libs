@@ -30,7 +30,7 @@ $plan213 = static fn (
     ?int $lastYieldedRowid = 7,
     ?int $yieldBatchSize = 1,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext213(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidResumeStatus(
     'json_tree',
     $current ?? $current213,
     $next ?? $next213,
@@ -135,7 +135,7 @@ $tests = [
     'upper bound yields all rows' => static fn (TestRunner $t) => $t->same([7, 8], $upperBound213()['currentGeneratedPathRowidCurrentSourceResume213']['yieldRowids']),
     'greater than resume rows' => static fn (TestRunner $t) => $t->same([8, 9], $greater213()['currentGeneratedPathRowidCurrentSourceResume213']['resumeRowids']),
     'malformed generated path rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan213(array_replace($current213, ['generated_path' => '$.rules[']), $current213)),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext213('json_bad', $current213, $current213, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidResumeStatus('json_bad', $current213, $current213, 'option_value', 'generated_path')),
     'dependency closure' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

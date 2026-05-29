@@ -42,9 +42,9 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext165($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNamedWindowRecursiveLimitOffset($sql, $currentTables, $nextTables);
 $result = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next165',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-named-window-recursive-limit-offset',
     'sqlShape' => 'WITH RECURSIVE queue LIMIT/OFFSET plus named WINDOW clauses in both compound arms and a final ORDER BY/LIMIT/OFFSET',
     'wordpressUse' => 'Copied wp_options import previews can rank recursive seed rows and autoloaded option rows through named windows before the final compound SELECT boundary decides which current-source rows yield to next-source rows.',
     'namedWindows' => $plan['namedWindows'],
@@ -72,7 +72,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "missing named-window reason\n");
         exit(1);
     }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next165 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-named-window-recursive-limit-offset self-test passed\n";
 }
 
 return $result;

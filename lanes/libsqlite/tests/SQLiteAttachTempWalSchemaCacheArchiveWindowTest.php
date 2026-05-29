@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas893908 = [
+$schemasArchiveWindow = [
     'main' => [
         'schema_cookie' => 892,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_receipt_next892', 'wp_navigation_rule_locale_publish_final_next908'],
@@ -51,7 +51,7 @@ $schemas893908 = [
     ],
 ];
 
-$statements893908 = [
+$statementsArchiveWindow = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next908 INDEXED BY wp_navigation_rule_locale_publish_final_key_next908 WHERE nav_key = ?', 'active' => true],
     ['name' => 'publish-done-reader', 'sql' => 'SELECT publish_id FROM publish.wp_schema_publish_done_next890 INDEXED BY wp_schema_publish_done_key_next890 WHERE publish_key = ?'],
     ['name' => 'queue-archive-reader', 'sql' => 'SELECT job_id FROM queue.wp_job_retry_checkpoint_archive_next882 INDEXED BY wp_job_retry_checkpoint_archive_key_next886 WHERE job_id = ?'],
@@ -62,16 +62,16 @@ $statements893908 = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next896 WHERE cache_key = ?'],
 ];
 
-$plan893908 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheArchiveWindow(
-    $schemas ?? $schemas893908,
-    $statements ?? $statements893908,
+$planArchiveWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheArchiveWindow(
+    $schemas ?? $schemasArchiveWindow,
+    $statements ?? $statementsArchiveWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next893-908 extends next877-892 handoff'] = static function (TestRunner $t) use ($plan893908): void {
-    $result = $plan893908([
+$tests['attach temp wal schema cache archive window extends review handoff'] = static function (TestRunner $t) use ($planArchiveWindow): void {
+    $result = $planArchiveWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 894, 'table' => 'wp_navigation_rule_locale_publish_delta_next894', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next894'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 896, 'table' => 'wp_theme_stage_publish_notice_next896', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_seal_key_next901', 'to' => 'wp_schema_audit_seal_key_next902'],
@@ -108,8 +108,8 @@ $tests['attach temp wal schema cache current source next893-908 extends next877-
     $t->same(['temp-notice-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next893-908 ignores detached transient archive'] = static function (TestRunner $t) use ($plan893908): void {
-    $result = $plan893908([
+$tests['attach temp wal schema cache archive window ignores detached transient archive'] = static function (TestRunner $t) use ($planArchiveWindow): void {
+    $result = $planArchiveWindow([
         ['op' => 'attach', 'schema' => 'transient', 'schema_cookie' => 893, 'tables' => ['wp_transient_archive_next893'], 'indexes' => ['wp_transient_archive_key_next893'], 'file' => '/srv/wp/transient-next893.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'transient', 'schema_cookie' => 894, 'table' => 'wp_transient_archive_meta_next894', 'indexes' => ['wp_transient_archive_meta_key_next894'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'transient'],

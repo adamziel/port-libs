@@ -35,9 +35,9 @@ $meta = [
 
 $tables = ['wp_options' => $options, 'wp_optionmeta' => $meta];
 $unique = [['blog_id', 'option_name']];
-$attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attempt227', option_value || ':attempt227', bytes + 2) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority LIMIT -1 OFFSET 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
+$attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attempttuple', option_value || ':attempttuple', bytes + 2) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority LIMIT -1 OFFSET 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 $attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'delete_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
-$retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry227', option_value || ':retry227', bytes + 1) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
+$retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retrytuple', option_value || ':retrytuple', bytes + 1) WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'import_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT DISTINCT blog_id, option_name FROM wp_optionmeta WHERE meta_key = 'retry_touch' ORDER BY priority) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
 $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeDistinctTupleSavepointRollback(

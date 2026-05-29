@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas10211036 = [
+$schemasFinalAttachWindow = [
     'main' => [
         'schema_cookie' => 1020,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next1020'],
@@ -51,7 +51,7 @@ $schemas10211036 = [
     ],
 ];
 
-$statements10211036 = [
+$statementsFinalAttachWindow = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next1020 INDEXED BY wp_navigation_rule_locale_publish_final_key_next1020 WHERE nav_key = ?', 'active' => true],
     ['name' => 'temp-shadow-reader', 'sql' => 'SELECT shadow_id FROM temp.wp_import_stage_shadow_next1021 INDEXED BY wp_import_stage_shadow_key_next1021 WHERE shadow_key = ?'],
     ['name' => 'review-reader', 'sql' => 'SELECT review_id FROM review.wp_schema_review_receipt_next1016 INDEXED BY wp_schema_review_receipt_key_next1016 WHERE review_key = ?'],
@@ -62,16 +62,16 @@ $statements10211036 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_final_next1036 INDEXED BY wp_schema_archive_final_key_next1036 WHERE archive_key = ?'],
 ];
 
-$plan10211036 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCacheAttachWindow(
-    $schemas ?? $schemas10211036,
-    $statements ?? $statements10211036,
+$planFinalAttachWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCacheAttachWindow(
+    $schemas ?? $schemasFinalAttachWindow,
+    $statements ?? $statementsFinalAttachWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache final attach window extends publish handoff'] = static function (TestRunner $t) use ($plan10211036): void {
-    $result = $plan10211036([
+$tests['attach temp wal schema cache final attach window extends publish handoff'] = static function (TestRunner $t) use ($planFinalAttachWindow): void {
+    $result = $planFinalAttachWindow([
         ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_import_stage_shadow_next1021'],
         ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next1016', 'to' => 'wp_schema_review_receipt_key_next1026'],
         ['op' => 'rename_table', 'schema' => 'publish', 'from' => 'wp_schema_publish_final_next1018', 'to' => 'wp_schema_publish_final_next1030'],
@@ -108,8 +108,8 @@ $tests['attach temp wal schema cache final attach window extends publish handoff
     $t->same([], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache final attach window ignores uncommitted scratch detach'] = static function (TestRunner $t) use ($plan10211036): void {
-    $result = $plan10211036([
+$tests['attach temp wal schema cache final attach window ignores uncommitted scratch detach'] = static function (TestRunner $t) use ($planFinalAttachWindow): void {
+    $result = $planFinalAttachWindow([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 1021, 'tables' => ['wp_schema_scratch_next1021'], 'indexes' => ['wp_schema_scratch_key_next1021'], 'file' => '/srv/wp/scratch-next1021.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'scratch', 'schema_cookie' => 1022, 'table' => 'wp_schema_scratch_meta_next1022', 'indexes' => ['wp_schema_scratch_meta_key_next1022'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'scratch'],

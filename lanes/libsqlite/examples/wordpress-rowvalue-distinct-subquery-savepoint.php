@@ -26,8 +26,8 @@ $meta = [
     ['meta_id' => 206, 'meta_option_id' => 4, 'meta_key' => 'network_retry', 'meta_value' => 'network_plugin', 'priority' => 41],
 ];
 
-$attempt = "UPDATE wp_options SET status = 'attempt226' WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority ASC LIMIT 2) RETURNING option_id, status ORDER BY option_id";
-$retry = "UPDATE wp_options SET status = 'retry226' WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT 2) RETURNING option_id, status ORDER BY option_id DESC";
+$attempt = "UPDATE wp_options SET status = 'attemptbounded' WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority ASC LIMIT 2) RETURNING option_id, status ORDER BY option_id";
+$retry = "UPDATE wp_options SET status = 'retrybounded' WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT 2) RETURNING option_id, status ORDER BY option_id DESC";
 $delete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT DISTINCT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_retry' ORDER BY priority ASC LIMIT 1) RETURNING option_id, status ORDER BY option_id";
 
 $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeBoundedDistinctSubquerySavepointRollback(

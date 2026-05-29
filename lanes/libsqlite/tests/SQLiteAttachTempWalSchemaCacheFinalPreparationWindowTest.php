@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas9891004 = [
+$schemasFinalPreparationWindow = [
     'main' => [
         'schema_cookie' => 988,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next988'],
@@ -51,7 +51,7 @@ $schemas9891004 = [
     ],
 ];
 
-$statements9891004 = [
+$statementsFinalPreparationWindow = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next988 INDEXED BY wp_navigation_rule_locale_publish_final_key_next988 WHERE nav_key = ?', 'active' => true],
     ['name' => 'temp-token-writer', 'sql' => 'UPDATE temp.wp_theme_stage_publish_token_next980 SET touched = 1 WHERE token = ?'],
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_receipt_next986 INDEXED BY wp_schema_archive_receipt_key_next966 WHERE archive_key = ?'],
@@ -62,16 +62,16 @@ $statements9891004 = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCachePreparationWindow(
-    $schemas ?? $schemas9891004,
-    $statements ?? $statements9891004,
+$planFinalPreparationWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCachePreparationWindow(
+    $schemas ?? $schemasFinalPreparationWindow,
+    $statements ?? $statementsFinalPreparationWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache final preparation window extends predecessor handoff'] = static function (TestRunner $t) use ($plan9891004): void {
-    $result = $plan9891004([
+$tests['attach temp wal schema cache final preparation window extends predecessor handoff'] = static function (TestRunner $t) use ($planFinalPreparationWindow): void {
+    $result = $planFinalPreparationWindow([
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 990, 'table' => 'wp_theme_stage_publish_token_next990', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'archive', 'from' => 'wp_schema_archive_receipt_key_next966', 'to' => 'wp_schema_archive_receipt_key_next992'],
         ['op' => 'attach', 'schema' => 'seal', 'schema_cookie' => 996, 'tables' => ['wp_schema_seal_receipt_next996'], 'indexes' => ['wp_schema_seal_receipt_key_next996'], 'file' => '/srv/wp/seal-next996.sqlite'],
@@ -105,8 +105,8 @@ $tests['attach temp wal schema cache final preparation window extends predecesso
     $t->same(['handoff-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache final preparation window ignores detached scratch seal'] = static function (TestRunner $t) use ($plan9891004): void {
-    $result = $plan9891004([
+$tests['attach temp wal schema cache final preparation window ignores detached scratch seal'] = static function (TestRunner $t) use ($planFinalPreparationWindow): void {
+    $result = $planFinalPreparationWindow([
         ['op' => 'attach', 'schema' => 'scratch', 'schema_cookie' => 989, 'tables' => ['wp_schema_scratch_seal_next989'], 'indexes' => ['wp_schema_scratch_seal_key_next989'], 'file' => '/srv/wp/scratch-next989.sqlite'],
         ['op' => 'schema_write', 'schema' => 'scratch', 'schema_cookie' => 990, 'table' => 'wp_schema_scratch_seal_meta_next990', 'indexes' => ['wp_schema_scratch_seal_meta_key_next990'], 'commit' => true],
         ['op' => 'detach', 'schema' => 'scratch'],

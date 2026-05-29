@@ -43,14 +43,14 @@ SELECT option_id AS id,
  LIMIT 0 OFFSET 2
 SQL;
 
-$plan = SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareNext174($sql, $current, $next);
+$plan = SQLiteCompoundZeroLimitRecursiveWindowCurrentSourceNextPlan::compareZeroLimitRecursiveWindow($sql, $current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentRows'] === []);
     assert($plan['nextRows'] === []);
     assert($plan['compound']['zeroLimitSuppressesRows'] === true);
     assert(in_array('rewrite_rules', $plan['sourceDelta']['suppressedAddedLabels'], true));
-    echo "wordpress-compound-zero-limit-recursive-window-current-source-next174 self-test passed\n";
+    echo "wordpress-compound-zero-limit-recursive-window-current-source self-test passed\n";
     return;
 }
 

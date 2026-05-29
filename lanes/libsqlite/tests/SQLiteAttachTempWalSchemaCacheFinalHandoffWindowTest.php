@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas973988 = [
+$schemasFinalHandoffWindow = [
     'main' => [
         'schema_cookie' => 972,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_batch_next962', 'wp_navigation_rule_locale_publish_final_next972', 'wp_navigation_rule_locale_publish_gate_next960'],
@@ -57,7 +57,7 @@ $schemas973988 = [
     ],
 ];
 
-$statements973988 = [
+$statementsFinalHandoffWindow = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next972 INDEXED BY wp_navigation_rule_locale_publish_final_key_next972 WHERE nav_key = ?', 'active' => true],
     ['name' => 'archive-receipt-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_receipt_next952 INDEXED BY wp_schema_archive_receipt_key_next966 WHERE archive_key = ?'],
     ['name' => 'handoff-reader', 'sql' => 'SELECT handoff_id FROM handoff.wp_schema_handoff_receipt_next970 INDEXED BY wp_schema_handoff_receipt_key_next920 WHERE handoff_key = ?'],
@@ -68,16 +68,16 @@ $statements973988 = [
     ['name' => 'verify-reader', 'sql' => 'SELECT verify_id FROM verify.wp_schema_verify_receipt_next984 INDEXED BY wp_schema_verify_receipt_key_next984 WHERE verify_key = ?'],
 ];
 
-$plan973988 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheFinalHandoffWindow(
-    $schemas ?? $schemas973988,
-    $statements ?? $statements973988,
+$planFinalHandoffWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheFinalHandoffWindow(
+    $schemas ?? $schemasFinalHandoffWindow,
+    $statements ?? $statementsFinalHandoffWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next973-988 extends next957-972 handoff'] = static function (TestRunner $t) use ($plan973988): void {
-    $result = $plan973988([
+$tests['attach temp wal schema cache final handoff window extends publish handoff'] = static function (TestRunner $t) use ($planFinalHandoffWindow): void {
+    $result = $planFinalHandoffWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 976, 'table' => 'wp_navigation_rule_locale_publish_batch_next976', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next976'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 980, 'table' => 'wp_theme_stage_publish_token_next980', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next968', 'to' => 'wp_schema_review_receipt_key_next982'],
@@ -115,8 +115,8 @@ $tests['attach temp wal schema cache current source next973-988 extends next957-
     $t->same(['handoff-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache current source next973-988 ignores detached sandbox verify'] = static function (TestRunner $t) use ($plan973988): void {
-    $result = $plan973988([
+$tests['attach temp wal schema cache final handoff window ignores detached sandbox verify'] = static function (TestRunner $t) use ($planFinalHandoffWindow): void {
+    $result = $planFinalHandoffWindow([
         ['op' => 'attach', 'schema' => 'sandbox', 'schema_cookie' => 973, 'tables' => ['wp_schema_sandbox_verify_next973'], 'indexes' => ['wp_schema_sandbox_verify_key_next973'], 'file' => '/srv/wp/sandbox-next973.sqlite'],
         ['op' => 'schema_write', 'schema' => 'sandbox', 'schema_cookie' => 974, 'table' => 'wp_schema_sandbox_verify_meta_next974', 'indexes' => ['wp_schema_sandbox_verify_meta_key_next974'], 'commit' => true],
         ['op' => 'detach', 'schema' => 'sandbox'],

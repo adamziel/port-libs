@@ -28,7 +28,7 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next231', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_final-handoff', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafWrit
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next231-current-handoff-', 48),
+    str_repeat('final-handoff-current-handoff-', 48),
     3,
     true,
     2,
@@ -80,7 +80,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafWrit
 $summary = $plan->handoffSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next231',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-final-handoff',
     'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient and vacuuming tail pages, admit the sealed pointer-map/freeblock current-source pages into the next writer before payload reuse.',
     'status' => $summary['status'],
     'handoff_pages' => $summary['handoff_pages'],
@@ -93,12 +93,12 @@ echo json_encode([
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next231-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-final-handoff-ready'
     && $summary['handoff_pages'] === [2, 105, 105, 3, 106, 107, 108]
     && $summary['duplicate_pointer_map_handoff_pages'] === [105]
     && $summary['all_pointer_maps_admitted_before_payload'] === true
     && $summary['all_tail_pages_fenced'] === true
     && $summary['all_leaf_freeblock_receipts_handed_off'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next231 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-final-handoff self-test passed\n";
 }

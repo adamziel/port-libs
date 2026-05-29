@@ -135,7 +135,7 @@ $cases234 = [
     'batch size three cursor pages' => static fn (): mixed => $plan234(3)->cursorPages(),
     'batch size three channels' => static fn (): mixed => array_column($plan234(3)->cursorRows(), 'cursor_channel'),
     'dependency closure' => static fn (): mixed => $plan234()->cursorSummary()['dependency_closure'],
-    'non overlap' => static fn (): mixed => str_contains($plan234()->cursorSummary()['non_overlap'], 'does not repeat next231'),
+    'non overlap' => static fn (): mixed => str_contains($plan234()->cursorSummary()['non_overlap'], 'does not repeat final-handoff'),
     'base action' => static fn (): mixed => $plan234()->handoffPlan->toArray()['action'],
     'base handoff row count' => static fn (): mixed => $plan234()->handoffPlan->handoffSummary()['handoff_row_count'],
 ];
@@ -183,9 +183,9 @@ $expected234 = [
     'batch size three cursor row count' => 6,
     'batch size three cursor pages' => [2, 105, 3, 106, 107, 108],
     'batch size three channels' => ['pointer-map', 'pointer-map', 'freeblock-source', 'payload-source', 'payload-source', 'payload-source'],
-    'dependency closure' => 'no new support component needed; next234 reuses next231 handoff rows, leaf freeblock receipts, pointer-map handoff ordering, and fenced-tail guards',
+    'dependency closure' => 'no new support component needed; next234 reuses final-handoff handoff rows, leaf freeblock receipts, pointer-map handoff ordering, and fenced-tail guards',
     'non overlap' => true,
-    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-next231',
+    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-final-handoff',
     'base handoff row count' => 7,
 ];
 

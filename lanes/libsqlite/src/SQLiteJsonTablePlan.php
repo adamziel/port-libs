@@ -2945,7 +2945,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext202(
+    public static function currentSourceGeneratedPathRowidXNextBatch(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3169,7 +3169,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext211(
+    public static function currentSourceGeneratedPathRowidResumeCursor(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3241,7 +3241,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext213(
+    public static function currentSourceGeneratedPathRowidResumeStatus(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -3255,7 +3255,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext211(
+        $plan = self::currentSourceGeneratedPathRowidResumeCursor(
             $function,
             $currentSource,
             $nextSource,
@@ -4691,7 +4691,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidAliasLimit(
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext205Limit(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -4966,7 +4966,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $xColumnProjection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext200(
+    public static function currentSourceGeneratedPathRowidXFilterArguments(
         string $function,
         array $currentSource,
         array $nextSource,

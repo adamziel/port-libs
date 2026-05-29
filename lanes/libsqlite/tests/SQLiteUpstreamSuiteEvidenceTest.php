@@ -3987,8 +3987,10 @@ MD);
             ['1 test files, 44 assertions, 0 failures']
         ));
 
-        $record = $evidence->upstreamVeryquickShardCurrentSourceNext437452(
+        $record = $evidence->upstreamVeryquickShardPreparedRange(
             $rows,
+            437,
+            452,
             683,
             137964,
             $launcherBase,
@@ -4000,7 +4002,7 @@ MD);
             ''
         );
 
-        $t->same('current-source-next437-452-suite-evidence-prepared', $record['status']);
+        $t->same('upstream-veryquick-shard-prepared-range-evidence-prepared', $record['status']);
         $t->same(683, $record['next_mapped']);
         $t->same(0, $record['mapped_delta']);
         $t->same(44, $record['php_pass_delta']);
@@ -4011,12 +4013,12 @@ MD);
         $t->same([], $record['missing_slices']);
         $t->same('next437', $record['covered_slices'][0]);
         $t->same('next452', $record['covered_slices'][15]);
-        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next437_452']);
-        $t->same(false, $record['counts_upstream_veryquick_shard_current_source_next421_436']);
+        $t->same('437-452', $record['prepared_range']);
+        $t->same(false, $record['counts_upstream_veryquick_shard_prepared_range']);
         $t->same(false, $record['counts_release_parity']);
         $t->same('clear', $record['active_runner_status']);
-        $t->contains('publish next437-452 as prepared upstream-suite evidence only', $record['next_gate']);
-        $t->contains('current-source next437-452 evidence prep', $record['dependency_closure']);
+        $t->contains('publish prepared upstream-suite evidence only', $record['next_gate']);
+        $t->contains('prepared upstream veryquick evidence', $record['dependency_closure']);
     },
     'admits current-source next469-484 veryquick shard countability without cross-counting' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');

@@ -12116,7 +12116,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_subquery_next226',
+        string $savepoint = 'wp_options_rowvalue_distinct_subquery',
         string $rowIdColumn = 'option_id',
     ): array {
         $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubquerySavepointRollbackRetry(
@@ -12129,15 +12129,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         );
 
         $plan = self::replaceBoundedDistinctSubqueryRollbackMarker($plan);
-        $plan['status'] = 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next226';
+        $plan['status'] = 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source';
         $plan['savepoint'] = $savepoint;
         $plan['distinct_subquery_source'] = true;
-        $plan['dependency_closure_next226'] = 'no new support component needed; next226 reuses native row-value UPDATE/DELETE RETURNING execution and adds bounded SELECT DISTINCT tuple-source handling';
-        $plan['non_overlap_next226'] = 'adds SELECT DISTINCT tuple sources feeding row-value UPDATE/DELETE RETURNING under savepoint rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next213 positive ORDER/LIMIT, next217 OR ROLLBACK, WAL/VFS, JSON, planner, trigger, and B-tree clusters';
+        $plan['dependency_closure'] = 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution and adds bounded SELECT DISTINCT tuple-source handling';
+        $plan['non_overlap'] = 'adds SELECT DISTINCT tuple sources feeding row-value UPDATE/DELETE RETURNING under savepoint rollback and retry; avoids accepted negative LIMIT/OFFSET, positive ORDER/LIMIT, OR ROLLBACK, WAL/VFS, JSON, planner, trigger, and B-tree clusters';
         $plan['dependencies'] = [
-            'sqlite-rowvalue-update-returning-distinct-select-subquery-next226',
-            'sqlite-rowvalue-delete-returning-distinct-select-subquery-next226',
-            'sqlite-rowvalue-distinct-subquery-savepoint-current-source-next226',
+            'sqlite-rowvalue-update-returning-distinct-select-subquery',
+            'sqlite-rowvalue-delete-returning-distinct-select-subquery',
+            'sqlite-rowvalue-distinct-subquery-savepoint-current-source',
         ];
 
         return $plan;
@@ -12150,7 +12150,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function replaceBoundedDistinctSubqueryRollbackMarker(mixed $value): mixed
     {
         if (is_string($value)) {
-            return str_replace(['next212', 'subquery'], ['next226', 'distinct-subquery'], $value);
+            return str_replace(['next212', 'subquery'], ['bounded-distinct-subquery', 'distinct-subquery'], $value);
         }
         if (!is_array($value)) {
             return $value;
@@ -15159,20 +15159,20 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_distinct_tuple_next227',
+        string $savepoint = 'wp_options_rowvalue_distinct_tuple',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 needs attempted statements');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint needs attempted statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeDistinctTupleTables($tables);
@@ -15181,7 +15181,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $attemptStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'distinct-tuple-attempt-before-rollback-next227',
+            'distinct-tuple-attempt-before-rollback',
         );
 
         $rollbackCurrent = $savepointImage;
@@ -15190,14 +15190,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'distinct-tuple-retry-after-rollback-next227',
+            'distinct-tuple-retry-after-rollback',
         );
 
         $attemptRows = self::flattenDistinctTupleReturning($attemptReturning);
         $retryRows = self::flattenDistinctTupleReturning($retryReturning);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next227',
+            'status' => 'rowvalue-update-delete-returning-distinct-tuple-savepoint-current-source',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'attempt_current_source_tables' => $attemptCurrent,
@@ -15210,30 +15210,30 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_returning' => $retryReturning,
             'suppressed_attempt_rows' => $attemptRows,
             'retry_rows' => $retryRows,
-            'distinct_tuple_subquery_deduped_next227' => true,
-            'rollback_to_savepoint_restores_distinct_tuple_source_next227' => true,
-            'retry_reads_savepoint_image_next227' => true,
-            'savepoint_remains_active_next227' => true,
+            'distinct_tuple_subquery_deduped' => true,
+            'rollback_to_savepoint_restores_distinct_tuple_source' => true,
+            'retry_reads_savepoint_image' => true,
+            'savepoint_remains_active' => true,
             'suppressed_returning_count' => count($attemptRows),
             'retry_returning_count' => count($retryRows),
             'attempt_change_count' => self::distinctTupleChangeCount($attemptExecuted),
             'retry_change_count' => self::distinctTupleChangeCount($retryExecuted),
             'changed_tables_after_retry' => self::distinctTupleChangedTables($savepointImage, $retryCurrent),
             'row_counts' => self::distinctTupleRowCounts($retryCurrent),
-            'tuple_source_receipt_next227' => [
+            'tuple_source_receipt' => [
                 'savepoint' => $savepoint,
                 'attempt_statement_count' => count($attemptStatements),
                 'retry_statement_count' => count($retryStatements),
                 'suppressed_ids' => self::distinctTupleRowIds($attemptRows, $rowIdColumn),
                 'retry_ids' => self::distinctTupleRowIds($retryRows, $rowIdColumn),
             ],
-            'dependency_closure_next227' => 'no new support component needed; next227 reuses native row-value UPDATE/DELETE RETURNING execution and adds DISTINCT tuple-source parsing',
+            'dependency_closure' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution and adds DISTINCT tuple-source parsing',
             'dependencies' => [
-                'sqlite-rowvalue-distinct-subquery-tuples-next227',
-                'sqlite-rowvalue-returning-rollback-retries-distinct-tuples-next227',
-                'wordpress-rowvalue-distinct-optionmeta-savepoint-next227',
+                'sqlite-rowvalue-distinct-subquery-tuples',
+                'sqlite-rowvalue-returning-rollback-retries-distinct-tuples',
+                'wordpress-rowvalue-distinct-optionmeta-savepoint',
             ],
-            'non_overlap_next227' => 'adds SELECT DISTINCT tuple-source de-duplication inside row-value UPDATE/DELETE RETURNING savepoint rollback and retry; avoids accepted next219 LIMIT -1 OFFSET tuple sources, next224 nested savepoint release rollback, OR FAIL/ABORT/ROLLBACK conflict slices, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap' => 'adds SELECT DISTINCT tuple-source de-duplication inside row-value UPDATE/DELETE RETURNING savepoint rollback and retry; avoids accepted LIMIT -1 OFFSET tuple sources, nested savepoint release rollback, OR FAIL/ABORT/ROLLBACK conflict slices, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -15299,11 +15299,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple next227 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value DISTINCT tuple savepoint rows must be arrays');
                 }
             }
         }
@@ -15326,11 +15326,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value DISTINCT tuple next227 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value DISTINCT tuple savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value DISTINCT tuple next227 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value DISTINCT tuple savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

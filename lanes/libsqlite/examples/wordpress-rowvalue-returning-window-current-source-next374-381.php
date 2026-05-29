@@ -21,24 +21,20 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next374 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext374(...$args);
-$next375 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext375(...$args);
-$next376 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext376(...$args);
-$next377 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext377(...$args);
-$next378 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext378(...$args);
-$next379 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext379(...$args);
-$next380 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext380(...$args);
-$next381 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext381(...$args);
+$plans = [];
+for ($step = 374; $step <= 381; $step++) {
+    $plans[$step] = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourceReadySealStep($step, ...$args);
+}
 
 $statuses = [
-    $next374['status'],
-    $next375['status'],
-    $next376['status'],
-    $next377['status'],
-    $next378['status'],
-    $next379['status'],
-    $next380['status'],
-    $next381['status'],
+    $plans[374]['status'],
+    $plans[375]['status'],
+    $plans[376]['status'],
+    $plans[377]['status'],
+    $plans[378]['status'],
+    $plans[379]['status'],
+    $plans[380]['status'],
+    $plans[381]['status'],
 ];
 assert($statuses === [
     'rowvalue-update-delete-returning-window-current-source-next374',
@@ -50,28 +46,28 @@ assert($statuses === [
     'rowvalue-update-delete-returning-window-current-source-next380',
     'rowvalue-update-delete-returning-window-current-source-next381',
 ]);
-assert($next377['next377_ready'] === true);
-assert($next381['next381_ready'] === true);
+assert($plans[377]['next377_ready'] === true);
+assert($plans[381]['next381_ready'] === true);
 
 $summary = [
     'status' => 'rowvalue-update-delete-returning-window-current-source-next374-381',
     'candidateStatuses' => $statuses,
-    'next374Handoff' => $next374['next374_handoff']['next374_handoff'],
-    'next374AfterReadyRange' => $next374['next374_handoff']['after_ready_range'],
-    'next375SourceAudit' => $next375['next375_source_audit']['next375_source_audit'],
-    'next375PreservesCurrentSource' => $next375['next375_source_audit']['retry_rows_preserve_current_source'],
-    'next376Preflight' => $next376['next376_preflight']['next376_preflight'],
-    'next376KeepsThroughputHigh' => $next376['next376_preflight']['keeps_libsqlite_throughput_high'],
-    'next377Final' => $next377['next377_final']['next377_final'],
-    'next377Ready' => $next377['next377_ready'],
-    'next378Handoff' => $next378['next378_handoff']['next378_handoff'],
-    'next378AfterReadyRange' => $next378['next378_handoff']['after_ready_range'],
-    'next379SourceAudit' => $next379['next379_source_audit']['next379_source_audit'],
-    'next379PreservesCurrentSource' => $next379['next379_source_audit']['retry_rows_preserve_current_source'],
-    'next380Preflight' => $next380['next380_preflight']['next380_preflight'],
-    'next380KeepsThroughputHigh' => $next380['next380_preflight']['keeps_libsqlite_throughput_high'],
-    'next381Final' => $next381['next381_final']['next381_final'],
-    'next381Ready' => $next381['next381_ready'],
+    'next374Handoff' => $plans[374]['next374_handoff']['next374_handoff'],
+    'next374AfterReadyRange' => $plans[374]['next374_handoff']['after_ready_range'],
+    'next375SourceAudit' => $plans[375]['next375_source_audit']['next375_source_audit'],
+    'next375PreservesCurrentSource' => $plans[375]['next375_source_audit']['retry_rows_preserve_current_source'],
+    'next376Preflight' => $plans[376]['next376_preflight']['next376_preflight'],
+    'next376KeepsThroughputHigh' => $plans[376]['next376_preflight']['keeps_libsqlite_throughput_high'],
+    'next377Final' => $plans[377]['next377_final']['next377_final'],
+    'next377Ready' => $plans[377]['next377_ready'],
+    'next378Handoff' => $plans[378]['next378_handoff']['next378_handoff'],
+    'next378AfterReadyRange' => $plans[378]['next378_handoff']['after_ready_range'],
+    'next379SourceAudit' => $plans[379]['next379_source_audit']['next379_source_audit'],
+    'next379PreservesCurrentSource' => $plans[379]['next379_source_audit']['retry_rows_preserve_current_source'],
+    'next380Preflight' => $plans[380]['next380_preflight']['next380_preflight'],
+    'next380KeepsThroughputHigh' => $plans[380]['next380_preflight']['keeps_libsqlite_throughput_high'],
+    'next381Final' => $plans[381]['next381_final']['next381_final'],
+    'next381Ready' => $plans[381]['next381_ready'],
     'wordpressUse' => 'Copied wp_options imports can validate the next374-381 row-value UPDATE/DELETE RETURNING window current-source continuation after the merged next366-373 handoff while preserving independent libsqlite throughput.',
 ];
 

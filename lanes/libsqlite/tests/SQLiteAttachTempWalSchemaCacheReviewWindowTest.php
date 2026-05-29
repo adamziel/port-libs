@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas877892 = [
+$schemasReviewWindow = [
     'main' => [
         'schema_cookie' => 876,
         'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_receipt_next876', 'wp_navigation_rule_locale_publish_final_next892'],
@@ -51,7 +51,7 @@ $schemas877892 = [
     ],
 ];
 
-$statements877892 = [
+$statementsReviewWindow = [
     ['name' => 'main-final-reader', 'sql' => 'SELECT nav_id FROM main.wp_navigation_rule_locale_publish_final_next892 INDEXED BY wp_navigation_rule_locale_publish_final_key_next892 WHERE nav_key = ?', 'active' => true],
     ['name' => 'publish-done-reader', 'sql' => 'SELECT publish_id FROM publish.wp_schema_publish_done_next874 INDEXED BY wp_schema_publish_done_key_next874 WHERE publish_key = ?'],
     ['name' => 'queue-archive-reader', 'sql' => 'SELECT job_id FROM queue.wp_job_retry_checkpoint_archive_next866 INDEXED BY wp_job_retry_checkpoint_archive_key_next870 WHERE job_id = ?'],
@@ -62,16 +62,16 @@ $statements877892 = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next880 WHERE cache_key = ?'],
 ];
 
-$plan877892 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheReviewWindow(
-    $schemas ?? $schemas877892,
-    $statements ?? $statements877892,
+$planReviewWindow = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheReviewWindow(
+    $schemas ?? $schemasReviewWindow,
+    $statements ?? $statementsReviewWindow,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache review window extends rollout-window handoff'] = static function (TestRunner $t) use ($plan877892): void {
-    $result = $plan877892([
+$tests['attach temp wal schema cache review window extends rollout-window handoff'] = static function (TestRunner $t) use ($planReviewWindow): void {
+    $result = $planReviewWindow([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 878, 'table' => 'wp_navigation_rule_locale_publish_delta_next878', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next878'], 'commit' => true],
         ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 880, 'table' => 'wp_theme_stage_publish_notice_next880', 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_seal_key_next885', 'to' => 'wp_schema_audit_seal_key_next886'],
@@ -108,8 +108,8 @@ $tests['attach temp wal schema cache review window extends rollout-window handof
     $t->same(['temp-notice-reader'], $result['stable_statements']);
 };
 
-$tests['attach temp wal schema cache review window ignores detached transient archive'] = static function (TestRunner $t) use ($plan877892): void {
-    $result = $plan877892([
+$tests['attach temp wal schema cache review window ignores detached transient archive'] = static function (TestRunner $t) use ($planReviewWindow): void {
+    $result = $planReviewWindow([
         ['op' => 'attach', 'schema' => 'transient', 'schema_cookie' => 877, 'tables' => ['wp_transient_archive_next877'], 'indexes' => ['wp_transient_archive_key_next877'], 'file' => '/srv/wp/transient-next877.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'transient', 'schema_cookie' => 878, 'table' => 'wp_transient_archive_meta_next878', 'indexes' => ['wp_transient_archive_meta_key_next878'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'transient'],
