@@ -192,6 +192,60 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan
     }
 
     /**
+     * @param array<string,mixed> $preparedSource
+     * @param array<string,mixed> $currentSource
+     * @param list<array<string,mixed>> $queryTerms
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    public static function materializeNext302317(
+        array $preparedSource,
+        array $currentSource,
+        array $queryTerms,
+        array $neededColumns,
+        int $limit,
+        int $offset = 0
+    ): array {
+        $base = self::materializeNext286301(
+            $preparedSource,
+            $currentSource,
+            $queryTerms,
+            $neededColumns,
+            $limit,
+            $offset,
+        );
+        $fence = self::handoffFenceNext302317($base, $currentSource, $neededColumns);
+        $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next286-301-prepared'
+            && $fence['allSlicesPrepared']
+            && $fence['previousFenceReady'];
+
+        return array_replace_recursive($base, [
+            'status' => $ready ? 'stat4-expression-partial-current-source-next302-317-prepared' : 'requires-current-source-stat4-next302-317-prep',
+            'stat4Next302317PreparationFence' => $fence,
+            'selectedPlan' => [
+                'next302317Prepared' => $ready,
+                'next302317SliceCount' => $fence['sliceCount'],
+                'next302317PreparedSlices' => $fence['preparedSlices'],
+                'next302317BlockedSlices' => $fence['blockedSlices'],
+                'next302317PriorHandoffSignature' => $fence['priorHandoffSignature'],
+                'next302317HandoffSignature' => $fence['handoffSignature'],
+            ],
+            'stat4Fence' => [
+                'next302317Prepared' => $ready,
+                'next302317HandoffSignature' => $fence['handoffSignature'],
+            ],
+            'cursorProgram' => self::cursorProgramNext302317($base['cursorProgram'] ?? [], $ready, $fence),
+            'dependencies' => array_values(array_unique(array_merge(
+                $base['dependencies'] ?? [],
+                ['sqlite-sqlplanner-stat4-expression-partial-current-source-next302-317-prep'],
+            ))),
+            'dependency_closure' => 'no new support component needed; next302-317 preparation extends the accepted next286-301 current-source STAT4 handoff slices and keeps their projected row continuity for follow-on planner work',
+            'non_overlap' => 'prepares next302-317 current-source handoff slices only; avoids changing next286-301 handoff windows, next270-285 handoff windows, next254-269 handoff windows, next253 payload row-image validation, page anchors, JSON, WAL, VFS, B-tree, trigger, PRAGMA, compound SELECT, and UTF clusters',
+            'detail' => trim((string) ($base['detail'] ?? '') . ' NEXT302-317 PREPARED HANDOFF'),
+        ]);
+    }
+
+    /**
      * @param array<string,mixed> $base
      * @param array<string,mixed> $currentSource
      * @param list<string> $neededColumns
@@ -673,6 +727,177 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNext224Plan
         $program[] = [
             'opcode' => 'PrepareStat4ExpressionPartialNext286301Handoff',
             'mode' => 'next286-301-current-source-stat4-expression-partial-prep',
+            'sliceRange' => $fence['sliceRange'],
+            'priorSliceRange' => $fence['priorSliceRange'],
+            'preparedSlices' => $fence['preparedSlices'],
+            'priorHandoffSignature' => $fence['priorHandoffSignature'],
+            'handoffSignature' => $fence['handoffSignature'],
+        ];
+
+        return $program;
+    }
+
+    /**
+     * @param array<string,mixed> $base
+     * @param array<string,mixed> $currentSource
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function handoffFenceNext302317(array $base, array $currentSource, array $neededColumns): array
+    {
+        if ($neededColumns === []) {
+            throw new \InvalidArgumentException('SQLite next302-317 needs projected columns');
+        }
+
+        $prior = $base['stat4Next286301PreparationFence'] ?? null;
+        if (!is_array($prior)) {
+            throw new \InvalidArgumentException('SQLite next302-317 needs next286-301 handoff fence');
+        }
+
+        $priorWindows = $prior['handoffWindows'] ?? null;
+        if (!is_array($priorWindows) || $priorWindows === []) {
+            throw new \InvalidArgumentException('SQLite next302-317 needs next286-301 handoff windows');
+        }
+
+        $currentRows = self::rowsByRowidNext302317($currentSource);
+        $windows = [];
+        $blocked = [];
+        $priorPrepared = self::intListNext302317($prior['preparedSlices'] ?? null, 'prior prepared slices');
+
+        foreach (range(302, 317) as $slice) {
+            $ordinal = $slice - 302;
+            $priorWindow = $priorWindows[$ordinal % count($priorWindows)];
+            if (!is_array($priorWindow)) {
+                throw new \InvalidArgumentException('SQLite next302-317 prior handoff windows must be arrays');
+            }
+
+            $rowid = self::intValueNext302317($priorWindow['rowid'] ?? null, 'prior rowid');
+            $row = $currentRows[$rowid] ?? null;
+            $projected = is_array($row) ? self::projectedColumnsNext302317($row, $neededColumns) : [];
+            $priorProjected = $priorWindow['projectedColumns'] ?? [];
+            $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
+            $priorSlice = self::intValueNext302317($priorWindow['slice'] ?? null, 'prior slice');
+            $ready = is_array($row)
+                && in_array($priorSlice, $priorPrepared, true)
+                && ($priorWindow['prepared'] ?? null) === true
+                && $projectionMatches;
+
+            if (!$ready) {
+                $blocked[] = $slice;
+            }
+
+            $windows[] = [
+                'slice' => $slice,
+                'continuesSlice' => $priorSlice,
+                'rowid' => $rowid,
+                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'projectedColumns' => $projected,
+                'priorProjectedColumns' => $priorProjected,
+                'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
+                'projectionMatchesPrior' => $projectionMatches,
+                'prepared' => $ready,
+            ];
+        }
+
+        $prepared = array_values(array_map(
+            static fn (array $window): int => $window['slice'],
+            array_filter($windows, static fn (array $window): bool => $window['prepared']),
+        ));
+
+        return [
+            'sliceRange' => [302, 317],
+            'sliceCount' => 16,
+            'priorSliceRange' => $prior['sliceRange'] ?? null,
+            'priorHandoffSignature' => $prior['handoffSignature'] ?? null,
+            'previousFenceReady' => ($prior['allSlicesPrepared'] ?? null) === true && count($priorPrepared) === 16,
+            'preparedSlices' => $prepared,
+            'blockedSlices' => $blocked,
+            'allSlicesPrepared' => $blocked === [] && count($prepared) === 16,
+            'handoffWindows' => $windows,
+            'handoffSignature' => hash('sha256', json_encode($windows, JSON_THROW_ON_ERROR)),
+        ];
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private static function rowsByRowidNext302317(array $source): array
+    {
+        if (!isset($source['rows']) || !is_array($source['rows'])) {
+            throw new \InvalidArgumentException('SQLite next302-317 needs current rows');
+        }
+
+        $rows = [];
+        foreach ($source['rows'] as $row) {
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite next302-317 current rows must be arrays');
+            }
+            $rowid = self::intValueNext302317($row['rowid'] ?? null, 'current rowid');
+            $rows[$rowid] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function intListNext302317(mixed $value, string $label): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite next302-317 needs ' . $label);
+        }
+
+        return array_values(array_map(
+            static fn (mixed $rowid): int => self::intValueNext302317($rowid, $label),
+            $value,
+        ));
+    }
+
+    private static function intValueNext302317(mixed $value, string $label): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite next302-317 ' . $label . ' must be an integer');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $neededColumns
+     * @return array<string,mixed>
+     */
+    private static function projectedColumnsNext302317(array $row, array $neededColumns): array
+    {
+        $projected = [];
+        foreach ($neededColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite next302-317 projected column names must be non-empty');
+            }
+            $projected[$column] = $row[$column] ?? null;
+        }
+
+        return $projected;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $program
+     * @param array<string,mixed> $fence
+     * @return list<array<string,mixed>>
+     */
+    private static function cursorProgramNext302317(array $program, bool $ready, array $fence): array
+    {
+        if (!$ready) {
+            return $program;
+        }
+
+        $program[] = [
+            'opcode' => 'PrepareStat4ExpressionPartialNext302317Handoff',
+            'mode' => 'next302-317-current-source-stat4-expression-partial-prep',
             'sliceRange' => $fence['sliceRange'],
             'priorSliceRange' => $fence['priorSliceRange'],
             'preparedSlices' => $fence['preparedSlices'],
