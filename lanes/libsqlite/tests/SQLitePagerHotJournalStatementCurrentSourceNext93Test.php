@@ -165,7 +165,7 @@ $cases = [
     'operation statement rollback last' => [static fn (): mixed => $result()['operations'][count($result()['operations']) - 1]['reason'], 'restore_statement_subjournal_after_hot_journal_recovery'],
     'dependency marker' => [static fn (): mixed => in_array('sqlite-pager-hot-journal-savepoint-statement-current-source-next93', $result()['dependencies'], true), true],
     'dependency hot recovery' => [static fn (): mixed => in_array('sqlite-pager-hot-journal-wal-recovery', $result()['dependencies'], true), true],
-    'dependency statement current source' => [static fn (): mixed => in_array('sqlite-pager-statement-journal-savepoint-current-source-next86', $result()['dependencies'], true), true],
+    'dependency statement current source' => [static fn (): mixed => in_array('sqlite-pager-statement-journal-savepoint-current-source', $result()['dependencies'], true), true],
     'single page source pages' => [static fn (): mixed => $single()['current_source_page_numbers'], [4]],
     'single page next commit false' => [static fn (): mixed => $single()['next_commit_frame'], false],
     'single page reader source' => [static fn (): mixed => $single()['current_reader_sources'], ['wal']],
