@@ -26942,6 +26942,54 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_foreign_key_token', $currentToken, 306, 'reader_cache_foreign_key', 'reader_cache_foreign_key_must_match_current_foreign_key_state');
     }
 
+    /** @return array<string,mixed> */
+    public static function variantNext307(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next307 requires defer-foreign-key token');
+        }
+        $base = self::variantNext306(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_defer_foreign_key_token', $currentToken, 307, 'reader_cache_defer_foreign_key', 'reader_cache_defer_foreign_key_must_match_current_deferred_foreign_key_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext308(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next308 requires recursive-trigger token');
+        }
+        $base = self::variantNext307(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_recursive_trigger_token', $currentToken, 308, 'reader_cache_recursive_trigger', 'reader_cache_recursive_trigger_must_match_current_recursive_trigger_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext309(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next309 requires trusted-schema token');
+        }
+        $base = self::variantNext308(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_trusted_schema_token', $currentToken, 309, 'reader_cache_trusted_schema', 'reader_cache_trusted_schema_must_match_current_trusted_schema_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext310(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next310 requires ignore-check-constraints token');
+        }
+        $base = self::variantNext309(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_ignore_check_constraints_token', $currentToken, 310, 'reader_cache_ignore_check_constraints', 'reader_cache_ignore_check_constraints_must_match_current_ignore_check_constraints_state');
+    }
+
     /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
     private static function stripReaderCacheFenceToken(array $cache, string $field): array
     {
