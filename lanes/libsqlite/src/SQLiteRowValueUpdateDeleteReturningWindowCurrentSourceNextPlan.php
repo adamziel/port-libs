@@ -8035,6 +8035,176 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext273(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next273',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext272($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $admission = [
+            'savepoint' => $savepoint,
+            'after_current_receipt_next272' => $base['after_current_summary_next272']['after_current_receipt_next272'],
+            'ready_next272' => $base['after_current_ready_next272'],
+            'ledger_count_next265' => $base['receipt_ledger_admission_next265']['ledger_count'],
+        ];
+        $admission['current_source_admission_next273'] = hash('sha256', json_encode($admission, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next273',
+            'current_source_admission_next273' => $admission,
+            'dependency_closure_next273' => 'no new support component needed; next273 admits the sealed after-current row-value UPDATE/DELETE RETURNING receipt for publication',
+            'dependencies_next273' => [
+                'sqlite-rowvalue-update-delete-returning-current-source-admission-next273',
+                'sqlite-rowvalue-update-delete-returning-after-current-summary-next272',
+                'wordpress-rowvalue-update-delete-returning-current-source-admission-next273',
+            ],
+            'non_overlap_next273' => 'adds an admission receipt over next272 after-current readiness; avoids changing DML execution, row comparison, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext274(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next274',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext273($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $statements = array_merge($base['yield_statements'], $base['attempt_statements'], $base['retry_statements']);
+        $updateCount = array_sum(array_map(
+            static fn (array $statement): int => ($statement['action'] ?? null) === 'update' ? count($statement['returning_rows']) : 0,
+            $statements
+        ));
+        $deleteCount = array_sum(array_map(
+            static fn (array $statement): int => ($statement['action'] ?? null) === 'delete' ? count($statement['returning_rows']) : 0,
+            $statements
+        ));
+        $balance = [
+            'savepoint' => $savepoint,
+            'update_returning_rows_next274' => $updateCount,
+            'delete_returning_rows_next274' => $deleteCount,
+            'admission_receipt_next273' => $base['current_source_admission_next273']['current_source_admission_next273'],
+        ];
+        $balance['returning_balance_receipt_next274'] = hash('sha256', json_encode($balance, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next274',
+            'returning_balance_next274' => $balance,
+            'dependency_closure_next274' => 'no new support component needed; next274 records UPDATE/DELETE RETURNING balance over the admitted current-source ledger',
+            'dependencies_next274' => [
+                'sqlite-rowvalue-update-delete-returning-balance-next274',
+                'sqlite-rowvalue-update-delete-returning-current-source-admission-next273',
+                'wordpress-rowvalue-update-delete-returning-balance-next274',
+            ],
+            'non_overlap_next274' => 'adds UPDATE/DELETE RETURNING balance metadata over existing ledger rows; avoids next273 admission receipt generation and all DML, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA behavior',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext275(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next275',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext274($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $package = [
+            'savepoint' => $savepoint,
+            'returning_balance_receipt_next274' => $base['returning_balance_next274']['returning_balance_receipt_next274'],
+            'current_source_rows_after_release' => count($base['current_source_tables']['wp_options'] ?? []),
+            'changed_tables' => array_keys($base['changed_tables_after_release']),
+        ];
+        sort($package['changed_tables']);
+        $package['next_source_package_next275'] = hash('sha256', json_encode($package, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next275',
+            'next_source_package_next275' => $package,
+            'dependency_closure_next275' => 'no new support component needed; next275 packages the admitted after-current ledger for next-source handoff',
+            'dependencies_next275' => [
+                'sqlite-rowvalue-update-delete-returning-next-source-package-next275',
+                'sqlite-rowvalue-update-delete-returning-balance-next274',
+                'wordpress-rowvalue-update-delete-returning-next-source-package-next275',
+            ],
+            'non_overlap_next275' => 'adds next-source package metadata after admitted current-source balance; avoids DML execution, receipt ledger construction, WAL/VFS, JSON table, planner, B-tree, encoding, and PRAGMA surfaces',
+        ]);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<string> $yieldStatements
+     * @param list<string> $attemptStatements
+     * @param list<string> $retryStatements
+     * @param list<list<string>> $uniqueConstraints
+     * @return array<string,mixed>
+     */
+    public static function executeNext276(
+        array $tables,
+        array $yieldStatements,
+        array $attemptStatements,
+        array $retryStatements,
+        array $uniqueConstraints,
+        string $savepoint = 'wp_options_rowvalue_window_current_next276',
+        string $rowIdColumn = 'option_id',
+    ): array {
+        $base = self::executeNext275($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $handoff = [
+            'savepoint' => $savepoint,
+            'after_current_receipt_next272' => $base['after_current_summary_next272']['after_current_receipt_next272'],
+            'admission_receipt_next273' => $base['current_source_admission_next273']['current_source_admission_next273'],
+            'returning_balance_receipt_next274' => $base['returning_balance_next274']['returning_balance_receipt_next274'],
+            'next_source_package_next275' => $base['next_source_package_next275']['next_source_package_next275'],
+        ];
+        $handoff['after_current_handoff_receipt_next276'] = hash('sha256', json_encode($handoff, JSON_THROW_ON_ERROR));
+
+        return array_merge($base, [
+            'status' => 'rowvalue-update-delete-returning-window-current-source-next276',
+            'after_current_handoff_next276' => $handoff,
+            'after_current_handoff_ready_next276' => $base['after_current_ready_next272'] === true
+                && $base['returning_balance_next274']['update_returning_rows_next274'] > 0
+                && $base['returning_balance_next274']['delete_returning_rows_next274'] > 0,
+            'dependency_closure_next276' => 'no new support component needed; next276 seals the after-current handoff across current-source admission, returning balance, and next-source package receipts',
+            'dependencies_next276' => [
+                'sqlite-rowvalue-update-delete-returning-after-current-handoff-next276',
+                'sqlite-rowvalue-update-delete-returning-next-source-package-next275',
+                'wordpress-rowvalue-update-delete-returning-after-current-handoff-next276',
+            ],
+            'non_overlap_next276' => 'adds the final after-current handoff receipt over next273-275 metadata; avoids broad suite evidence, DML execution, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and prior row-value current-source slices',
+        ]);
+    }
+
+    /**
      * @param list<array<string,mixed>> $checkpoints
      * @return array<string,mixed>
      */
