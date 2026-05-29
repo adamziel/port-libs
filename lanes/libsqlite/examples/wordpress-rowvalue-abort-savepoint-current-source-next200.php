@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext200Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -31,7 +31,7 @@ $abort = "UPDATE OR ABORT wp_options SET (blog_id, option_name, status, option_v
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry200', option_value || ':retry200', bytes + 5) WHERE (status, option_name) IN (('saved200', 'pending_theme'), ('saved200', 'rewrite_rules')) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (VALUES (1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext200Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext200(
     ['wp_options' => $rows],
     [$outer],
     [$savepointUpdate, $savepointDelete],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $receipts = [
     ]),
 ];
 $plan = static fn (?array $input = null, ?array $rows = null, ?string $expectedHot = null, int $generationNumber = 42, ?string $expectedCheckpoint = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan::admitDurableReaders(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next200AdmitDurableReaders(
         $input ?? $generation,
         $rows ?? $receipts,
         $expectedHot ?? $hotDigest,

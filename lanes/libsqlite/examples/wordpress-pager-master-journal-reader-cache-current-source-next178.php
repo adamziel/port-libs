@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext178Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext178Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next178.sqlite';
@@ -29,7 +29,7 @@ $recovered = [
     4 => $page('wp next178 recovered users after member recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext178Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext178(
     $databasePath,
     $masterPath,
     $masterBytes,

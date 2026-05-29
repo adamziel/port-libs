@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $leases = [
     $lease('read-transaction-lease', 'read-transaction', [1, 2, 5, 8], [38, 40, 41], ['schema-reader', 'options-reader', 'autoload-reader'], ['invalidate-schema-cache', 'clear-options-readmark', 'refresh-schema-cookie', 'refresh-wal-index']),
 ];
 
-$plan = static fn (array $base = [], ?array $leaseRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan::admitCurrentSourceLeases(
+$plan = static fn (array $base = [], ?array $leaseRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next254AdmitCurrentSourceLeases(
     array_replace($cachePlan, $base),
     $leaseRows ?? $leases
 );
@@ -187,7 +187,7 @@ foreach ($cases as $name => [$callback, $expected]) {
 $throws = [
     'bad base rejected' => static fn () => $plan(['status' => 'bad']),
     'not admitted rejected' => static fn () => $plan(['cache_invalidation_admitted' => false]),
-    'empty leases rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan::admitCurrentSourceLeases($cachePlan, []),
+    'empty leases rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next254AdmitCurrentSourceLeases($cachePlan, []),
     'bad source rejected' => static fn () => $plan(['source_token' => 'bad token']),
     'bad generation rejected' => static fn () => $plan(['commit_generation' => 0]),
     'bad schema rejected' => static fn () => $plan(['schema_cookie' => 0]),

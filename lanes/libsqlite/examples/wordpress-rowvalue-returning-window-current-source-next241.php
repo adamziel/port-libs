@@ -6,12 +6,12 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext235Plan.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 2, 'blog_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 21, 'option_value' => 'https://home.test'],
@@ -35,7 +35,7 @@ $meta = [
     ['meta_id' => 509, 'meta_option_id' => 2, 'meta_key' => 'retry_delete', 'meta_value' => 'home'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [
         "UPDATE wp_options SET (status, option_value, bytes) = ('attempt241', option_value || ':attempt241', bytes + 4) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'attempt_update') RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC",

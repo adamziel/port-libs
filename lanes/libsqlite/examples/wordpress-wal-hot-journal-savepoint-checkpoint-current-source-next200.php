@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $generation = [
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next194',
@@ -25,7 +25,7 @@ $generation = [
 $hotDigest = hash('sha256', 'wp-options recovered hot journal page set');
 $checkpointDigest = hash('sha256', 'wp-options durable retry checkpoint image');
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan::admitDurableReaders(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next200AdmitDurableReaders(
     $generation,
     [
         [

@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $pageSize = 512;
@@ -54,7 +54,7 @@ $walBytes = $makeWalBytes([
     [2, 3, 'wp next144 current reader wp_options commit'],
 ]);
 
-$ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+$ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -66,7 +66,7 @@ $ready = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
     2
 );
 
-$staleReader = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+$staleReader = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

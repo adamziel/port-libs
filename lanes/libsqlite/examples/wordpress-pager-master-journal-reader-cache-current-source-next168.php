@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext168Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext168Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-options.sqlite';
@@ -54,7 +54,7 @@ $entry = static fn (string $label, string $image, int $pageNumber, array $extra 
     'source_generation' => $generation,
 ], $extra);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext168Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext168(
     $databasePath,
     $masterPath,
     $masterBytes,

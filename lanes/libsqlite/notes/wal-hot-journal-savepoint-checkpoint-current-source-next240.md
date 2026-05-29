@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next240`.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan`. It starts after the accepted next236 statement-finalizer handoff and admits the next writer commit/autocheckpoint baseline only when commit receipts still match the checkpoint current source: source token, released writer generation, commit generation, schema cookie, checkpoint database digest, clean page-cache digest, WAL-index salt, `mxFrame`, checkpoint frame, commit mark, writer-lock release, WAL-hook receipt, and autocheckpoint receipt.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It starts after the accepted next236 statement-finalizer handoff and admits the next writer commit/autocheckpoint baseline only when commit receipts still match the checkpoint current source: source token, released writer generation, commit generation, schema cookie, checkpoint database digest, clean page-cache digest, WAL-index salt, `mxFrame`, checkpoint frame, commit mark, writer-lock release, WAL-hook receipt, and autocheckpoint receipt.
 
 Blocked receipts retain the checkpoint baseline when they are stale, miss a finalized statement, see the hot journal or an open savepoint, keep dirty checkpoint cache state, lack the commit mark, fail to release the writer lock, or miss WAL-hook/autocheckpoint receipts.
 

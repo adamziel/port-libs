@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows180 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -39,7 +39,7 @@ $returning180 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$plan180 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan::execute(
+$plan180 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext180(
     $rows180,
     $currentInput180,
     $nextInput180,
@@ -62,7 +62,7 @@ $drainHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'e
 $sourceHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_current_source_token' => 'wp.current.source.180.expected']);
 $reprepareHeld180 = static fn (): array => $plan180(['admit_next_source' => true, 'expected_reprepare_token' => 'wp.reprepare.180.expected']);
 $noChangeView180 = $currentView180;
-$sameSource180 = static fn (): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan::execute(
+$sameSource180 = static fn (): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext180(
     $rows180,
     $currentInput180,
     $nextInput180,
@@ -149,8 +149,8 @@ $cases180 = [
     'bad expected current source token rejected' => [static fn (): mixed => $plan180(['expected_current_source_token' => 'bad token']), InvalidArgumentException::class],
     'bad drain ack rejected' => [static fn (): mixed => $plan180(['drain_ack_token' => 'bad token']), InvalidArgumentException::class],
     'bad expected drain ack rejected' => [static fn (): mixed => $plan180(['expected_drain_ack_token' => 'bad token']), InvalidArgumentException::class],
-    'bad next column rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan::execute($rows180, $currentInput180, $nextInput180, $currentView180, array_replace($nextView180, ['columns' => ['bad column']]), $returning180), InvalidArgumentException::class],
-    'bad next mapping rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan::execute($rows180, $currentInput180, $nextInput180, $currentView180, array_replace($nextView180, ['mapping' => []]), $returning180), InvalidArgumentException::class],
+    'bad next column rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext180($rows180, $currentInput180, $nextInput180, $currentView180, array_replace($nextView180, ['columns' => ['bad column']]), $returning180), InvalidArgumentException::class],
+    'bad next mapping rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext180($rows180, $currentInput180, $nextInput180, $currentView180, array_replace($nextView180, ['mapping' => []]), $returning180), InvalidArgumentException::class],
 ];
 
 $tests = [];

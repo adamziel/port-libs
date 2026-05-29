@@ -11,7 +11,7 @@ final class SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan
      * @param list<array<string, mixed>> $replacementRows
      */
     private function __construct(
-        public readonly SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext139Plan $basePlan,
+        public readonly SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $basePlan,
         private readonly array $currentSourceRows,
         private readonly array $replacementRows,
     ) {
@@ -31,7 +31,7 @@ final class SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan
         bool $secureDelete = false,
     ): self {
         $currentSourceRows = self::buildCurrentSourceRows($database, $currentOverflowChains);
-        $basePlan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext139Plan::fromDeleteResults(
+        $basePlan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next139FromDeleteResults(
             $database,
             $deleteResults,
             $maxTruncatedPages,
@@ -47,7 +47,7 @@ final class SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan
      * @param list<array<string, mixed>> $currentSourceRows
      */
     public static function fromBasePlan(
-        SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext139Plan $basePlan,
+        SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $basePlan,
         array $currentSourceRows,
     ): self {
         if ($currentSourceRows === []) {
@@ -204,7 +204,7 @@ final class SQLiteBTreeFreelistVacuumOverflowCurrentSourceNext143Plan
     }
 
     private static function vacuumStatusForPage(
-        SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext139Plan $basePlan,
+        SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $basePlan,
         int $pageNumber,
     ): ?string {
         foreach ($basePlan->transitionRows() as $row) {

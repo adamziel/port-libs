@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bucket' => 'core', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -20,7 +20,7 @@ $rows = [
     ['option_id' => 7, 'blog_id' => 3, 'option_name' => 'pending_theme', 'autoload' => 'no', 'status' => 'pending', 'bucket' => null, 'bytes' => 7, 'option_value' => 'theme'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext164(
     ['wp_options' => $rows],
     [
         "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':stage176', status, option_value || ':stage176', bytes + 1) WHERE (blog_id, status, option_name) <> (1, NULL, 'active_plugins') RETURNING option_id, option_name, status, (blog_id, status, option_name) <> (1, NULL, 'active_plugins') AS tuple_ne ORDER BY option_id",

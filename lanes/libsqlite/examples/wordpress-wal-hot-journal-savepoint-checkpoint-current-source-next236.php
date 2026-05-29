@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = hash('sha256', 'wordpress next236 checkpointed wp_options image');
 $statementPlan = [
@@ -38,7 +38,7 @@ $finalizer = static function (string $name, string $statement) use ($statementPl
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [
     $finalizer('active-plugins-finalizer', 'select-active-plugins'),
     $finalizer('autoload-options-finalizer', 'select-autoload-options'),
     $finalizer('option-index-finalizer', 'select-option-index'),

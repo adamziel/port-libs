@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -55,7 +55,7 @@ $receipts = [
     $receipt('sync-empty-wal-sidecar', 'sync_wal', ['synced' => true]),
 ];
 
-$plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan::admitWalSidecarReset($inputPlan ?? $handoffPlan, $inputReceipts ?? $receipts);
+$plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next251AdmitWalSidecarReset($inputPlan ?? $handoffPlan, $inputReceipts ?? $receipts);
 $blocked = static fn (int $index, array $replace): array => $plan(null, array_replace($receipts, [$index => array_replace($receipts[$index], $replace)]));
 $without = static fn (int $index): array => $plan(null, array_values(array_filter($receipts, static fn (array $_, int $key): bool => $key !== $index, ARRAY_FILTER_USE_BOTH)));
 

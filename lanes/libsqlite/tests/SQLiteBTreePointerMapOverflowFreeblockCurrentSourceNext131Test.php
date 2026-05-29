@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteHeader;
@@ -82,7 +82,7 @@ $database131 = static function (int $pageCount = 9, int $firstFreelistTrunkPage 
     return SQLiteDatabase::fromBytes(implode('', array_slice($pages, 0, $pageCount, true)));
 };
 
-$plan131 = static fn (bool $secureDelete = true): SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan::fromDeleteResults(
+$plan131 = static fn (bool $secureDelete = true): SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next131FromDeleteResults(
     $database131(),
     3,
     [[
@@ -150,9 +150,9 @@ $cases131 = [
     'leaf fragment report ok' => static fn (): mixed => $leafHeader131()->freeblockCurrentNextFragmentReport($plan131()->databaseAfterAllocation->page(3))['status'],
     'leaf secure delete zeroed' => static fn (): mixed => $leafHeader131()->freeblockSecureDeleteReport($plan131()->databaseAfterAllocation->page(3))['secure_delete_payload_zeroed'],
     'without secure delete keeps released payload before allocation overwrite' => static fn (): mixed => substr($plan131(false)->databaseAfterRelease->page(6), 4, 1),
-    'empty payload rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan::fromDeleteResults($database131(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, '')),
-    'bad parent rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan::fromDeleteResults($database131(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 1, 'x')),
-    'no existing freelist rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNext131Plan::fromDeleteResults($database131(7, 0, 0), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, str_repeat('R', 900))),
+    'empty payload rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next131FromDeleteResults($database131(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, '')),
+    'bad parent rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next131FromDeleteResults($database131(), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 1, 'x')),
+    'no existing freelist rejected' => static fn (): mixed => $throwMessage131(static fn () => SQLiteBTreePointerMapOverflowFreeblockCurrentSourceNextPlan::next131FromDeleteResults($database131(7, 0, 0), 3, [['obsolete_overflow_page_numbers' => [5, 6]]], 3, str_repeat('R', 900))),
 ];
 
 $expected131 = [

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-next180.sqlite';
@@ -36,7 +36,7 @@ $recovered = [
     3 => $page('wp next180 recovered active_plugins after master recovery'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext180(
     $database,
     $master,
     $masterBytes,

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next250 copied option checkpoint database');
@@ -61,7 +61,7 @@ $receipt = static function (string $name, string $kind, array $pages, array $fra
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [
     $receipt('invalidate-schema-cache', 'cache-invalidate', [1], [27], ['wp-schema-reader']),
     $receipt('clear-options-readmark', 'readmark-clear', [2], [30], ['wp-options-reader']),
     $receipt('refresh-schema-cookie', 'schema-cookie-refresh', [4], [31], ['wp-autoload-reader']),

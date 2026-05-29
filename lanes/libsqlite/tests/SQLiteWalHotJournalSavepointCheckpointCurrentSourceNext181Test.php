@@ -5,9 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext178Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -44,7 +42,7 @@ $nextWalBytes = $makeWalBytes([
 ], 182, 0x18200101, 0x18200102);
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -67,7 +65,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::pla
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -129,8 +127,8 @@ $run = static function () use ($makeRoot, $rmRoot, $prepared, $journalPath, $pag
         $databaseAfter = (string) file_get_contents($databaseLocal);
         $journalAfter = is_file($journalLocal) ? (string) file_get_contents($journalLocal) : null;
         $walAfter = (string) file_get_contents($databaseLocal . '-wal');
-        $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext178Plan::plan($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
-        $reopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan(
+        $receipt = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next178Plan($prepared, $applied, $databaseAfter, $journalAfter, $walAfter);
+        $reopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan(
             $prepared,
             $receipt,
             $databaseAfter,
@@ -147,22 +145,22 @@ $run = static function () use ($makeRoot, $rmRoot, $prepared, $journalPath, $pag
 $ok = static fn (): array => $run()[2];
 $receipt = static fn (): array => $run()[1];
 $staleDatabase = static function () use ($prepared, $receipt, $nextWalBytes, $pageSize): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, $receipt(), 'bad-db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, $receipt(), 'bad-db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
 };
 $staleJournal = static function () use ($prepared, $receipt, $nextWalBytes, $pageSize): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], 'leftover', $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], 'leftover', $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
 };
 $staleWal = static function () use ($prepared, $receipt, $pageSize): array {
     $badWal = $prepared['base_plan']['next_durable']['wal_bytes'] . 'tail';
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], null, $badWal, SQLiteWal::parse($prepared['base_plan']['next_durable']['wal_bytes'], $pageSize, true));
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], null, $badWal, SQLiteWal::parse($prepared['base_plan']['next_durable']['wal_bytes'], $pageSize, true));
 };
 $blockedReceipt = static function () use ($prepared, $receipt, $nextWalBytes, $pageSize): array {
     $bad = $receipt();
     $bad['can_publish_receipt'] = false;
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, $bad, $prepared['base_plan']['current_durable']['database_bytes'], null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, $bad, $prepared['base_plan']['current_durable']['database_bytes'], null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
 };
 $badWalReopen = static function () use ($prepared, $receipt, $nextWalBytes): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, 512, false));
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, $receipt(), $prepared['base_plan']['current_durable']['database_bytes'], null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, 512, false));
 };
 
 $cases = [
@@ -209,7 +207,7 @@ $cases = [
         $bad = $prepared;
         unset($bad['base_plan']);
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($bad, $receipt(), 'db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($bad, $receipt(), 'db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -218,7 +216,7 @@ $cases = [
     }, 'SQLite WAL hot-journal savepoint checkpoint current-source next181 missing prepared base_plan'],
     'missing receipt rejected' => [static function () use ($prepared, $nextWalBytes, $pageSize): string {
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext181Plan::plan($prepared, [], 'db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next181Plan($prepared, [], 'db', null, $nextWalBytes, SQLiteWal::parse($nextWalBytes, $pageSize, true));
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }

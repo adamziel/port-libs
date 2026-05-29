@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext180Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext183Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext186Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext196Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext203Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-options-next208.sqlite';
@@ -73,7 +73,7 @@ $tokenDigest = $mapDigest($currentTokens);
 $headerDigest = $mapDigest($currentHeaders);
 $orderDigest = hash('sha256', implode("\n", [$mainJournal, $usersJournal]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext208Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext208(
     $database,
     $masterJournal,
     $masterBytes,

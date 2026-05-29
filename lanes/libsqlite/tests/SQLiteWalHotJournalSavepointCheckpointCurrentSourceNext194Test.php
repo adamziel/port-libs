@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +48,7 @@ $fence = [
         'directory_sync_verified',
     ],
 ];
-$publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan(
+$publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan(
     $fence,
     [
         $databasePath => $databaseBytes,
@@ -85,7 +84,7 @@ $tickets = [
     ]),
 ];
 $plan = static fn (?array $publicationInput = null, ?array $ticketRows = null, int $previousEpoch = 190, bool $requireLock = true): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan::sealReaderGeneration(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next194SealReaderGeneration(
         $publicationInput ?? $publication,
         $ticketRows ?? $tickets,
         $previousEpoch,

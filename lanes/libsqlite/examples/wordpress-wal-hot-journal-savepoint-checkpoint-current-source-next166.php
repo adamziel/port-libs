@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -65,7 +65,7 @@ ksort($rolledBack, SORT_NUMERIC);
 $rolledBackBytes = implode('', $rolledBack);
 $sourceId = 'wal-hot-journal-savepoint-checkpoint-next161:current:' . substr(hash('sha256', $databasePath . '|plugin-import-inner-next166|restart|5|' . $currentWalBytes . '|' . $rolledBackBytes), 0, 24);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

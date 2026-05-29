@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -38,7 +38,7 @@ $readers = [
     ['name' => 'closed-reader', 'page' => 11, 'source_id' => $token['id'], 'epoch' => 195, 'observed_checkpoint_cookie' => 19577, 'observed_schema_cookie' => 43, 'observed_wal_salt' => 'next195-wal-salt', 'observed_hot_journal_generation' => 7, 'observed_savepoint_generation' => 11, 'closed' => true],
 ];
 
-$plan = static fn (?array $base = null, ?array $rows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($base ?? $checkpoint, $rows ?? $readers);
+$plan = static fn (?array $base = null, ?array $rows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($base ?? $checkpoint, $rows ?? $readers);
 $ok = static fn (): array => $plan();
 $unpublished = $checkpoint;
 $unpublished['checkpoint_published'] = false;
@@ -111,23 +111,23 @@ $throws = [
     'missing checkpoint token rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $checkpoint;
         unset($bad['current_source_token']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($bad, $readers);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($bad, $readers);
     },
     'bad token rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $checkpoint;
         $bad['current_source_token'] = ['id' => '', 'epoch' => 0];
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($bad, $readers);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($bad, $readers);
     },
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($checkpoint, []),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($checkpoint, []),
     'missing reader name rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $readers;
         unset($bad[0]['name']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($checkpoint, $bad);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($checkpoint, $bad);
     },
     'bad reader page rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $readers;
         $bad[0]['page'] = 0;
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($checkpoint, $bad);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($checkpoint, $bad);
     },
 ];
 

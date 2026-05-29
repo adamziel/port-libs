@@ -6,16 +6,16 @@ foreach (glob(dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurren
     require_once $planFile;
 }
 foreach ([
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext240Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext246Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
 ] as $planFile) {
     require_once dirname(__DIR__) . '/src/' . $planFile;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $view = [
     'name' => 'wp_recursive_option_import',
@@ -36,7 +36,7 @@ $followingView = $view;
 $followingView['source'] = 'main@view-cookie-252-following';
 $followingView['trigger_source'] = 'main@trigger-cookie-252-following';
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan::execute(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext252(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

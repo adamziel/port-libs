@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next253
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Plan`, which admits a retry/next WAL current source only after an already reopened next249 checkpoint source has matching next-generation receipts. The plan requires advancing source token/generation metadata, next database and WAL digests, dirty-page materialization, commit-frame sync, retry-reader acknowledgements, hot-journal fencing, savepoint release, unique receipt names, and safe handoff ordering.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which admits a retry/next WAL current source only after an already reopened next249 checkpoint source has matching next-generation receipts. The plan requires advancing source token/generation metadata, next database and WAL digests, dirty-page materialization, commit-frame sync, retry-reader acknowledgements, hot-journal fencing, savepoint release, unique receipt names, and safe handoff ordering.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next253.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Test.php

@@ -1,6 +1,6 @@
 # WAL Hot-Journal Savepoint Checkpoint Current Source Next159
 
-Implemented `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext159Plan` for the WordPress import path where a hot rollback journal is recovered, the current savepoint retry is rolled back against the current WAL source, checkpoint materialization preserves an uncommitted WAL tail, and the next WAL generation is kept separate for subsequent readers.
+Implemented `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan` for the WordPress import path where a hot rollback journal is recovered, the current savepoint retry is rolled back against the current WAL source, checkpoint materialization preserves an uncommitted WAL tail, and the next WAL generation is kept separate for subsequent readers.
 
 Focused evidence:
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext189Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows189 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -46,7 +46,7 @@ $returning189 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$plan189 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext189Plan::execute(
+$plan189 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext189(
     $rows189,
     $currentInput189,
     $nextInput189,
@@ -155,7 +155,7 @@ $cases189 = [
     'bad generation rejected' => [static fn (): mixed => $plan189(['expected_reset_generation' => 'bad token']), InvalidArgumentException::class],
     'bad acknowledged list rejected' => [static fn (): mixed => $plan189(['fresh_acknowledged_ordinals' => 'bad-list']), InvalidArgumentException::class],
     'bad acknowledged ordinal rejected' => [static fn (): mixed => $plan189(['fresh_acknowledged_ordinals' => [-1]]), InvalidArgumentException::class],
-    'bad next view rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext189Plan::execute($rows189, $currentInput189, $nextInput189, $currentView189, ['mapping' => ['bad' => '']], $returning189, ['post_reset_view' => $postResetView189, 'post_reset_input' => $postResetInput189, 'fresh_acknowledged_ordinals' => [0, 1]]), InvalidArgumentException::class],
+    'bad next view rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext189($rows189, $currentInput189, $nextInput189, $currentView189, ['mapping' => ['bad' => '']], $returning189, ['post_reset_view' => $postResetView189, 'post_reset_input' => $postResetInput189, 'fresh_acknowledged_ordinals' => [0, 1]]), InvalidArgumentException::class],
 ];
 
 $tests = [];

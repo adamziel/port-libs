@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $readerPlan = [
@@ -50,7 +50,7 @@ $receipt = static function (string $name, string $target, string $operation, int
     ], $override);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [
     $receipt('wp-schema-page', 'database', 'write_database_page', 1, ['pages' => [1]]),
     $receipt('wp-options-pages', 'database', 'write_database_page', 2, ['pages' => [2, 5]]),
     $receipt('wp-autoload-index-page', 'database', 'write_database_page', 3, ['pages' => [9]]),

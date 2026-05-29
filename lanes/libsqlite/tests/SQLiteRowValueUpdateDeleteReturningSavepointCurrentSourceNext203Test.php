@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows203 = [
@@ -26,14 +26,14 @@ $deleteAfterReplace203 = "DELETE FROM wp_options WHERE (blog_id, autoload) IN ((
 $ignoreResult203 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreUpdate203, $tables203, 'option_id', $unique203);
 $replaceResult203 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceUpdate203, $ignoreResult203()['tables'], 'option_id', $unique203);
 $deleteResult203 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteAfterReplace203, $replaceResult203()['tables'], 'option_id', $unique203);
-$plan203 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute(
+$plan203 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203(
     $tables203,
     [$ignoreUpdate203],
     [$replaceUpdate203],
     [$deleteAfterReplace203],
     $unique203,
 );
-$customPlan203 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute(
+$customPlan203 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203(
     $tables203,
     [$ignoreUpdate203],
     [$replaceUpdate203],
@@ -99,14 +99,14 @@ $cases203 = [
     'plan dependency delete' => [static fn (): mixed => in_array('sqlite-rowvalue-delete-returning-after-replace-current-source-next203', $plan203()['dependencies'], true), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan203()['savepoint'], 'wp_custom_ignore_replace203'],
 
-    'malformed empty ignore rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
-    'malformed empty replace rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$ignoreUpdate203], [], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
-    'malformed empty delete rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$ignoreUpdate203], [$replaceUpdate203], [], $unique203), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203, 'bad-name'), InvalidArgumentException::class],
-    'malformed ignore phase rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$replaceUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
-    'malformed replace phase rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute($tables203, [$ignoreUpdate203], [$ignoreUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext203Plan::execute(['wp_options' => ['bad']], [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
+    'malformed empty ignore rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
+    'malformed empty replace rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$ignoreUpdate203], [], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
+    'malformed empty delete rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$ignoreUpdate203], [$replaceUpdate203], [], $unique203), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203, 'bad-name'), InvalidArgumentException::class],
+    'malformed ignore phase rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$replaceUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
+    'malformed replace phase rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203($tables203, [$ignoreUpdate203], [$ignoreUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext203(['wp_options' => ['bad']], [$ignoreUpdate203], [$replaceUpdate203], [$deleteAfterReplace203], $unique203), InvalidArgumentException::class],
 ];
 
 $tests = [];

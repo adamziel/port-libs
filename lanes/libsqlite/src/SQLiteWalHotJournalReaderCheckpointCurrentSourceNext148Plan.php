@@ -29,7 +29,7 @@ final class SQLiteWalHotJournalReaderCheckpointCurrentSourceNext148Plan
             throw new \InvalidArgumentException('SQLite WAL hot-journal reader checkpoint current-source next148 requires checkpoint database bytes');
         }
 
-        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan::plan(
+        $base = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next144Plan(
             $databasePath,
             $dirtyDatabaseBytes,
             $journalBytes,

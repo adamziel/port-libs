@@ -2,8 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -60,7 +59,7 @@ $readers = [
     $reader('stale-image-reader', 2, ['image_sha256' => $hash('old next211 wp_options root')]),
     $reader('closed-reader', 3, ['closed' => true]),
 ];
-$base205 = static fn (?array $rows = null, ?array $base = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($base ?? $checkpoint, $rows ?? $readers);
+$base205 = static fn (?array $rows = null, ?array $base = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($base ?? $checkpoint, $rows ?? $readers);
 $basePlan = $base205();
 $ack = static function (array $row, array $override = []) use ($basePlan): array {
     return array_replace([
@@ -78,7 +77,7 @@ $acks = [];
 foreach ($basePlan['reader_rows'] as $row) {
     $acks[$row['name']] = $ack($row);
 }
-$plan = static fn (?array $readerPlan = null, ?array $ackRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($readerPlan ?? $basePlan, $ackRows ?? $acks);
+$plan = static fn (?array $readerPlan = null, ?array $ackRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($readerPlan ?? $basePlan, $ackRows ?? $acks);
 $ok = static fn (): array => $plan();
 
 $missingAck = $acks;
@@ -182,23 +181,23 @@ $throws = [
     'missing status rejected' => static function () use ($basePlan, $acks): void {
         $bad = $basePlan;
         unset($bad['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($bad, $acks);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($bad, $acks);
     },
-    'empty acknowledgements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($basePlan, []),
+    'empty acknowledgements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($basePlan, []),
     'missing reader digest rejected' => static function () use ($basePlan, $acks): void {
         $bad = $basePlan;
         unset($bad['reader_rows'][0]['observed_image_sha256']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($bad, $acks);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($bad, $acks);
     },
     'bad reader page rejected' => static function () use ($basePlan, $acks): void {
         $bad = $basePlan;
         $bad['reader_rows'][0]['page'] = 0;
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($bad, $acks);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($bad, $acks);
     },
     'bad token rejected' => static function () use ($basePlan, $acks): void {
         $bad = $basePlan;
         $bad['current_source_token']['id'] = '';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($bad, $acks);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($bad, $acks);
     },
 ];
 

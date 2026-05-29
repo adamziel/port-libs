@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext242Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -25,7 +25,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3, 'o
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry242', option_value || ':retry242', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch'), (5, 'network_plugin')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (1, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext242Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext242(
     ['wp_options' => $rows],
     [$yieldUpdate, $yieldDelete],
     [$attemptUpdate, $attemptDelete],

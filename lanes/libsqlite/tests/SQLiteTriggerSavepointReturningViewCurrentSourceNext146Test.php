@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
 
 $base146 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
@@ -68,7 +68,7 @@ $returning146 = [
 ];
 
 $run146 = static function (array $options = [], ?array $current = null, ?array $next = null, ?array $triggers = null, ?array $mapping = null, ?array $returning = null) use ($base146, $currentRows146, $nextRows146, $mapping146, $triggers146, $returning146): array {
-    return SQLiteTriggerSavepointReturningViewCurrentSourceNext146Plan::execute(
+    return SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146(
         $base146,
         $current ?? $currentRows146,
         $next ?? $nextRows146,
@@ -167,8 +167,8 @@ $cases146 = [
     'bad source throws' => [static fn (): mixed => $run146(['next_source' => 'bad next']), InvalidArgumentException::class],
     'empty mapping throws' => [static fn (): mixed => $run146([], null, null, null, []), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $run146([], [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'autoload_flag' => 'no', 'rev' => 1]], []), InvalidArgumentException::class],
-    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNext146Plan::execute($base146, [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'value' => 'x', 'autoload_flag' => 'no', 'rev' => 1]], [], ['import_id' => 'option_id'], ['option_name'], [], ['new.option_name']), InvalidArgumentException::class],
-    'empty returning throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNext146Plan::execute($base146, [], [], $mapping146, ['blog_id', 'option_name'], [], []), InvalidArgumentException::class],
+    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146($base146, [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'value' => 'x', 'autoload_flag' => 'no', 'rev' => 1]], [], ['import_id' => 'option_id'], ['option_name'], [], ['new.option_name']), InvalidArgumentException::class],
+    'empty returning throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146($base146, [], [], $mapping146, ['blog_id', 'option_name'], [], []), InvalidArgumentException::class],
     'bad trigger action throws' => [static fn (): mixed => $run146([], [['import_id' => 401, 'blog' => 1, 'name' => 'bad_action', 'value' => 'x', 'autoload_flag' => 'yes', 'rev' => 1]], [], [[
         'name' => 'bad_action',
         'timing' => 'after',

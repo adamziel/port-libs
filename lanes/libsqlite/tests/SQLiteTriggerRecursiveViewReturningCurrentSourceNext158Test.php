@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows158 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -38,7 +38,7 @@ $next158 = [
     ['name' => 'fresh_plugin', 'value' => 'enabled', 'autoload_flag' => 'no'],
 ];
 
-$plan158 = static fn (array $options = [], ?array $current = null, ?array $next = null, ?array $returning = null, ?array $view = null, ?array $triggers = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan::execute(
+$plan158 = static fn (array $options = [], ?array $current = null, ?array $next = null, ?array $returning = null, ?array $view = null, ?array $triggers = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext158(
     $rows158,
     $current ?? $current158,
     $next ?? $next158,
@@ -124,7 +124,7 @@ $cases158 = [
     'wildcard returning exposes row payload' => [static fn (): mixed => array_column(array_column($plan158([], null, null, ['*'])['returning_rows'], 'returning'), 'row')[0]['autoload'], 'yes'],
     'custom savepoint accepted' => [static fn (): mixed => $plan158(['savepoint' => 'wp_custom_recursive_158'])['savepoint'], 'wp_custom_recursive_158'],
     'max depth accepted' => [static fn (): mixed => $plan158(['max_depth' => 3])['current_yield_stream'][2]['depth'], 2],
-    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan::execute($rows158, [], [], $view158, [], $triggers158, $returning158), InvalidArgumentException::class],
+    'empty unique columns throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext158($rows158, [], [], $view158, [], $triggers158, $returning158), InvalidArgumentException::class],
     'empty returning throws' => [static fn (): mixed => $plan158([], null, null, []), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => $plan158(['savepoint' => 'bad savepoint']), InvalidArgumentException::class],
     'bad max depth throws' => [static fn (): mixed => $plan158(['max_depth' => -1]), InvalidArgumentException::class],

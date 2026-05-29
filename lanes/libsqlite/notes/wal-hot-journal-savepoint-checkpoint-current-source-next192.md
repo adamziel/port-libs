@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan`, a bounded
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded
 post-checkpoint admission guard for WAL/hot-journal/savepoint publication. The
 plan verifies that checkpointed database pages contain the committed current WAL
 frame images before prepared statements and reader caches are allowed to reuse

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next174.sqlite';
@@ -43,7 +43,7 @@ $journalDigest = hash('sha256', implode('|', [
     hash('sha256', $journalBytes),
 ]));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext174Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext174(
     $databasePath,
     $masterPath,
     $networkJournal . "\n" . $mainJournal . "\n",

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext177Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext177Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-next177.sqlite';
@@ -43,7 +43,7 @@ $recovered = [
     5 => $page('wp next177 recovered extension page'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext177Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext177(
     $database,
     $master,
     $database . "-journal\n/srv/wp-content/database/wp-next177-users.sqlite-journal\n",

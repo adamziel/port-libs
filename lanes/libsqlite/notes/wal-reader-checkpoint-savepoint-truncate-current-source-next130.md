@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for the next-open reader boundary after a
 savepoint rollback and drained-reader TRUNCATE checkpoint.
 
-This slice adds `SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan`.
+This slice adds `SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan`.
 It composes WAL savepoint prefix truncation with a reader-pinned TRUNCATE
 checkpoint, then verifies the follow-up state where the reader has drained, the
 WAL sidecar is removed, and the next opened reader resolves retained
@@ -13,7 +13,7 @@ snapshot.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan.php
+php -l lanes/libsqlite/src/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-reader-checkpoint-savepoint-truncate-current-source-next130.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Test.php

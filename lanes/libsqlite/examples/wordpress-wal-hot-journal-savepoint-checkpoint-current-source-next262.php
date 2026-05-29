@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next262 checkpoint database image');
@@ -19,7 +19,7 @@ $common = [
     'checkpoint_frame' => 52,
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache([
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache([
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next260',
     'current_source_admitted' => true,
     'database_path' => '/srv/www/wp-content/database/wp-next262.sqlite',

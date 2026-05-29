@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -93,7 +93,7 @@ $plan = static fn (
     ?array $cachePages = null,
     ?array $pages = null,
     string $outer = 'plugin-import-outer-next166',
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

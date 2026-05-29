@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -26,8 +26,8 @@ $abort = "UPDATE wp_options SET (option_name, status) = ('network_siteurl', 'dup
 $commitStatements = [$deleteStale, $promote, $deleteRemainder];
 $rollbackStatements = [$deleteStale, $promote, $abort];
 
-$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, $commitStatements, $unique, 'wp_options_cleanup_batch');
-$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, $rollbackStatements, $unique, 'wp_options_cleanup_batch');
+$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $commitStatements, $unique, 'wp_options_cleanup_batch');
+$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $rollbackStatements, $unique, 'wp_options_cleanup_batch');
 $parsedDelete = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($deleteStale);
 $parsedUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($promote);
 
@@ -94,10 +94,10 @@ $cases = [
     'rollback dependencies include delete marker' => [static fn (): mixed => in_array('sqlite-delete-returning-current-source', $rollback()['dependencies'], true), true],
     'rollback dependencies include row-value update marker' => [static fn (): mixed => in_array('sqlite-row-value-update-after-delete', $rollback()['dependencies'], true), true],
     'rollback dependencies include savepoint marker' => [static fn (): mixed => in_array('sqlite-savepoint-current-source-delete-update-rollback', $rollback()['dependencies'], true), true],
-    'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, $commitStatements, []), InvalidArgumentException::class],
-    'malformed missing table rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, ["DELETE FROM missing WHERE option_id = 1 RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE RETURNING table missing is missing'],
-    'malformed bad rowid rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute(['wp_options' => [['option_name' => 'siteurl']]], ["DELETE FROM wp_options WHERE option_name = 'siteurl' RETURNING option_name"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE LIMIT row is missing rowid column option_id'],
+    'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $commitStatements, []), InvalidArgumentException::class],
+    'malformed missing table rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, ["DELETE FROM missing WHERE option_id = 1 RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE RETURNING table missing is missing'],
+    'malformed bad rowid rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135(['wp_options' => [['option_name' => 'siteurl']]], ["DELETE FROM wp_options WHERE option_name = 'siteurl' RETURNING option_name"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE LIMIT row is missing rowid column option_id'],
 ];
 
 $tests = [];

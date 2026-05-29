@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext166Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext166Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 128;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -25,7 +25,7 @@ $nextPages = [
     3 => $currentPages[3],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext166Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext166(
     $database,
     $master,
     $masterBytes,

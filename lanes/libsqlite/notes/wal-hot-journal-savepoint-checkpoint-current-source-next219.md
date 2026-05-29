@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan`, a bounded
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded
 current-source admission step that publishes a WAL hot-journal checkpoint only
 after savepoint scopes are fully retired. The plan verifies that each scope is
 released, depth is zero, rollback generation is not newer than the current

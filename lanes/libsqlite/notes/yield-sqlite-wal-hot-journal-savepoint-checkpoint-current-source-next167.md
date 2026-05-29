@@ -2,7 +2,7 @@
 
 Date: 2026-05-28
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan`,
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`,
 a current-source publication guard for the WAL/hot-journal/savepoint checkpoint
 path. It composes the accepted next161/next164 reader-cache and reader-admission
 plans, then verifies that the prepared current token, next-WAL token, exact WAL

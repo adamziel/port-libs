@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = hash('sha256', 'wordpress next252 post truncate current source');
 $truncationPlan = [
@@ -51,7 +51,7 @@ $receipts = [
     array_replace($baseReceipt, ['name' => 'wordpress-next252-directory-sync', 'kind' => 'directory-sync']),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Plan::sealPostTruncateSource($truncationPlan, $receipts);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next252SealPostTruncateSource($truncationPlan, $receipts);
 
 echo json_encode([
     'status' => $plan['status'],

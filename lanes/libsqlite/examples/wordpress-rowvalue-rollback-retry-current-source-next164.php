@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -20,7 +20,7 @@ $rollbackSql = "UPDATE OR ROLLBACK wp_options SET (blog_id, option_name, status,
 $retryUpdateSql = "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':retry164', 'retry', option_value || ':retry164', bytes + 10) WHERE option_id IN (5, 6) RETURNING option_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retryDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext164(
     ['wp_options' => $rows],
     [$stageSql, $rollbackSql, $retryDeleteSql],
     [$retryUpdateSql, $retryDeleteSql],

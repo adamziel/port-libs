@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -34,14 +34,14 @@ $literalDeleteAfterUpdate = static function () use ($literalUpdateSql, $literalD
 
     return SQLiteUpdateDeleteReturningSql::execute($literalDeleteSql, $updated['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan::execute(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161(
     $tables,
     [$literalUpdateSql, $literalDeleteSql],
     [$retrySql, $retryDeleteSql],
     $unique,
     'wp_options_rowvalue_literal_clause_retry_next167',
 );
-$failPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan::execute(
+$failPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161(
     $tables,
     [$failSql, $literalDeleteSql],
     [$retrySql],
@@ -112,9 +112,9 @@ $cases = [
     'fail plan dependency records fail discard' => [static fn (): mixed => in_array('sqlite-rollback-to-savepoint-discards-fail-returning-stream', $failPlan()['dependencies'], true), true],
 
     'malformed unterminated string still rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("UPDATE wp_options SET status = 'draft WHERE broken WHERE option_id = 1 RETURNING option_id"), InvalidArgumentException::class],
-    'malformed empty before rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan::execute($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan::execute($tables, [$literalUpdateSql], [], $unique), InvalidArgumentException::class],
-    'malformed unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext161Plan::execute($tables, [$literalUpdateSql], [$retrySql], []), InvalidArgumentException::class],
+    'malformed empty before rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161($tables, [], [$retrySql], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161($tables, [$literalUpdateSql], [], $unique), InvalidArgumentException::class],
+    'malformed unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161($tables, [$literalUpdateSql], [$retrySql], []), InvalidArgumentException::class],
 ];
 
 $tests = [];

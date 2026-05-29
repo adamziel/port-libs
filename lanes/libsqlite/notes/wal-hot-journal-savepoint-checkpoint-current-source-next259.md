@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next259
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Plan`, which admits the first writer generation after the next252 post-truncate current-source seal. The admission requires a fresh WAL header salt, reset SHM `mxFrame`, reset read marks, advanced schema cookie, confirmed hot-journal absence, durable receipts, and writer-lock release ordering.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which admits the first writer generation after the next252 post-truncate current-source seal. The admission requires a fresh WAL header salt, reset SHM `mxFrame`, reset read marks, advanced schema cookie, confirmed hot-journal absence, durable receipts, and writer-lock release ordering.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next259.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Test.php

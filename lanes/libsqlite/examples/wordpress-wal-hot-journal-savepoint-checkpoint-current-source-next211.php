@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next211.sqlite';
 $hash = static fn (string $value): string => hash('sha256', $value);
@@ -47,7 +45,7 @@ $reader = static function (string $name, int $page, array $override = []) use ($
         'image_sha256' => $checkpoint['page_digests'][$page],
     ], $override);
 };
-$readerPlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($checkpoint, [
+$readerPlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, [
     $reader('wp-schema-reader', 1),
     $reader('wp-options-reader', 2),
     $reader('wp-old-plugin-reader', 2, ['source_id' => 'before-hot-journal-checkpoint']),
@@ -66,7 +64,7 @@ foreach ($readerPlan['reader_rows'] as $row) {
         'reopen_fenced' => !$row['admitted'],
     ];
 }
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext211Plan::plan($readerPlan, $acks);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next211Plan($readerPlan, $acks);
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next211',
     'wordpressUse' => 'A copied WordPress plugin import publishes a hot-journal checkpoint only after current readers acknowledge matching page images and stale readers are fenced for reopen.',

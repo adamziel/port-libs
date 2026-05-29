@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan` for a current-source WAL reader boundary:
+Adds `SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan` for a current-source WAL reader boundary:
 
 - a stale reader can still describe the pre-rollback WAL source through its pinned end frame;
 - rollback to a savepoint truncates the current WAL source to the retained prefix;

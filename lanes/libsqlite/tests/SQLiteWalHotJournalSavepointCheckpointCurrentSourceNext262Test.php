@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -91,9 +91,9 @@ $retry = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, $retry);
-$blockedCache = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, array_replace($cache, [$index => array_replace($cache[$index], $replace)]), $retry);
-$blockedRetry = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, array_replace($retry, [$index => array_replace($retry[$index], $replace)]));
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, $retry);
+$blockedCache = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, array_replace($cache, [$index => array_replace($cache[$index], $replace)]), $retry);
+$blockedRetry = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, array_replace($retry, [$index => array_replace($retry[$index], $replace)]));
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next262'],
@@ -177,24 +177,24 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['status' => 'bad']), $cache, $retry),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['current_source_admitted' => false]), $cache, $retry),
-    'empty cache rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, [], $retry),
-    'empty retry rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, []),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['source_token' => 'bad token']), $cache, $retry),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['database_digest' => 'short']), $cache, $retry),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['page_cache_digest' => 'short']), $cache, $retry),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['commit_generation' => 0]), $cache, $retry),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['schema_cookie' => 0]), $cache, $retry),
-    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['checkpoint_frame' => 0]), $cache, $retry),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['dirty_pages' => []]), $cache, $retry),
-    'bad reader set rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache(array_replace($base, ['accepted_reader_names' => []]), $cache, $retry),
-    'bad cache name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, [array_replace($cache[0], ['name' => 'bad name'])], $retry),
-    'bad cache reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, [array_replace($cache[0], ['reader_name' => 'bad reader'])], $retry),
-    'bad cache page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, [array_replace($cache[0], ['page_number' => 0])], $retry),
-    'bad retry name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, [array_replace($retry[0], ['name' => 'bad name'])]),
-    'bad retry reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, [array_replace($retry[0], ['reader_name' => 'bad reader'])]),
-    'bad retry page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext262Plan::fenceReaderCache($base, $cache, [array_replace($retry[0], ['page_number' => 0])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['status' => 'bad']), $cache, $retry),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['current_source_admitted' => false]), $cache, $retry),
+    'empty cache rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, [], $retry),
+    'empty retry rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, []),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['source_token' => 'bad token']), $cache, $retry),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['database_digest' => 'short']), $cache, $retry),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['page_cache_digest' => 'short']), $cache, $retry),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['commit_generation' => 0]), $cache, $retry),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['schema_cookie' => 0]), $cache, $retry),
+    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['checkpoint_frame' => 0]), $cache, $retry),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['dirty_pages' => []]), $cache, $retry),
+    'bad reader set rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache(array_replace($base, ['accepted_reader_names' => []]), $cache, $retry),
+    'bad cache name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, [array_replace($cache[0], ['name' => 'bad name'])], $retry),
+    'bad cache reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, [array_replace($cache[0], ['reader_name' => 'bad reader'])], $retry),
+    'bad cache page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, [array_replace($cache[0], ['page_number' => 0])], $retry),
+    'bad retry name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, [array_replace($retry[0], ['name' => 'bad name'])]),
+    'bad retry reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, [array_replace($retry[0], ['reader_name' => 'bad reader'])]),
+    'bad retry page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next262FenceReaderCache($base, $cache, [array_replace($retry[0], ['page_number' => 0])]),
 ];
 
 foreach ($throws as $name => $callback) {

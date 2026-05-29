@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $trigger143 = [[
     'timing' => 'after',
@@ -27,7 +27,7 @@ $returning143 = [
     'autoload',
     static fn (array $row, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $row['option_name'],
 ];
-$plan143 = static fn (array $options = [], array $currentRows = null, array $nextRows = null, array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext143Plan::insertThroughViewSources(
+$plan143 = static fn (array $options = [], array $currentRows = null, array $nextRows = null, array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::insertThroughViewSourcesNext143(
     $initial143,
     $currentRows ?? $current143,
     $nextRows ?? $next143,
@@ -113,12 +113,12 @@ $cases143 = [
     'ignore conflict suppresses duplicate next child' => [static function () use ($trigger143, $initial143, $current143, $next143, $returning143): mixed {
         $trigger = $trigger143;
         $trigger[0]['insert_row']['option_name'] = 'plugin_next';
-        return array_column(SQLiteTriggerRecursiveViewReturningCurrentSourceNext143Plan::insertThroughViewSources($initial143, $current143, $next143, $trigger, ['option_name'], $returning143, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
+        return array_column(SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::insertThroughViewSourcesNext143($initial143, $current143, $next143, $trigger, ['option_name'], $returning143, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
     }, ['plugin_next']],
     'ignore conflict records ignored next row' => [static function () use ($trigger143, $initial143, $current143, $next143, $returning143): mixed {
         $trigger = $trigger143;
         $trigger[0]['insert_row']['option_name'] = 'plugin_next';
-        return array_column(SQLiteTriggerRecursiveViewReturningCurrentSourceNext143Plan::insertThroughViewSources($initial143, $current143, $next143, $trigger, ['option_name'], $returning143, ['conflict_action' => 'ignore'])['next']['ignored_before_rollback'], 'option_name');
+        return array_column(SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::insertThroughViewSourcesNext143($initial143, $current143, $next143, $trigger, ['option_name'], $returning143, ['conflict_action' => 'ignore'])['next']['ignored_before_rollback'], 'option_name');
     }, ['plugin_next']],
     'bad view rejected' => [static fn (): mixed => $plan143(['view' => 'bad-view']), InvalidArgumentException::class],
     'bad savepoint rejected' => [static fn (): mixed => $plan143(['savepoint' => 'bad-name']), InvalidArgumentException::class],

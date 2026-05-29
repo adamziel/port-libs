@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext185Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
@@ -87,7 +87,7 @@ $plan = static fn (
     ?string $masterPath = null,
     ?string $source = null,
     int $epoch = 185,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext185Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext185(
     $path ?? $database,
     $masterPath ?? $master,
     $masterJournalBytes ?? $masterBytes,

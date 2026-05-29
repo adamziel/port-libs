@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -63,8 +63,8 @@ $blockedScopes = [
     $scope('reopen-reader', ['reader_names' => ['wp-old-plugin-reader']]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, $scopes);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, $blockedScopes);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, $scopes);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, $blockedScopes);
 $notAdmitted = $admission;
 $notAdmitted['checkpoint_admitted'] = false;
 $badStatus = $admission;
@@ -121,8 +121,8 @@ $cases = [
     'reopen reader reason' => [static fn (): mixed => $blocked()['scope_rows'][10]['scope_reason'], 'savepoint_reader_waits_for_reopen_fence'],
     'reopen reader overlap' => [static fn (): mixed => $blocked()['scope_rows'][10]['reopen_reader_overlap'], ['wp-old-plugin-reader']],
     'blocked guard names' => [static fn (): mixed => $blocked()['blocked_guard_names'], ['all_savepoint_scopes_finalized', 'at_least_one_scope_finalized', 'no_reader_reopen_overlap']],
-    'not admitted guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($notAdmitted, $scopes)['blocked_guard_names'], ['next211_checkpoint_admitted']],
-    'bad status guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($badStatus, $scopes)['blocked_guard_names'], ['next211_checkpoint_admitted']],
+    'not admitted guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($notAdmitted, $scopes)['blocked_guard_names'], ['next211_checkpoint_admitted']],
+    'bad status guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($badStatus, $scopes)['blocked_guard_names'], ['next211_checkpoint_admitted']],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
@@ -132,16 +132,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing admission rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan(['status' => 'x'], $scopes),
-    'bad token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan(array_merge($admission, ['current_source_token' => ['id' => '', 'epoch' => 0]]), $scopes),
-    'bad next epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan(array_merge($admission, ['next_source_epoch' => 219]), $scopes),
-    'empty scopes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, []),
-    'missing scope field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [['name' => 'bad']]),
-    'empty scope name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [$scope('', [])]),
-    'negative depth rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [$scope('bad-depth', ['savepoint_depth' => -1])]),
-    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [$scope('bad-reader', ['reader_names' => ['']])]),
-    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [$scope('missing-pages', ['page_digests' => []])]),
-    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [$scope('bad-page', ['page_digests' => [1 => 'short']])]),
+    'missing admission rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan(['status' => 'x'], $scopes),
+    'bad token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan(array_merge($admission, ['current_source_token' => ['id' => '', 'epoch' => 0]]), $scopes),
+    'bad next epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan(array_merge($admission, ['next_source_epoch' => 219]), $scopes),
+    'empty scopes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, []),
+    'missing scope field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [['name' => 'bad']]),
+    'empty scope name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [$scope('', [])]),
+    'negative depth rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [$scope('bad-depth', ['savepoint_depth' => -1])]),
+    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [$scope('bad-reader', ['reader_names' => ['']])]),
+    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [$scope('missing-pages', ['page_digests' => []])]),
+    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [$scope('bad-page', ['page_digests' => [1 => 'short']])]),
 ];
 
 foreach ($throws as $name => $callback) {

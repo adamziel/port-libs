@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -49,7 +49,7 @@ $savepoints->recordWalFrameWrite(5, 4, true);
 $savepoints->recordWalFrameWrite(6, 5, true);
 $savepoints->recordWalFrameWrite(7, 2, true);
 
-$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan(
+$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan(
     $savepoints,
     'plugin-settings-next123',
     $wal,

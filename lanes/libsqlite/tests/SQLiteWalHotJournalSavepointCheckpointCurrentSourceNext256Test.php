@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $receipts = [
 ];
 
 $plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan::admitReopenedReaders($inputPlan ?? $sealedPlan, $inputReceipts ?? $receipts);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next256AdmitReopenedReaders($inputPlan ?? $sealedPlan, $inputReceipts ?? $receipts);
 $blocked = static fn (int $index, array $overrides): array => $plan(null, array_map(
     static fn (array $row, int $rowIndex): array => $rowIndex === $index ? array_replace($row, $overrides) : $row,
     $receipts,

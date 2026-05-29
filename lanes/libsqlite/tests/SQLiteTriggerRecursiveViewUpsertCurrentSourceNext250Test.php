@@ -9,7 +9,7 @@ foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNe
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows250 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -136,7 +136,7 @@ $baseOptions250 = [
     'current_source_rowid_provenance_token_next250' => 'wp.current.source.rowid.provenance.250',
 ];
 
-$plan250 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext250Plan::execute(
+$plan250 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext250(
     $rows250,
     $currentInput250,
     $nextInput250,

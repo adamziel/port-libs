@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows181 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -36,7 +36,7 @@ $returning181 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$run181 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext181Plan::execute(
+$run181 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext181(
     $rows181,
     $currentInput181,
     $nextInput181,

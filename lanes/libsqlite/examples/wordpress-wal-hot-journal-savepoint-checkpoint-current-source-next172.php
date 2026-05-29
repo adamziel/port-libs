@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -78,7 +77,7 @@ $cache = [
 $checkpointPages = [1, 2, 3, 4, 5, 6];
 $release = ['plugin-import-inner-next172' => [3, 5]];
 
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan::plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -111,7 +110,7 @@ foreach ($base['rows'] as $row) {
     ];
 }
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

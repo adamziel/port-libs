@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -52,7 +52,7 @@ $completedBeforeCrash = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
     '/srv/www/wp-content/database/wp.sqlite',
     $dirtyDatabase,
     $journalBytes,

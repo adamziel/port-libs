@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows212 = [
@@ -40,13 +40,13 @@ $attemptUpdateResult212 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteResult212 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete212, $attemptUpdateResult212()['tables'], 'option_id', $unique212);
 $retryUpdateResult212 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate212, $tables212, 'option_id', $unique212);
 $retryDeleteResult212 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete212, $retryUpdateResult212()['tables'], 'option_id', $unique212);
-$plan212 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute(
+$plan212 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212(
     $tables212,
     [$attemptUpdate212, $attemptDelete212],
     [$retryUpdate212, $retryDelete212],
     $unique212,
 );
-$customPlan212 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute(
+$customPlan212 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212(
     $tables212,
     [$attemptUpdate212],
     [$retryUpdate212],
@@ -95,11 +95,11 @@ $cases212 = [
     'custom savepoint' => [static fn (): mixed => $customPlan212()['savepoint'], 'wp_custom_rowvalue_subquery212'],
     'custom yielded count' => [static fn (): mixed => $customPlan212()['yielded_after_retry_count'], 2],
     'malformed missing subquery table rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate212, ['wp_options' => $rows212], 'option_id', $unique212), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute($tables212, [], [$retryUpdate212], $unique212), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute($tables212, [$attemptUpdate212], [], $unique212), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute($tables212, [$attemptUpdate212], [$retryUpdate212], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute($tables212, [$attemptUpdate212], [$retryUpdate212], $unique212, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan::execute(['wp_options' => ['bad']], [$attemptUpdate212], [$retryUpdate212], $unique212), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212($tables212, [], [$retryUpdate212], $unique212), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212($tables212, [$attemptUpdate212], [], $unique212), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212($tables212, [$attemptUpdate212], [$retryUpdate212], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212($tables212, [$attemptUpdate212], [$retryUpdate212], $unique212, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext212(['wp_options' => ['bad']], [$attemptUpdate212], [$retryUpdate212], $unique212), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wordpress.sqlite';
 $walPath = $databasePath . '-wal';
@@ -45,7 +45,7 @@ $receipts = [
     ],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan::verifyResetFiles($reset, $files, $receipts, $walBytes, $databaseDigest);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next226VerifyResetFiles($reset, $files, $receipts, $walBytes, $databaseDigest);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next226');

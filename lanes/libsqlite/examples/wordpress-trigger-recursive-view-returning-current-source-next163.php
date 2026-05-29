@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -28,7 +28,7 @@ $nextView['source'] = 'main@view-cookie-163-next';
 $nextView['trigger_source'] = 'main@trigger-cookie-163-next';
 $nextView['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 1 && str_starts_with((string) $row['option_name'], 'plugin_');
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'audit:current:siteurl:plugin_alpha']],

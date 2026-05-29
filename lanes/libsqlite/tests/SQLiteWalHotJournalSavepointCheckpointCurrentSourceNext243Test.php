@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -58,8 +58,8 @@ $receipts = [
     $reader('options-reader', [2], ['readmark_frame' => 16]),
     $reader('index-reader', [5]),
 ];
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, $receipts);
-$blockedReader = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, $receipts);
+$blockedReader = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(
     $baselinePlan,
     [
         $receipts[0],
@@ -67,11 +67,11 @@ $blockedReader = static fn (array $override): array => SQLiteWalHotJournalSavepo
         $receipts[2],
     ]
 );
-$missingDirtyPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(
+$missingDirtyPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(
     $baselinePlan,
     [$receipts[0], $receipts[1]]
 );
-$duplicateReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(
+$duplicateReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(
     $baselinePlan,
     [$receipts[0], $reader('schema-reader', [2]), $receipts[2]]
 );
@@ -162,26 +162,26 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['status' => 'bad']), $receipts),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['autocheckpoint_baseline_allowed' => false]), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, []),
-    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['database_path' => '']), $receipts),
-    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_path' => '']), $receipts),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['source_token' => 'bad token']), $receipts),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['commit_generation' => 0]), $receipts),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['schema_cookie' => 0]), $receipts),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['database_digest' => 'short']), $receipts),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['page_cache_digest' => 'short']), $receipts),
-    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_index_salt' => ['one']]), $receipts),
-    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_index_mx_frame' => -1]), $receipts),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['dirty_pages' => []]), $receipts),
-    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline(array_replace($baselinePlan, ['commit_frames' => [0]]), $receipts),
-    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
-    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['commit_generation' => 0])]),
-    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['database_digest' => 'short'])]),
-    'bad reader pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['observed_pages' => ['bad']])]),
-    'bad reader frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['observed_commit_frames' => ['bad']])]),
-    'bad reader readmark rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['readmark_frame' => -1])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['status' => 'bad']), $receipts),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['autocheckpoint_baseline_allowed' => false]), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, []),
+    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['database_path' => '']), $receipts),
+    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_path' => '']), $receipts),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['source_token' => 'bad token']), $receipts),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['commit_generation' => 0]), $receipts),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['schema_cookie' => 0]), $receipts),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['database_digest' => 'short']), $receipts),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['page_cache_digest' => 'short']), $receipts),
+    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_index_salt' => ['one']]), $receipts),
+    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['wal_index_mx_frame' => -1]), $receipts),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['dirty_pages' => []]), $receipts),
+    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline(array_replace($baselinePlan, ['commit_frames' => [0]]), $receipts),
+    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
+    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['commit_generation' => 0])]),
+    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['database_digest' => 'short'])]),
+    'bad reader pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['observed_pages' => ['bad']])]),
+    'bad reader frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['observed_commit_frames' => ['bad']])]),
+    'bad reader readmark rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [array_replace($receipts[0], ['readmark_frame' => -1])]),
 ];
 
 foreach ($throws as $name => $callback) {

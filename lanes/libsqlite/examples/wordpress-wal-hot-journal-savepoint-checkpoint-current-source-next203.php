@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext203Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext203Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -13,7 +13,7 @@ $checkpointedDatabase = $page('wp next203 schema checkpoint')
     . $page('wp next203 options checkpoint')
     . $page('wp next203 plugin checkpoint');
 $publishedWalDigest = $digest('wp next203 restarted wal sidecar');
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext203Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next203Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next196',
         'database_path' => '/srv/www/wp-content/database/wp-next203.sqlite',

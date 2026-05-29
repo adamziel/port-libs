@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $admissionPlan = [
@@ -37,7 +37,7 @@ $scope = static function (string $name, array $readers, array $pages) use ($admi
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admissionPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admissionPlan, [
     $scope('wp-plugin-import', ['wp-schema-reader', 'wp-options-reader'], [
         1 => $hash('wp schema after plugin import checkpoint'),
         2 => $hash('wp_options after plugin import checkpoint'),

@@ -6,16 +6,16 @@ foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourc
     require_once $file;
 }
 foreach ([
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext240Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext246Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan.php',
-    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
+    'SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php',
 ] as $file) {
     require_once __DIR__ . '/../src/' . $file;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows252 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -135,7 +135,7 @@ $baseOptions252 = [
     'current_source_upsert_where_token_next252' => 'wp.current.source.upsert.where.252',
 ];
 
-$plan252 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext252Plan::execute(
+$plan252 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext252(
     $rows252,
     $currentInput252,
     $nextInput252,

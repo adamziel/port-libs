@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $token = ['id' => 'wp-import-current-source-next227', 'epoch' => 227];
@@ -63,11 +61,11 @@ $receipt = static function (string $name, array $pages) use ($digest, $token): a
     ];
 };
 
-$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [
+$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [
     $scope('wp-options-savepoint', [1, 2], ['wp-options-import']),
     $scope('wp-theme-savepoint', [3], ['wp-theme-import']),
 ]);
-$summary = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($finalized, [
+$summary = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($finalized, [
     $receipt('wp-options-savepoint', [1, 2]),
     $receipt('wp-theme-savepoint', [3]),
 ]);

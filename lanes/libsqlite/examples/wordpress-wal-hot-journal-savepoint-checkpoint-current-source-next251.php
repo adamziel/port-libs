@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next251.sqlite';
 $hash = static fn (string $value): string => hash('sha256', $value);
@@ -41,7 +41,7 @@ $receipt = static function (string $name, string $operation, array $override = [
         'io_error' => null,
     ], $override);
 };
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext251Plan::admitWalSidecarReset($handoffPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next251AdmitWalSidecarReset($handoffPlan, [
     $receipt('release-schema-reader', 'release_readmark', ['released_reader_names' => ['schema-reader']]),
     $receipt('release-options-readers', 'release_readmark', ['released_reader_names' => ['options-reader', 'terms-reader']]),
     $receipt('rewrite-empty-wal-header', 'rewrite_wal_header', ['next_wal_salt' => ['next251-salt-a', 'next251-salt-b']]),

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next202.sqlite';
 $databaseBytes = str_repeat('wp next202 checkpointed database page ', 18);
@@ -23,7 +23,7 @@ $publication = [
     'operation_names' => ['publish_wal_sidecar_current_source_next196'],
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next196'],
 ];
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan(
     $publication,
     $databaseBytes,
     '',

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -65,10 +65,10 @@ $mixedReceipts = array_merge($receipts, [
 ]);
 $missingReaderCacheReceipts = array_slice($receipts, 0, 3);
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, $receipts, 225);
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($truncateBase, $receipts, 225);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, $mixedReceipts, 225);
-$missingRole = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, $missingReaderCacheReceipts, 225);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, $receipts, 225);
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($truncateBase, $receipts, 225);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, $mixedReceipts, 225);
+$missingRole = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, $missingReaderCacheReceipts, 225);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next223'],
@@ -146,21 +146,21 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(['status' => 'bad'], $receipts, 225),
-    'reset false rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['can_reset_wal' => false]), $receipts, 225),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [], 225),
-    'bad epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, $receipts, 0),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['database_digest' => 'short']), $receipts, 225),
-    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['wal_digest' => 'short']), $receipts, 225),
-    'bad writer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['writer_digest' => 'short']), $receipts, 225),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['checkpointed_frame' => 0]), $receipts, 225),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['next_writer_generation' => 0]), $receipts, 225),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource(array_merge($base, ['mode' => 'passive']), $receipts, 225),
-    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [array_merge($receipts[0], ['name' => ''])], 225),
-    'missing role rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [array_merge($receipts[0], ['role' => ''])], 225),
-    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [array_merge($receipts[0], ['observed_wal_digest' => 'short'])], 225),
-    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [array_merge($receipts[0], ['checkpoint_frame' => 0])], 225),
-    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($base, [array_merge($receipts[0], ['writer_generation' => 0])], 225),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(['status' => 'bad'], $receipts, 225),
+    'reset false rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['can_reset_wal' => false]), $receipts, 225),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [], 225),
+    'bad epoch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, $receipts, 0),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['database_digest' => 'short']), $receipts, 225),
+    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['wal_digest' => 'short']), $receipts, 225),
+    'bad writer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['writer_digest' => 'short']), $receipts, 225),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['checkpointed_frame' => 0]), $receipts, 225),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['next_writer_generation' => 0]), $receipts, 225),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource(array_merge($base, ['mode' => 'passive']), $receipts, 225),
+    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [array_merge($receipts[0], ['name' => ''])], 225),
+    'missing role rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [array_merge($receipts[0], ['role' => ''])], 225),
+    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [array_merge($receipts[0], ['observed_wal_digest' => 'short'])], 225),
+    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [array_merge($receipts[0], ['checkpoint_frame' => 0])], 225),
+    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($base, [array_merge($receipts[0], ['writer_generation' => 0])], 225),
 ];
 
 foreach ($throws as $name => $callback) {

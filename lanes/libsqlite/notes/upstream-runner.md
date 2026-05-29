@@ -11090,7 +11090,7 @@ and accepted B-tree, JSON, VFS/WAL, planner, PRAGMA, ATTACH, window, and VDBE
 behavior surfaces.
 ### 2026-05-28 - WAL hot-journal savepoint checkpoint current-source next250
 
-This isolated WAL/pager micro-slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan`, a current-source guard that admits pager cache/readmark invalidation only after an admitted next247 hot-journal checkpoint cleanup plan. The behavior covers stale page-cache dirty pages, WAL readmarks, schema-cookie refresh, WAL-index refresh, reader reopen, stale hot-journal visibility, stale WAL visibility, savepoint depth, shared-lock state, duplicate receipts, and missing reader/page/frame coverage before the checkpointed current source can be served.
+This isolated WAL/pager micro-slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a current-source guard that admits pager cache/readmark invalidation only after an admitted next247 hot-journal checkpoint cleanup plan. The behavior covers stale page-cache dirty pages, WAL readmarks, schema-cookie refresh, WAL-index refresh, reader reopen, stale hot-journal visibility, stale WAL visibility, savepoint depth, shared-lock state, duplicate receipts, and missing reader/page/frame coverage before the checkpointed current source can be served.
 
 Focused verification:
 
@@ -11103,7 +11103,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Additional verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php
 php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next250.php

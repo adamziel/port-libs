@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -55,7 +55,7 @@ $nextWalBytes = $makeWalBytes([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next182Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -120,7 +120,7 @@ $plan = static fn (
     int $currentCookie = 41,
     int $nextCookie = 42,
     ?array $expectedCurrent = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next182Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -229,8 +229,8 @@ $throws = [
     'bad statement epoch rejected' => static fn () => $plan([['name' => 'bad-epoch', 'source_id' => $currentToken['id'], 'epoch' => 0, 'schema_cookie' => 41]]),
     'bad statement schema rejected' => static fn () => $plan([['name' => 'bad-schema', 'source_id' => $currentToken['id'], 'epoch' => $currentToken['epoch'], 'schema_cookie' => -1]]),
     'bad root page rejected' => static fn () => $plan([['name' => 'bad-root', 'source_id' => $currentToken['id'], 'epoch' => $currentToken['epoch'], 'schema_cookie' => 41, 'root_pages' => [0]]]),
-    'mutated current wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan::plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next182', $hot, $savepointBefore, $currentWal, substr_replace($currentWalBytes, 'x', -1), $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5, 6], $readers, $statements, 41, 42),
-    'mutated next wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan::plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next182', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, substr_replace($nextWalBytes, 'x', -1), $cache, [1, 2, 3, 4, 5, 6], $readers, $statements, 41, 42),
+    'mutated current wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next182Plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next182', $hot, $savepointBefore, $currentWal, substr_replace($currentWalBytes, 'x', -1), $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5, 6], $readers, $statements, 41, 42),
+    'mutated next wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next182Plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next182', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, substr_replace($nextWalBytes, 'x', -1), $cache, [1, 2, 3, 4, 5, 6], $readers, $statements, 41, 42),
 ];
 
 foreach ($throws as $name => $callback) {

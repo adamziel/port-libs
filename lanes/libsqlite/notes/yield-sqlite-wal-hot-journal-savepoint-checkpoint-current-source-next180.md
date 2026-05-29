@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan`, a narrow
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a narrow
 follow-up to next177. The new plan applies next177's ordered resume operations
 to a caller-visible file map atomically:
 

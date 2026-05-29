@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 
 $parents141 = [
     ['post_id' => 10, 'post_title' => 'Imported parent', 'slug' => 'parent'],
@@ -50,7 +50,7 @@ $returning141 = [
     ['expr' => 'new.post_title', 'as' => 'title'],
     static fn (array $new, array $old, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $old['post_id'] . '>' . $new['post_id'],
 ];
-$plan141 = static fn (array $options = []): array => SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan::commitBarrierRetry(
+$plan141 = static fn (array $options = []): array => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141(
     $parents141,
     $children141,
     $updates141,
@@ -132,9 +132,9 @@ $cases141 = [
     'non recursive retry status says not needed' => [static fn (): mixed => $nonRecursive141()['retry']['status'], 'retry-not-needed'],
     'custom retry source is accepted' => [static fn (): mixed => $plan141(['retry_source' => 'retry_two'])['retry']['source'], 'retry_two'],
     'bad savepoint throws' => [static fn (): mixed => $plan141(['savepoint' => 'bad-name']), InvalidArgumentException::class],
-    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan::commitBarrierRetry($parents141, $children141, $updates141, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
+    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141($parents141, $children141, $updates141, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
     'missing child key throws from retry key collection' => [static function () use ($parents141, $updates141, $foreignKey141): mixed {
-        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan::commitBarrierRetry($parents141, [['meta_id' => 1]], $updates141, $foreignKey141);
+        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141($parents141, [['meta_id' => 1]], $updates141, $foreignKey141);
     }, InvalidArgumentException::class],
 ];
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows163 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -38,7 +38,7 @@ $returning163 = [
     static fn (array $incoming, array $viewRow, string $triggerSource, int $ordinal): string => $triggerSource . ':' . $viewRow['_root'] . ':' . $ordinal . ':' . $incoming['option_name'],
 ];
 
-$run163 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Plan::execute(
+$run163 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163(
     $rows163,
     $currentRoots ?? [['root_name' => 'siteurl']],
     $nextRoots ?? [['root_name' => 'audit:current:siteurl:plugin_alpha']],
@@ -137,7 +137,7 @@ $cases163 = [
     'bad child prefix rejected' => [static fn (): mixed => $run163(['trigger_child_prefix' => 'bad prefix']), InvalidArgumentException::class],
     'bad current view name rejected' => [static fn (): mixed => $run163([], null, null, ['name' => 'bad name', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'root_key' => 'root_name', 'parent_key' => 'parent_name', 'columns' => ['option_name']]), InvalidArgumentException::class],
     'bad next view source rejected' => [static fn (): mixed => $run163([], null, null, null, ['name' => 'v', 'source' => 'bad source', 'trigger' => 'trg', 'trigger_source' => 'ok', 'root_key' => 'root_name', 'parent_key' => 'parent_name', 'columns' => ['option_name']]), InvalidArgumentException::class],
-    'missing option name rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext163Plan::execute([['option_value' => 'x']], [], [], $currentView163, $nextView163, $returning163), InvalidArgumentException::class],
+    'missing option name rejected' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext163([['option_value' => 'x']], [], [], $currentView163, $nextView163, $returning163), InvalidArgumentException::class],
 ];
 
 $tests = [];

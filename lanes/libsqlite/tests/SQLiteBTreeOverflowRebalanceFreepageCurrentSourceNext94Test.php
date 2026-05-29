@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -73,10 +73,10 @@ $throwsMessage = static function (callable $callback): string {
 
 $fixture = static function () use ($databaseFixture): array {
     $database = $databaseFixture();
-    $table = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($database, 3, [
+    $table = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($database, 3, [
         ['rowid' => 20, 'obsolete_overflow_page_numbers' => [6, 7]],
     ], true);
-    $index = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::indexLeaf($database, 4, [
+    $index = SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94IndexLeaf($database, 4, [
         ['record_values' => ['_transient_timeout_feed', 20, str_repeat('i', 40)], 'obsolete_overflow_page_numbers' => [8, 9, 10]],
     ], true);
 
@@ -127,13 +127,13 @@ $cases = [
     'index secure delete cleared pages' => static fn (array $fx): mixed => $fx[2]->steps[0]->freePlan->clearedPageNumbers,
     'index freed pointer entries count' => static fn (array $fx): mixed => count($fx[2]->steps[0]->freePlan->freedPointerMapEntries),
     'index freed page image zeroed' => static fn (array $fx): mixed => $fx[2]->databaseAfter->page(9) === str_repeat("\0", 512),
-    'rejects empty table sequence' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($fx[0], 3, [])),
-    'rejects empty index sequence' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::indexLeaf($fx[0], 4, [])),
-    'rejects noninteger rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($fx[0], 3, [['rowid' => '20', 'obsolete_overflow_page_numbers' => []]])),
-    'rejects missing overflow list' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($fx[0], 3, [['rowid' => 20]])),
-    'rejects noninteger overflow page' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($fx[0], 3, [['rowid' => 20, 'obsolete_overflow_page_numbers' => ['6']]])),
-    'rejects missing index record array' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::indexLeaf($fx[0], 4, [['obsolete_overflow_page_numbers' => []]])),
-    'rejects stale second current-source delete' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNext94Plan::tableLeaf($fx[0], 3, [
+    'rejects empty table sequence' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($fx[0], 3, [])),
+    'rejects empty index sequence' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94IndexLeaf($fx[0], 4, [])),
+    'rejects noninteger rowid' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($fx[0], 3, [['rowid' => '20', 'obsolete_overflow_page_numbers' => []]])),
+    'rejects missing overflow list' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($fx[0], 3, [['rowid' => 20]])),
+    'rejects noninteger overflow page' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($fx[0], 3, [['rowid' => 20, 'obsolete_overflow_page_numbers' => ['6']]])),
+    'rejects missing index record array' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94IndexLeaf($fx[0], 4, [['obsolete_overflow_page_numbers' => []]])),
+    'rejects stale second current-source delete' => static fn (array $fx): mixed => $throwsMessage(static fn () => SQLiteBTreeOverflowRebalanceFreepageCurrentSourceNextPlan::next94TableLeaf($fx[0], 3, [
         ['rowid' => 20, 'obsolete_overflow_page_numbers' => [6]],
         ['rowid' => 20, 'obsolete_overflow_page_numbers' => [7]],
     ])),

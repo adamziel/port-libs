@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next243
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan`, which validates reopened reader snapshot admission after the accepted next240 autocheckpoint baseline. The plan admits the current source only when reopened WordPress readers match the source token, commit generation, schema cookie, database digest, page-cache digest, WAL-index salt/mxFrame, checkpoint frame, commit frames, clean page-cache state, shared lock, and closed savepoint/hot-journal state.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which validates reopened reader snapshot admission after the accepted next240 autocheckpoint baseline. The plan admits the current source only when reopened WordPress readers match the source token, commit generation, schema cookie, database digest, page-cache digest, WAL-index salt/mxFrame, checkpoint frame, commit frames, clean page-cache state, shared lock, and closed savepoint/hot-journal state.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next243.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Test.php

@@ -18,11 +18,11 @@ require_once __DIR__ . '/../src/SQLiteTableLeafCell.php';
 require_once __DIR__ . '/../src/SQLiteTableLeafPage.php';
 require_once __DIR__ . '/../src/SQLiteOverflowPage.php';
 require_once __DIR__ . '/../src/SQLiteBTreeDeleteRebalanceFreeblockApplyPlan.php';
-require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreePointerMapFreeblockVacuumCurrentSourceNext135Plan.php';
-require_once __DIR__ . '/../src/SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -87,7 +87,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan::tableLeafFromCurrentSourceDeleteResult(
+$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
     $database,
     3,
     [[

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext185Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $view = [
     'name' => 'wp_option_import_view',
@@ -23,7 +23,7 @@ $nextView['trigger_source'] = 'main@trigger-cookie-185-next';
 $nextView['recursive_suffix'] = '_next_retry';
 $nextView['audit_label'] = 'next-recursive-trigger-drain-185';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext185Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext185(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

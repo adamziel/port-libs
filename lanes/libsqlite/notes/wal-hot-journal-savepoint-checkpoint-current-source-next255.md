@@ -1,10 +1,10 @@
 # WAL Hot-Journal Savepoint Checkpoint Current Source Next255
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Plan`. It composes the accepted next251 WAL sidecar reset admission with reopened-reader receipts, so WordPress readers only move to the restarted empty WAL generation when their paths, source token, generation, database/page-cache digests, fresh WAL salt, zero visible frames, clean cache state, and read-mark slots all match the current source.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It composes the accepted next251 WAL sidecar reset admission with reopened-reader receipts, so WordPress readers only move to the restarted empty WAL generation when their paths, source token, generation, database/page-cache digests, fresh WAL salt, zero visible frames, clean cache state, and read-mark slots all match the current source.
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Plan.php`: no syntax errors.
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`: no syntax errors.
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Test.php`: no syntax errors.
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next255.php`: no syntax errors.
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Test.php`: `1 test files, 87 assertions, 0 failures`.

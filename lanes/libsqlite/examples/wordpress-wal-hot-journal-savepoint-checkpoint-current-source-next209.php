@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext209Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext209Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wp next209 checkpointed database pages');
@@ -28,7 +28,7 @@ $statementPlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next206'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext209Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next209Plan(
     $statementPlan,
     [
         [

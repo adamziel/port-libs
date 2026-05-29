@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -67,7 +67,7 @@ $plan = static fn (
     int $readerEndFrame = 5,
     array $pages = [1, 2, 3, 4, 5],
     bool $reservedLock = false,
-): array => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan(
+): array => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -154,15 +154,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'negative reader rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], -1),
-    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], 6),
-    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan('', $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], 1),
-    'empty database rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, '', $journalBytes, $wal, $walBytes, [1], 1),
-    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, '', $wal, $walBytes, [1], 1),
-    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [], 1),
-    'mismatched wal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, substr_replace($walBytes, 'x', 88, 1), [1], 1),
-    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [0], 1),
-    'string page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext131Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, ['1'], 1),
+    'negative reader rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], -1),
+    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], 6),
+    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan('', $dirtyDatabase, $journalBytes, $wal, $walBytes, [1], 1),
+    'empty database rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, '', $journalBytes, $wal, $walBytes, [1], 1),
+    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, '', $wal, $walBytes, [1], 1),
+    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [], 1),
+    'mismatched wal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, substr_replace($walBytes, 'x', 88, 1), [1], 1),
+    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, [0], 1),
+    'string page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next131Plan($databasePath, $dirtyDatabase, $journalBytes, $wal, $walBytes, ['1'], 1),
 ];
 
 foreach ($throws as $name => $callback) {

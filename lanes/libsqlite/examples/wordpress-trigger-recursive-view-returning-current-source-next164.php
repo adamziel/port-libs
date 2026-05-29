@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
@@ -40,7 +40,7 @@ $returning = [
     ['expr' => 'depth', 'as' => 'depth_value'],
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan::execute(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext164(
     $rows,
     [
         ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],

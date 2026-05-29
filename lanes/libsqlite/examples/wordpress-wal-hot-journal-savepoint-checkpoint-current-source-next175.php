@@ -5,16 +5,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteVfsFileWriter.php';
 
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/wp-next175.sqlite';
@@ -63,7 +60,7 @@ $nextWalBytes = $makeWal([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -87,7 +84,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::pla
     4,
     175
 );
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

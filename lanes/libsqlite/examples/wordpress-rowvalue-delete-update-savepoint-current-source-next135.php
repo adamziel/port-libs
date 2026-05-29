@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test'],
@@ -22,7 +22,7 @@ $statements = [
     "DELETE FROM wp_options WHERE (blog_id, option_name) NOT IN ((2, 'siteurl'), (2, 'network_siteurl'), (2, 'pending_theme')) RETURNING option_id, option_name ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135(
     ['wp_options' => $rows],
     $statements,
     [['option_name']],

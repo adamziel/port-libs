@@ -1,6 +1,6 @@
 # WAL Hot-Journal Savepoint Checkpoint Current Source Next224
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 publication receipt layer after the accepted next218 RESTART/TRUNCATE reset
 admission. It admits a new current source only when database, WAL, hot-journal,
 and SHM sidecar receipts match the reset mode and all reader handles are either
@@ -8,7 +8,7 @@ reopened on the new source or invalidated as stale.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next224.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Test.php`

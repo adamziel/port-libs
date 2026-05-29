@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows207 = [
@@ -29,14 +29,14 @@ $failNoPreserve207 = static fn (): array => SQLiteUpdateDeleteReturningSql::exec
 $failPreserve207 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failUpdate207, $outerResult207()['tables'], 'option_id', $unique207, true);
 $retryUpdateAfterRollback207 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate207, $outerResult207()['tables'], 'option_id', $unique207);
 $retryDeleteAfterRollback207 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete207, $retryUpdateAfterRollback207()['tables'], 'option_id', $unique207);
-$plan207 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute(
+$plan207 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207(
     $tables207,
     [$outerUpdate207],
     [$failUpdate207],
     [$retryUpdate207, $retryDelete207],
     $unique207,
 );
-$customPlan207 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute(
+$customPlan207 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207(
     $tables207,
     [$outerUpdate207],
     [$failUpdate207],
@@ -111,12 +111,12 @@ $cases207 = [
     'plan non overlap mentions abort' => [static fn (): mixed => str_contains($plan207()['non_overlap_next207'], 'OR ABORT next200'), true],
     'custom plan savepoint' => [static fn (): mixed => $customPlan207()['savepoint'], 'wp_custom_fail_207'],
     'custom plan retry count' => [static fn (): mixed => $customPlan207()['yielded_after_retry_count'], 2],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute($tables207, [], [$failUpdate207], [$retryUpdate207], $unique207), InvalidArgumentException::class],
-    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute($tables207, [$outerUpdate207], [], [$retryUpdate207], $unique207), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute($tables207, [$outerUpdate207], [$failUpdate207], [], $unique207), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute($tables207, [$outerUpdate207], [$failUpdate207], [$retryUpdate207], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute($tables207, [$outerUpdate207], [$failUpdate207], [$retryUpdate207], $unique207, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext207Plan::execute(['wp_options' => ['bad']], [$outerUpdate207], [$failUpdate207], [$retryUpdate207], $unique207), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207($tables207, [], [$failUpdate207], [$retryUpdate207], $unique207), InvalidArgumentException::class],
+    'malformed empty fail rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207($tables207, [$outerUpdate207], [], [$retryUpdate207], $unique207), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207($tables207, [$outerUpdate207], [$failUpdate207], [], $unique207), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207($tables207, [$outerUpdate207], [$failUpdate207], [$retryUpdate207], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207($tables207, [$outerUpdate207], [$failUpdate207], [$retryUpdate207], $unique207, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext207(['wp_options' => ['bad']], [$outerUpdate207], [$failUpdate207], [$retryUpdate207], $unique207), InvalidArgumentException::class],
 ];
 
 $tests = [];

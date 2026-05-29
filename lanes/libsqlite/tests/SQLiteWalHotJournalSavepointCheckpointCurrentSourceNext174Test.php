@@ -7,8 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -76,7 +75,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$base169 = static fn (array $completed = [], string $mode = 'restart'): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan::plan(
+$base169 = static fn (array $completed = [], string $mode = 'restart'): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -123,7 +122,7 @@ $filesFor = static function (array $completed, string $mode = 'restart') use ($b
     ];
 };
 
-$plan = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$plan = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

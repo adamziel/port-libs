@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next167.sqlite';
@@ -18,7 +18,7 @@ $pages = [
     3 => $page('wp next167 active_plugins current after master delete'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext167Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext167(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/wp-next167-site.sqlite-journal\n",

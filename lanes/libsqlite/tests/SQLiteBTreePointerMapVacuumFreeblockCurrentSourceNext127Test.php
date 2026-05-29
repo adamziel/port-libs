@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -106,11 +106,11 @@ $indexDatabase127 = static function () use ($makeFirstPage127, $putPointerMapEnt
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$tablePlan127 = static function (int $maxTruncatedPages = 5) use ($tableDatabase127): SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan {
+$tablePlan127 = static function (int $maxTruncatedPages = 5) use ($tableDatabase127): SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan {
     $database = $tableDatabase127();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 11, secureDelete: true);
 
-    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan::tableLeafFromDeleteResult(
+    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127TableLeafFromDeleteResult(
         $database,
         3,
         [
@@ -123,7 +123,7 @@ $tablePlan127 = static function (int $maxTruncatedPages = 5) use ($tableDatabase
     );
 };
 
-$indexPlan127 = static function (int $maxTruncatedPages = 4) use ($indexDatabase127): SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan {
+$indexPlan127 = static function (int $maxTruncatedPages = 4) use ($indexDatabase127): SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan {
     $database = $indexDatabase127();
     $deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues(
         $database->page(4),
@@ -131,7 +131,7 @@ $indexPlan127 = static function (int $maxTruncatedPages = 4) use ($indexDatabase
         secureDelete: true,
     );
 
-    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan::indexLeafFromDeleteResult(
+    return SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127IndexLeafFromDeleteResult(
         $database,
         4,
         [
@@ -218,7 +218,7 @@ $cases127 = [
     'invalid from plan truncation rejected' => static function () use ($tablePlan127, $throwMessage127): mixed {
         $plan = $tablePlan127();
 
-        return $throwMessage127(static fn () => SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext127Plan::fromDeletePlan($plan->sourceDatabase, $plan->deletePlan, 0));
+        return $throwMessage127(static fn () => SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next127FromDeletePlan($plan->sourceDatabase, $plan->deletePlan, 0));
     },
 ];
 

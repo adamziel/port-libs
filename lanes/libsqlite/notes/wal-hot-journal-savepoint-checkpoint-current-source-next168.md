@@ -1,11 +1,11 @@
 # WAL hot-journal savepoint checkpoint current-source next168
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Plan`, a publication gate for the WordPress import path where hot rollback-journal recovery and savepoint rollback have produced a checkpoint current-source token, but the pager still needs to decide whether it may publish that source, delete the hot journal, preserve/reset WAL sidecars, sync the directory, and advertise the next WAL generation.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a publication gate for the WordPress import path where hot rollback-journal recovery and savepoint rollback have produced a checkpoint current-source token, but the pager still needs to decide whether it may publish that source, delete the hot journal, preserve/reset WAL sidecars, sync the directory, and advertise the next WAL generation.
 
 Focused verification:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next168.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Test.php

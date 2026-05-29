@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -24,7 +24,7 @@ $cleanup = "DELETE FROM wp_options WHERE (blog_id, option_name) NOT BETWEEN (1, 
 $speculative = "UPDATE wp_options SET (status, option_value) = ('speculative190', option_value || ':speculative190') WHERE (blog_id, option_name) NOT IN ((3, 'rewrite_rules'), (4, 'theme_mods')) AND autoload = 'yes' RETURNING option_id, blog_id, option_name, status";
 $retry = "UPDATE wp_options SET (status, option_value) = ('retry190', option_value || ':retry190') WHERE (blog_id, option_name) NOT IN ((1, 'siteurl'), (3, 'rewrite_rules')) AND autoload = 'yes' RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext190Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext190(
     ['wp_options' => $rows],
     [$release],
     [$speculative],

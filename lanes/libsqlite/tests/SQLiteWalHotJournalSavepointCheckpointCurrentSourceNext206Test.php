@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -172,9 +172,9 @@ $consumers = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, $consumers, 206);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($blockedBase, [$consumers[0], $consumers[2]], 206);
-$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [$consumers[0], $consumers[1]], 206);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, $consumers, 206);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($blockedBase, [$consumers[0], $consumers[2]], 206);
+$allCurrent = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [$consumers[0], $consumers[1]], 206);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next206'],
@@ -236,19 +236,19 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan(['status' => 'bad'], $consumers, 206),
-    'empty consumers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [], 206),
-    'negative generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, $consumers, -1),
-    'missing database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan(array_merge($base, ['checkpointed_database_digest' => 'short']), $consumers, 206),
-    'missing wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan(array_merge($base, ['expected_wal_digest' => 'short']), $consumers, 206),
-    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($missingPagesBase, $consumers, 206),
-    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['name' => ''])], 206),
-    'bad generation row rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['statement_generation' => -1])], 206),
-    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['observed_wal_digest' => 'short'])], 206),
-    'missing root pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['root_pages' => []])], 206),
-    'bad root page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['root_pages' => [0]])], 206),
-    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['observed_page_digests' => [1 => 'short']])], 206),
-    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan($base, [array_merge($consumers[0], ['hot_journal_digest' => 'short'])], 206),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan(['status' => 'bad'], $consumers, 206),
+    'empty consumers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [], 206),
+    'negative generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, $consumers, -1),
+    'missing database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan(array_merge($base, ['checkpointed_database_digest' => 'short']), $consumers, 206),
+    'missing wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan(array_merge($base, ['expected_wal_digest' => 'short']), $consumers, 206),
+    'missing page digests rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($missingPagesBase, $consumers, 206),
+    'missing name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['name' => ''])], 206),
+    'bad generation row rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['statement_generation' => -1])], 206),
+    'bad observed digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['observed_wal_digest' => 'short'])], 206),
+    'missing root pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['root_pages' => []])], 206),
+    'bad root page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['root_pages' => [0]])], 206),
+    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['observed_page_digests' => [1 => 'short']])], 206),
+    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan($base, [array_merge($consumers[0], ['hot_journal_digest' => 'short'])], 206),
 ];
 
 foreach ($throws as $name => $callback) {

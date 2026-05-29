@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -69,8 +69,8 @@ $receipts = [
     $receipt('refresh-wal-index', 'wal-index-refresh', [1, 2, 4, 7], [27, 30, 31], ['schema-reader', 'options-reader', 'autoload-reader']),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, $receipts);
-$blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, $receipts);
+$blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [
         $receipts[0],
@@ -79,11 +79,11 @@ $blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointChe
         $receipts[3],
     ]
 );
-$missingKind = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$missingKind = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [$receipts[0], $receipts[1], $receipts[2]]
 );
-$missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [
         $receipt('invalidate-schema-cache', 'cache-invalidate', [1], [27], ['schema-reader']),
@@ -92,7 +92,7 @@ $missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCu
         $receipt('refresh-wal-index', 'wal-index-refresh', [1, 2, 4, 7], [27, 30, 31], ['schema-reader', 'options-reader']),
     ]
 );
-$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [
         $receipt('invalidate-schema-cache', 'cache-invalidate', [1], [27], ['schema-reader']),
@@ -101,7 +101,7 @@ $missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurr
         $receipt('refresh-wal-index', 'wal-index-refresh', [1, 2, 4], [27, 30, 31], ['schema-reader', 'options-reader', 'autoload-reader']),
     ]
 );
-$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [
         $receipt('invalidate-schema-cache', 'cache-invalidate', [1], [27], ['schema-reader']),
@@ -110,7 +110,7 @@ $missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCur
         $receipt('refresh-wal-index', 'wal-index-refresh', [1, 2, 4, 7], [27, 30], ['schema-reader', 'options-reader', 'autoload-reader']),
     ]
 );
-$duplicateReceipt = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(
+$duplicateReceipt = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(
     $cleanupPlan,
     [$receipts[0], $receipt('invalidate-schema-cache', 'readmark-clear', [2], [30], ['options-reader']), $receipts[2], $receipts[3]]
 );
@@ -218,28 +218,28 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['status' => 'bad']), $receipts),
-    'not admitted base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['cleanup_admitted' => false]), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, []),
-    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['database_path' => '']), $receipts),
-    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['wal_path' => '']), $receipts),
-    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['journal_path' => '']), $receipts),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['source_token' => 'bad token']), $receipts),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['commit_generation' => 0]), $receipts),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['schema_cookie' => 0]), $receipts),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['database_digest' => 'short']), $receipts),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['page_cache_digest' => 'short']), $receipts),
-    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['wal_index_salt' => ['only-one']]), $receipts),
-    'bad wal mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['wal_index_mx_frame' => -1]), $receipts),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['checkpoint_frame' => -1]), $receipts),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['dirty_pages' => []]), $receipts),
-    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['commit_frames' => [0]]), $receipts),
-    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation(array_replace($cleanupPlan, ['reader_names' => []]), $receipts),
-    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
-    'bad receipt kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['kind' => 'unknown'])]),
-    'bad receipt page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['page_numbers' => [0]])]),
-    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['commit_frames' => ['bad']])]),
-    'bad receipt reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext250Plan::admitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['reader_names' => ['bad reader']])]),
+    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['status' => 'bad']), $receipts),
+    'not admitted base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['cleanup_admitted' => false]), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, []),
+    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['database_path' => '']), $receipts),
+    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['wal_path' => '']), $receipts),
+    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['journal_path' => '']), $receipts),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['source_token' => 'bad token']), $receipts),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['commit_generation' => 0]), $receipts),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['schema_cookie' => 0]), $receipts),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['database_digest' => 'short']), $receipts),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['page_cache_digest' => 'short']), $receipts),
+    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['wal_index_salt' => ['only-one']]), $receipts),
+    'bad wal mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['wal_index_mx_frame' => -1]), $receipts),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['checkpoint_frame' => -1]), $receipts),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['dirty_pages' => []]), $receipts),
+    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['commit_frames' => [0]]), $receipts),
+    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation(array_replace($cleanupPlan, ['reader_names' => []]), $receipts),
+    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
+    'bad receipt kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['kind' => 'unknown'])]),
+    'bad receipt page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['page_numbers' => [0]])]),
+    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['commit_frames' => ['bad']])]),
+    'bad receipt reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next250AdmitCacheInvalidation($cleanupPlan, [array_replace($receipts[0], ['reader_names' => ['bad reader']])]),
 ];
 
 foreach ($throws as $name => $callback) {

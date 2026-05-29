@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext249Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext249Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -59,7 +59,7 @@ $reopenedState = [
     ],
 ];
 
-$plan = static fn (array $state = [], array $handoff = []): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext249Plan::verifyReopenedCurrentSource(
+$plan = static fn (array $state = [], array $handoff = []): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next249VerifyReopenedCurrentSource(
     array_replace($handoffPlan, $handoff),
     array_replace($reopenedState, $state)
 );

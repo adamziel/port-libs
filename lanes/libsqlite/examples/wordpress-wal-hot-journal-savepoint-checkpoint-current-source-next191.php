@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext191Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext191Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next191.sqlite';
 $currentToken = ['id' => 'wordpress-next191-current-source', 'epoch' => 191];
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext191Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next191Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next188',
         'database_path' => $databasePath,

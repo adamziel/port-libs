@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext175Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
@@ -29,7 +29,7 @@ $nextView['mapping']['origin'] = 'source';
 $nextView['recursive_suffix'] = '_next_retry';
 $nextView['audit_label'] = 'next-recursive-trigger-drain-175';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext175Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext175(
     $rows,
     [
         ['import_id' => 10, 'name' => 'plugin_seed', 'value' => 'enabled', 'autoload_flag' => 'yes', 'spawn_child' => true],

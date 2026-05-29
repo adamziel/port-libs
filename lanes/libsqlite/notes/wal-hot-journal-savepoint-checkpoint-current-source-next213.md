@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission()`.
+- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission()`.
 - Models the upstream WAL checkpoint rule that a later restart/reset checkpoint cannot reuse stale readers after hot-journal recovery and a savepoint-era PASSIVE checkpoint. Every stale reader named by next212 must reopen on the current database/WAL/writer/checkpoint digests, hold a shared-lock receipt, close savepoint scopes, drop hot-journal identity, and reach the restart target frame.
 - Keeps active reader pins from authorizing the reset; they forced the earlier PASSIVE checkpoint to preserve the WAL and must not be counted as stale-reader reopen receipts.
 

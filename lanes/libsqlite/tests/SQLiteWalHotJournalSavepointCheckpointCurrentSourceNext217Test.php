@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $receipts = [
     'old-plugin-reader' => $receipt('old-plugin-reader', 'reopen-reader-cache'),
     'stale-theme-reader' => $receipt('stale-theme-reader', 'reopen-reader-cache'),
 ];
-$plan = static fn (?array $admissionInput = null, ?array $receiptInput = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan::plan($admissionInput ?? $admission, $receiptInput ?? $receipts);
+$plan = static fn (?array $admissionInput = null, ?array $receiptInput = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next217Plan($admissionInput ?? $admission, $receiptInput ?? $receipts);
 
 $missingAck = $receipts;
 unset($missingAck['cron-current']);

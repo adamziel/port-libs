@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext262Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows262 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -26,7 +26,7 @@ $attemptDelete262 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate262 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry262', option_value || ':retry262', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete262 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan262 = static fn (?array $peerAck = null, array $peerColumns = ['status'], ?array $boundaryAck = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext262Plan::execute(
+$plan262 = static fn (?array $peerAck = null, array $peerColumns = ['status'], ?array $boundaryAck = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext262(
     $tables262,
     [$yieldUpdate262, $yieldDelete262],
     [$attemptUpdate262, $attemptDelete262],

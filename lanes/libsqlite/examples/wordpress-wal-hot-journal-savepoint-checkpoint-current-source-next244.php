@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next244 checkpointed database bytes');
@@ -88,7 +88,7 @@ foreach (['wp-options-reader', 'wp-usermeta-reader'] as $name) {
     ];
 }
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baseline, $durableReceipts, $readerAcks);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baseline, $durableReceipts, $readerAcks);
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next244',
     'status' => $plan['status'],

@@ -5,16 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/wp-next188.sqlite';
@@ -53,7 +48,7 @@ $databaseBytes = $page('wp next188 dirty schema')
     . $page('wp next188 dirty cron')
     . $page('wp next188 usermeta');
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -87,7 +82,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::pla
 );
 $currentToken = $bootstrap['current_source_token'];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

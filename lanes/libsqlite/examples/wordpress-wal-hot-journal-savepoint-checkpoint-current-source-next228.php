@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $sourceToken = 'next228:wp-import-durable-source';
@@ -35,7 +35,7 @@ $readers = [
     ['name' => 'wp-autoload-index-reader', 'source_token' => $sourceToken, 'generation' => 228, 'reopened' => true, 'saw_durability_barrier' => true, 'pinned_old_source' => false],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, $readers, $sourceToken);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, $readers, $sourceToken);
 
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next228',

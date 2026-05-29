@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -75,13 +75,13 @@ $receipts = [
     $receipt('seal-retry-page-cache', 'page-cache-seal', 'seal_page_cache', ['retained_pages' => [1, 2, 5, 9], 'page_cache_sealed' => true]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, $receipts);
-$replaceReceipt = static fn (int $index, array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, $receipts);
+$replaceReceipt = static fn (int $index, array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource(
     $nextSourcePlan,
     array_replace($receipts, [$index => array_replace($receipts[$index], $replace)])
 );
-$replacePlan = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource(array_replace($nextSourcePlan, $replace), $receipts);
-$withoutReceipt = static fn (int $index): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource(
+$replacePlan = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource(array_replace($nextSourcePlan, $replace), $receipts);
+$withoutReceipt = static fn (int $index): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource(
     $nextSourcePlan,
     array_values(array_filter($receipts, static fn (array $_, int $key): bool => $key !== $index, ARRAY_FILTER_USE_BOTH))
 );
@@ -163,8 +163,8 @@ $cases = [
     'missing page blocked' => [static fn (): mixed => $replaceReceipt(4, ['retained_pages' => [1, 2, 5], 'page_cache_sealed' => true])['missing_retained_next_pages'], [9]],
     'missing wal receipt blocked' => [static fn (): mixed => $withoutReceipt(1)['blocked_reasons'], ['next_source_frame_retention_missing', 'checkpoint_retirement_receipt_type_missing', 'checkpoint_retirement_order_unsafe']],
     'missing journal type' => [static fn (): mixed => $withoutReceipt(2)['missing_retirement_receipt_types'], ['journal-delete']],
-    'unsafe order blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, array_merge([$receipts[2]], array_slice($receipts, 0, 2), array_slice($receipts, 3)))['blocked_guard_names'], ['checkpoint_retirement_order_safe']],
-    'duplicate receipt blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, array_replace($receipts, [1 => array_replace($receipts[1], ['name' => 'retire-checkpoint-readers'])]))['duplicate_retirement_receipt_names'], ['retire-checkpoint-readers']],
+    'unsafe order blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, array_merge([$receipts[2]], array_slice($receipts, 0, 2), array_slice($receipts, 3)))['blocked_guard_names'], ['checkpoint_retirement_order_safe']],
+    'duplicate receipt blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, array_replace($receipts, [1 => array_replace($receipts[1], ['name' => 'retire-checkpoint-readers'])]))['duplicate_retirement_receipt_names'], ['retire-checkpoint-readers']],
     'blocked status' => [static fn (): mixed => $replaceReceipt(1, ['retained_frames' => [65]])['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next257'],
     'blocked reason' => [static fn (): mixed => $replaceReceipt(1, ['retained_frames' => [65]])['reason'], 'checkpoint_source_retirement_held_after_next_source_admission'],
     'blocked reader action' => [static fn (): mixed => $replaceReceipt(0, ['retired_reader_names' => ['schema-reader']])['reader_action'], 'hold_checkpoint_readers_until_retirement_receipts_match'],
@@ -181,9 +181,9 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource(array_replace($nextSourcePlan, ['status' => 'bad']), $receipts),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource(array_replace($nextSourcePlan, ['next_source_admitted' => false]), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, []),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource(array_replace($nextSourcePlan, ['status' => 'bad']), $receipts),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource(array_replace($nextSourcePlan, ['next_source_admitted' => false]), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, []),
     'bad database path rejected' => static fn () => $replacePlan(['database_path' => '']),
     'bad wal path rejected' => static fn () => $replacePlan(['wal_path' => '']),
     'bad journal path rejected' => static fn () => $replacePlan(['journal_path' => '']),
@@ -200,17 +200,17 @@ $throws = [
     'bad old readers rejected' => static fn () => $replacePlan(['accepted_reader_names' => []]),
     'bad pages rejected' => static fn () => $replacePlan(['written_next_pages' => []]),
     'bad frames rejected' => static fn () => $replacePlan(['synced_next_frames' => [0]]),
-    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
-    'bad receipt type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['receipt_type' => 'wal'])]),
-    'bad operation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['operation' => 'delete'])]),
-    'bad receipt path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['path' => ''])]),
-    'bad retired readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['retired_reader_names' => ['bad reader']])]),
-    'bad retained pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[4], ['retained_pages' => [0]])]),
-    'bad retained frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[1], ['retained_frames' => ['bad']])]),
-    'bad receipt checkpoint token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['checkpoint_source_token' => 'bad token'])]),
-    'bad receipt next token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['next_source_token' => 'bad token'])]),
-    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['checkpoint_commit_generation' => 0])]),
-    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['next_wal_digest' => 'short'])]),
+    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
+    'bad receipt type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['receipt_type' => 'wal'])]),
+    'bad operation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['operation' => 'delete'])]),
+    'bad receipt path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['path' => ''])]),
+    'bad retired readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['retired_reader_names' => ['bad reader']])]),
+    'bad retained pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[4], ['retained_pages' => [0]])]),
+    'bad retained frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[1], ['retained_frames' => ['bad']])]),
+    'bad receipt checkpoint token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['checkpoint_source_token' => 'bad token'])]),
+    'bad receipt next token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['next_source_token' => 'bad token'])]),
+    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['checkpoint_commit_generation' => 0])]),
+    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [array_replace($receipts[0], ['next_wal_digest' => 'short'])]),
 ];
 
 foreach ($throws as $name => $callback) {

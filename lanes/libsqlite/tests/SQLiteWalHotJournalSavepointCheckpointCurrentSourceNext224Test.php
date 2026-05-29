@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -146,10 +146,10 @@ $blockedReaders = array_merge($readers, [
     ],
 ]);
 
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $truncateSidecars, $readers, 'next224:checkpoint-reset');
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($restartReset, $restartSidecars, $readers, 'next224:checkpoint-reset');
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $blockedSidecars, $blockedReaders, 'next224:checkpoint-reset');
-$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, array_slice($truncateSidecars, 0, 3), $readers, 'next224:checkpoint-reset');
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $truncateSidecars, $readers, 'next224:checkpoint-reset');
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($restartReset, $restartSidecars, $readers, 'next224:checkpoint-reset');
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $blockedSidecars, $blockedReaders, 'next224:checkpoint-reset');
+$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, array_slice($truncateSidecars, 0, 3), $readers, 'next224:checkpoint-reset');
 
 $cases = [
     'truncate status' => [static fn (): mixed => $truncate()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next224'],
@@ -219,22 +219,22 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(['status' => 'bad'], $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'reset denied rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(array_merge($reset, ['can_reset_wal' => false]), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'empty sidecars rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [], $readers, 'next224:checkpoint-reset'),
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $truncateSidecars, [], 'next224:checkpoint-reset'),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $truncateSidecars, $readers, 'bad token'),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(array_merge($reset, ['mode' => 'passive']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(array_merge($reset, ['database_digest' => 'short']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(array_merge($reset, ['wal_digest' => 'short']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset(array_merge($reset, ['next_writer_generation' => 0]), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
-    'bad sidecar name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [array_merge($truncateSidecars[0], ['name' => ''])], $readers, 'next224:checkpoint-reset'),
-    'bad sidecar type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [array_merge($truncateSidecars[0], ['type' => 'temp'])], $readers, 'next224:checkpoint-reset'),
-    'bad sidecar generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [array_merge($truncateSidecars[0], ['generation' => -1])], $readers, 'next224:checkpoint-reset'),
-    'bad sidecar size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [array_merge($truncateSidecars[0], ['size' => -1])], $readers, 'next224:checkpoint-reset'),
-    'bad sidecar digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, [array_merge($truncateSidecars[0], ['digest' => 'short'])], $readers, 'next224:checkpoint-reset'),
-    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $truncateSidecars, [array_merge($readers[0], ['name' => ''])], 'next224:checkpoint-reset'),
-    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext224Plan::publishReset($reset, $truncateSidecars, [array_merge($readers[0], ['generation' => -1])], 'next224:checkpoint-reset'),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(['status' => 'bad'], $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'reset denied rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(array_merge($reset, ['can_reset_wal' => false]), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'empty sidecars rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [], $readers, 'next224:checkpoint-reset'),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $truncateSidecars, [], 'next224:checkpoint-reset'),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $truncateSidecars, $readers, 'bad token'),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(array_merge($reset, ['mode' => 'passive']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(array_merge($reset, ['database_digest' => 'short']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(array_merge($reset, ['wal_digest' => 'short']), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset(array_merge($reset, ['next_writer_generation' => 0]), $truncateSidecars, $readers, 'next224:checkpoint-reset'),
+    'bad sidecar name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [array_merge($truncateSidecars[0], ['name' => ''])], $readers, 'next224:checkpoint-reset'),
+    'bad sidecar type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [array_merge($truncateSidecars[0], ['type' => 'temp'])], $readers, 'next224:checkpoint-reset'),
+    'bad sidecar generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [array_merge($truncateSidecars[0], ['generation' => -1])], $readers, 'next224:checkpoint-reset'),
+    'bad sidecar size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [array_merge($truncateSidecars[0], ['size' => -1])], $readers, 'next224:checkpoint-reset'),
+    'bad sidecar digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, [array_merge($truncateSidecars[0], ['digest' => 'short'])], $readers, 'next224:checkpoint-reset'),
+    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $truncateSidecars, [array_merge($readers[0], ['name' => ''])], 'next224:checkpoint-reset'),
+    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next224PublishReset($reset, $truncateSidecars, [array_merge($readers[0], ['generation' => -1])], 'next224:checkpoint-reset'),
 ];
 
 foreach ($throws as $name => $callback) {

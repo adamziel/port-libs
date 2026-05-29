@@ -7,7 +7,7 @@ foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourc
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext211Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -92,7 +92,7 @@ $options = [
     'auto_ack_current_source_watermarks_next209' => true,
 ];
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext211Plan::execute($rows, $currentInput, $nextInput, $view, $nextView, $returning, $options);
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext211($rows, $currentInput, $nextInput, $view, $nextView, $returning, $options);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status_next211'] === 'trigger-recursive-view-returning-current-source-next211-source-sealed');

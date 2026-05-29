@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next246
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan`, which validates the durable VFS handoff after the accepted next243 reopened-reader snapshot admission. The plan admits the current source only when database dirty-page writes, WAL commit-frame markers, database/WAL/directory sync receipts, exclusive-lock state, replayable savepoint state, and hot-journal deletion happen in the safe order.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which validates the durable VFS handoff after the accepted next243 reopened-reader snapshot admission. The plan admits the current source only when database dirty-page writes, WAL commit-frame markers, database/WAL/directory sync receipts, exclusive-lock state, replayable savepoint state, and hot-journal deletion happen in the safe order.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next246.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Test.php

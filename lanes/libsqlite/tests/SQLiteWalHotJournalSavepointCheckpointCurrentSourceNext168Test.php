@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +56,7 @@ $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
 $checkpointPages = [1, 2, 3, 4, 5];
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -76,7 +75,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::pla
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$truncateBootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan(
+$truncateBootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -117,7 +116,7 @@ $plan = static fn (
     bool $hotJournalExists = true,
     bool $walSidecarExists = true,
     bool $directorySyncRequested = true,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext168Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next168Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

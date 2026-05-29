@@ -7,9 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -93,7 +91,7 @@ $allTruncate = array_merge($releaseStarted, [
     'sync_released_checkpoint_after_savepoint_publish_next165',
 ]);
 
-$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -137,8 +135,8 @@ $filesFrom = static function (array $completed, string $mode = 'restart') use ($
 };
 
 $matching = static fn (array $completed = [], string $mode = 'restart'): array => $base($completed, $filesFrom($completed, $mode), $mode);
-$next177 = static fn (array $resume): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume);
-$apply = static fn (array $plan, array $files, array $payloads, ?int $fail = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($plan, $files, $payloads, $fail);
+$next177 = static fn (array $resume): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
+$apply = static fn (array $plan, array $files, array $payloads, ?int $fail = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $files, $payloads, $fail);
 
 $missingDatabaseResume = $base($currentComplete, [
     $journalPath => $journalBytes,
@@ -187,7 +185,7 @@ $truncateReadyPlan = $next177($truncateReadyResume);
 $truncateReadyApply = static fn (): array => $apply($truncateReadyPlan, $filesFrom($allTruncate, 'truncate'), $payloadBytesFrom($truncateReadyResume));
 
 $failure = static fn (): array => $apply($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 1);
-$blockedNext177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($matching(), false);
+$blockedNext177 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($matching(), false);
 
 $cases = [
     'status' => [static fn (): mixed => $missingDatabaseApply()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next180'],
@@ -252,23 +250,23 @@ $throws = [
     'missing status rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
         $plan = $missingDatabasePlan;
         unset($plan['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
     },
     'missing operations rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
         $plan = $missingDatabasePlan;
         unset($plan['operations']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($plan, $missingDatabaseFiles, $missingDatabasePayloads);
     },
     'bad payload digest rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, $databasePath): void {
         $payloads = $missingDatabasePayloads;
         $payloads[$databasePath] = 'bad';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($missingDatabasePlan, $missingDatabaseFiles, $payloads);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, $payloads);
     },
     'missing payload rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($missingDatabasePlan, $missingDatabaseFiles, []);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, []);
     },
     'bad failure index rejected' => static function () use ($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 99);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply($missingDatabasePlan, $missingDatabaseFiles, $missingDatabasePayloads, 99);
     },
 ];
 

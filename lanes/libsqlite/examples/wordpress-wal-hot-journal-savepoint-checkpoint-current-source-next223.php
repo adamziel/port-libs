@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next223 checkpointed wp_options database');
@@ -42,7 +42,7 @@ $receipt = static function (string $name, string $role) use ($databaseDigest, $w
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext223Plan::publishCurrentSource($resetPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next223PublishCurrentSource($resetPlan, [
     $receipt('wp-options-database-write', 'database'),
     $receipt('wp-options-wal-reset', 'wal'),
     $receipt('wp-options-hot-journal-delete', 'journal'),

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext194Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext187Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext190Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext194Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next194.sqlite';
@@ -56,7 +56,7 @@ $oldDigests = [
 $currentSnapshot = $snapshot('wp-options-reader', [2 => $currentDigests[2], 3 => $currentDigests[3]]);
 $oldSnapshot = $snapshot('wp-options-reader', [2 => $oldDigests[2], 3 => $oldDigests[3]]);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext194Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext194(
     $databasePath,
     $masterPath,
     $masterBytes,

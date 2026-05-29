@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -59,7 +59,7 @@ $restartedWalBytes = $makeWalBytes([
     [4, 4, 'wp next143 restarted autoload commit'],
 ], 144, 0x14314401, 0x14314402);
 
-$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan(
+$plan = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

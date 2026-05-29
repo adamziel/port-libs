@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext203Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 post-sidecar page-cache lease fence for the WAL/hot-journal/savepoint/checkpoint
 path. After the accepted next196 WAL sidecar publication gate, a cached
 statement or reader lease is retained only when:

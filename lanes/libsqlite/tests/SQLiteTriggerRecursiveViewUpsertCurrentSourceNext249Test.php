@@ -5,12 +5,12 @@ declare(strict_types=1);
 foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext*.php') ?: [] as $file) {
     require_once $file;
 }
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext240Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext243Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext246Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows249 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -52,7 +52,7 @@ $returning249 = [
     ['expr' => 'spawn_child', 'as' => 'spawn_child'],
 ];
 
-$plan249 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext249Plan::execute(
+$plan249 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext249(
     $rows249,
     $currentInput249,
     $nextInput249,

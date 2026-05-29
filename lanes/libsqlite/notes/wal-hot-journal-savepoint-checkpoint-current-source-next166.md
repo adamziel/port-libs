@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next166
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan`,
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`,
 which layers RELEASE lineage validation onto the existing hot-journal,
 savepoint, WAL checkpoint, and reader-cache current-source fence.
 

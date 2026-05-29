@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-next205.sqlite';
@@ -79,7 +79,7 @@ $reads = array_map(
     [1, 2, 3, 4],
 );
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext205Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext205(
     $database,
     $master,
     $mainJournal . "\n" . $usersJournal . "\n",

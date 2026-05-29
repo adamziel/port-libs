@@ -2,13 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -69,12 +65,12 @@ $receipt = static function (string $scopeName, array $pages) use ($digest, $toke
         'next_source_epoch' => 232,
     ];
 };
-$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [
+$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [
     $scope('wp-options-savepoint', [1, 2], ['wp-options-import']),
     $scope('wp-theme-savepoint', [3], ['wp-theme-import']),
     $scope('wp-cron-savepoint', [4], []),
 ]);
-$publish = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($finalized, [
+$publish = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($finalized, [
     $receipt('wp-options-savepoint', [1, 2]),
     $receipt('wp-theme-savepoint', [3]),
     $receipt('wp-cron-savepoint', [4]),
@@ -116,7 +112,7 @@ $cronReceipt = $walIndexReceipt([
 ]);
 $receipts = [$walIndexReceipt(), $cronReceipt];
 $plan = static fn (?array $inputPublish = null, ?array $inputReceipts = null, ?string $digestValue = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen(
         $inputPublish ?? $publish,
         $inputReceipts ?? $receipts,
         $digestValue ?? $walDigest
@@ -222,12 +218,12 @@ $cases = [
     'bad sync reason' => [static fn (): mixed => $plan(null, $badSyncReceipts)['receipt_rows'][0]['blocked_reasons'], ['wal_index_shm_sync_missing']],
     'bad readmark reason' => [static fn (): mixed => $plan(null, $badReadmarkReceipts)['receipt_rows'][0]['blocked_reasons'], ['wal_index_readmark_frame_mismatch']],
     'bad checksum reason' => [static fn (): mixed => $plan(null, $badChecksumReceipts)['receipt_rows'][0]['blocked_reasons'], ['wal_index_checksum_digest_mismatch']],
-    'bad publish status rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($badPublishStatus, $receipts, $walDigest), InvalidArgumentException::class],
-    'bad publish flag rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($badPublishFlag, $receipts, $walDigest), InvalidArgumentException::class],
-    'missing publish key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($badMissingPublishKey, $receipts, $walDigest), InvalidArgumentException::class],
-    'bad publish token rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($badTokenPublish, $receipts, $walDigest), InvalidArgumentException::class],
-    'bad publish next epoch rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($badNextEpochPublish, $receipts, $walDigest), InvalidArgumentException::class],
-    'empty receipts rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($publish, [], $walDigest), InvalidArgumentException::class],
+    'bad publish status rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($badPublishStatus, $receipts, $walDigest), InvalidArgumentException::class],
+    'bad publish flag rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($badPublishFlag, $receipts, $walDigest), InvalidArgumentException::class],
+    'missing publish key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($badMissingPublishKey, $receipts, $walDigest), InvalidArgumentException::class],
+    'bad publish token rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($badTokenPublish, $receipts, $walDigest), InvalidArgumentException::class],
+    'bad publish next epoch rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($badNextEpochPublish, $receipts, $walDigest), InvalidArgumentException::class],
+    'empty receipts rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($publish, [], $walDigest), InvalidArgumentException::class],
     'bad expected digest rejected' => [static fn (): mixed => $plan(null, null, 'bad'), InvalidArgumentException::class],
     'empty receipt name rejected' => [static fn (): mixed => $plan(null, [$walIndexReceipt(['name' => ''])]), InvalidArgumentException::class],
     'bad receipt digest rejected' => [static fn (): mixed => $plan(null, [$walIndexReceipt(['wal_digest' => 'bad'])]), InvalidArgumentException::class],

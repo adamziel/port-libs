@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext184Plan`, a post-reopen WAL source fence for hot-journal recovery plus savepoint checkpoint publication. After next181 confirms the reopened files, this slice verifies that a retry WAL source has checksum-validated bytes, an advanced checkpoint sequence, a rotated salt pair, and reader pages separated from the pre-reopen WAL source before read marks can be reused.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-reopen WAL source fence for hot-journal recovery plus savepoint checkpoint publication. After next181 confirms the reopened files, this slice verifies that a retry WAL source has checksum-validated bytes, an advanced checkpoint sequence, a rotated salt pair, and reader pages separated from the pre-reopen WAL source before read marks can be reused.
 
 This intentionally does not redo next178 receipt matching, next181 reopen validation, VFS writer/sync application, rollback-journal apply, or savepoint byte truncation.
 

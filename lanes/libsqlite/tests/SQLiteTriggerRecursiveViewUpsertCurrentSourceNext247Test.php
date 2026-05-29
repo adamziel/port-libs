@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows247 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -127,7 +127,7 @@ $baseOptions247 = [
     'current_source_sequence_cursor_next247' => 'wp.returning.current.sequence.cursor.247',
 ];
 
-$plan247 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext247Plan::execute(
+$plan247 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext247(
     $rows247,
     $currentInput247,
     $nextInput247,

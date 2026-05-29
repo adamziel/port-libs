@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null],
@@ -30,7 +30,7 @@ $nextView = array_replace($view, [
     'trigger_source' => 'main@trigger-cookie-157-next',
 ]);
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan::execute(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext157(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'plugin_beta']],

@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next257
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan`, which retires the previous checkpoint current source only after an admitted next253 retry source is durable and visible. The plan requires old reader retirement, retained retry WAL frames, retained retry database pages, hot-journal deletion, checkpoint savepoint close, page-cache sealing, unique receipt names, matching source tokens/generations/digests, exclusive lock evidence, and safe operation ordering.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which retires the previous checkpoint current source only after an admitted next253 retry source is durable and visible. The plan requires old reader retirement, retained retry WAL frames, retained retry database pages, hot-journal deletion, checkpoint savepoint close, page-cache sealing, unique receipt names, matching source tokens/generations/digests, exclusive lock evidence, and safe operation ordering.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next257.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Test.php

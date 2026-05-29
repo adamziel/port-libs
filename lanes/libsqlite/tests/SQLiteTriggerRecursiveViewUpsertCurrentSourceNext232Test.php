@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows232 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
@@ -27,7 +27,7 @@ $next232 = [
     ['name' => 'fresh_plugin', 'value' => 'enabled'],
 ];
 
-$plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext232Plan::execute(
+$plan232 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext232(
     $rows232,
     $current232,
     $next232,

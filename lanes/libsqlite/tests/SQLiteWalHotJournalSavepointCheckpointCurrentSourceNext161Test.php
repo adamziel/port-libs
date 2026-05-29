@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -88,7 +88,7 @@ $plan = static fn (
     ?array $hotPages = null,
     ?array $beforePages = null,
     int $epochArg = 161,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -207,13 +207,13 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan('', $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
-    'empty database bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan($databasePath, '', $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
-    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan($databasePath, $databaseBytes, $pageSize, '', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
-    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan($databasePath, $databaseBytes, 500, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
+    'empty database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan('', $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
+    'empty database bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan($databasePath, '', $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
+    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan($databasePath, $databaseBytes, $pageSize, '', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
+    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan($databasePath, $databaseBytes, 500, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1]),
     'bad mode rejected' => static fn () => $plan('passive'),
-    'empty current wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan($databasePath, $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, '', $nextWal, $nextWalBytes, $cache, [1]),
-    'empty next wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan($databasePath, $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, '', $cache, [1]),
+    'empty current wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan($databasePath, $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, '', $nextWal, $nextWalBytes, $cache, [1]),
+    'empty next wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan($databasePath, $databaseBytes, $pageSize, 's', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, '', $cache, [1]),
     'reader past wal rejected' => static fn () => $plan('restart', 5),
     'zero epoch rejected' => static fn () => $plan('restart', 4, null, null, null, null, 0),
     'empty hot pages rejected' => static fn () => $plan('restart', 4, null, null, []),

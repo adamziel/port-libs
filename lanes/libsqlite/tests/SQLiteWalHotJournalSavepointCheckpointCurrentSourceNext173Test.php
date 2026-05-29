@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -43,7 +42,7 @@ $nextWalBytes = $makeWalBytes([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -70,7 +69,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::pla
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
 
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -98,7 +97,7 @@ $prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan
     173
 );
 
-$ok = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
+$ok = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan(
     $prepared,
     $databaseBytes,
     $journalBytes,
@@ -108,13 +107,13 @@ $ok = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSource
     hash('sha256', $currentWalBytes),
     true
 );
-$staleDatabase = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes . 'x', $journalBytes, $currentWalBytes, hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
-$staleJournal = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes . 'x', $currentWalBytes, hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
-$staleWal = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes . 'x', hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
-$pinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes, null, null, null, false);
+$staleDatabase = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes . 'x', $journalBytes, $currentWalBytes, hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
+$staleJournal = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes . 'x', $currentWalBytes, hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
+$staleWal = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes . 'x', hash('sha256', $databaseBytes), hash('sha256', $journalBytes), hash('sha256', $currentWalBytes));
+$pinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes, null, null, null, false);
 $blockedPrepared = $prepared;
 $blockedPrepared['status'] = 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next167';
-$blockedBase = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($blockedPrepared, $databaseBytes, $journalBytes, $currentWalBytes);
+$blockedBase = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($blockedPrepared, $databaseBytes, $journalBytes, $currentWalBytes);
 
 $cases = [
     'status' => [static fn (): mixed => $ok()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next173'],
@@ -165,8 +164,8 @@ $cases = [
     'blocked prepared status' => [static fn (): mixed => $blockedBase()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next173'],
     'blocked prepared reason' => [static fn (): mixed => $blockedBase()['blocked_reasons'], ['prepared_publication_guard_not_ready']],
     'blocked prepared can publish false' => [static fn (): mixed => $blockedBase()['can_publish'], false],
-    'implicit expected hashes publish' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes)['can_publish'], true],
-    'implicit expected stale empty' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes)['stale_source_names'], []],
+    'implicit expected hashes publish' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes)['can_publish'], true],
+    'implicit expected stale empty' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes, $currentWalBytes)['stale_source_names'], []],
     'source row order' => [static fn (): mixed => array_column($ok()['source_rows'], 'name'), ['database', 'journal', 'wal']],
     'source row paths' => [static fn (): mixed => array_column($ok()['source_rows'], 'path'), [$databasePath, $databasePath . '-journal', $databasePath . '-wal']],
     'source row matches' => [static fn (): mixed => array_column($ok()['source_rows'], 'matched'), [true, true, true]],
@@ -184,20 +183,20 @@ $throws = [
     'missing prepared status rejected' => static function () use ($prepared, $databaseBytes, $journalBytes, $currentWalBytes): void {
         $bad = $prepared;
         unset($bad['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
     },
     'missing prepared dependencies rejected' => static function () use ($prepared, $databaseBytes, $journalBytes, $currentWalBytes): void {
         $bad = $prepared;
         unset($bad['dependencies']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
     },
     'bad dependencies shape rejected' => static function () use ($prepared, $databaseBytes, $journalBytes, $currentWalBytes): void {
         $bad = $prepared;
         $bad['dependencies'] = 'bad';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($bad, $databaseBytes, $journalBytes, $currentWalBytes);
     },
-    'empty journal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, '', $currentWalBytes),
-    'empty wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan($prepared, $databaseBytes, $journalBytes, ''),
+    'empty journal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, '', $currentWalBytes),
+    'empty wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan($prepared, $databaseBytes, $journalBytes, ''),
 ];
 
 foreach ($throws as $name => $callback) {

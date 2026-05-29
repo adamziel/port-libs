@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext169Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext169Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-next169.sqlite';
@@ -13,7 +13,7 @@ $metaJournal = '/srv/wp-content/database/wp-next169-site-meta.sqlite-journal';
 $pluginJournal = '/srv/wp-content/database/wp-next169-plugin.sqlite-journal';
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext169Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext169(
     $database,
     $database . '-mj',
     $mainJournal . "\n" . $metaJournal . "\n" . $pluginJournal . "\n",

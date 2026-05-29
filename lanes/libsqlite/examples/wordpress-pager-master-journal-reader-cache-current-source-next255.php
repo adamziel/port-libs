@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -133,7 +133,7 @@ $read = static fn (int $pageNumber, ?string $pageMapToken = null): array => [
     'reader_page_map_digest_token' => $pageMapToken ?? $currentReaderPageMapDigestToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext255Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext255(
     $database,
     $master,
     $masterBytes,

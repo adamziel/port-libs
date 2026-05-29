@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext173Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -22,7 +22,7 @@ $failSql = "UPDATE OR FAIL wp_options SET (blog_id, option_name, status, option_
 $retryUpdateSql = "UPDATE wp_options SET (status, option_value, bytes) = ('restored-retry', option_value || ':retry', bytes + 1) WHERE (blog_id, status) IS NOT DISTINCT FROM (3, 'queued') RETURNING option_id, status, option_value, bytes, (blog_id, status) IS (3, 'restored-retry') AS retried_tuple ORDER BY option_id";
 $retryDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name, (blog_id, option_name) IS DISTINCT FROM (1, 'siteurl') AS deleted_tuple ORDER BY option_id LIMIT 1";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext173Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext173(
     ['wp_options' => $rows],
     [$failSql],
     [$retryUpdateSql, $retryDeleteSql],

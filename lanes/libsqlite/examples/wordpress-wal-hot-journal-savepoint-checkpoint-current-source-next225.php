@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $scopeDigest = $digest('wp next225 finalized savepoint scopes');
@@ -24,7 +24,7 @@ $publishPlan = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next219'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan(
     $publishPlan,
     [
         [

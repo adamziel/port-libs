@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -59,7 +59,7 @@ $nextWalBytes = $makeWalBytes([
     [3, 3, 'wp next135 next generation active_plugins commit'],
 ], 136, 0x13613601, 0x13613602);
 
-$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNext135Plan::plan(
+$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next135Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

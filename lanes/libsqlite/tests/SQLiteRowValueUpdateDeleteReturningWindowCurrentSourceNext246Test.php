@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows246 = [
@@ -28,14 +28,14 @@ $attemptDelete246 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate246 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry246', option_value || ':retry246', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch'), (5, 'network_plugin')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete246 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan246 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute(
+$plan246 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246(
     $tables246,
     [$yieldUpdate246, $yieldDelete246],
     [$attemptUpdate246, $attemptDelete246],
     [$retryUpdate246, $retryDelete246],
     $unique246,
 );
-$customPlan246 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute(
+$customPlan246 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246(
     $tables246,
     [$yieldUpdate246],
     [$attemptUpdate246],
@@ -114,10 +114,10 @@ $cases246 = [
     'dependencies include filter' => [static fn (): mixed => in_array('sqlite-returning-window-filter-release-current-source-next246', $plan246()['dependencies_next246'], true), true],
     'dependency closure' => [static fn (): mixed => str_contains($plan246()['dependency_closure_next246'], 'no new support component needed'), true],
     'non overlap mentions next242' => [static fn (): mixed => str_contains($plan246()['non_overlap_next246'], 'next242 lag/lead'), true],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute($tables246, [], [$attemptUpdate246], [$retryUpdate246], $unique246), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute($tables246, [$yieldUpdate246], [], [$retryUpdate246], $unique246), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute($tables246, [$yieldUpdate246], [$attemptUpdate246], [], $unique246), InvalidArgumentException::class],
-    'malformed rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext246Plan::execute($tables246, [$yieldUpdate246], [$attemptUpdate246], [$retryUpdate246], $unique246, 'sp246', 'missing_rowid'), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246($tables246, [], [$attemptUpdate246], [$retryUpdate246], $unique246), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246($tables246, [$yieldUpdate246], [], [$retryUpdate246], $unique246), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246($tables246, [$yieldUpdate246], [$attemptUpdate246], [], $unique246), InvalidArgumentException::class],
+    'malformed rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext246($tables246, [$yieldUpdate246], [$attemptUpdate246], [$retryUpdate246], $unique246, 'sp246', 'missing_rowid'), InvalidArgumentException::class],
 ];
 
 $tests = [];

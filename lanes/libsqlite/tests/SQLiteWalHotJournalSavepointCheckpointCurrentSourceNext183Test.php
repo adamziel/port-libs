@@ -7,10 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -83,7 +80,7 @@ $currentComplete = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$base = static fn (array $completed = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$base = static fn (array $completed = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -125,8 +122,8 @@ $filesFrom = static function (array $completed) use ($base, $databasePath, $jour
 
 $matching = static fn (array $completed = []): array => $base($completed, $filesFrom($completed));
 $apply = static function (array $resume, array $files) use ($payloadBytesFrom): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply(
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume),
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
         $files,
         $payloadBytesFrom($resume)
     );
@@ -134,7 +131,7 @@ $apply = static function (array $resume, array $files) use ($payloadBytesFrom): 
 
 $deleteJournalResume = $matching($currentComplete);
 $deleteJournalApply = $apply($deleteJournalResume, $filesFrom($currentComplete));
-$deleteJournalVerify = static fn (array $tokens = [], int $epoch = 183): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify(
+$deleteJournalVerify = static fn (array $tokens = [], int $epoch = 183): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify(
     $deleteJournalApply,
     $deleteJournalApply['files'],
     $tokens,
@@ -146,24 +143,24 @@ $staleVerify = static fn (): array => $deleteJournalVerify(['wal-hot-journal-sav
 
 $dirtyFiles = $deleteJournalApply['files'];
 $dirtyFiles[$databasePath] = substr((string) $dirtyFiles[$databasePath], 0, -1) . '!';
-$dirtyVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($deleteJournalApply, $dirtyFiles);
+$dirtyVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($deleteJournalApply, $dirtyFiles);
 
 $resurrectedJournalFiles = $deleteJournalApply['files'];
 $resurrectedJournalFiles[$journalPath] = $journalBytes;
-$resurrectedJournalVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($deleteJournalApply, $resurrectedJournalFiles);
+$resurrectedJournalVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($deleteJournalApply, $resurrectedJournalFiles);
 
 $missingSyncApply = $deleteJournalApply;
 $missingSyncApply['durable_paths'] = array_values(array_filter(
     $missingSyncApply['durable_paths'],
     static fn (string $path): bool => $path !== dirname($databasePath)
 ));
-$missingSyncVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($missingSyncApply, $missingSyncApply['files']);
+$missingSyncVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($missingSyncApply, $missingSyncApply['files']);
 
 $failedApply = $deleteJournalApply;
 $failedApply['status'] = 'wal-hot-journal-savepoint-checkpoint-current-source-failed-next180';
 $failedApply['published'] = false;
 $failedApply['rolled_back'] = true;
-$failedVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($failedApply, $failedApply['files']);
+$failedVerify = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($failedApply, $failedApply['files']);
 
 $cases = [
     'status' => [static fn (): mixed => $deleteJournalVerify()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next183'],
@@ -232,21 +229,21 @@ $throws = [
     'missing status rejected' => static function () use ($deleteJournalApply): void {
         $apply = $deleteJournalApply;
         unset($apply['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($apply, []);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($apply, []);
     },
     'missing verified rows rejected' => static function () use ($deleteJournalApply): void {
         $apply = $deleteJournalApply;
         unset($apply['verified_rows']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($apply, $apply['files']);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($apply, $apply['files']);
     },
     'bad file path rejected' => static function () use ($deleteJournalApply): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($deleteJournalApply, ['' => 'bad']);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($deleteJournalApply, ['' => 'bad']);
     },
     'bad file bytes rejected' => static function () use ($deleteJournalApply, $databasePath): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($deleteJournalApply, [$databasePath => 42]);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($deleteJournalApply, [$databasePath => 42]);
     },
     'zero epoch rejected' => static function () use ($deleteJournalApply): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan::verify($deleteJournalApply, $deleteJournalApply['files'], [], 0);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next183Verify($deleteJournalApply, $deleteJournalApply['files'], [], 0);
     },
 ];
 

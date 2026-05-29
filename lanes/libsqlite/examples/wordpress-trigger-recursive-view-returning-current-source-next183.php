@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext172Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext177Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext180Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext183Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $currentView = [
     'name' => 'wp_recursive_option_import',
@@ -25,7 +25,7 @@ $nextView['columns'][] = 'import_source';
 $nextView['mapping']['import_source'] = 'source';
 $nextView['audit_label'] = 'next-recursive-view-trigger-183';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext183Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext183(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

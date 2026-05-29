@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -60,7 +60,7 @@ $makeStack = static function (): SQLiteSavepointStack {
 };
 
 $plan = static function (?int $reader = 2, array $pages = [1, 2, 3, 4, 5]) use ($makeStack, $wal, $walBytes, $databaseBytes): array {
-    return SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan(
+    return SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan(
         $makeStack(),
         'plugin-batch-next130',
         $wal,
@@ -140,36 +140,36 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), '', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects empty wal bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, '', $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, '', $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects empty database bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, '', [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, '', [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects source mismatch'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
     $bad = substr_replace($walBytes, 'x', 1200, 1);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, $bad, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, $bad, $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, ['1']));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects reader outside retained range'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, [1], 3));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'plugin-batch-next130', $wal, $walBytes, $databaseBytes, [1], 3));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next130 rejects missing savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(Throwable::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan($makeStack(), 'missing-next130', $wal, $walBytes, $databaseBytes, [1]));
+    $t->throws(Throwable::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan($makeStack(), 'missing-next130', $wal, $walBytes, $databaseBytes, [1]));
 };
 
 return $tests;

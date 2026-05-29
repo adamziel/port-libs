@@ -475,7 +475,7 @@ final class SQLiteVfsFileWriter
         $journalBytes = (string) file_get_contents($journalLocalPath);
         $walBytes = (string) file_get_contents($walLocalPath);
         $wal = SQLiteWal::parse($walBytes, null, true);
-        $plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan(
+        $plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan(
             $databasePath,
             $databaseBytes,
             $journalBytes,
@@ -883,7 +883,7 @@ final class SQLiteVfsFileWriter
         $databaseBytes = (string) file_get_contents($databaseLocalPath);
         $journalBytes = (string) file_get_contents($journalLocalPath);
         $walBytes = (string) file_get_contents($walLocalPath);
-        $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
+        $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan(
             $prepared,
             $databaseBytes,
             $journalBytes,

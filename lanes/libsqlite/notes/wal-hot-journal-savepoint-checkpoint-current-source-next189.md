@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan`, which
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which
 builds on accepted next186 retained-WAL source admission. Once the retained WAL
 header/token is valid, next189 admits a reader snapshot only when the requested
 reader end frame is no later than the last committed retained WAL frame. Pages
@@ -24,7 +24,7 @@ is not part of the committed retained snapshot.
 ## Verification
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next189.php
 

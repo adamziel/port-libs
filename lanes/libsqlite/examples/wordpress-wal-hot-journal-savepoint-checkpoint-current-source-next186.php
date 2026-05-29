@@ -9,26 +9,14 @@ require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext162Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext165Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext183Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -78,7 +66,7 @@ $completed = [
     'preserve_retained_wal_for_pinned_reader_next165',
     'sync_current_checkpoint_before_reader_release_next165',
 ];
-$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -93,7 +81,7 @@ $probe = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
 $payloads = $probe['base_plan']['base_plan']['payloads'];
 $databasePayload = (string) $payloads[$databasePath . '#next165-current-checkpoint'];
 $walPayload = (string) $payloads[$walPath . '#next165-current-reader'];
-$resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -109,8 +97,8 @@ $resume = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
         $walPath => $walPayload,
     ]
 );
-$apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply(
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume),
+$apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
     [
         $databasePath => $databasePayload,
         $journalPath => $journalBytes,
@@ -122,7 +110,7 @@ $apply = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply(
         $walPath => $walPayload,
     ]
 );
-$verify = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($apply, $apply['files'], 186, 512, [], 186);
+$verify = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($apply, $apply['files'], 186, 512, [], 186);
 
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next186',

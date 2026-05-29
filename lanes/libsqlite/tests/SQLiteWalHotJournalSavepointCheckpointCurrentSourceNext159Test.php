@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext159Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $plan = static fn (
     int $readerEndFrame = 5,
     array $pages = [1, 2, 3, 4, 5, 6],
     bool $reservedLock = false
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext159Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next159Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

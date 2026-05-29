@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -44,7 +44,7 @@ $putPointerMapEntry148 = static function (array &$pages, int $pageNumber, int $t
     );
 };
 
-$fixture148 = static function (?int $maxTruncatedPages = null, ?string $payload = null) use ($makeFirstPage148, $putPointerMapEntry148): SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan {
+$fixture148 = static function (?int $maxTruncatedPages = null, ?string $payload = null) use ($makeFirstPage148, $putPointerMapEntry148): SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan {
     $pageSize = 512;
     $pageCount = 313;
     $releasedPages = [309, 310, 312, 313];
@@ -70,7 +70,7 @@ $fixture148 = static function (?int $maxTruncatedPages = null, ?string $payload 
         $pages[$pageNumber] = pack('N', $next) . str_repeat(chr(65 + $index), $pageSize - 4);
     }
 
-    return SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan::fromDeleteResults(
+    return SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next148FromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         [
             [
@@ -102,37 +102,37 @@ $throws148 = static function (callable $callback): string {
 };
 
 $cases148 = [
-    'action label' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->toArray()['action'],
-    'released pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->releasedOverflowPages(),
-    'truncated pages include pointer map boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->truncatedPageNumbers(),
-    'truncated pointer map pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->truncatedPointerMapPages(),
-    'truncated freelist pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->truncatedFreelistPages(),
-    'allocated pages after boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->allocatedAfterBoundaryPages(),
-    'rejected boundary allocations' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->rejectedBoundaryAllocations(),
-    'final page count crossed pointer map boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->databaseAfterAllocation->pageCount(),
-    'final freelist pages empty after replacement allocation' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->databaseAfterAllocation->freelistPageNumbers(),
-    'boundary row pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'page_number'),
-    'boundary pointer map flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'pointer_map_page'),
-    'boundary freelist flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'freelist_page'),
-    'boundary released flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'released_overflow_page'),
-    'boundary allocated flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'allocated_after_vacuum'),
-    'boundary statuses' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'boundary_status'),
-    'boundary current pointer types' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'current_pointer_map_type'),
-    'boundary current pointer parents' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'current_pointer_map_parent'),
-    'boundary materialized flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->boundaryRows(), 'final_materialized'),
-    'summary truncated pointer map pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->toArray()['truncated_pointer_map_pages'],
-    'summary rejected boundary allocations' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->toArray()['rejected_boundary_allocations'],
-    'summary final page count' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->toArray()['final_database_page_count'],
-    'base allocated pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->allocatedOverflowPages(),
-    'base attempted truncated reuses' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->attemptedTruncatedReuses(),
-    'base vacuum survivors' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->vacuumPlan->survivingFreedPointerMapPages(),
-    'base vacuum truncated freed pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => $plan->basePlan->vacuumPlan->truncatedFreedPointerMapPages(),
-    'allocation sources' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocationSteps(), 'source'),
-    'allocation trunks' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocationSteps(), 'trunk_page'),
-    'allocated pointer types' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocatedPointerMapEntries(), 'type_name'),
-    'allocated pointer parents' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocatedPointerMapEntries(), 'parent_page_number'),
-    'page 310 next pointer' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => unpack('N', substr($plan->basePlan->databaseAfterAllocation->page(310), 0, 4))[1],
-    'page 309 next pointer' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan $plan): mixed => unpack('N', substr($plan->basePlan->databaseAfterAllocation->page(309), 0, 4))[1],
+    'action label' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'released pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->releasedOverflowPages(),
+    'truncated pages include pointer map boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->truncatedPageNumbers(),
+    'truncated pointer map pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->truncatedPointerMapPages(),
+    'truncated freelist pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->truncatedFreelistPages(),
+    'allocated pages after boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->allocatedAfterBoundaryPages(),
+    'rejected boundary allocations' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->rejectedBoundaryAllocations(),
+    'final page count crossed pointer map boundary' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->databaseAfterAllocation->pageCount(),
+    'final freelist pages empty after replacement allocation' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->databaseAfterAllocation->freelistPageNumbers(),
+    'boundary row pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'page_number'),
+    'boundary pointer map flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'pointer_map_page'),
+    'boundary freelist flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'freelist_page'),
+    'boundary released flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'released_overflow_page'),
+    'boundary allocated flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'allocated_after_vacuum'),
+    'boundary statuses' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'boundary_status'),
+    'boundary current pointer types' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'current_pointer_map_type'),
+    'boundary current pointer parents' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'current_pointer_map_parent'),
+    'boundary materialized flags' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->boundaryRows(), 'final_materialized'),
+    'summary truncated pointer map pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['truncated_pointer_map_pages'],
+    'summary rejected boundary allocations' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['rejected_boundary_allocations'],
+    'summary final page count' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_database_page_count'],
+    'base allocated pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->allocatedOverflowPages(),
+    'base attempted truncated reuses' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->attemptedTruncatedReuses(),
+    'base vacuum survivors' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->vacuumPlan->survivingFreedPointerMapPages(),
+    'base vacuum truncated freed pages' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => $plan->basePlan->vacuumPlan->truncatedFreedPointerMapPages(),
+    'allocation sources' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocationSteps(), 'source'),
+    'allocation trunks' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocationSteps(), 'trunk_page'),
+    'allocated pointer types' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocatedPointerMapEntries(), 'type_name'),
+    'allocated pointer parents' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->basePlan->allocationPlan->allocatedPointerMapEntries(), 'parent_page_number'),
+    'page 310 next pointer' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->basePlan->databaseAfterAllocation->page(310), 0, 4))[1],
+    'page 309 next pointer' => static fn (SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->basePlan->databaseAfterAllocation->page(309), 0, 4))[1],
 ];
 
 $expected148 = [

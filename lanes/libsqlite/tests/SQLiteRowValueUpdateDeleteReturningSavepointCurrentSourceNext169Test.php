@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows169 = [
@@ -36,13 +36,13 @@ $afterStageDelete169 = static function () use ($stageSql169, $deleteSql169, $tab
 $abortOnly169 = static function () use ($abortSql169, $afterStageDelete169, $unique169): mixed {
     return SQLiteUpdateDeleteReturningSql::execute($abortSql169, $afterStageDelete169()['tables'], 'option_id', $unique169);
 };
-$plan169 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute(
+$plan169 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169(
     $tables169,
     [$stageSql169, $deleteSql169, $abortSql169],
     [$retrySql169, $cleanupSql169],
     $unique169,
 );
-$cleanPlan169 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute(
+$cleanPlan169 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169(
     $tables169,
     [$cleanSql169],
     [$deleteSql169],
@@ -119,11 +119,11 @@ $cases169 = [
     'clean plan changes after retry one' => [static fn (): mixed => $cleanPlan169()['changes_after_retry'], 1],
     'clean plan final row seven clean' => [static fn (): mixed => array_column($cleanPlan169()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'clean'],
 
-    'malformed empty attempt statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute($tables169, [], [$retrySql169], $unique169), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute($tables169, [$stageSql169], [], $unique169), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute($tables169, [$stageSql169], [$retrySql169], []), InvalidArgumentException::class],
-    'malformed non abort conflict rethrows' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute($tables169, [$stageSql169, str_replace('OR ABORT', 'OR ROLLBACK', $abortSql169)], [$retrySql169], $unique169), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext169Plan::execute(['wp_options' => ['bad']], [$stageSql169], [$retrySql169], $unique169), InvalidArgumentException::class],
+    'malformed empty attempt statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169($tables169, [], [$retrySql169], $unique169), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169($tables169, [$stageSql169], [], $unique169), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169($tables169, [$stageSql169], [$retrySql169], []), InvalidArgumentException::class],
+    'malformed non abort conflict rethrows' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169($tables169, [$stageSql169, str_replace('OR ABORT', 'OR ROLLBACK', $abortSql169)], [$retrySql169], $unique169), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext169(['wp_options' => ['bad']], [$stageSql169], [$retrySql169], $unique169), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -2,7 +2,7 @@
 
 ## Slice
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 reopened-reader generation seal for the WAL hot-journal/savepoint/checkpoint
 current-source chain. It builds on the accepted next190 retry-checkpoint
 publication guard and admits reopened reader tickets only when they:

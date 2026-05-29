@@ -5,18 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/wp-next192.sqlite';
@@ -59,7 +52,7 @@ $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 $currentSalt = [$currentWal->header->salt1, $currentWal->header->salt2];
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -92,7 +85,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::pla
     192
 );
 $token = $bootstrap['current_source_token'];
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -132,7 +125,7 @@ $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
     192
 );
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan(
     $base,
     $preDatabase,
     $checkpointedDatabase,

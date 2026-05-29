@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext207Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 write-cursor admission fence layered after the accepted next206 reopened
 statement generation check. A WordPress import write cursor may commit after
 hot-journal recovery, savepoint rollback, WAL checkpoint publication, and

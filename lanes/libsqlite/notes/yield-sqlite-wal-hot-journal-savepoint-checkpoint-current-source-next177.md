@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan`, a narrow
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a narrow
 follow-up to next174. The new plan turns a verified next174 file-state resume
 into guarded atomic VFS resume operations:
 

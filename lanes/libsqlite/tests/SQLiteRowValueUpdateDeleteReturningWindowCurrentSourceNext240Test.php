@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows240 = [
@@ -29,14 +29,14 @@ $retryDelete240 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '
 
 $retryUpdateResult240 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate240, $tables240, 'option_id', $unique240);
 $retryDeleteResult240 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete240, $retryUpdateResult240()['tables'], 'option_id', $unique240);
-$plan240 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute(
+$plan240 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240(
     $tables240,
     [$yieldUpdate240, $yieldDelete240],
     [$attemptUpdate240, $attemptDelete240],
     [$retryUpdate240, $retryDelete240],
     $unique240,
 );
-$customPlan240 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute(
+$customPlan240 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240(
     $tables240,
     [$yieldUpdate240],
     [$attemptUpdate240],
@@ -114,10 +114,10 @@ $cases240 = [
     'custom retry percent ranks' => [static fn (): mixed => array_column($customPlan240()['retry_peer_groups_next240'], 'percent_rank'), [0, 0.5, 1]],
     'custom retry cume dist' => [static fn (): mixed => array_column($customPlan240()['retry_peer_groups_next240'], 'cume_dist'), [0.3333333333333333, 0.6666666666666666, 1]],
     'custom receipt exclude current total' => [static fn (): mixed => $customPlan240()['retry_peer_group_receipt_next240']['retry_exclude_current_total'], 174],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute($tables240, [], [$attemptUpdate240], [$retryUpdate240], $unique240), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute($tables240, [$yieldUpdate240], [], [$retryUpdate240], $unique240), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute($tables240, [$yieldUpdate240], [$attemptUpdate240], [], $unique240), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext240Plan::execute($tables240, [$yieldUpdate240], [$attemptUpdate240], [$retryUpdate240], $unique240, 'bad-name'), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240($tables240, [], [$attemptUpdate240], [$retryUpdate240], $unique240), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240($tables240, [$yieldUpdate240], [], [$retryUpdate240], $unique240), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240($tables240, [$yieldUpdate240], [$attemptUpdate240], [], $unique240), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext240($tables240, [$yieldUpdate240], [$attemptUpdate240], [$retryUpdate240], $unique240, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

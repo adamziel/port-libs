@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -53,7 +53,7 @@ $putPointerMapEntry122 = static function (array &$pages, int $pageNumber, int $t
     );
 };
 
-$fixture122 = static function (int $maxTruncatedPages = 3, bool $secureDelete = true) use ($makeFirstPage122, $makeFragmentedLeaf122, $putPointerMapEntry122): SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan {
+$fixture122 = static function (int $maxTruncatedPages = 3, bool $secureDelete = true) use ($makeFirstPage122, $makeFragmentedLeaf122, $putPointerMapEntry122): SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan {
     $pages = array_fill(1, 14, str_repeat("\0", 512));
     $pages[1] = $makeFirstPage122(14);
     $pages[2] = str_repeat("\0", 512);
@@ -79,7 +79,7 @@ $fixture122 = static function (int $maxTruncatedPages = 3, bool $secureDelete = 
         $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(65 + $pageNumber), 508);
     }
 
-    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan::fromDeleteResults(
+    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next122FromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         3,
         [
@@ -101,43 +101,43 @@ $fixture122 = static function (int $maxTruncatedPages = 3, bool $secureDelete = 
     );
 };
 
-$rows122 = static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): array => $plan->overflowFreeblockVacuumRows();
+$rows122 = static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): array => $plan->overflowFreeblockVacuumRows();
 
 $cases = [
-    'action names next122 behavior' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->toArray()['action'],
-    'coalesced fragment bytes come from adjacent freeblocks' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->coalescePlan->coalescedFragmentBytes,
-    'fragmented bytes decrease after coalesce' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => [$plan->coalescePlan->fragmentedBytesBefore, $plan->coalescePlan->fragmentedBytesAfter],
-    'freeblock count collapses to one block' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => [count($plan->coalescePlan->beforeFreeblocks), count($plan->coalescePlan->afterFreeblocks)],
-    'coalesced freeblock spans current and next blocks' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->coalescePlan->afterFreeblocks[0]['size'],
-    'released overflow pages preserve source order' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->releasedOverflowPages(),
-    'surviving freed pages remain before live tail' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->survivingFreedPointerMapPages(),
-    'truncated freed pages remove tail overflow chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->truncatedFreedPointerMapPages(),
-    'rows include every obsolete overflow page' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'page_number'),
-    'rows retain source labels' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'source'),
-    'chain positions reset per deleted chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'chain_position'),
-    'current next pointers preserve chain topology' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'current_overflow_next_page'),
-    'current pointer-map types distinguish first overflow pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'current_pointer_map_type'),
-    'current pointer-map parents retain owner chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'current_pointer_map_parent'),
-    'row fragmented byte columns mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_values(array_unique(array_column($rows122($plan), 'fragmented_bytes_before'))),
-    'row fragmented after columns mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_values(array_unique(array_column($rows122($plan), 'fragmented_bytes_after'))),
-    'row freeblock counts mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => [array_values(array_unique(array_column($rows122($plan), 'freeblock_count_before'))), array_values(array_unique(array_column($rows122($plan), 'freeblock_count_after')))],
-    'vacuum statuses split lower survivors and tail truncation' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'vacuum_status'),
-    'survivor rows expose free-page pointer-map type' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'next_pointer_map_type'),
-    'truncated rows preserve truncated pointer-map type' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'truncated_pointer_map_type'),
-    'materialized flags only mark surviving freed pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'materialized'),
-    'truncated flags only mark tail pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($rows122($plan), 'truncated'),
-    'updated pages include leaf header and freelist changes' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->updatedPageNumbers(),
-    'final database stops before deleted tail chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->toArray()['final_database_page_count'],
-    'final freelist count keeps surviving freed pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
-    'materialized byte length follows final page count' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->materializedApplySummary()['byte_length'],
-    'materialized omitted pages are tail chain only' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->materializedApplySummary()['omitted_truncated_page_numbers'],
-    'materialized database preserves coalesced fragment header' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => ord($plan->materializedDatabase()->page(3)[7]),
-    'materialized database marks survivor pointer map free' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => [
+    'action names next122 behavior' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'coalesced fragment bytes come from adjacent freeblocks' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->coalescePlan->coalescedFragmentBytes,
+    'fragmented bytes decrease after coalesce' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => [$plan->coalescePlan->fragmentedBytesBefore, $plan->coalescePlan->fragmentedBytesAfter],
+    'freeblock count collapses to one block' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => [count($plan->coalescePlan->beforeFreeblocks), count($plan->coalescePlan->afterFreeblocks)],
+    'coalesced freeblock spans current and next blocks' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->coalescePlan->afterFreeblocks[0]['size'],
+    'released overflow pages preserve source order' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->releasedOverflowPages(),
+    'surviving freed pages remain before live tail' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->survivingFreedPointerMapPages(),
+    'truncated freed pages remove tail overflow chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->truncatedFreedPointerMapPages(),
+    'rows include every obsolete overflow page' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'page_number'),
+    'rows retain source labels' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'source'),
+    'chain positions reset per deleted chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'chain_position'),
+    'current next pointers preserve chain topology' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'current_overflow_next_page'),
+    'current pointer-map types distinguish first overflow pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'current_pointer_map_type'),
+    'current pointer-map parents retain owner chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'current_pointer_map_parent'),
+    'row fragmented byte columns mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_values(array_unique(array_column($rows122($plan), 'fragmented_bytes_before'))),
+    'row fragmented after columns mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_values(array_unique(array_column($rows122($plan), 'fragmented_bytes_after'))),
+    'row freeblock counts mirror coalesce plan' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => [array_values(array_unique(array_column($rows122($plan), 'freeblock_count_before'))), array_values(array_unique(array_column($rows122($plan), 'freeblock_count_after')))],
+    'vacuum statuses split lower survivors and tail truncation' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'vacuum_status'),
+    'survivor rows expose free-page pointer-map type' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'next_pointer_map_type'),
+    'truncated rows preserve truncated pointer-map type' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'truncated_pointer_map_type'),
+    'materialized flags only mark surviving freed pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'materialized'),
+    'truncated flags only mark tail pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($rows122($plan), 'truncated'),
+    'updated pages include leaf header and freelist changes' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->updatedPageNumbers(),
+    'final database stops before deleted tail chain' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_database_page_count'],
+    'final freelist count keeps surviving freed pages' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['final_freelist_page_count'],
+    'materialized byte length follows final page count' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->materializedApplySummary()['byte_length'],
+    'materialized omitted pages are tail chain only' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->materializedApplySummary()['omitted_truncated_page_numbers'],
+    'materialized database preserves coalesced fragment header' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => ord($plan->materializedDatabase()->page(3)[7]),
+    'materialized database marks survivor pointer map free' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => [
         $plan->materializedDatabase()->pointerMapEntryForPage(6)->typeName(),
         $plan->materializedDatabase()->pointerMapEntryForPage(8)->typeName(),
     ],
-    'materialized database keeps live page ten' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => strlen($plan->materializedDatabase()->page(10)),
-    'materialized database rejects page twelve after truncation' => static function (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): string {
+    'materialized database keeps live page ten' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => strlen($plan->materializedDatabase()->page(10)),
+    'materialized database rejects page twelve after truncation' => static function (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): string {
         try {
             $plan->materializedDatabase()->page(12);
         } catch (Throwable) {
@@ -146,9 +146,9 @@ $cases = [
 
         return 'available';
     },
-    'summary embeds next122 rows' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($plan->toArray()['overflow_freeblock_vacuum_current_source_next122'], 'page_number'),
-    'summary embeds pointer-map statuses' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => array_column($plan->toArray()['pointer_map_vacuum_transitions'], 'status'),
-    'summary embeds materialized apply page count' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $plan): mixed => $plan->toArray()['materialized_apply']['database_page_count'],
+    'summary embeds next122 rows' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->toArray()['overflow_freeblock_vacuum_current_source_next122'], 'page_number'),
+    'summary embeds pointer-map statuses' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => array_column($plan->toArray()['pointer_map_vacuum_transitions'], 'status'),
+    'summary embeds materialized apply page count' => static fn (SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $plan): mixed => $plan->toArray()['materialized_apply']['database_page_count'],
     'low truncation keeps page twelve materialized' => static fn (): mixed => $fixture122(2)->survivingFreedPointerMapPages(),
     'low truncation removes only pages thirteen and fourteen' => static fn (): mixed => $fixture122(2)->truncatedFreedPointerMapPages(),
     'wide truncation still stops before deleted tail chain' => static fn (): mixed => $fixture122(9)->toArray()['final_database_page_count'],

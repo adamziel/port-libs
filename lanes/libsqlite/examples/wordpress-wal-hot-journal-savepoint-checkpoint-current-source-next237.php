@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext237Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext237Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $pageSize = 1024;
@@ -52,7 +52,7 @@ $sidecar = [
     'directory_synced' => true,
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext237Plan::verifySidecarBoundary(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next237VerifySidecarBoundary(
     $durablePlan,
     [$sidecar],
     $readerPins,

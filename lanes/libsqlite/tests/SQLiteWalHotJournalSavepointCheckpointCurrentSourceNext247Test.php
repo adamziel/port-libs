@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -69,8 +69,8 @@ $receipts = [
     $receipt('reader-fence-cleanup', 'reader-fence', [1, 2, 5, 8], [22, 23, 24], ['schema-reader', 'options-reader', 'autoload-reader']),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, $receipts);
-$blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, $receipts);
+$blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [
         $receipts[0],
@@ -80,11 +80,11 @@ $blocked = static fn (array $override): array => SQLiteWalHotJournalSavepointChe
         $receipts[4],
     ]
 );
-$missingKind = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$missingKind = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [$receipts[0], $receipts[1], $receipts[2], $receipts[3]]
 );
-$missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [
         $receipt('hot-journal-cleanup', 'hot-journal-unlink', [1], [22], ['schema-reader']),
@@ -94,7 +94,7 @@ $missingReader = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCu
         $receipt('reader-fence-cleanup', 'reader-fence', [1, 2, 5, 8], [22, 23, 24], ['schema-reader', 'options-reader']),
     ]
 );
-$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [
         $receipts[0],
@@ -104,7 +104,7 @@ $missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurr
         $receipt('reader-fence-cleanup', 'reader-fence', [1, 2, 5], [22, 23, 24], ['schema-reader', 'options-reader', 'autoload-reader']),
     ]
 );
-$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [
         $receipt('hot-journal-cleanup', 'hot-journal-unlink', [1], [22], ['schema-reader']),
@@ -114,7 +114,7 @@ $missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCur
         $receipt('reader-fence-cleanup', 'reader-fence', [1, 2, 5, 8], [22, 23], ['schema-reader', 'options-reader', 'autoload-reader']),
     ]
 );
-$duplicateReceipt = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(
+$duplicateReceipt = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(
     $readerBaseline,
     [$receipts[0], $receipt('hot-journal-cleanup', 'wal-sync', [2], [23], ['options-reader']), $receipts[2], $receipts[3], $receipts[4]]
 );
@@ -220,30 +220,30 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['status' => 'bad']), $receipts),
-    'not admitted base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['reader_snapshot_admitted' => false]), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, []),
-    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['database_path' => '']), $receipts),
-    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_path' => '']), $receipts),
-    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['journal_path' => '']), $receipts),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['source_token' => 'bad token']), $receipts),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['commit_generation' => 0]), $receipts),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['schema_cookie' => 0]), $receipts),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['database_digest' => 'short']), $receipts),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['page_cache_digest' => 'short']), $receipts),
-    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_index_salt' => ['one']]), $receipts),
-    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_index_mx_frame' => -1]), $receipts),
-    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['checkpoint_frame' => -1]), $receipts),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['dirty_pages' => []]), $receipts),
-    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['commit_frames' => [0]]), $receipts),
-    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup(array_replace($readerBaseline, ['accepted_reader_names' => []]), $receipts),
-    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['name' => 'bad name'])]),
-    'bad receipt kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['kind' => 'bad-kind'])]),
-    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['database_digest' => 'short'])]),
-    'bad receipt pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['page_numbers' => ['bad']])]),
-    'bad receipt frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['commit_frames' => ['bad']])]),
-    'bad receipt readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['reader_names' => ['bad reader']])]),
-    'bad receipt savepoint depth rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['savepoint_depth' => -1])]),
+    'bad base status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['status' => 'bad']), $receipts),
+    'not admitted base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['reader_snapshot_admitted' => false]), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, []),
+    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['database_path' => '']), $receipts),
+    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_path' => '']), $receipts),
+    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['journal_path' => '']), $receipts),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['source_token' => 'bad token']), $receipts),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['commit_generation' => 0]), $receipts),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['schema_cookie' => 0]), $receipts),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['database_digest' => 'short']), $receipts),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['page_cache_digest' => 'short']), $receipts),
+    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_index_salt' => ['one']]), $receipts),
+    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['wal_index_mx_frame' => -1]), $receipts),
+    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['checkpoint_frame' => -1]), $receipts),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['dirty_pages' => []]), $receipts),
+    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['commit_frames' => [0]]), $receipts),
+    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup(array_replace($readerBaseline, ['accepted_reader_names' => []]), $receipts),
+    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['name' => 'bad name'])]),
+    'bad receipt kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['kind' => 'bad-kind'])]),
+    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['database_digest' => 'short'])]),
+    'bad receipt pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['page_numbers' => ['bad']])]),
+    'bad receipt frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['commit_frames' => ['bad']])]),
+    'bad receipt readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['reader_names' => ['bad reader']])]),
+    'bad receipt savepoint depth rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [array_replace($receipts[0], ['savepoint_depth' => -1])]),
 ];
 
 foreach ($throws as $name => $callback) {

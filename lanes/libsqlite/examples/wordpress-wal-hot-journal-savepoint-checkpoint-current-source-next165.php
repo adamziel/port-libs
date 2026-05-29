@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext165Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -45,7 +45,7 @@ $stack->recordWalFrameWrite(2, 2, true);
 $stack->savepoint('plugin-import-next165');
 $stack->recordWalFrameWrite(3, 3, true);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext165Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next165Plan(
     '/srv/www/wp-content/database/wp.sqlite',
     $dirtyDatabase,
     $journalBytes,

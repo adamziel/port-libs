@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext187Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext187Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next187.sqlite';
 $walPath = $databasePath . '-wal';
@@ -39,7 +39,7 @@ $retryToken = 'wal-hot-journal-savepoint-checkpoint-next187:retry:' . substr(has
     implode(',', array_map('strval', $reopen['reader_page_numbers'])),
 ])), 0, 32);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext187Plan::plan($postApply, $reopen, [$retryToken]);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next187Plan($postApply, $reopen, [$retryToken]);
 
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next187',

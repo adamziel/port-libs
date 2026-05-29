@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next260`.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan`. It layers on the accepted next246 durable handoff and admits a checkpoint as the current source only when rollback-journal delete evidence, savepoint retained-WAL prefix evidence, checkpoint page/frame sync evidence, and reopened reader tokens all match the same current-source generation.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It layers on the accepted next246 durable handoff and admits a checkpoint as the current source only when rollback-journal delete evidence, savepoint retained-WAL prefix evidence, checkpoint page/frame sync evidence, and reopened reader tokens all match the same current-source generation.
 
 WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next260.php` models a copied `wp_options` plugin import that restarts after hot-journal recovery, closes the plugin savepoint prefix, checkpoints dirty pages, and advances reopened readers only after the evidence matches.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next260.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Test.php`

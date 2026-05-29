@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -66,7 +64,7 @@ $tickets = [
     $ticket('wp-cron-reader', 'wp-cron-savepoint', [5]),
 ];
 $plan = static fn (?array $input = null, ?array $inputTickets = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($input ?? $publish, $inputTickets ?? $tickets);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($input ?? $publish, $inputTickets ?? $tickets);
 
 $blockedPublish = $publish;
 $blockedPublish['status'] = 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next227';
@@ -138,12 +136,12 @@ $cases = [
     'first reader hot journal hidden' => [static fn (): mixed => $plan()['ticket_rows'][0]['hot_journal_visible'], false],
     'first reader wal tail hidden' => [static fn (): mixed => $plan()['ticket_rows'][0]['wal_tail_visible'], false],
     'first reader ticket digest length' => [static fn (): mixed => strlen($plan()['ticket_rows'][0]['ticket_digest']), 64],
-    'bad publish status rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($blockedPublish, $tickets), InvalidArgumentException::class],
-    'bad publish flag rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($badPublishFlag, $tickets), InvalidArgumentException::class],
-    'bad receipt row rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($badReceiptRows, $tickets), InvalidArgumentException::class],
-    'bad publish token rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($badTokenPublish, $tickets), InvalidArgumentException::class],
-    'missing publish key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($badMissingKey, $tickets), InvalidArgumentException::class],
-    'empty tickets rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($publish, []), InvalidArgumentException::class],
+    'bad publish status rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($blockedPublish, $tickets), InvalidArgumentException::class],
+    'bad publish flag rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($badPublishFlag, $tickets), InvalidArgumentException::class],
+    'bad receipt row rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($badReceiptRows, $tickets), InvalidArgumentException::class],
+    'bad publish token rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($badTokenPublish, $tickets), InvalidArgumentException::class],
+    'missing publish key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($badMissingKey, $tickets), InvalidArgumentException::class],
+    'empty tickets rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($publish, []), InvalidArgumentException::class],
     'bad token reason' => [static fn (): mixed => $plan(null, $badToken)['ticket_rows'][0]['blocked_reasons'], ['reader_source_token_mismatch']],
     'bad epoch reason' => [static fn (): mixed => $plan(null, $badEpoch)['ticket_rows'][0]['blocked_reasons'], ['reader_next_source_epoch_mismatch']],
     'bad epoch guard' => [static fn (): mixed => in_array('all_readers_use_next_source_epoch', $plan(null, $badEpoch)['blocked_guard_names'], true), true],

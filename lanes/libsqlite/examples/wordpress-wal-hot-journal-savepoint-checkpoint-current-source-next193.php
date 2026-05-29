@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next193.sqlite';
 $retryToken = 'wal-hot-journal-savepoint-checkpoint-next187:retry:' . str_repeat('b', 32);
@@ -20,7 +20,7 @@ $handoff = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next187'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan::publishReaderMarks(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next193PublishReaderMarks(
     $handoff,
     [
         [

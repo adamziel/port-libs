@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,14 +57,14 @@ $receipts = [
     $receipt(['name' => 'plugin-settings-writer-next226']),
 ];
 $plan = static fn (?array $input = null, ?array $inputFiles = null, ?array $inputReceipts = null, ?string $wal = null, ?string $dbDigest = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan::verifyResetFiles(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next226VerifyResetFiles(
         $input ?? $reset,
         $inputFiles ?? $files,
         $inputReceipts ?? $receipts,
         $wal ?? $restartWalBytes,
         $dbDigest ?? $databaseDigest
     );
-$truncatePlan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan::verifyResetFiles(
+$truncatePlan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next226VerifyResetFiles(
     $truncateReset,
     $truncateFiles,
     [

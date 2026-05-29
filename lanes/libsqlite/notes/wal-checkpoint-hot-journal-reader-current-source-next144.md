@@ -2,12 +2,12 @@
 
 Status: focused PHP behavior growth for `wal-checkpoint-hot-journal-reader-current-source-next144`.
 
-This slice adds `SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan`, a bounded native PHP planner for the WAL/pager edge where a rollback-journal hot recovery changes the database source image before checkpoint reset. Existing hot-journal reader checks already compare WAL source bytes; next144 adds the missing database-source token so a reader using the same WAL header/frames but dirty pre-recovery database bytes must reopen before a checkpoint reset can proceed.
+This slice adds `SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan`, a bounded native PHP planner for the WAL/pager edge where a rollback-journal hot recovery changes the database source image before checkpoint reset. Existing hot-journal reader checks already compare WAL source bytes; next144 adds the missing database-source token so a reader using the same WAL header/frames but dirty pre-recovery database bytes must reopen before a checkpoint reset can proceed.
 
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Plan.php
+php -l lanes/libsqlite/src/SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-checkpoint-hot-journal-reader-current-source-next144.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalCheckpointHotJournalReaderCurrentSourceNext144Test.php

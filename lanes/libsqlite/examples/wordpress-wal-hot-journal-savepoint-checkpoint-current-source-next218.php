@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next218 checkpointed wp_options database');
@@ -44,7 +44,7 @@ $writers = [
     ],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($checkpoint, $writers, 'truncate');
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($checkpoint, $writers, 'truncate');
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'wal-hot-journal-savepoint-checkpoint-current-source-next218');

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 foreach (glob(__DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext*Plan.php') ?: [] as $file) {
     require_once $file;
@@ -128,7 +128,7 @@ $read = static fn (int $pageNumber, string $token): array => [
     'pager_spill_drain_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext258Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext258(
     $database,
     $master,
     $masterBytes,

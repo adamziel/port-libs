@@ -7,10 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -83,7 +80,7 @@ $completed = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -125,15 +122,15 @@ $filesFrom = static function (array $completedRows) use ($base, $databasePath, $
 
 $matching = static fn (array $completedRows = []): array => $base($completedRows, $filesFrom($completedRows));
 $apply = static function (array $resume, array $files) use ($payloadBytesFrom): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply(
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume),
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
         $files,
         $payloadBytesFrom($resume)
     );
 };
 
 $applyResult = $apply($matching($completed), $filesFrom($completed));
-$verify = static fn (array $tokens = [], int $checkpoint = 186, int $size = 512, int $epoch = 186, ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource(
+$verify = static fn (array $tokens = [], int $checkpoint = 186, int $size = 512, int $epoch = 186, ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource(
     $applyResult,
     $files ?? $applyResult['files'],
     $checkpoint,
@@ -199,8 +196,8 @@ $cases = [
     'missing wal reason' => [static fn (): mixed => $verify([], 186, 512, 186, $missingWalFiles)['blocked_reasons'], ['next183_current_source_admission_required', 'retained_wal_payload_missing_after_hot_journal_apply']],
     'corrupt wal blocked' => [static fn (): mixed => $verify([], 186, 512, 186, $corruptWalFiles)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next186'],
     'corrupt wal reason' => [static fn (): mixed => $verify([], 186, 512, 186, $corruptWalFiles)['blocked_reasons'], ['next183_current_source_admission_required', 'retained_wal_checksum_or_header_invalid_after_hot_journal_apply']],
-    'failed apply blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($failedApply, $applyResult['files'], 186, 512)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next186'],
-    'failed apply reason' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($failedApply, $applyResult['files'], 186, 512)['blocked_reasons'], ['next183_current_source_admission_required']],
+    'failed apply blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($failedApply, $applyResult['files'], 186, 512)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next186'],
+    'failed apply reason' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($failedApply, $applyResult['files'], 186, 512)['blocked_reasons'], ['next183_current_source_admission_required']],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
@@ -211,16 +208,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $throws = [
     'negative checkpoint rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($applyResult, $applyResult['files'], -1, 512);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($applyResult, $applyResult['files'], -1, 512);
     },
     'bad page size rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($applyResult, $applyResult['files'], 186, 513);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($applyResult, $applyResult['files'], 186, 513);
     },
     'empty path rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($applyResult, ['' => 'bad'], 186, 512);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($applyResult, ['' => 'bad'], 186, 512);
     },
     'bad bytes rejected' => static function () use ($applyResult, $walPath): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource($applyResult, [$walPath => 42], 186, 512);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource($applyResult, [$walPath => 42], 186, 512);
     },
 ];
 

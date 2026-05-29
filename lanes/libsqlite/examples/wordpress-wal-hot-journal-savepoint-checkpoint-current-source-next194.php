@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -25,7 +23,7 @@ $framePrefix = pack('N*', 2, 2, 0x19419401, 0x19419402);
 $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $page('committed autoload retry checkpoint'), false, $seed[0], $seed[1]);
 $walBytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $page('committed autoload retry checkpoint');
 
-$publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan(
+$publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next187',
         'database_path' => $databasePath,
@@ -50,7 +48,7 @@ $publication = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::p
     194
 );
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext194Plan::sealReaderGeneration(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next194SealReaderGeneration(
     $publication,
     [
         [

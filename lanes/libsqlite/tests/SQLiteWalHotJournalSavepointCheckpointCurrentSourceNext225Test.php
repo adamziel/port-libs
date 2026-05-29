@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -59,8 +59,8 @@ $blockedReceipts = [
     $receipt('stale-header-bytes', 'database-header', ['stale_header_bytes' => true]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, $receipts);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, $blockedReceipts);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, $receipts);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, $blockedReceipts);
 $badStatus = $publishPlan;
 $badStatus['status'] = 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next219';
 $notPublished = $publishPlan;
@@ -119,9 +119,9 @@ $cases = [
     'hot journal reason' => [static fn (): mixed => $blocked()['receipt_rows'][8]['receipt_reason'], 'header_hot_journal_still_present'],
     'stale header reason' => [static fn (): mixed => $blocked()['receipt_rows'][9]['receipt_reason'], 'header_stale_bytes_observed'],
     'blocked guard names' => [static fn (): mixed => $blocked()['blocked_guard_names'], ['database_header_receipts_current', 'required_header_regions_written']],
-    'bad status guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($badStatus, $receipts)['blocked_guard_names'], ['next219_checkpoint_source_published']],
-    'not published guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($notPublished, $receipts)['blocked_guard_names'], ['next219_checkpoint_source_published']],
-    'missing region guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, $missingRegionReceipts)['blocked_guard_names'], ['required_header_regions_written']],
+    'bad status guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($badStatus, $receipts)['blocked_guard_names'], ['next219_checkpoint_source_published']],
+    'not published guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($notPublished, $receipts)['blocked_guard_names'], ['next219_checkpoint_source_published']],
+    'missing region guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, $missingRegionReceipts)['blocked_guard_names'], ['required_header_regions_written']],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
@@ -131,17 +131,17 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing publish field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan(['status' => 'x'], $receipts),
-    'bad token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan(array_merge($publishPlan, ['current_source_token' => ['id' => '', 'epoch' => 0]]), $receipts),
-    'bad frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan(array_merge($publishPlan, ['checkpoint_frame' => 0]), $receipts),
-    'bad scope digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan(array_merge($publishPlan, ['savepoint_scope_digest' => 'short']), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, []),
-    'missing receipt field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [['name' => 'bad']]),
-    'empty receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [$receipt('', 'database-header')]),
-    'empty region rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [$receipt('bad', '')]),
-    'bad receipt integer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [$receipt('bad', 'database-header', ['source_epoch' => -1])]),
-    'bad header digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [$receipt('bad', 'database-header', ['header_digest' => 'short'])]),
-    'bad receipt scope digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext225Plan::plan($publishPlan, [$receipt('bad', 'database-header', ['savepoint_scope_digest' => 'short'])]),
+    'missing publish field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan(['status' => 'x'], $receipts),
+    'bad token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan(array_merge($publishPlan, ['current_source_token' => ['id' => '', 'epoch' => 0]]), $receipts),
+    'bad frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan(array_merge($publishPlan, ['checkpoint_frame' => 0]), $receipts),
+    'bad scope digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan(array_merge($publishPlan, ['savepoint_scope_digest' => 'short']), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, []),
+    'missing receipt field rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [['name' => 'bad']]),
+    'empty receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [$receipt('', 'database-header')]),
+    'empty region rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [$receipt('bad', '')]),
+    'bad receipt integer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [$receipt('bad', 'database-header', ['source_epoch' => -1])]),
+    'bad header digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [$receipt('bad', 'database-header', ['header_digest' => 'short'])]),
+    'bad receipt scope digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next225Plan($publishPlan, [$receipt('bad', 'database-header', ['savepoint_scope_digest' => 'short'])]),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows257 = [
@@ -27,7 +27,7 @@ $attemptDelete257 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate257 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry257', option_value || ':retry257', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete257 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan257 = static fn (?array $yieldAck = null, ?array $chunkAck = null, int $chunkSize = 2): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute(
+$plan257 = static fn (?array $yieldAck = null, ?array $chunkAck = null, int $chunkSize = 2): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257(
     $tables257,
     [$yieldUpdate257, $yieldDelete257],
     [$attemptUpdate257, $attemptDelete257],
@@ -104,11 +104,11 @@ $cases257 = [
     'non overlap next253' => [static fn (): mixed => str_contains($plan257()['non_overlap_next257'], 'next253'), true],
     'non overlap wal' => [static fn (): mixed => str_contains($plan257()['non_overlap_next257'], 'WAL/VFS'), true],
     'non overlap btree' => [static fn (): mixed => str_contains($plan257()['non_overlap_next257'], 'B-tree'), true],
-    'bad chunk rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute($tables257, [$yieldUpdate257], [$attemptUpdate257], [$retryUpdate257], $unique257, 'wp_options_rowvalue_window_current_next257', 'option_id', null, 0), InvalidArgumentException::class],
-    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute($tables257, [], [$attemptUpdate257], [$retryUpdate257], $unique257), InvalidArgumentException::class],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute($tables257, [$yieldUpdate257], [], [$retryUpdate257], $unique257), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute($tables257, [$yieldUpdate257], [$attemptUpdate257], [], $unique257), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext257Plan::execute($tables257, [$yieldUpdate257], [$attemptUpdate257], [$retryUpdate257], $unique257, 'bad-name'), InvalidArgumentException::class],
+    'bad chunk rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257($tables257, [$yieldUpdate257], [$attemptUpdate257], [$retryUpdate257], $unique257, 'wp_options_rowvalue_window_current_next257', 'option_id', null, 0), InvalidArgumentException::class],
+    'malformed empty yield rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257($tables257, [], [$attemptUpdate257], [$retryUpdate257], $unique257), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257($tables257, [$yieldUpdate257], [], [$retryUpdate257], $unique257), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257($tables257, [$yieldUpdate257], [$attemptUpdate257], [], $unique257), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext257($tables257, [$yieldUpdate257], [$attemptUpdate257], [$retryUpdate257], $unique257, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

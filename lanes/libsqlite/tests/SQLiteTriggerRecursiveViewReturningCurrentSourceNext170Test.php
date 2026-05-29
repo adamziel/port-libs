@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows170 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -38,7 +38,7 @@ $returning170 = [
     static fn (array $incoming, array $viewRow, string $triggerSource, int $ordinal): string => $triggerSource . ':' . $viewRow['_root'] . ':' . $ordinal . ':' . $incoming['option_name'],
 ];
 
-$run170 = static fn (array $options = [], ?array $nextView = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan::execute(
+$run170 = static fn (array $options = [], ?array $nextView = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext170(
     $rows170,
     [['root_name' => 'siteurl']],
     [['root_name' => 'theme_root']],

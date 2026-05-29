@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/SQLiteTriggerUpsertRecursiveViewCurrentSourceNext148Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext232Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNext232Plan::execute(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext232(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test'],
         ['option_name' => 'home', 'option_value' => 'https://old-home.test'],

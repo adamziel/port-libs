@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -62,7 +62,7 @@ $receipts = [
     $receipt('wp-next235-directory', 'directory'),
 ];
 $plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan::admitDurablePublication($inputPlan ?? $readerPlan, $inputReceipts ?? $receipts);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next235AdmitDurablePublication($inputPlan ?? $readerPlan, $inputReceipts ?? $receipts);
 $blocked = static fn (string $kind, array $overrides): array => $plan(null, array_map(
     static fn (array $row): array => $row['kind'] === $kind ? array_replace($row, $overrides) : $row,
     $receipts

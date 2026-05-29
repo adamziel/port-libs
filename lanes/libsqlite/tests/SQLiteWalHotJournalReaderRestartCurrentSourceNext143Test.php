@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -73,7 +73,7 @@ $plan = static fn (
     array $pages = [1, 2, 3, 4, 5, 6],
     ?string $nextBytes = null,
     bool $reservedLock = false
-): array => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan(
+): array => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -183,15 +183,15 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty restart wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', [1], 1),
-    'negative reader rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], -1),
-    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 6),
-    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
-    'empty database rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
-    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
-    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [], 1),
-    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [0], 1),
-    'string page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, ['1'], 1),
+    'empty restart wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, '', [1], 1),
+    'negative reader rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], -1),
+    'reader past wal rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 6),
+    'empty path rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan('', $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
+    'empty database rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, '', $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
+    'empty journal rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, '', $currentWal, $currentWalBytes, $restartedWalBytes, [1], 1),
+    'empty pages rejected by base' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [], 1),
+    'zero page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, [0], 1),
+    'string page rejected' => static fn () => SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan($databasePath, $dirtyDatabase, $journalBytes, $currentWal, $currentWalBytes, $restartedWalBytes, ['1'], 1),
     'stale sequence rejected' => static fn () => $plan(5, [1], $makeWalBytes([[2, 6, 'next143 stale restart']], 143, 0x14314401, 0x14314402)),
     'same salt rejected' => static fn () => $plan(5, [1], $makeWalBytes([[2, 6, 'next143 stale salt restart']], 144, 0x14314301, 0x14314302)),
 ];

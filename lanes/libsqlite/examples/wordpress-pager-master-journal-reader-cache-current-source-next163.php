@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $pageSize = 96;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -24,7 +24,7 @@ $nextPages = [
     3 => $currentPages[3],
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163(
     $database,
     '/tmp/wp-content/database/.ht.sqlite-mj163',
     $database . "-journal\n/tmp/wp-content/database/old-cache.sqlite-journal\n",

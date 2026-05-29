@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $tables = [
     'wp_options' => [
@@ -18,7 +18,7 @@ $tables = [
     ],
 ];
 
-$summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext174Plan::execute(
+$summary = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext174(
     $tables,
     ["UPDATE wp_options SET (status, option_value, bytes) = ('outer174', option_value || ':outer174', bytes + 2) WHERE option_id IN (4, 5) RETURNING option_id, option_name, status ORDER BY option_id"],
     [

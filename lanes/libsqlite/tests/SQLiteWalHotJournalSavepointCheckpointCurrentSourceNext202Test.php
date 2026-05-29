@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -45,7 +45,7 @@ $plan = static fn (
     bool $walSync = true,
     bool $dirSync = true,
     ?array $rows = null
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan(
     $base ?? $publication,
     $db ?? $databaseBytes,
     $journal,
@@ -134,12 +134,12 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'missing publication rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan([], $databaseBytes, '', true, true, true, true, true, $handles),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan(array_merge($publication, ['mode' => 'passive']), $databaseBytes, '', true, true, true, true, true, $handles),
-    'empty database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan($publication, '', '', true, true, true, true, true, $handles),
-    'missing handles rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan($publication, $databaseBytes, '', true, true, true, true, true, []),
-    'missing handle name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan($publication, $databaseBytes, '', true, true, true, true, true, [['kind' => 'reader']]),
-    'bad handle kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext202Plan::plan($publication, $databaseBytes, '', true, true, true, true, true, [['name' => 'bad', 'kind' => 'cursor', 'observed_database_digest' => $databaseDigest, 'observed_wal_digest' => $walDigest, 'observed_sidecar_digest' => $sidecarDigest, 'observed_mode' => 'restart']]),
+    'missing publication rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan([], $databaseBytes, '', true, true, true, true, true, $handles),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan(array_merge($publication, ['mode' => 'passive']), $databaseBytes, '', true, true, true, true, true, $handles),
+    'empty database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan($publication, '', '', true, true, true, true, true, $handles),
+    'missing handles rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan($publication, $databaseBytes, '', true, true, true, true, true, []),
+    'missing handle name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan($publication, $databaseBytes, '', true, true, true, true, true, [['kind' => 'reader']]),
+    'bad handle kind rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next202Plan($publication, $databaseBytes, '', true, true, true, true, true, [['name' => 'bad', 'kind' => 'cursor', 'observed_database_digest' => $databaseDigest, 'observed_wal_digest' => $walDigest, 'observed_sidecar_digest' => $sidecarDigest, 'observed_mode' => 'restart']]),
 ];
 
 foreach ($throws as $name => $callback) {

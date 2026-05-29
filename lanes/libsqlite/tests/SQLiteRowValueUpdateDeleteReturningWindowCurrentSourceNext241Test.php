@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows241 = [
@@ -43,13 +43,13 @@ $retryDelete241 = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SEL
 
 $attemptUpdateResult241 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate241, $tables241, 'option_id', $unique241);
 $retryUpdateResult241 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate241, $tables241, 'option_id', $unique241);
-$plan241 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute(
+$plan241 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241(
     $tables241,
     [$attemptUpdate241, $attemptDelete241],
     [$retryUpdate241, $retryDelete241],
     $unique241,
 );
-$customPlan241 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute(
+$customPlan241 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241(
     $tables241,
     [$attemptUpdate241],
     [$retryUpdate241],
@@ -126,11 +126,11 @@ $cases241 = [
     'custom replay ids' => [static fn (): mixed => $customPlan241()['window_current_row_replayed_ids_next241'], [8, 9]],
     'custom discarded ids' => [static fn (): mixed => $customPlan241()['window_current_row_discarded_ids_next241'], [7]],
     'custom restart ids' => [static fn (): mixed => $customPlan241()['window_current_row_restart_ids_next241'], [10]],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute($tables241, [], [$retryUpdate241], $unique241), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute($tables241, [$attemptUpdate241], [], $unique241), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute($tables241, [$attemptUpdate241], [$retryUpdate241], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute($tables241, [$attemptUpdate241], [$retryUpdate241], $unique241, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan::execute(['wp_options' => ['bad']], [$attemptUpdate241], [$retryUpdate241], $unique241), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241($tables241, [], [$retryUpdate241], $unique241), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241($tables241, [$attemptUpdate241], [], $unique241), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241($tables241, [$attemptUpdate241], [$retryUpdate241], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241($tables241, [$attemptUpdate241], [$retryUpdate241], $unique241, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext241(['wp_options' => ['bad']], [$attemptUpdate241], [$retryUpdate241], $unique241), InvalidArgumentException::class],
 ];
 
 $tests = [];

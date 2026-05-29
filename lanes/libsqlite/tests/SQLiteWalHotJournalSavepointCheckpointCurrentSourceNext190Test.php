@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $walCheckpointFiles = [
     $journalPath => null,
 ];
 $plan = static fn (?array $readerFence = null, ?array $fileMap = null, ?string $expectedDb = null, int $checkpoint = 190, bool $requireDirectorySync = true): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan(
         $readerFence ?? $fence,
         $fileMap ?? $walCheckpointFiles,
         $expectedDb ?? $databaseBytes,
@@ -188,10 +188,10 @@ $throws = [
         $bad['dependencies'] = 'bad';
         $plan($bad);
     },
-    'bad file path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan($fence, ['' => 'x'], $databaseBytes, $pageSize, 190),
-    'bad file bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan($fence, [$databasePath => []], $databaseBytes, $pageSize, 190),
+    'bad file path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan($fence, ['' => 'x'], $databaseBytes, $pageSize, 190),
+    'bad file bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan($fence, [$databasePath => []], $databaseBytes, $pageSize, 190),
     'empty expected database rejected' => static fn () => $plan(null, null, ''),
-    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan::plan($fence, $walCheckpointFiles, $databaseBytes, 513, 190),
+    'bad page size rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next190Plan($fence, $walCheckpointFiles, $databaseBytes, 513, 190),
     'negative checkpoint rejected' => static fn () => $plan(null, null, null, -1),
 ];
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $writerPlan = [
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next258',
@@ -55,7 +55,7 @@ $receipts = [
     array_replace($base, ['name' => 'wordpress-next261-sync', 'receipt_type' => 'sync']),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Plan::sealPublishedCurrentSource($writerPlan, $receipts);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next261SealPublishedCurrentSource($writerPlan, $receipts);
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next261',
     'wordpressUse' => 'A copied WordPress import publishes the first post-restart WAL writer as the current source only after database, WAL, SHM, read-mark, savepoint, and sync receipts all match the recovered source.',

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext176Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
@@ -49,7 +49,7 @@ $returning = [
     ['expr' => 'depth', 'as' => 'depth_value'],
 ];
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext176Plan::execute(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext176(
     $rows,
     $currentInput,
     $nextInput,

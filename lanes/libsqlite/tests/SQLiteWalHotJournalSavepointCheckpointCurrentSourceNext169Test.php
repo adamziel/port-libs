@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -73,7 +73,7 @@ $makeStack = static function (): SQLiteSavepointStack {
     return $stack;
 };
 
-$plan = static fn (array $completed = [], string $mode = 'restart', ?int $reader = null, bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan::plan(
+$plan = static fn (array $completed = [], string $mode = 'restart', ?int $reader = null, bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

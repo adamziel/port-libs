@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -52,8 +52,8 @@ $slots = [
     $slot('wp-autoload-slot', [3]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, $slots, $schemaCookie, $walSalt);
-$blockedSlot = static fn (array $override, array $pages = [2]): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, $slots, $schemaCookie, $walSalt);
+$blockedSlot = static fn (array $override, array $pages = [2]): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(
     $handlePlan,
     [
         $slots[0],
@@ -66,7 +66,7 @@ $blockedSlot = static fn (array $override, array $pages = [2]): array => SQLiteW
 $missingPages = static function () use ($handlePlan, $slots, $schemaCookie, $walSalt): array {
     $bad = $handlePlan;
     $bad['covered_page_numbers'] = [1, 2];
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($bad, $slots, $schemaCookie, $walSalt);
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($bad, $slots, $schemaCookie, $walSalt);
 };
 
 $cases = [
@@ -134,17 +134,17 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['status' => 'bad']), $slots, $schemaCookie, $walSalt),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['current_source_admitted' => false]), $slots, $schemaCookie, $walSalt),
-    'empty slots rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, [], $schemaCookie, $walSalt),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, $slots, 0, $walSalt),
-    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, $slots, $schemaCookie, 'short'),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['source_token' => 'bad token']), $slots, $schemaCookie, $walSalt),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['next_writer_generation' => 0]), $slots, $schemaCookie, $walSalt),
-    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['database_digest' => 'short']), $slots, $schemaCookie, $walSalt),
-    'bad expected pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(array_merge($handlePlan, ['expected_page_numbers' => [0]]), $slots, $schemaCookie, $walSalt),
-    'bad slot name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, [array_merge($slots[0], ['name' => ''])], $schemaCookie, $walSalt),
-    'bad slot page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots($handlePlan, [array_merge($slots[0], ['page_numbers' => [0]])], $schemaCookie, $walSalt),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['status' => 'bad']), $slots, $schemaCookie, $walSalt),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['current_source_admitted' => false]), $slots, $schemaCookie, $walSalt),
+    'empty slots rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, [], $schemaCookie, $walSalt),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, $slots, 0, $walSalt),
+    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, $slots, $schemaCookie, 'short'),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['source_token' => 'bad token']), $slots, $schemaCookie, $walSalt),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['next_writer_generation' => 0]), $slots, $schemaCookie, $walSalt),
+    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['database_digest' => 'short']), $slots, $schemaCookie, $walSalt),
+    'bad expected pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(array_merge($handlePlan, ['expected_page_numbers' => [0]]), $slots, $schemaCookie, $walSalt),
+    'bad slot name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, [array_merge($slots[0], ['name' => ''])], $schemaCookie, $walSalt),
+    'bad slot page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots($handlePlan, [array_merge($slots[0], ['page_numbers' => [0]])], $schemaCookie, $walSalt),
 ];
 
 foreach ($throws as $name => $callback) {

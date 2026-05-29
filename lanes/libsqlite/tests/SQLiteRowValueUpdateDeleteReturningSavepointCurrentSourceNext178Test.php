@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -33,14 +33,14 @@ $outerUpdateAfterDelete = static function () use ($outerDelete, $outerUpdate, $t
 
     return SQLiteUpdateDeleteReturningSql::execute($outerUpdate, $afterDelete['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178(
     $tables,
     [$outerDelete, $outerUpdate],
     [$savepointDelete, $rollbackUpdate],
     [$retryUpdate, $retryDelete],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute(
+$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178(
     $tables,
     [$outerDelete],
     [$savepointDelete],
@@ -110,11 +110,11 @@ $cases = [
     'clean plan discarded returning empty' => [static fn (): mixed => $cleanPlan()['discarded_returning'], []],
     'clean plan retry update sees unreverted rewrite and orphan rows' => [static fn (): mixed => $cleanPlan()['retry_statements'][0]['selected_ids'], [8, 9]],
 
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute($tables, [], [$savepointDelete], [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute($tables, [$outerDelete], [], [$retryUpdate], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute($tables, [$outerDelete], [$savepointDelete], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute($tables, [$outerDelete], [$savepointDelete], [$retryUpdate], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext178Plan::execute(['wp_options' => ['bad']], [$outerDelete], [$savepointDelete], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178($tables, [], [$savepointDelete], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178($tables, [$outerDelete], [], [$retryUpdate], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178($tables, [$outerDelete], [$savepointDelete], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178($tables, [$outerDelete], [$savepointDelete], [$retryUpdate], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178(['wp_options' => ['bad']], [$outerDelete], [$savepointDelete], [$retryUpdate], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

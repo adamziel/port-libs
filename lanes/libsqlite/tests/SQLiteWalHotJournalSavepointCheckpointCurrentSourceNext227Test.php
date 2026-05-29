@@ -2,11 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -53,7 +51,7 @@ $scopes = [
     $scope('wp-theme-savepoint', [3], ['reader_names' => ['wp-theme-import']]),
     $scope('wp-cron-savepoint', [4, 5, 6], ['reader_names' => []]),
 ];
-$finalization = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, $scopes);
+$finalization = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, $scopes);
 $receipt = static function (string $scopeName, array $pages, array $overrides = []) use ($digest, $token): array {
     $pageDigests = [];
     foreach ($pages as $page) {
@@ -77,7 +75,7 @@ $receipts = [
     $receipt('wp-theme-savepoint', [3]),
     $receipt('wp-cron-savepoint', [4, 5, 6]),
 ];
-$plan = static fn (?array $final = null, ?array $inputReceipts = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($final ?? $finalization, $inputReceipts ?? $receipts);
+$plan = static fn (?array $final = null, ?array $inputReceipts = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($final ?? $finalization, $inputReceipts ?? $receipts);
 
 $missing = [$receipts[0], $receipts[1]];
 $extra = $receipts;
@@ -168,9 +166,9 @@ $cases = [
     'blocked finalization guard' => [static fn (): mixed => $plan($badBlockedFinal)['blocked_guard_names'], ['next219_finalization_admitted']],
     'blocked publish flag guard' => [static fn (): mixed => $plan($badPublishFlag)['blocked_guard_names'], ['next219_finalization_admitted']],
     'unfinalized scope reason' => [static fn (): mixed => $plan($badScopeFinalized)['receipt_rows'][0]['blocked_reasons'], ['publish_scope_not_finalized']],
-    'empty receipts rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($finalization, []), InvalidArgumentException::class],
-    'missing finalization key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($badMissingKey, $receipts), InvalidArgumentException::class],
-    'bad token finalization rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($badTokenFinal, $receipts), InvalidArgumentException::class],
+    'empty receipts rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($finalization, []), InvalidArgumentException::class],
+    'missing finalization key rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($badMissingKey, $receipts), InvalidArgumentException::class],
+    'bad token finalization rejected' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($badTokenFinal, $receipts), InvalidArgumentException::class],
     'bad receipt digest rejected' => [static fn (): mixed => $plan(null, [$receipt('wp-options-savepoint', [1, 2], ['page_digests' => [1 => 'bad']])]), InvalidArgumentException::class],
     'bad receipt scope rejected' => [static fn (): mixed => $plan(null, [$receipt('', [1])]), InvalidArgumentException::class],
 ];

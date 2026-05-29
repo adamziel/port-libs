@@ -1,6 +1,6 @@
 # WAL Hot Journal Savepoint Checkpoint Current Source Next205
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan`.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`.
 It extends the accepted next195 reader retry gate with per-page image/current-source
 validation after hot-journal recovery, savepoint release, and WAL checkpoint
 publication. A reader with a matching source token is still forced to reopen when
@@ -17,7 +17,7 @@ cached pages.
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next205.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Test.php

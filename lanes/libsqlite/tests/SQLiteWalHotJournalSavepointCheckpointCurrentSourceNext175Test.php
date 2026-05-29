@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $nextWalBytes = $makeWalBytes([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -82,7 +82,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::pla
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

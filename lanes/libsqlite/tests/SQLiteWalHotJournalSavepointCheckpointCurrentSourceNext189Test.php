@@ -7,11 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -92,7 +88,7 @@ $completed = [
     'sync_current_checkpoint_before_reader_release_next165',
 ];
 
-$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$base = static fn (array $completedRows = [], ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -134,15 +130,15 @@ $filesFrom = static function (array $completedRows) use ($base, $databasePath, $
 
 $matching = static fn (array $completedRows = []): array => $base($completedRows, $filesFrom($completedRows));
 $apply = static function (array $resume, array $files) use ($payloadBytesFrom): array {
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext180Plan::apply(
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume),
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next180Apply(
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume),
         $files,
         $payloadBytesFrom($resume)
     );
 };
 
 $applyResult = $apply($matching($completed), $filesFrom($completed));
-$verify186 = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan::verifyWalSource(
+$verify186 = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next186VerifyWalSource(
     $applyResult,
     $applyResult['files'],
     189,
@@ -151,7 +147,7 @@ $verify186 = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurren
     189
 );
 $freshToken = $verify186()['reader_source_token'];
-$plan = static fn (int $endFrame = 2, array $pages = [1, 2, 3], array $tokens = [], ?array $dbPages = null, ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan(
+$plan = static fn (int $endFrame = 2, array $pages = [1, 2, 3], array $tokens = [], ?array $dbPages = null, ?array $files = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan(
     $applyResult,
     $files ?? $applyResult['files'],
     189,
@@ -209,8 +205,8 @@ $cases = [
     'non overlap' => [static fn (): mixed => str_contains($plan()['non_overlap'], 'does not repeat WAL header token validation'), true],
     'end frame beyond commit blocked' => [static fn (): mixed => $plan(3)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next189'],
     'end frame beyond commit reason' => [static fn (): mixed => $plan(3)['blocked_reasons'], ['reader_end_frame_extends_past_last_committed_frame']],
-    'wrong checkpoint blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 190, 512, 2, [1], [], $databasePages, 189)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next189'],
-    'wrong checkpoint reasons' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 190, 512, 2, [1], [], $databasePages, 189)['blocked_reasons'], ['wal_checkpoint_sequence_drift_after_hot_journal_apply', 'next186_retained_wal_source_required']],
+    'wrong checkpoint blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 190, 512, 2, [1], [], $databasePages, 189)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next189'],
+    'wrong checkpoint reasons' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 190, 512, 2, [1], [], $databasePages, 189)['blocked_reasons'], ['wal_checkpoint_sequence_drift_after_hot_journal_apply', 'next186_retained_wal_source_required']],
     'stale token blocked' => [static fn (): mixed => $plan(2, [1], ['wal-hot-journal-savepoint-checkpoint-next186:wal-source:stale'])['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next189'],
     'stale token propagated' => [static fn (): mixed => $plan(2, [1], ['wal-hot-journal-savepoint-checkpoint-next186:wal-source:stale'])['blocked_reasons'], ['wal_source_reader_cache_token_predates_verified_header', 'next186_retained_wal_source_required']],
     'missing wal blocked' => [static fn (): mixed => $plan(2, [1], [], $databasePages, $missingWalFiles)['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next189'],
@@ -229,16 +225,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 
 $throws = [
     'negative reader frame rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 189, 512, -1, [1]);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 189, 512, -1, [1]);
     },
     'empty reader pages rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, []);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, []);
     },
     'bad reader page rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, [0]);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, [0]);
     },
     'bad database fallback rejected' => static function () use ($applyResult): void {
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext189Plan::readerSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, [1], [], [1 => 42]);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next189ReaderSnapshotPlan($applyResult, $applyResult['files'], 189, 512, 2, [1], [], [1 => 42]);
     },
 ];
 

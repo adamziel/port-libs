@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext229Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -114,7 +114,7 @@ $read = static fn (int $pageNumber): array => [
     'pager_cache_source_token' => $pagerCacheSourceToken,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext229Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext229(
     $database,
     $master,
     $masterBytes,

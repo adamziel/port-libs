@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -50,8 +50,8 @@ $handles = [
     $handle('wp-options-reopen', [2 => $pageDigests[2]]),
     $handle('wp-autoload-reopen', [3 => $pageDigests[3]]),
 ];
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($publication, $handles, $pageDigests);
-$blockedHandle = static fn (array $override, ?array $pages = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($publication, $handles, $pageDigests);
+$blockedHandle = static fn (array $override, ?array $pages = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify(
     $publication,
     [
         $handles[0],
@@ -60,12 +60,12 @@ $blockedHandle = static fn (array $override, ?array $pages = null): array => SQL
     ],
     $pageDigests
 );
-$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify(
+$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify(
     $publication,
     [$handles[0], $handles[1]],
     $pageDigests
 );
-$requireAllPages = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify(
+$requireAllPages = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify(
     $publication,
     [$handle('wp-single-required', [1 => $pageDigests[1]], ['require_all_pages' => true])],
     $pageDigests
@@ -127,7 +127,7 @@ $cases = [
         $bad = $publication;
         $bad['status'] = 'wal-hot-journal-savepoint-checkpoint-current-source-next223';
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($bad, $handles, $pageDigests);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($bad, $handles, $pageDigests);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -138,7 +138,7 @@ $cases = [
         $bad = $publication;
         $bad['checkpoint_reset_visible'] = false;
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($bad, $handles, $pageDigests);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($bad, $handles, $pageDigests);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -147,7 +147,7 @@ $cases = [
     }, 'SQLite WAL hot-journal savepoint checkpoint current-source next229 requires visible reset publication'],
     'empty handles rejected' => [static function () use ($publication, $pageDigests): string {
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($publication, [], $pageDigests);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($publication, [], $pageDigests);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }
@@ -156,7 +156,7 @@ $cases = [
     }, 'SQLite WAL hot-journal savepoint checkpoint current-source next229 requires reopened handles'],
     'bad page digest rejected' => [static function () use ($publication, $handles): string {
         try {
-            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($publication, $handles, [0 => 'bad']);
+            SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($publication, $handles, [0 => 'bad']);
         } catch (Throwable $throwable) {
             return $throwable->getMessage();
         }

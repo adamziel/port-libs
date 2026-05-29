@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan;
 
 $trigger147 = [[
     'timing' => 'after',
@@ -27,7 +27,7 @@ $returning147 = [
     'autoload',
     static fn (array $row, int $statement, int $depth): string => $statement . ':' . $depth . ':' . $row['option_name'],
 ];
-$plan147 = static fn (array $options = [], ?array $currentRows = null, ?array $nextRows = null, ?array $returning = null): array => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan::execute(
+$plan147 = static fn (array $options = [], ?array $currentRows = null, ?array $nextRows = null, ?array $returning = null): array => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNext147(
     $savepoint147,
     $currentRows ?? $current147,
     $nextRows ?? $next147,
@@ -113,12 +113,12 @@ $cases147 = [
     'ignore conflict suppresses duplicate recursive row returning' => [static function () use ($trigger147, $savepoint147, $current147, $next147, $returning147): mixed {
         $trigger = $trigger147;
         $trigger[0]['insert_row']['option_name'] = 'next_plugin';
-        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan::execute($savepoint147, $current147, $next147, $trigger, ['option_name'], $returning147, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
+        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNext147($savepoint147, $current147, $next147, $trigger, ['option_name'], $returning147, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
     }, ['next_plugin']],
     'ignore conflict records ignored next row' => [static function () use ($trigger147, $savepoint147, $current147, $next147, $returning147): mixed {
         $trigger = $trigger147;
         $trigger[0]['insert_row']['option_name'] = 'next_plugin';
-        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan::execute($savepoint147, $current147, $next147, $trigger, ['option_name'], $returning147, ['conflict_action' => 'ignore'])['next']['ignored_before_rollback'], 'option_name');
+        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNext147($savepoint147, $current147, $next147, $trigger, ['option_name'], $returning147, ['conflict_action' => 'ignore'])['next']['ignored_before_rollback'], 'option_name');
     }, ['next_plugin']],
     'bad savepoint rejected' => [static fn (): mixed => $plan147(['savepoint' => 'bad-name']), InvalidArgumentException::class],
     'bad current source rejected' => [static fn (): mixed => $plan147(['current_source' => 'bad source']), InvalidArgumentException::class],

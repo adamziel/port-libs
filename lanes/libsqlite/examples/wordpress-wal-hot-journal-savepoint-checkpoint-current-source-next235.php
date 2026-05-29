@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next235 checkpoint database image');
@@ -55,7 +55,7 @@ $receipt = static function (string $name, string $kind, array $overrides = []) u
     ], $overrides);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan::admitDurablePublication($readerPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next235AdmitDurablePublication($readerPlan, [
     $receipt('wp-next235-database', 'database'),
     $receipt('wp-next235-wal', 'wal'),
     $receipt('wp-next235-journal', 'journal'),

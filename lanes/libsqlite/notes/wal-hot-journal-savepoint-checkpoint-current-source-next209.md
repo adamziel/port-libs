@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext209Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 post-checkpoint writer-generation fence layered after the accepted next206
 reopened-statement consumer admission.
 

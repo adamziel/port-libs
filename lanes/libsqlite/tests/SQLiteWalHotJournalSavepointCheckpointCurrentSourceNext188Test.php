@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -48,7 +48,7 @@ $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 $currentSalt = [$currentWal->header->salt1, $currentWal->header->salt2];
 $nextSalt = [$nextWal->header->salt1, $nextWal->header->salt2];
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -100,7 +100,7 @@ $readers = [
     ['name' => 'reader-old-token-before-hook', 'source_id' => 'old-token', 'epoch' => $currentToken['epoch'], 'observed_checkpoint_sequence' => 188, 'observed_salt' => $currentSalt, 'observed_commit_hook' => 700, 'observed_schema_cookie' => 44],
 ];
 
-$plan = static fn (?array $statementRows = null, ?array $readerRows = null, int $currentHook = 700, int $nextHook = 701): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$plan = static fn (?array $statementRows = null, ?array $readerRows = null, int $currentHook = 700, int $nextHook = 701): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

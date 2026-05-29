@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan;
 
 $trigger139 = [[
     'timing' => 'after',
@@ -25,7 +25,7 @@ $returning139 = [
 ];
 $initial139 = [['option_id' => 40, 'option_name' => 'existing', 'level' => 0, 'autoload' => 'no']];
 $input139 = [['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes']];
-$plan139 = static fn (array $options = []): array => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint(
+$plan139 = static fn (array $options = []): array => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
     $initial139,
     $input139,
     $trigger139,
@@ -86,50 +86,50 @@ $cases139 = [
     'non recursive discarded returning count' => [static fn (): mixed => $nonRecursive139()['discarded_returning_count'], 2],
     'non recursive reports disabled flag' => [static fn (): mixed => $nonRecursive139()['recursive_triggers'], false],
     'custom max depth passes through' => [static fn (): mixed => $plan139(['max_depth' => 4])['max_depth'], 4],
-    'wildcard returning includes option names' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['option_name'], ['*'])['returning_rows'], 'option_name'), ['plugin_seed', 'plugin_seed:child', 'plugin_seed:child:child', 'plugin_seed:child:child:child']],
-    'wildcard returning includes autoload values' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['option_name'], ['*'])['returning_rows'], 'autoload'), ['yes', 'yes', 'yes', 'yes']],
-    'wildcard returning rollback still restores baseline' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['option_name'], ['*'])['after_savepoint'], 'option_name'), ['existing']],
+    'wildcard returning includes option names' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['option_name'], ['*'])['returning_rows'], 'option_name'), ['plugin_seed', 'plugin_seed:child', 'plugin_seed:child:child', 'plugin_seed:child:child:child']],
+    'wildcard returning includes autoload values' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['option_name'], ['*'])['returning_rows'], 'autoload'), ['yes', 'yes', 'yes', 'yes']],
+    'wildcard returning rollback still restores baseline' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['option_name'], ['*'])['after_savepoint'], 'option_name'), ['existing']],
     'ignore conflict suppresses duplicate recursive child returning' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
-        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
+        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['returning_rows'], 'name');
     }, ['plugin_seed']],
     'ignore conflict records ignored before rollback' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
-        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['ignored_before_rollback'], 'option_name');
+        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['ignored_before_rollback'], 'option_name');
     }, ['plugin_seed']],
     'ignore conflict keeps one discarded returning row' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
-        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['discarded_returning_count'];
+        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'ignore'])['discarded_returning_count'];
     }, 1],
     'replace conflict returns replacement row' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['when']['value'] = 2;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
         $trigger[0]['insert_row']['level'] = 7;
-        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['returning_rows'], 'level');
+        return array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['returning_rows'], 'level');
     }, [1, 7]],
     'replace conflict rollback restores baseline only' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['when']['value'] = 2;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
         $trigger[0]['insert_row']['level'] = 7;
-        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['restored_unique_keys'];
+        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['restored_unique_keys'];
     }, ['existing']],
     'replace conflict statement keys show replacement' => [static function () use ($initial139, $input139, $trigger139, $returning139): mixed {
         $trigger = $trigger139;
         $trigger[0]['when']['value'] = 2;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
         $trigger[0]['insert_row']['level'] = 7;
-        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['statement_unique_keys'];
+        return SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger, ['option_name'], $returning139, ['conflict_action' => 'replace'])['statement_unique_keys'];
     }, ['existing', 'plugin_seed']],
-    'release with wildcard keeps rows after savepoint' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['option_name'], ['*'], ['rollback_to' => false])['after_savepoint'], 'option_name'), ['existing', 'plugin_seed', 'plugin_seed:child', 'plugin_seed:child:child', 'plugin_seed:child:child:child']],
+    'release with wildcard keeps rows after savepoint' => [static fn (): mixed => array_column(SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['option_name'], ['*'], ['rollback_to' => false])['after_savepoint'], 'option_name'), ['existing', 'plugin_seed', 'plugin_seed:child', 'plugin_seed:child:child', 'plugin_seed:child:child:child']],
     'bad savepoint throws' => [static fn (): mixed => $plan139(['savepoint' => 'bad-name']), InvalidArgumentException::class],
-    'bad returning column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['option_name'], ['new.missing']), InvalidArgumentException::class],
-    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint([['option_id' => 1]], $input139, $trigger139, ['option_name'], $returning139), InvalidArgumentException::class],
-    'bad unique column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint($initial139, $input139, $trigger139, ['bad-name'], $returning139), InvalidArgumentException::class],
+    'bad returning column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['option_name'], ['new.missing']), InvalidArgumentException::class],
+    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139([['option_id' => 1]], $input139, $trigger139, ['option_name'], $returning139), InvalidArgumentException::class],
+    'bad unique column throws' => [static fn (): mixed => SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139($initial139, $input139, $trigger139, ['bad-name'], $returning139), InvalidArgumentException::class],
     'negative max depth throws' => [static fn (): mixed => $plan139(['max_depth' => -1]), InvalidArgumentException::class],
 ];
 

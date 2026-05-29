@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next226
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan`, a post-reset file-state verifier for the WAL hot-journal/savepoint/checkpoint chain. It consumes the accepted next218 restart/truncate admission shape and requires matching database bytes, matching reset WAL bytes, absent hot journal, and durable reset receipts before reopening the WordPress current source.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-reset file-state verifier for the WAL hot-journal/savepoint/checkpoint chain. It consumes the accepted next218 restart/truncate admission shape and requires matching database bytes, matching reset WAL bytes, absent hot journal, and durable reset receipts before reopening the WordPress current source.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next226.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext226Test.php

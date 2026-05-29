@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next254 checkpoint database image');
@@ -48,7 +48,7 @@ $lease = static function (string $name, string $kind, array $pages, array $frame
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext254Plan::admitCurrentSourceLeases($cachePlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next254AdmitCurrentSourceLeases($cachePlan, [
     $lease('schema-statement-lease', 'schema-statement', [1], [38], ['schema-reader'], ['invalidate-schema-cache']),
     $lease('options-table-root-lease', 'table-root', [2, 5], [40], ['options-reader'], ['clear-options-readmark']),
     $lease('autoload-index-root-lease', 'index-root', [8], [41], ['autoload-reader'], ['refresh-schema-cookie']),

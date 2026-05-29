@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next232 checkpoint database');
@@ -43,7 +43,7 @@ $slot = static function (string $name, array $pages) use ($handlePlan, $database
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan::admitReaderSlots(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next232AdmitReaderSlots(
     $handlePlan,
     [
         $slot('wp-schema-reader-slot', [1]),

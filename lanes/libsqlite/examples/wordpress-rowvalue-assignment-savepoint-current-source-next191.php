@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -23,7 +23,7 @@ $attempt = "UPDATE wp_options SET status = 'attempt191', option_value = option_v
 $delete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (2, 'pending_theme')) RETURNING option_id, blog_id, option_name ORDER BY option_id";
 $retry = str_replace("'attempt191'", "'retry191'", $attempt);
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
     ['wp_options' => $rows],
     [$attempt, $delete],
     [$retry, $delete],

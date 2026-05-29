@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $plan = static fn (
     string $nextSource = 'master-reader-next:163',
     int $currentEpochArg = 163,
     int $nextEpochArg = 164,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163(
     $database,
     $master,
     $cached ?? $cachedBytes,
@@ -148,13 +148,13 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan::plan('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
-    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan::plan($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
+    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
+    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
     'rejects empty current source id' => static fn () => $plan(null, null, null, null, null, null, '', $nextSourceId),
     'rejects empty next source id' => static fn () => $plan(null, null, null, null, null, null, $currentSourceId, ''),
     'rejects same source ids' => static fn () => $plan(null, null, null, null, null, null, $currentSourceId, $currentSourceId),
     'rejects blank current master' => static fn () => $plan(null, " \n"),
-    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext163Plan::plan($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
+    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext163($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $nextPages, $cache, $readPages, $currentSourceId, $nextSourceId, $currentEpoch, $nextEpoch),
     'rejects bad current epoch' => static fn () => $plan(null, null, null, null, null, null, $currentSourceId, $nextSourceId, 0, 164),
     'rejects non-increasing next epoch' => static fn () => $plan(null, null, null, null, null, null, $currentSourceId, $nextSourceId, 163, 163),
     'rejects empty current pages' => static fn () => $plan(null, null, []),

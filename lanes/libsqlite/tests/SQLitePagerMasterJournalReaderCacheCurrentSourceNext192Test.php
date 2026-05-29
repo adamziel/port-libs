@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -129,7 +129,7 @@ $plan = static fn (
     ?array $recoveredPages = null,
     ?string $bytes = null,
     ?int $size = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext192(
     $database,
     $master,
     $masterBytes,
@@ -218,7 +218,7 @@ $throws = [
     'missing cache tokens rejected' => static fn () => $plan([1 => $cacheEntry('bad', $recovered[1], ['member_journal_tokens' => null])], [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 192, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => $currentTokenDigest]]),
     'missing cache member token rejected' => static fn () => $plan([1 => $cacheEntry('bad', $recovered[1], ['member_journal_tokens' => [$mainJournal => $currentTokens[$mainJournal]]])], [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 192, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => $currentTokenDigest]]),
     'empty read digest rejected' => static fn () => $plan(null, [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 192, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => '']]),
-    'base bad recovery sequence rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext192Plan::plan($database, $master, $masterBytes, $databaseBytes, $pageSize, $recovered, $cache(), $reads(), $sourceId, 192, $publication, $masterDigest, 0, $currentTokens),
+    'base bad recovery sequence rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext192($database, $master, $masterBytes, $databaseBytes, $pageSize, $recovered, $cache(), $reads(), $sourceId, 192, $publication, $masterDigest, 0, $currentTokens),
     'base unaligned database rejected' => static fn () => $plan(null, null, null, null, 'bad'),
 ];
 

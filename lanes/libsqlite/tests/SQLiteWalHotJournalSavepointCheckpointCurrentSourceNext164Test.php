@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -62,7 +61,7 @@ $baseForTokens = static function () use ($databasePath, $databaseBytes, $pageSiz
         1 => ['image' => $page('next164 current wal schema draft'), 'source_id' => 'bootstrap', 'epoch' => 1],
     ];
 
-    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan::plan(
+    return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next161Plan(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -101,7 +100,7 @@ $readers = [
     ['name' => 'wp-closed-reader', 'source_id' => $currentToken['id'], 'epoch' => $currentToken['epoch'], 'closed' => true],
 ];
 
-$plan = static fn (?array $readerRows = null, ?array $cacheRows = null, string $mode = 'restart', int $readerEndFrame = 4): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext164Plan::plan(
+$plan = static fn (?array $readerRows = null, ?array $cacheRows = null, string $mode = 'restart', int $readerEndFrame = 4): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next164Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

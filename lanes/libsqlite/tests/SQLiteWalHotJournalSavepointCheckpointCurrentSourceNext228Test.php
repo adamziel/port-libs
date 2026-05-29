@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -122,10 +122,10 @@ $blockedReaders = array_merge($readers, [
     ],
 ]);
 
-$admitted = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, $readers, $sourceToken);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $blockedBarriers, $blockedReaders, $sourceToken);
-$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, array_slice($barriers, 0, 4), $readers, $sourceToken);
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(array_merge($publication, ['mode' => 'restart']), array_replace($barriers, [1 => array_merge($barriers[1], ['mode' => 'restart'])]), $readers, $sourceToken);
+$admitted = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, $readers, $sourceToken);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $blockedBarriers, $blockedReaders, $sourceToken);
+$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, array_slice($barriers, 0, 4), $readers, $sourceToken);
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(array_merge($publication, ['mode' => 'restart']), array_replace($barriers, [1 => array_merge($barriers[1], ['mode' => 'restart'])]), $readers, $sourceToken);
 
 $cases = [
     'status' => [static fn (): mixed => $admitted()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next228'],
@@ -192,21 +192,21 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(['status' => 'bad'], $barriers, $readers, $sourceToken),
-    'not visible rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(array_merge($publication, ['checkpoint_reset_visible' => false]), $barriers, $readers, $sourceToken),
-    'empty barriers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [], $readers, $sourceToken),
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, [], $sourceToken),
-    'source token mismatch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, $readers, 'next228:other-source'),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(array_merge($publication, ['next_writer_generation' => 0]), $barriers, $readers, $sourceToken),
-    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(array_merge($publication, ['database_digest' => 'short']), $barriers, $readers, $sourceToken),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource(array_merge($publication, ['mode' => 'passive']), $barriers, $readers, $sourceToken),
-    'bad barrier name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [array_merge($barriers[0], ['name' => 'bad name'])], $readers, $sourceToken),
-    'bad barrier type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [array_merge($barriers[0], ['type' => 'cache'])], $readers, $sourceToken),
-    'bad barrier generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [array_merge($barriers[0], ['generation' => -1])], $readers, $sourceToken),
-    'bad barrier sync order rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [array_merge($barriers[0], ['sync_order' => -1])], $readers, $sourceToken),
-    'bad barrier digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, [array_merge($barriers[0], ['database_digest' => 'short'])], $readers, $sourceToken),
-    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, [array_merge($readers[0], ['name' => 'bad name'])], $sourceToken),
-    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext228Plan::admitDurableSource($publication, $barriers, [array_merge($readers[0], ['generation' => -1])], $sourceToken),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(['status' => 'bad'], $barriers, $readers, $sourceToken),
+    'not visible rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(array_merge($publication, ['checkpoint_reset_visible' => false]), $barriers, $readers, $sourceToken),
+    'empty barriers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [], $readers, $sourceToken),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, [], $sourceToken),
+    'source token mismatch rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, $readers, 'next228:other-source'),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(array_merge($publication, ['next_writer_generation' => 0]), $barriers, $readers, $sourceToken),
+    'bad digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(array_merge($publication, ['database_digest' => 'short']), $barriers, $readers, $sourceToken),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource(array_merge($publication, ['mode' => 'passive']), $barriers, $readers, $sourceToken),
+    'bad barrier name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [array_merge($barriers[0], ['name' => 'bad name'])], $readers, $sourceToken),
+    'bad barrier type rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [array_merge($barriers[0], ['type' => 'cache'])], $readers, $sourceToken),
+    'bad barrier generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [array_merge($barriers[0], ['generation' => -1])], $readers, $sourceToken),
+    'bad barrier sync order rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [array_merge($barriers[0], ['sync_order' => -1])], $readers, $sourceToken),
+    'bad barrier digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, [array_merge($barriers[0], ['database_digest' => 'short'])], $readers, $sourceToken),
+    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, [array_merge($readers[0], ['name' => 'bad name'])], $sourceToken),
+    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next228AdmitDurableSource($publication, $barriers, [array_merge($readers[0], ['generation' => -1])], $sourceToken),
 ];
 
 foreach ($throws as $name => $callback) {

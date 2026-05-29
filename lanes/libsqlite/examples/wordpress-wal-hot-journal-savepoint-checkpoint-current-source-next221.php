@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next221.sqlite';
 $token = ['id' => 'wp-import-hot-journal-source-next221', 'epoch' => 221];
@@ -42,7 +42,7 @@ $receipt = static fn (string $name, string $kind, string $action, string $path):
     'exclusive_lock_receipt' => true,
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan::plan($admission, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next221Plan($admission, [
     $receipt('delete-hot-journal-after-plugin-import', 'hot-journal', 'delete', $databasePath . '-journal'),
     $receipt('restart-wal-after-plugin-import', 'wal', 'restart-header', $databasePath . '-wal'),
     $receipt('reset-shm-readmarks-after-plugin-import', 'shm', 'reset-read-marks', $databasePath . '-shm'),

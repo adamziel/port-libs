@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext190Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext187Plan.php';
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext190Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next190.sqlite';
@@ -35,7 +35,7 @@ $sources = [
 $beforeSource = 'database-image-before-master-journal-recovery-next190';
 $currentDigest = static fn (int $pageNumber): string => $digest($pageNumber, $current[$pageNumber] ?? $before[$pageNumber], $sources[$pageNumber] ?? $beforeSource);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext190Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext190(
     $databasePath,
     $masterPath,
     $masterBytes,

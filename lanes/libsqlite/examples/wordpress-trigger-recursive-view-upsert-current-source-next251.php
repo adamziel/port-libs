@@ -11,7 +11,7 @@ foreach (glob(dirname(__DIR__) . '/src/SQLiteTriggerRecursiveViewUpsertCurrentSo
     require_once $planFile;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $view = [
     'name' => 'wp_recursive_option_import',
@@ -32,7 +32,7 @@ $followingView = $view;
 $followingView['source'] = 'main@view-cookie-251-following';
 $followingView['trigger_source'] = 'main@trigger-cookie-251-following';
 
-$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNext251Plan::execute(
+$summary = SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext251(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

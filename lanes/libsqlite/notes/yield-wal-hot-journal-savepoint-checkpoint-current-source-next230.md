@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next230
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan`, a reopened-reader ticket fence after accepted next227 publish receipts. It verifies each reopened reader has advanced to the next-source epoch, checkpoint frame/cookie, schema cookie, published page digests, and cannot still see the hot journal or a WAL tail hidden by the checkpoint.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a reopened-reader ticket fence after accepted next227 publish receipts. It verifies each reopened reader has advanced to the next-source epoch, checkpoint frame/cookie, schema cookie, published page digests, and cannot still see the hot journal or a WAL tail hidden by the checkpoint.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next230.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Test.php

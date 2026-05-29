@@ -2,15 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $walDigest = $digest('next234 restarted wal after hot journal savepoint checkpoint');
@@ -69,18 +63,18 @@ $publishReceipt = static function (string $scopeName, array $pages) use ($digest
         'next_source_epoch' => 235,
     ];
 };
-$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [
+$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [
     $scope('wp-options-savepoint', [1, 2]),
     $scope('wp-plugin-savepoint', [3, 4]),
 ]);
-$published = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($finalized, [
+$published = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($finalized, [
     $publishReceipt('wp-options-savepoint', [1, 2]),
     $publishReceipt('wp-plugin-savepoint', [3, 4]),
 ]);
 $checksum = static fn (array $readmarks): string =>
     hash('sha256', json_encode([23401, 23402, 96, 96, $readmarks, $walDigest], JSON_THROW_ON_ERROR));
 $readmarks = ['wp-options-import' => 96, 'wp-plugin-cache' => 96];
-$walIndexReopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($published, [[
+$walIndexReopen = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($published, [[
     'name' => 'wp-options-shm-reopen-next234',
     'scope_names' => ['wp-options-savepoint', 'wp-plugin-savepoint'],
     'source_token_id' => $token['id'],
@@ -125,7 +119,7 @@ $receipt = static function (array $overrides = []) use ($walDigest, $dbDigest, $
 };
 $receipts = [$receipt()];
 $plan = static fn (?array $inputReopen = null, ?array $inputReceipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan::verifyDurableHandoff(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next234VerifyDurableHandoff(
         $inputReopen ?? $walIndexReopen,
         $inputReceipts ?? $receipts
     );

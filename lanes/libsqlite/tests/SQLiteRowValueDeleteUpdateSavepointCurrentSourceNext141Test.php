@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -36,8 +36,8 @@ $updateAfterDelete = static function () use ($deleteBetweenSql, $updateNotBetwee
 
     return SQLiteUpdateDeleteReturningSql::execute($updateNotBetweenSql, $deleted['tables']);
 };
-$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute($tables, $commitStatements, $unique);
-$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute($tables, $rollbackStatements, $unique);
+$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, $commitStatements, $unique);
+$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, $rollbackStatements, $unique);
 
 $cases = [
     'delete parser preserves between predicate' => [static fn (): mixed => $parsedDelete()['where'], "(blog_id, option_name) BETWEEN (1, '_transient_feed') AND (1, '_transient_timeout_feed')"],
@@ -88,10 +88,10 @@ $cases = [
     'rollback changes reset to zero' => [static fn (): mixed => $rollback()['changes'], 0],
     'rollback attempted changes include successful statements only' => [static fn (): mixed => $rollback()['attempted_changes'], 3],
     'rollback savepoint image equals input tables' => [static fn (): mixed => $rollback()['savepoint_image_tables'], $tables],
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute($tables, [$deleteBetweenSql], []), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141($tables, [$deleteBetweenSql], []), InvalidArgumentException::class],
     'malformed between arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute("DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN (1) AND (2) RETURNING option_id", $tables), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute(['wp_options' => ['bad']], [$deleteBetweenSql], $unique), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141(['wp_options' => ['bad']], [$deleteBetweenSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

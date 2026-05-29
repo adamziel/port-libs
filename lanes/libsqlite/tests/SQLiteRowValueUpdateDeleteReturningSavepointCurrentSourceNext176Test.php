@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -27,7 +27,7 @@ $retryUpdateSql = "UPDATE wp_options SET (status, option_value) = ('kept176', op
 
 $deleteOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteSql, $tables, 'option_id', $unique);
 $unknownDelete = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($unknownDeleteSql, $tables, 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext164Plan::execute(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext164(
     $tables,
     [$stageSql, $rollbackSql],
     [$retryDeleteSql, $retryUpdateSql],

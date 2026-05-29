@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -79,7 +79,7 @@ $currentChains141 = static fn (): array => [[
     'record_values' => [['autoload', 'option_name']],
 ]];
 
-$plan141 = static fn (bool $secureDelete = false): SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan::fromPreparedAndCurrentOverflowChains(
+$plan141 = static fn (bool $secureDelete = false): SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains(
     $database141(false),
     $database141(true),
     $preparedChains141(),
@@ -149,14 +149,14 @@ $cases141 = [
     'dependency closure note' => static fn (): mixed => str_contains($plan141()->toArray()['dependency_closure'], 'no new support component needed'),
     'non overlap note' => static fn (): mixed => str_contains($plan141()->toArray()['non_overlap'], 'stale prepared overflow chain'),
     'secure delete clears current pages only' => static fn (): mixed => $plan141(true)->releasePlan->freePlan->clearedPageNumbers,
-    'empty replacement rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan::fromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $currentChains141(), '', 4)),
-    'bad parent rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan::fromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $currentChains141(), 'abc', 1)),
-    'empty current chains rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan::fromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), [], 'abc', 4)),
+    'empty replacement rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $currentChains141(), '', 4)),
+    'bad parent rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $currentChains141(), 'abc', 1)),
+    'empty current chains rejected' => static fn (): mixed => $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), [], 'abc', 4)),
     'trailing current chain rejected' => static function () use ($database141, $preparedChains141, $currentChains141, $throwMessage141): mixed {
         $chains = $currentChains141();
         $chains[0]['overflow_payload_bytes'] = 508;
 
-        return $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext141Plan::fromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $chains, 'abc', 4));
+        return $throwMessage141(static fn () => SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next141FromPreparedAndCurrentOverflowChains($database141(false), $database141(true), $preparedChains141(), $chains, 'abc', 4));
     },
 ];
 

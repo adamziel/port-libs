@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $token = ['id' => 'wp-import-hot-journal-checkpoint:217', 'epoch' => 217];
@@ -36,7 +36,7 @@ $receipt = static function (string $name, string $action) use ($digest, $token):
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext217Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next217Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next211',
         'database_path' => '/srv/www/wp-content/database/wp-options.sqlite',

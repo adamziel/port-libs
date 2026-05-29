@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan`, a post-next233 finalizer gate before opening the next WAL writer generation. It admits the next writer only after every prepared statement admitted against the checkpoint current source has a matching finalizer receipt: source token, generation, schema cookie, database digest, `SQLITE_DONE`, reset, reader-lease release, WAL-hook receipt, and autocheckpoint receipt.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-next233 finalizer gate before opening the next WAL writer generation. It admits the next writer only after every prepared statement admitted against the checkpoint current source has a matching finalizer receipt: source token, generation, schema cookie, database digest, `SQLITE_DONE`, reset, reader-lease release, WAL-hook receipt, and autocheckpoint receipt.
 
 Blocked finalizers retain the checkpoint reader leases and suppress the next writer when a statement is missing, stale, still inside a savepoint, still sees the hot journal, has dirty reader cache state, or lacks WAL-hook/autocheckpoint receipts.
 

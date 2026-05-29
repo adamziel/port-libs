@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -50,8 +50,8 @@ $statements = [
     $statement('select-option-name-index-statement', 'index-handle', [5 => $rootPages[5]]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, $statements, $rootPages);
-$blockedStatement = static fn (array $override, ?array $pages = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, $statements, $rootPages);
+$blockedStatement = static fn (array $override, ?array $pages = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(
     $handlePlan,
     [
         $statements[0],
@@ -60,12 +60,12 @@ $blockedStatement = static fn (array $override, ?array $pages = null): array => 
     ],
     $rootPages
 );
-$missingRoot = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(
+$missingRoot = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(
     $handlePlan,
     [$statements[0], $statements[1]],
     $rootPages
 );
-$requireAllRoots = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(
+$requireAllRoots = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(
     $handlePlan,
     [$statement('select-all-required', 'schema-handle', [1 => $rootPages[1]], ['require_all_root_pages' => true])],
     $rootPages
@@ -136,18 +136,18 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next229-blocked']), $statements, $rootPages),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['current_source_admitted' => false]), $statements, $rootPages),
-    'empty statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, [], $rootPages),
-    'bad root digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, $statements, [0 => 'bad']),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['source_token' => 'bad token']), $statements, $rootPages),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['next_writer_generation' => 0]), $statements, $rootPages),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['schema_cookie' => 0]), $statements, $rootPages),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['database_digest' => 'short']), $statements, $rootPages),
-    'bad admitted handles rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements(array_replace($handlePlan, ['admitted_handle_names' => []]), $statements, $rootPages),
-    'bad statement name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, [array_replace($statements[0], ['name' => 'bad name'])], $rootPages),
-    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, [array_replace($statements[0], ['generation' => -1])], $rootPages),
-    'bad statement root digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, [array_replace($statements[0], ['root_page_digests' => [0 => 'bad']])], $rootPages),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next229-blocked']), $statements, $rootPages),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['current_source_admitted' => false]), $statements, $rootPages),
+    'empty statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, [], $rootPages),
+    'bad root digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, $statements, [0 => 'bad']),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['source_token' => 'bad token']), $statements, $rootPages),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['next_writer_generation' => 0]), $statements, $rootPages),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['schema_cookie' => 0]), $statements, $rootPages),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['database_digest' => 'short']), $statements, $rootPages),
+    'bad admitted handles rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements(array_replace($handlePlan, ['admitted_handle_names' => []]), $statements, $rootPages),
+    'bad statement name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, [array_replace($statements[0], ['name' => 'bad name'])], $rootPages),
+    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, [array_replace($statements[0], ['generation' => -1])], $rootPages),
+    'bad statement root digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, [array_replace($statements[0], ['root_page_digests' => [0 => 'bad']])], $rootPages),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -7,7 +7,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext156Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/wp-next156.sqlite';
@@ -52,7 +52,7 @@ $nextWalBytes = $makeWalBytes([
     [4, 4, 'wp next156 retry wal plugin commit'],
 ], 157, 0x15710001, 0x15710002);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext156Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next156Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

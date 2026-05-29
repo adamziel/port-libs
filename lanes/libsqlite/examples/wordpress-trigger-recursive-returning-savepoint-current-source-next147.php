@@ -3,12 +3,12 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../src/SQLiteDmlTriggerRecursionPlan.php';
-require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan.php';
-require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php';
+require __DIR__ . '/../src/SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext147Plan::execute(
+$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::executeNext147(
     [['option_id' => 1, 'option_name' => 'siteurl', 'depth' => 0, 'autoload' => 'yes']],
     [['option_id' => 10, 'option_name' => 'plugin_current', 'depth' => 1, 'autoload' => 'yes']],
     [['option_id' => 20, 'option_name' => 'plugin_next', 'depth' => 1, 'autoload' => 'no']],

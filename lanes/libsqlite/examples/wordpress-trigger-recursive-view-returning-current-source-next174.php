@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext160Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext162Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext165Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -37,7 +37,7 @@ $nextView['source'] = 'main@view-cookie-174-next';
 $nextView['trigger_source'] = 'main@trigger-cookie-174-next';
 $nextView['where'] = static fn (array $row, string $root, int $depth): bool => $depth <= 3 && str_contains((string) $row['option_name'], '_');
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext174Plan::execute(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext174(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'theme_root']],

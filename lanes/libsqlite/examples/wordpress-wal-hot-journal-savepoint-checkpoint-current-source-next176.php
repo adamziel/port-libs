@@ -5,15 +5,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext176Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext176Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = '/srv/www/wp-content/database/wp-options-next176.sqlite';
@@ -72,7 +68,7 @@ $cache = [
 ];
 $release = ['plugin-import-inner-next176' => [3]];
 
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan::plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -113,7 +109,7 @@ $journalDigest = (static function (array $pages): string {
     return hash('sha256', implode('|', $parts));
 })($hot);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext176Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next176Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext160Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $plan = static fn (
     ?array $reads = null,
     string $source = 'master-reader-current:160',
     int $epochArg = 160,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext160Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160(
     $database,
     $master,
     $cached ?? $cachedBytes,
@@ -125,11 +125,11 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext160Plan::plan('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
-    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext160Plan::plan($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects empty database path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160('', $master, $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects empty master path' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160($database, '', $cachedBytes, $currentBytes, $pageSize, $currentPages, $cache, $readPages, $sourceId, $epoch),
     'rejects empty source id' => static fn () => $plan(null, null, null, null, null, '', 160),
     'rejects blank current master' => static fn () => $plan(null, " \n"),
-    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext160Plan::plan($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $cache, $readPages, $sourceId, $epoch),
+    'rejects bad page size' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext160($database, $master, $cachedBytes, $currentBytes, 0, $currentPages, $cache, $readPages, $sourceId, $epoch),
     'rejects bad epoch' => static fn () => $plan(null, null, null, null, null, $sourceId, 0),
     'rejects empty current pages' => static fn () => $plan(null, null, []),
     'rejects empty cache' => static fn () => $plan(null, null, null, []),

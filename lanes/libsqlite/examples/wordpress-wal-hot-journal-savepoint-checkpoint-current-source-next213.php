@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 
@@ -41,7 +41,7 @@ $receipt = static fn (string $name): array => [
     'lock_receipt' => true,
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(
     $base,
     [
         $receipt('plugin-import-stale-reader'),

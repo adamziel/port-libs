@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext252Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows252 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -26,7 +26,7 @@ $attemptDelete252 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate252 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry252', option_value || ':retry252', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete252 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan252 = static fn (?array $ack = null, ?string $resume = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext252Plan::execute(
+$plan252 = static fn (?array $ack = null, ?string $resume = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext252(
     $tables252,
     [$yieldUpdate252, $yieldDelete252],
     [$attemptUpdate252, $attemptDelete252],
@@ -105,8 +105,8 @@ $cases252 = [
     'non overlap mentions next248' => [static fn (): mixed => str_contains($plan252()['non_overlap_next252'], 'next248'), true],
     'non overlap mentions next245' => [static fn (): mixed => str_contains($plan252()['non_overlap_next252'], 'next245'), true],
     'bad resume rejected by base' => [static fn (): mixed => $plan252(null, 'missing-ticket-next252'), InvalidArgumentException::class],
-    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext252Plan::execute($tables252, [$yieldUpdate252], [$attemptUpdate252], [$retryUpdate252], $unique252, 'bad-name'), InvalidArgumentException::class],
-    'bad rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext252Plan::execute(['wp_options' => [['option_id' => ['bad'], 'blog_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 1, 'option_value' => 'x']]], ["UPDATE wp_options SET (status, option_value, bytes) = ('yield252', option_value, bytes) WHERE (blog_id, option_name) IN ((1, 'home')) RETURNING option_id, blog_id, option_name, status, bytes"], [$attemptUpdate252], [$retryUpdate252], $unique252), InvalidArgumentException::class],
+    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext252($tables252, [$yieldUpdate252], [$attemptUpdate252], [$retryUpdate252], $unique252, 'bad-name'), InvalidArgumentException::class],
+    'bad rowid rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext252(['wp_options' => [['option_id' => ['bad'], 'blog_id' => 1, 'option_name' => 'home', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 1, 'option_value' => 'x']]], ["UPDATE wp_options SET (status, option_value, bytes) = ('yield252', option_value, bytes) WHERE (blog_id, option_name) IN ((1, 'home')) RETURNING option_id, blog_id, option_name, status, bytes"], [$attemptUpdate252], [$retryUpdate252], $unique252), InvalidArgumentException::class],
 ];
 
 $tests = [];

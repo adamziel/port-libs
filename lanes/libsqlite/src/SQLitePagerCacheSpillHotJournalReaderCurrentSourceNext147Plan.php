@@ -34,7 +34,7 @@ final class SQLitePagerCacheSpillHotJournalReaderCurrentSourceNext147Plan
             throw new \InvalidArgumentException('SQLite pager cache-spill hot-journal reader current-source next147 requires cache pages');
         }
 
-        $reader = SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan::plan(
+        $reader = SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan::next143Plan(
             $databasePath,
             $dirtyDatabaseBytes,
             $journalBytes,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows247 = [
@@ -43,13 +43,13 @@ $retryDelete247 = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SEL
 
 $attemptUpdateResult247 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate247, $tables247, 'option_id', $unique247);
 $retryUpdateResult247 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate247, $tables247, 'option_id', $unique247);
-$plan247 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute(
+$plan247 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247(
     $tables247,
     [$attemptUpdate247, $attemptDelete247],
     [$retryUpdate247, $retryDelete247],
     $unique247,
 );
-$customPlan247 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute(
+$customPlan247 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247(
     $tables247,
     [$attemptUpdate247],
     [$retryUpdate247],
@@ -126,11 +126,11 @@ $cases247 = [
     'custom replay ids' => [static fn (): mixed => $customPlan247()['window_exclude_group_replayed_ids_next247'], [8, 9]],
     'custom discarded ids' => [static fn (): mixed => $customPlan247()['window_exclude_group_discarded_ids_next247'], [7]],
     'custom restart ids' => [static fn (): mixed => $customPlan247()['window_exclude_group_restart_ids_next247'], [10]],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute($tables247, [], [$retryUpdate247], $unique247), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute($tables247, [$attemptUpdate247], [], $unique247), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute($tables247, [$attemptUpdate247], [$retryUpdate247], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute($tables247, [$attemptUpdate247], [$retryUpdate247], $unique247, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext247Plan::execute(['wp_options' => ['bad']], [$attemptUpdate247], [$retryUpdate247], $unique247), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247($tables247, [], [$retryUpdate247], $unique247), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247($tables247, [$attemptUpdate247], [], $unique247), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247($tables247, [$attemptUpdate247], [$retryUpdate247], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247($tables247, [$attemptUpdate247], [$retryUpdate247], $unique247, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext247(['wp_options' => ['bad']], [$attemptUpdate247], [$retryUpdate247], $unique247), InvalidArgumentException::class],
 ];
 
 $tests = [];

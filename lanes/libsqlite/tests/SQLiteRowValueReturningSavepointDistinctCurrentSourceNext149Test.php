@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -27,8 +27,8 @@ $abortDuplicate = "UPDATE wp_options SET (option_name, status) = ('siteurl', 'du
 $commitStatements = [$deleteDecimalClean, $updateDecimalClean, $deleteDecimalDrift];
 $rollbackStatements = [$deleteDecimalClean, $updateDecimalClean, $abortDuplicate];
 
-$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, $commitStatements, $unique, 'wp_options_real_distinct_rowvalue_batch');
-$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, $rollbackStatements, $unique, 'wp_options_real_distinct_rowvalue_batch');
+$commit = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $commitStatements, $unique, 'wp_options_real_distinct_rowvalue_batch');
+$rollback = static fn (): array => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, $rollbackStatements, $unique, 'wp_options_real_distinct_rowvalue_batch');
 $parsedDelete = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($deleteDecimalClean);
 $parsedUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($updateDecimalClean);
 
@@ -86,8 +86,8 @@ $cases = [
     'direct real where not distinct row ids' => [static fn (): mixed => $direct("DELETE FROM wp_options WHERE (bytes, expected_bytes) IS NOT DISTINCT FROM (24.5, 24.5) RETURNING option_id")['plan']->selectedIds, [2]],
     'direct leading decimal literal works' => [static fn (): mixed => $direct("DELETE FROM wp_options WHERE option_id = 2 RETURNING (bytes, expected_bytes) IS NOT DISTINCT FROM (.245e2, 24.5) AS same")['returning'][0]['same'], 1],
     'direct real drift where row ids' => [static fn (): mixed => $direct("DELETE FROM wp_options WHERE (bytes, expected_bytes) IS DISTINCT FROM (12.0, 12.0) AND autoload = 'no' RETURNING option_id ORDER BY option_id")['plan']->selectedIds, [4, 6, 7]],
-    'malformed real arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, ["DELETE FROM wp_options WHERE (bytes, expected_bytes) IS DISTINCT FROM (12.0) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two values'],
-    'malformed non numeric literal still rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute($tables, ["DELETE FROM wp_options WHERE (bytes, expected_bytes) IS DISTINCT FROM (12.0, 12.bad) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE literal is not supported: 12.bad'],
+    'malformed real arity rolls back savepoint' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, ["DELETE FROM wp_options WHERE (bytes, expected_bytes) IS DISTINCT FROM (12.0) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two values'],
+    'malformed non numeric literal still rejected' => [static fn (): mixed => SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135($tables, ["DELETE FROM wp_options WHERE (bytes, expected_bytes) IS DISTINCT FROM (12.0, 12.bad) RETURNING option_id"], $unique)['rollback_reason'], 'SQLite UPDATE/DELETE literal is not supported: 12.bad'],
 ];
 
 $tests = [];

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext158Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext158(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.example', 'autoload' => 'yes'],
         ['option_name' => 'home', 'option_value' => 'https://old-home.example', 'autoload' => 'yes'],

@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 
 $parents = [
     ['post_id' => 10, 'post_title' => 'Imported parent'],
@@ -26,7 +26,7 @@ $triggers = [
     ],
 ];
 
-$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan::updateParentsWithinSavepoint(
+$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119(
     $parents,
     $children,
     [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],

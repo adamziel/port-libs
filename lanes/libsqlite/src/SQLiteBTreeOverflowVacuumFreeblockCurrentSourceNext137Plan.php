@@ -11,7 +11,7 @@ final class SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan
      * @param list<array<string, mixed>> $rows
      */
     private function __construct(
-        public readonly SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $vacuumPlan,
+        public readonly SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         public readonly SQLiteFreelistAllocationPlan $allocationPlan,
         public readonly SQLiteDatabase $databaseAfterAllocation,
         private readonly array $overflowPageImages,
@@ -41,7 +41,7 @@ final class SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan
             throw new \InvalidArgumentException('SQLite overflow vacuum freeblock next137 requires replacement overflow payload bytes');
         }
 
-        $vacuumPlan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan::fromDeleteResults(
+        $vacuumPlan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next122FromDeleteResults(
             $database,
             $leafPageNumber,
             $deleteResults,
@@ -169,7 +169,7 @@ final class SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan
      * @return list<int>
      */
     private static function reusedSurvivingPages(
-        SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $vacuumPlan,
+        SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         SQLiteFreelistAllocationPlan $allocationPlan,
     ): array {
         return array_values(array_intersect($vacuumPlan->survivingFreedPointerMapPages(), $allocationPlan->allocatedPageNumbers));
@@ -180,7 +180,7 @@ final class SQLiteBTreeOverflowVacuumFreeblockCurrentSourceNext137Plan
      */
     private static function rows(
         SQLiteDatabase $sourceDatabase,
-        SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan $vacuumPlan,
+        SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan $vacuumPlan,
         SQLiteDatabase $databaseAfterVacuum,
         SQLiteDatabase $databaseAfterAllocation,
         SQLiteFreelistAllocationPlan $allocationPlan,

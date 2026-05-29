@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $digest = hash('sha256', 'wordpress next240 checkpointed wp_options database');
 $cacheDigest = hash('sha256', 'wordpress next240 clean checkpoint page cache');
@@ -49,7 +49,7 @@ $receipt = static function (string $name, array $statements, array $dirtyPages, 
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [
     $receipt('active-plugins-commit', ['select-active-plugins'], [2], [15]),
     $receipt('autoload-options-commit', ['select-autoload-options'], [3, 4], [16, 17]),
     $receipt('option-index-commit', ['select-option-index'], [7], [18]),

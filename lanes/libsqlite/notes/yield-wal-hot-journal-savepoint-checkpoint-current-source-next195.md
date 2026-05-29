@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan`, a bounded
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded
 reader retry admission fence for the WAL/hot-journal/savepoint/checkpoint path.
 After hot-journal recovery, failed-savepoint rollback, and checkpoint current
 source publication, a retry reader is admitted only when all observed source
@@ -38,7 +38,7 @@ wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195 self-test 
 Syntax:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195.php
 ```

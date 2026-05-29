@@ -1,9 +1,9 @@
 # WAL hot-journal reader restart current-source next143
 
-- Behavior: `SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan` composes hot rollback-journal recovery with WAL reader restart source tracking. A current reader remains pinned to the hot-recovered current WAL source while a later opener uses a distinct restarted WAL generation.
+- Behavior: `SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan` composes hot rollback-journal recovery with WAL reader restart source tracking. A current reader remains pinned to the hot-recovered current WAL source while a later opener uses a distinct restarted WAL generation.
 - WordPress smoke: `examples/wordpress-wal-hot-journal-reader-restart-current-source-next143.php` models a copied `wp_options` database that recovers hot rollback-journal pages, preserves the current reader source, and separates later option writes onto a restarted `-wal` generation.
 - Focused verification:
-  - `php -l lanes/libsqlite/src/SQLiteWalHotJournalReaderRestartCurrentSourceNext143Plan.php`
+  - `php -l lanes/libsqlite/src/SQLiteWalHotJournalReaderRestartCurrentSourceNextPlan.php`
   - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalReaderRestartCurrentSourceNext143Test.php`
   - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-reader-restart-current-source-next143.php`
   - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalReaderRestartCurrentSourceNext143Test.php`

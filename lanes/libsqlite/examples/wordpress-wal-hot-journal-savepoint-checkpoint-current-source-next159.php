@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext159Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -53,7 +53,7 @@ $nextWalBytes = $makeWalBytes([
     [6, 6, 'next159 next wal cron retry commit'],
 ], 160, 0x16000101, 0x16000102);
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext159Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next159Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

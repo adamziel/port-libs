@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $sourceToken = 'wordpress-import-current-source-next260';
@@ -22,7 +22,7 @@ $common = [
     'commit_generation' => $generation,
     'schema_cookie' => $schemaCookie,
 ];
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource([
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource([
     'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next246',
     'durable_handoff_admitted' => true,
     'database_path' => '/srv/www/wp-content/database/wordpress.sqlite',

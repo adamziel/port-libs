@@ -6,12 +6,12 @@ require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
 require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
-require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan;
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -50,7 +50,7 @@ $stack->recordWalFrameWrite(4, 4, true);
 $stack->recordWalFrameWrite(5, 2, true);
 $stack->recordWalFrameWrite(6, 5, true);
 
-$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext130Plan::plan(
+$plan = SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next130Plan(
     $stack,
     'plugin-batch-next130',
     SQLiteWal::parse($walBytes, $pageSize, true),

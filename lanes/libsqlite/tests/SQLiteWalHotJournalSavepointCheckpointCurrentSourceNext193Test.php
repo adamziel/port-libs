@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -51,7 +51,7 @@ $plan = static fn (
     ?array $readerSlots = null,
     int $generation = 193,
     array $pages = [1, 2, 3]
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan::publishReaderMarks(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next193PublishReaderMarks(
     $input ?? $handoff,
     $readerSlots ?? $slots,
     $generation,
@@ -137,7 +137,7 @@ $throws = [
     'missing handoff key rejected' => static function () use ($handoff, $slots): void {
         $bad = $handoff;
         unset($bad['retry_reader_token']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext193Plan::publishReaderMarks($bad, $slots, 193, [1, 2, 3]);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next193PublishReaderMarks($bad, $slots, 193, [1, 2, 3]);
     },
     'zero generation rejected' => static fn () => $plan(null, null, 0),
     'empty expected pages rejected' => static fn () => $plan(null, null, 193, []),

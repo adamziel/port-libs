@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next231
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan`, a post-publish WAL-index reopen fence for the hot-journal/savepoint/checkpoint chain.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-publish WAL-index reopen fence for the hot-journal/savepoint/checkpoint chain.
 
 The plan consumes the accepted next227 publish receipt shape and admits the reopened current source only when WAL-index receipts match the published source token, checkpoint frame, checkpoint/schema cookies, next source epoch, WAL digest, salt/checksum digest, backfill frame, and reader read-mark frames. Stale source tokens, stale readmarks, missing SHM syncs, duplicate receipts, missing published scopes, and unpublished scope receipts hold the current source.
 
@@ -11,7 +11,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next231.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Test.php

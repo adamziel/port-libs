@@ -4,7 +4,7 @@ Slice: `wal-hot-journal-savepoint-checkpoint-current-source-next182`
 
 Behavior added:
 
-- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext182Plan`.
+- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`.
 - Composes the accepted next167 current-source publication guard, then decides
   which prepared statements can remain cached after hot rollback-journal
   recovery, rollback-to-savepoint, and WAL checkpoint publication.

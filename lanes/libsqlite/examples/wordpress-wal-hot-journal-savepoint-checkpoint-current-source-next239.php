@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $digest('wordpress next239 copied wp_options checkpoint image');
@@ -52,7 +52,7 @@ $receipt = static function (string $name, string $kind, array $statements) use (
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan::admitAtomicCommitBarrier($finalizerPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next239AdmitAtomicCommitBarrier($finalizerPlan, [
     $receipt('wordpress-next239-database', 'database', ['select-wp-options', 'select-active-plugins']),
     $receipt('wordpress-next239-wal', 'wal', ['select-theme-mods']),
     $receipt('wordpress-next239-journal', 'journal', ['select-wp-options']),

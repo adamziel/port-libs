@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
@@ -16,7 +16,7 @@ $pageDigests = [
     2 => $digest($page('wp next206 option checkpoint')),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next206Plan(
     [
         'status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next203',
         'database_path' => '/srv/www/wp-content/database/wp-options.sqlite',

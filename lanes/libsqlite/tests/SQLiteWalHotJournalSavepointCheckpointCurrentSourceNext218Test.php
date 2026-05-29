@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -169,11 +169,11 @@ $mixedWriters = array_merge($writers, [
     ],
 ]);
 
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, $writers, 'restart');
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, $writers, 'truncate');
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, $mixedWriters, 'restart');
-$pinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($pinnedBase, $writers, 'truncate');
-$reopen = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($reopenBase, $writers, 'restart');
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, $writers, 'restart');
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, $writers, 'truncate');
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, $mixedWriters, 'restart');
+$pinned = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($pinnedBase, $writers, 'truncate');
+$reopen = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($reopenBase, $writers, 'restart');
 
 $cases = [
     'restart status' => [static fn (): mixed => $restart()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next218'],
@@ -261,23 +261,23 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(['status' => 'bad'], $writers, 'restart'),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, $writers, 'passive'),
-    'empty writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [], 'restart'),
-    'bad requested frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['requested_checkpoint_frame' => 0]), $writers, 'restart'),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['checkpointed_frame' => 0]), $writers, 'restart'),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['database_digest' => 'short']), $writers, 'restart'),
-    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['wal_digest' => 'short']), $writers, 'restart'),
-    'bad writer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['writer_digest' => 'short']), $writers, 'restart'),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['next_writer_generation' => 0]), $writers, 'restart'),
-    'bad minimum statement rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['minimum_statement_generation' => -1]), $writers, 'restart'),
-    'bad active readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['active_reader_names' => ['']]), $writers, 'restart'),
-    'bad reopen readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate(array_merge($base, ['reopen_reader_names' => [42]]), $writers, 'restart'),
-    'empty writer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [array_merge($writers[0], ['name' => ''])], 'restart'),
-    'bad writer database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [array_merge($writers[0], ['observed_database_digest' => 'short'])], 'restart'),
-    'bad writer wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [array_merge($writers[0], ['observed_wal_digest' => 'short'])], 'restart'),
-    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [array_merge($writers[0], ['writer_generation' => -1])], 'restart'),
-    'bad writer frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext218Plan::restartOrTruncate($base, [array_merge($writers[0], ['last_frame' => 199])], 'restart'),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(['status' => 'bad'], $writers, 'restart'),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, $writers, 'passive'),
+    'empty writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [], 'restart'),
+    'bad requested frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['requested_checkpoint_frame' => 0]), $writers, 'restart'),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['checkpointed_frame' => 0]), $writers, 'restart'),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['database_digest' => 'short']), $writers, 'restart'),
+    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['wal_digest' => 'short']), $writers, 'restart'),
+    'bad writer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['writer_digest' => 'short']), $writers, 'restart'),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['next_writer_generation' => 0]), $writers, 'restart'),
+    'bad minimum statement rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['minimum_statement_generation' => -1]), $writers, 'restart'),
+    'bad active readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['active_reader_names' => ['']]), $writers, 'restart'),
+    'bad reopen readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate(array_merge($base, ['reopen_reader_names' => [42]]), $writers, 'restart'),
+    'empty writer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [array_merge($writers[0], ['name' => ''])], 'restart'),
+    'bad writer database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [array_merge($writers[0], ['observed_database_digest' => 'short'])], 'restart'),
+    'bad writer wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [array_merge($writers[0], ['observed_wal_digest' => 'short'])], 'restart'),
+    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [array_merge($writers[0], ['writer_generation' => -1])], 'restart'),
+    'bad writer frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next218RestartOrTruncate($base, [array_merge($writers[0], ['last_frame' => 199])], 'restart'),
 ];
 
 foreach ($throws as $name => $callback) {

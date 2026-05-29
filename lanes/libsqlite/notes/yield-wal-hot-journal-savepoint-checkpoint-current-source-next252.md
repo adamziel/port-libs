@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next252
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Plan`, which verifies the durable post-truncate current-source seal after next248 has admitted reader release and checkpoint WAL truncation. The seal requires WAL truncation, SHM mxFrame reset, read-mark reset, hot-journal unlink, directory sync, released-reader coverage, checkpoint-page coverage, exclusive lock retention, and closed savepoint scope before advancing to the next current-source generation.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, which verifies the durable post-truncate current-source seal after next248 has admitted reader release and checkpoint WAL truncation. The seal requires WAL truncation, SHM mxFrame reset, read-mark reset, hot-journal unlink, directory sync, released-reader coverage, checkpoint-page coverage, exclusive lock retention, and closed savepoint scope before advancing to the next current-source generation.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next252.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext252Test.php

@@ -6,9 +6,9 @@ require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteLimitPlan.php';
 require_once __DIR__ . '/../src/SQLiteUpdateDeleteReturningSql.php';
-require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext163Plan.php';
+require_once __DIR__ . '/../src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext163Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://old.test'],
@@ -23,7 +23,7 @@ $discardDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN
 $retrySql = "UPDATE wp_options SET (status, option_value, bytes) = ('retry', option_value || ':retry', bytes + 5) WHERE (blog_id, option_name) BETWEEN (2, 'home') AND (3, 'zzzz') RETURNING option_id, option_name, status, option_value, bytes, (blog_id, option_name) BETWEEN (2, 'home') AND (3, 'zzzz') AS retry_range ORDER BY option_id";
 $cleanupSql = "DELETE FROM wp_options WHERE (blog_id, option_name) BETWEEN (1, '_transient_feed') AND (1, '_transient_timeout_feed') RETURNING option_id, option_name ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext163Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext163(
     ['wp_options' => $rows],
     [$stageSql, $discardDeleteSql],
     [$retrySql, $cleanupSql],

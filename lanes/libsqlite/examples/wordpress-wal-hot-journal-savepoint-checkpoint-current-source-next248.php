@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext248Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext248Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = hash('sha256', 'wordpress next248 released reader checkpoint image');
 $admissionPlan = [
@@ -45,7 +45,7 @@ $release = static function (string $name, array $pages) use ($admissionPlan, $di
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext248Plan::planCheckpointTruncation($admissionPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next248PlanCheckpointTruncation($admissionPlan, [
     $release('wp_options-import-reader', [1, 2, 5]),
     $release('wp_posts-preview-reader', [1, 3, 6]),
     $release('wp_plugin-cache-reader', [4, 8, 13]),

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $database = '/srv/www/wp-content/database/wordpress.sqlite';
@@ -63,7 +63,7 @@ $receipt = static function (string $name, string $type, string $operation, array
     ], $extra);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext253Plan::admitNextCurrentSource($reopenPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next253AdmitNextCurrentSource($reopenPlan, [
     $receipt('write-wordpress-retry-pages', 'database', 'write_database_pages', ['pages' => [1, 2, 9]]),
     $receipt('sync-wordpress-retry-wal', 'wal', 'sync_wal_frames', ['frames' => [89, 90, 91]]),
     $receipt('ack-wordpress-retry-readers', 'readers', 'ack_readers', ['reader_names' => ['schema-reader', 'wp-options-reader', 'autoload-index-reader']]),

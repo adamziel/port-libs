@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan`, a post-apply WAL reader admission verifier layered on the accepted next183 current-source check. The new verifier requires the retained WAL payload to parse with checksum validation and to preserve the expected page size, checkpoint sequence, salts, byte order, and committed frames before a restarted reader can keep a current-source token.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-apply WAL reader admission verifier layered on the accepted next183 current-source check. The new verifier requires the retained WAL payload to parse with checksum validation and to preserve the expected page size, checkpoint sequence, salts, byte order, and committed frames before a restarted reader can keep a current-source token.
 
 ## Evidence
 
@@ -10,7 +10,7 @@ Focused verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Test.php`
 - `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next186.php`
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext186Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next186.php`
 - `git diff --check -- lanes/libsqlite`

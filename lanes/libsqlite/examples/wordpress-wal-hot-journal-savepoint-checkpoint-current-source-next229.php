@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $pageDigests = [
@@ -38,7 +38,7 @@ $handle = static function (string $name, array $pages) use ($publication): array
         'sync_receipt' => true,
     ];
 };
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext229Plan::verify($publication, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next229Verify($publication, [
     $handle('wp-schema-reader-reopened', [1 => $pageDigests[1]]),
     $handle('wp-options-reader-reopened', [2 => $pageDigests[2]]),
     $handle('wp-autoload-index-reopened', [3 => $pageDigests[3]]),

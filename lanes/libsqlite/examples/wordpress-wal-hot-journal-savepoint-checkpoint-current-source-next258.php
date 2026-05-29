@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $databaseDigest = hash('sha256', 'wordpress next258 checkpoint database');
 $pageCacheDigest = hash('sha256', 'wordpress next258 clean cache');
@@ -56,7 +56,7 @@ $receipts = [
     array_replace($baseReceipt, ['name' => 'wordpress-next258-sync', 'kind' => 'sync']),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Plan::admitWriterAfterRestartedReaders($readerPlan, $receipts);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next258AdmitWriterAfterRestartedReaders($readerPlan, $receipts);
 
 echo json_encode([
     'status' => $plan['status'],

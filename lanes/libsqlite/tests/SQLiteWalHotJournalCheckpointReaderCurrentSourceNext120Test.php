@@ -7,7 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -89,7 +89,7 @@ $plan = static fn (
     ?string $readerBytes = null,
     array $pages = [1, 2, 3, 4, 5],
     bool $reservedLock = false,
-): array => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan(
+): array => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan(
     $journal,
     $dirtyDatabase,
     $journalBytes,
@@ -195,11 +195,11 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'empty reader wal bytes rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, '', $databasePath, [1], 'restart', 1, $pageSize),
-    'negative reader frame rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [1], 'restart', -1, $pageSize),
-    'bad page rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [0], 'restart', 1, $pageSize),
-    'string page rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, ['1'], 'restart', 1, $pageSize),
-    'invalid mode rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [1], 'passive', 1, $pageSize),
+    'empty reader wal bytes rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, '', $databasePath, [1], 'restart', 1, $pageSize),
+    'negative reader frame rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [1], 'restart', -1, $pageSize),
+    'bad page rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [0], 'restart', 1, $pageSize),
+    'string page rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, ['1'], 'restart', 1, $pageSize),
+    'invalid mode rejected' => static fn () => SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan($journal, $dirtyDatabase, $journalBytes, $makeStack(), 'plugin-settings-next120', $wal, $walBytes, $readerWalBytes, $databasePath, [1], 'passive', 1, $pageSize),
 ];
 
 foreach ($throws as $name => $callback) {

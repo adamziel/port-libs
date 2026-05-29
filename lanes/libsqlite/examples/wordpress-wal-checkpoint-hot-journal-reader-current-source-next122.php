@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -60,7 +60,7 @@ $walBytes = $makeWal([
 ]);
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
-$plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan(
+$plan = SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan(
     $databasePath,
     $databaseBytes,
     $journalBytes,

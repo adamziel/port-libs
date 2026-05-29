@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -185,7 +185,7 @@ $plan = static fn (
     ?array $readList = null,
     ?string $currentSourceToken = null,
     ?string $currentPagerGenerationToken = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext247Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext247(
     $database,
     $master,
     $masterBytes,

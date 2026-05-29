@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next258
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Plan`, a post-restart writer-admission fence after next255 restarted readers have reopened on an empty WAL generation. The behavior prevents the first new writer from becoming visible unless it proves a new WAL salt, first-frame sequencing, clean read-mark fences for all reopened readers, exclusive lock ownership, no visible hot journal, closed savepoint scope, and durable sync.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-restart writer-admission fence after next255 restarted readers have reopened on an empty WAL generation. The behavior prevents the first new writer from becoming visible unless it proves a new WAL salt, first-frame sequencing, clean read-mark fences for all reopened readers, exclusive lock ownership, no visible hot journal, closed savepoint scope, and durable sync.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next258.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext258Test.php

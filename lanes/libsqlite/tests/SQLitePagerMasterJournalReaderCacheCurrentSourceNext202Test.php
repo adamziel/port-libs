@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext202Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -153,7 +153,7 @@ $plan = static fn (
     ?array $playback = null,
     ?array $recoveredPages = null,
     ?string $bytes = null,
-): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNext202Plan::plan(
+): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext202(
     $database,
     $master,
     $masterBytes,
@@ -252,7 +252,7 @@ $throws = [
     'empty read header rejected' => static fn () => $plan(null, [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 202, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => $currentTokenDigest, 'member_journal_header_digest' => '', 'member_journal_playback_digest' => $currentPlaybackDigest]]),
     'empty read token rejected' => static fn () => $plan(null, [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 202, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => '', 'member_journal_header_digest' => $currentHeaderDigest, 'member_journal_playback_digest' => $currentPlaybackDigest]]),
     'base missing header rejected' => static fn () => $plan([1 => $cacheEntry('bad', $recovered[1], ['member_journal_header_digests' => [$mainJournal => $currentHeaders[$mainJournal]]])], [['reader_id' => 'read-1', 'page_number' => 1, 'source_id' => $sourceId, 'epoch' => 202, 'format_signature' => $formatSignature, 'publication_generation' => $publication, 'master_source_digest' => $masterDigest, 'recovery_sequence' => $recoverySequence, 'recovered_page_set_digest' => $currentRecoveredDigest, 'member_journal_token_digest' => $currentTokenDigest, 'member_journal_header_digest' => $currentHeaderDigest, 'member_journal_playback_digest' => $currentPlaybackDigest]]),
-    'base bad recovery sequence rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNext202Plan::plan($database, $master, $masterBytes, $databaseBytes, $pageSize, $recovered, $cache(), $reads(), $sourceId, 202, $publication, $masterDigest, 0, $currentTokens, $currentHeaders, $currentPlayback),
+    'base bad recovery sequence rejected' => static fn () => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext202($database, $master, $masterBytes, $databaseBytes, $pageSize, $recovered, $cache(), $reads(), $sourceId, 202, $publication, $masterDigest, 0, $currentTokens, $currentHeaders, $currentPlayback),
     'base unaligned database rejected' => static fn () => $plan(null, null, null, null, null, null, 'bad'),
 ];
 

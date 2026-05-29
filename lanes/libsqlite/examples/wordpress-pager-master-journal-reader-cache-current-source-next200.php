@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext200Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $database = '/srv/wp-content/database/wp-next200.sqlite';
@@ -53,7 +53,7 @@ $oldOptionsToken = $readerToken('wp-options-reader', [
     '3:' . $oldUsersToken . ':' . $pageDigest(3, $before[3], $usersJournal, $oldUsersToken),
 ]);
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext200Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext200(
     $database,
     $master,
     $masterBytes,

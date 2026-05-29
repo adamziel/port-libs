@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -71,10 +71,10 @@ $batches = [
     $batch(['name' => 'dirty-cache-batch', 'dirty_before_append' => true]),
 ];
 
-$plan = static fn (?array $base = null, ?array $rows = null, int $commit = 22): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($base ?? $writerPlan, $rows ?? $batches, $commit);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($blockedWriterPlan, [$batches[0], $batches[2]], 22);
-$allAccepted = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batches[0], $batches[1]], 22);
-$badCommit = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batches[0], $batch(['name' => 'commit-before-first', 'commit_frame' => 17])], 22);
+$plan = static fn (?array $base = null, ?array $rows = null, int $commit = 22): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($base ?? $writerPlan, $rows ?? $batches, $commit);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($blockedWriterPlan, [$batches[0], $batches[2]], 22);
+$allAccepted = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batches[0], $batches[1]], 22);
+$badCommit = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batches[0], $batch(['name' => 'commit-before-first', 'commit_frame' => 17])], 22);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next210'],
@@ -142,30 +142,30 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(['status' => 'bad'], $batches, 22),
-    'empty batches rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [], 22),
-    'bad commit frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, $batches, 0),
-    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['minimum_statement_generation' => -1]), $batches, 22),
-    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['next_writer_generation' => 209]), $batches, 22),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['checkpointed_database_digest' => 'short']), $batches, 22),
-    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['expected_wal_digest' => 'short']), $batches, 22),
-    'bad consumer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['consumer_digest' => 'short']), $batches, 22),
-    'empty admitted writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['admitted_writer_names' => []]), $batches, 22),
-    'empty reopen writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_merge($writerPlan, ['reopen_writer_names' => []]), $batches, 22),
-    'missing guard state rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan(array_diff_key($writerPlan, ['blocked_guard_names' => true]), $batches, 22),
-    'missing batch name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['name' => ''])], 22),
-    'missing writer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['writer_name' => ''])], 22),
-    'bad batch generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['writer_generation' => -1])], 22),
-    'bad batch checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['checkpoint_frame' => -1])], 22),
-    'bad first frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['first_frame' => -1])], 22),
-    'bad batch commit rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['commit_frame' => -1])], 22),
-    'bad observed database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['observed_database_digest' => 'short'])], 22),
-    'bad observed wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['observed_wal_digest' => 'short'])], 22),
-    'bad observed consumer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['observed_consumer_digest' => 'short'])], 22),
-    'missing pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['page_digests' => []])], 22),
-    'bad page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['page_digests' => [0 => $digest('bad')]])], 22),
-    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['page_digests' => [2 => 'short']])], 22),
-    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan::plan($writerPlan, [$batch(['hot_journal_digest' => 'short'])], 22),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(['status' => 'bad'], $batches, 22),
+    'empty batches rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [], 22),
+    'bad commit frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, $batches, 0),
+    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['minimum_statement_generation' => -1]), $batches, 22),
+    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['next_writer_generation' => 209]), $batches, 22),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['checkpointed_database_digest' => 'short']), $batches, 22),
+    'bad wal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['expected_wal_digest' => 'short']), $batches, 22),
+    'bad consumer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['consumer_digest' => 'short']), $batches, 22),
+    'empty admitted writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['admitted_writer_names' => []]), $batches, 22),
+    'empty reopen writers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_merge($writerPlan, ['reopen_writer_names' => []]), $batches, 22),
+    'missing guard state rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan(array_diff_key($writerPlan, ['blocked_guard_names' => true]), $batches, 22),
+    'missing batch name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['name' => ''])], 22),
+    'missing writer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['writer_name' => ''])], 22),
+    'bad batch generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['writer_generation' => -1])], 22),
+    'bad batch checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['checkpoint_frame' => -1])], 22),
+    'bad first frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['first_frame' => -1])], 22),
+    'bad batch commit rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['commit_frame' => -1])], 22),
+    'bad observed database rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['observed_database_digest' => 'short'])], 22),
+    'bad observed wal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['observed_wal_digest' => 'short'])], 22),
+    'bad observed consumer rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['observed_consumer_digest' => 'short'])], 22),
+    'missing pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['page_digests' => []])], 22),
+    'bad page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['page_digests' => [0 => $digest('bad')]])], 22),
+    'bad page digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['page_digests' => [2 => 'short']])], 22),
+    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next210Plan($writerPlan, [$batch(['hot_journal_digest' => 'short'])], 22),
 ];
 
 foreach ($throws as $name => $callback) {

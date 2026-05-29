@@ -2,7 +2,7 @@
 
 ## Behavior
 
-`SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Plan` seals the current-source publication after the accepted next258 post-restart writer admission. The planner requires matching receipts for:
+`SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan` seals the current-source publication after the accepted next258 post-restart writer admission. The planner requires matching receipts for:
 
 - database image publication
 - WAL frame publication
@@ -15,7 +15,7 @@ The slice blocks publication when a receipt has stale paths, stale digests, reus
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next261.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext261Test.php`

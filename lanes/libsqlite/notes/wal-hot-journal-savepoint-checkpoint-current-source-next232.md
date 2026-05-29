@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext232Plan`, a focused
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a focused
 post-publication reader-slot admission check for the WAL hot-journal,
 savepoint, and checkpoint current-source chain.
 

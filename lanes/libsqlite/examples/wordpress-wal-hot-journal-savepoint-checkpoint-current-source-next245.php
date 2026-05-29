@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext245Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext245Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = hash('sha256', 'wordpress next245 reopened reader checkpoint image');
 $commitPlan = [
@@ -47,7 +47,7 @@ $reader = static function (string $name, array $pages) use ($commitPlan, $digest
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext245Plan::admitReopenedReaders($commitPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next245AdmitReopenedReaders($commitPlan, [
     $reader('wp_options-import-reader', [1, 2, 5]),
     $reader('wp_posts-preview-reader', [1, 3, 6]),
     $reader('wp_plugin-cache-reader', [4, 5, 9]),

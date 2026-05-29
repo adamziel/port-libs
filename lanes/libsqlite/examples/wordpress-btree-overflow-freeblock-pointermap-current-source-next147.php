@@ -15,9 +15,9 @@ require __DIR__ . '/../src/SQLiteBTreePageHeader.php';
 require __DIR__ . '/../src/SQLiteBTreeLeafPageCompactor.php';
 require __DIR__ . '/../src/SQLiteBTreeFreeblockCoalescePlan.php';
 require __DIR__ . '/../src/SQLiteOverflowFreelistReleasePlan.php';
-require __DIR__ . '/../src/SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan.php';
+require __DIR__ . '/../src/SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -88,7 +88,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan::tableAndIndexFromCurrentSourceDeleteResults(
+$plan = SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next147TableAndIndexFromCurrentSourceDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [

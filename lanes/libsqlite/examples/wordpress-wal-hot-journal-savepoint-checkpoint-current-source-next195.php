@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databasePath = '/srv/www/wp-content/database/wp-next195.sqlite';
 $token = ['id' => 'wordpress-next195-current-source', 'epoch' => 195];
@@ -29,7 +29,7 @@ $readers = [
     ['name' => 'wp-options-retry-before-savepoint', 'page' => 4, 'source_id' => $token['id'], 'epoch' => 195, 'observed_checkpoint_cookie' => 19501, 'observed_schema_cookie' => 44, 'observed_wal_salt' => 'wordpress-next195-wal-salt', 'observed_hot_journal_generation' => 3, 'observed_savepoint_generation' => 8],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext195Plan::plan($checkpoint, $readers);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next195Plan($checkpoint, $readers);
 $summary = [
     'scenario' => 'wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next195',
     'status' => $plan['status'],

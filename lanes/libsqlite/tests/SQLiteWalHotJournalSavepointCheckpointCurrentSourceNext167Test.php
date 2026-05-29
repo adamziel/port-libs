@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 $readers = [
     ['name' => 'wp-current-schema', 'source_id' => 'bootstrap', 'epoch' => 1],
 ];
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -107,7 +107,7 @@ $plan = static fn (
     ?string $expectedFingerprint = null,
     ?array $readerRows = null,
     ?array $cacheRows = null,
-): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -221,9 +221,9 @@ foreach ($cases as $name => [$callback, $expected]) {
 $throws = [
     'bad expected current token rejected' => static fn () => $plan(['id' => '', 'epoch' => 1], $nextToken),
     'bad expected next token rejected' => static fn () => $plan($currentToken, ['id' => 'next', 'epoch' => 0]),
-    'mutated current wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', $hot, $savepointBefore, $currentWal, substr_replace($currentWalBytes, 'x', -1), $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5], $readers),
-    'mutated next wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, substr_replace($nextWalBytes, 'x', -1), $cache, [1, 2, 3, 4, 5], $readers),
-    'bad hot page key rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', [0 => $hot[2]], $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5], $readers),
+    'mutated current wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', $hot, $savepointBefore, $currentWal, substr_replace($currentWalBytes, 'x', -1), $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5], $readers),
+    'mutated next wal bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', $hot, $savepointBefore, $currentWal, $currentWalBytes, $nextWal, substr_replace($nextWalBytes, 'x', -1), $cache, [1, 2, 3, 4, 5], $readers),
+    'bad hot page key rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan($databasePath, $databaseBytes, $pageSize, 'plugin-import-next167', [0 => $hot[2]], $savepointBefore, $currentWal, $currentWalBytes, $nextWal, $nextWalBytes, $cache, [1, 2, 3, 4, 5], $readers),
     'empty readers rejected' => static fn () => $plan($currentToken, $nextToken, null, []),
     'bad reader source rejected' => static fn () => $plan($currentToken, $nextToken, null, [['name' => 'bad', 'source_id' => '', 'epoch' => 1]]),
 ];

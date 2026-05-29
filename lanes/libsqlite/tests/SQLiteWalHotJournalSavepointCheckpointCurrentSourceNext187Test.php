@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext187Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -46,7 +46,7 @@ $expectedRetryToken = 'wal-hot-journal-savepoint-checkpoint-next187:retry:' . su
 ])), 0, 32);
 
 $plan = static fn (?array $post = null, ?array $next = null, ?array $tokens = null, bool $hotJournalObserved = true): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext187Plan::plan(
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next187Plan(
         $post ?? $postApply,
         $next ?? $reopen,
         $tokens ?? [$expectedRetryToken],

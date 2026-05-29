@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Plan
      * @param list<array<string, mixed>> $transitionRows
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan,
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $transitionRows,
     ) {
     }
@@ -25,7 +25,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Plan
         int $maxTruncatedPages,
         bool $secureDelete = false,
     ): self {
-        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -34,7 +34,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan): self
     {
         return new self($basePlan, self::buildTransitionRows($basePlan));
     }
@@ -114,7 +114,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext157Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildTransitionRows(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan): array
+    private static function buildTransitionRows(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $rows = [];
         $releasedOverflowPages = array_fill_keys($basePlan->basePlan->basePlan->releasedOverflowPages(), true);

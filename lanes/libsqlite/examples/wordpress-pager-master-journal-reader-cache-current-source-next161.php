@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext161Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next161.sqlite';
@@ -25,7 +25,7 @@ $recovered = [
 ];
 $sourceBefore = 'wp-next161-before-current-master-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext161Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext161(
     $databasePath,
     $masterPath,
     $databasePath . "-journal\n/srv/wp-content/database/old-plugin-next161.sqlite-journal\n",

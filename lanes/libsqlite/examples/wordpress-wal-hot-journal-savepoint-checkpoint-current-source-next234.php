@@ -2,15 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $token = ['id' => 'wordpress-import-current-source-next234', 'epoch' => 234];
@@ -34,7 +28,7 @@ $pageDigests = [];
 foreach ($scopePages as $page) {
     $pageDigests[$page] = $digest('wp-options-savepoint:page:' . $page);
 }
-$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::plan($admission, [[
+$finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next219Plan($admission, [[
     'name' => 'wp-options-savepoint',
     'savepoint_depth' => 0,
     'released' => true,
@@ -47,7 +41,7 @@ $finalized = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext219Plan::pla
     'reader_names' => ['wp-options-import'],
     'page_digests' => $pageDigests,
 ]]);
-$published = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::plan($finalized, [[
+$published = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next227Plan($finalized, [[
     'scope_name' => 'wp-options-savepoint',
     'source_token_id' => $token['id'],
     'source_epoch' => 234,
@@ -59,7 +53,7 @@ $published = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext227Plan::pla
     'next_source_epoch' => 235,
 ]]);
 $readmarks = ['object-cache-reader' => 41, 'wp-options-import' => 41];
-$reopened = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::verifyWalIndexReopen($published, [[
+$reopened = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next231VerifyWalIndexReopen($published, [[
     'name' => 'wordpress-shm-reopen-next234',
     'scope_names' => ['wp-options-savepoint'],
     'source_token_id' => $token['id'],
@@ -78,7 +72,7 @@ $reopened = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext231Plan::veri
     'readers_reopened' => true,
     'shm_synced' => true,
 ]], $walDigest);
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan::verifyDurableHandoff($reopened, [[
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next234VerifyDurableHandoff($reopened, [[
     'name' => 'wordpress-durable-handoff-next234',
     'scope_names' => ['wp-options-savepoint'],
     'source_token_id' => $token['id'],

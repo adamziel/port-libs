@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows261 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -33,7 +33,7 @@ $plan261 = static fn (
     ?array $ack = null,
     bool $requireNextReceipts = true,
     bool $requireNextWatermark = true,
-): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Plan::execute(
+): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext261(
     $tables261,
     [$yieldUpdate261, $yieldDelete261],
     [$attemptUpdate261, $attemptDelete261],
@@ -132,7 +132,7 @@ $cases261 = [
     'non overlap mentions next254' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next254'), true],
     'non overlap mentions next251' => [static fn (): mixed => str_contains($plan261()['non_overlap_next261'], 'next251'), true],
     'bad resume rejected' => [static fn (): mixed => $plan261(null, 'missing-ticket-next261'), InvalidArgumentException::class],
-    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext261Plan::execute($tables261, [$yieldUpdate261], [$attemptUpdate261], [$retryUpdate261], $unique261, 'wp_options_rowvalue_window_current_next261', 'missing_id'), InvalidArgumentException::class],
+    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext261($tables261, [$yieldUpdate261], [$attemptUpdate261], [$retryUpdate261], $unique261, 'wp_options_rowvalue_window_current_next261', 'missing_id'), InvalidArgumentException::class],
 ];
 
 $tests = [];

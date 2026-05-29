@@ -9,7 +9,7 @@ foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNe
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows254 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -138,7 +138,7 @@ $baseOptions254 = [
     'current_view_mapping_trigger_token_next254' => 'main@trigger-cookie-254-current',
 ];
 
-$plan254 = static fn (array $options = [], array $view = null): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext254Plan::execute(
+$plan254 = static fn (array $options = [], array $view = null): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext254(
     $rows254,
     $currentInput254,
     $nextInput254,

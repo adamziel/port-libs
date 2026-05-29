@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $database = '/srv/www/wp-content/database/wordpress.sqlite';
@@ -66,7 +66,7 @@ $receipt = static function (string $name, string $type, string $operation, array
     ], $extra);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext257Plan::retireCheckpointSource($nextSourcePlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next257RetireCheckpointSource($nextSourcePlan, [
     $receipt('retire-wordpress-checkpoint-readers', 'reader-retire', 'retire_readers', ['retired_reader_names' => ['schema-reader', 'wp-options-reader', 'autoload-index-reader']]),
     $receipt('retain-wordpress-retry-wal', 'wal-retain', 'retain_next_wal', ['retained_frames' => [97, 100, 101]]),
     $receipt('delete-wordpress-checkpoint-journal', 'journal-delete', 'delete_checkpoint_journal', ['hot_journal_deleted' => true]),

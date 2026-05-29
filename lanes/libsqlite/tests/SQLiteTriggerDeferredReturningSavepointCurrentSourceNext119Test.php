@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 
 $parents119 = [
     ['post_id' => 10, 'post_title' => 'Imported parent', 'slug' => 'parent'],
@@ -53,7 +53,7 @@ $triggers119 = [
     ],
 ];
 $updates119 = [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]];
-$plan119 = static fn (array $options = []) => SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan::updateParentsWithinSavepoint(
+$plan119 = static fn (array $options = []) => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119(
     $parents119,
     $children119,
     $updates119,
@@ -120,9 +120,9 @@ $cases119 = [
     'non recursive savepoint discards one returning row' => [static fn (): mixed => $nonRecursive119()['discarded_returning_count'], 1],
     'custom savepoint is accepted' => [static fn (): mixed => $plan119(['savepoint' => 'wp_batch_two'])['savepoint'], 'wp_batch_two'],
     'bad savepoint name throws' => [static fn (): mixed => $plan119(['savepoint' => 'bad-name']), InvalidArgumentException::class],
-    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan::updateParentsWithinSavepoint($parents119, $children119, $updates119, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
+    'bad parent key throws' => [static fn (): mixed => SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119($parents119, $children119, $updates119, ['parent_key' => 'bad-key', 'child_key' => 'post_id']), InvalidArgumentException::class],
     'missing child key throws from restored key collection' => [static function () use ($parents119, $updates119, $foreignKey119): mixed {
-        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan::updateParentsWithinSavepoint($parents119, [['meta_id' => 1]], $updates119, $foreignKey119);
+        return SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::updateParentsWithinSavepointNext119($parents119, [['meta_id' => 1]], $updates119, $foreignKey119);
     }, InvalidArgumentException::class],
 ];
 

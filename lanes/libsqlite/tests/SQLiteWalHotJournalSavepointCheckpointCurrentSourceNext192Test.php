@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +55,7 @@ $staleCheckpointedDatabase = $page('next192 current schema frame')
     . $page('next192 current cron committed')
     . $page('next192 clean usermeta base page');
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -89,7 +88,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::pla
     192
 );
 $currentToken = $bootstrap['current_source_token'];
-$basePlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$basePlan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -152,7 +151,7 @@ $readers = [
     ['name' => 'reader-closed', 'pinned_pages' => [1], 'observed_page_digests' => [1 => $digests[1]], 'closed' => true],
 ];
 
-$plan = static fn (?string $databaseBytes = null, ?array $statementRows = null, ?array $readerRows = null, array $pages = [1, 2, 4]): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan(
+$plan = static fn (?string $databaseBytes = null, ?array $statementRows = null, ?array $readerRows = null, array $pages = [1, 2, 4]): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan(
     $basePlan,
     $preDatabase,
     $databaseBytes ?? $checkpointedDatabase,
@@ -233,10 +232,10 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan(['status' => 'bad'], $preDatabase, $checkpointedDatabase, $currentWal, [1], $statements, $readers),
-    'missing pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [], $statements, $readers),
-    'missing statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [1], [], $readers),
-    'bad page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [0], $statements, $readers),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan(['status' => 'bad'], $preDatabase, $checkpointedDatabase, $currentWal, [1], $statements, $readers),
+    'missing pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [], $statements, $readers),
+    'missing statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [1], [], $readers),
+    'bad page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan($basePlan, $preDatabase, $checkpointedDatabase, $currentWal, [0], $statements, $readers),
     'missing statement digest rejected' => static fn () => $plan(null, [['name' => 'bad', 'root_pages' => [1]]], $readers),
     'malformed reader digest rejected' => static fn () => $plan(null, $statements, [['name' => 'bad-reader', 'pinned_pages' => [1], 'observed_page_digests' => [1 => 'short']]]),
 ];

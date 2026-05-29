@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
 
 $rows134 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -67,7 +67,7 @@ $plan134 = static fn (
     array $nextView = null,
     array $returning = null,
     array $options = [],
-): array => SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan::execute(
+): array => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(
     $rows134,
     $current ?? $currentMutations134,
     $next ?? $nextMutations134,
@@ -161,7 +161,7 @@ $cases134 = [
     'empty view columns throws' => [static fn (): mixed => $plan134(null, null, null, ['name' => 'v', 'source' => 'ok', 'columns' => []]), InvalidArgumentException::class],
     'bad view where throws' => [static fn (): mixed => $plan134(null, null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['option_name'], 'where' => 'no']), InvalidArgumentException::class],
     'missing mutation key throws' => [static fn (): mixed => $plan134([['option_value' => 'x']]), InvalidArgumentException::class],
-    'duplicate row key throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan::execute(array_merge($rows134, [['option_name' => 'siteurl']]), $currentMutations134, $nextMutations134, $currentView134, $nextView134, $triggers134, $returning134), InvalidArgumentException::class],
+    'duplicate row key throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(array_merge($rows134, [['option_name' => 'siteurl']]), $currentMutations134, $nextMutations134, $currentView134, $nextView134, $triggers134, $returning134), InvalidArgumentException::class],
     'bad when operator throws' => [static fn (): mixed => $plan134(null, null, [['name' => 'bad', 'phase' => 'current', 'event' => 'update', 'when' => ['new.option_name', 'LIKE', 'theme_mods']]]), InvalidArgumentException::class],
 ];
 

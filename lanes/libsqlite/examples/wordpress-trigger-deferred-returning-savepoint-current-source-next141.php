@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredFkReturningRecursiveCurrentSourceNext114Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNext119Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan;
 
 $parents = [
     ['post_id' => 10, 'post_title' => 'Imported parent', 'slug' => 'parent'],
@@ -18,7 +18,7 @@ $children = [
     ['meta_id' => 2, 'post_id' => 20, 'meta_key' => '_source'],
     ['meta_id' => 3, 'post_id' => 30, 'meta_key' => '_source'],
 ];
-$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNext141Plan::commitBarrierRetry(
+$plan = SQLiteTriggerDeferredReturningSavepointCurrentSourceNextPlan::commitBarrierRetryNext141(
     $parents,
     $children,
     [['match' => 10, 'set' => ['post_id' => 110, 'post_title' => 'Rekeyed parent']]],

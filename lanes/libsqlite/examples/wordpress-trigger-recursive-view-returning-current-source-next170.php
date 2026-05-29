@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext157Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext160Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext162Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext165Plan.php';
-require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'parent_name' => null, 'priority' => 0],
@@ -43,7 +43,7 @@ $returning = [
     ['expr' => 'trigger_source', 'as' => 'trigger_cookie'],
 ];
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNext170Plan::execute(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext170(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'theme_root']],

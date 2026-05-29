@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next247 checkpoint database image');
@@ -59,7 +59,7 @@ $receipt = static function (string $name, string $kind, array $pages, array $fra
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan::sealPostCheckpointCleanup($readerBaseline, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next247SealPostCheckpointCleanup($readerBaseline, [
     $receipt('hot-journal-cleanup', 'hot-journal-unlink', [1], [22], ['schema-reader']),
     $receipt('wal-sync-cleanup', 'wal-sync', [2], [23], ['options-reader']),
     $receipt('directory-sync-cleanup', 'directory-sync', [5], [24], ['autoload-reader']),

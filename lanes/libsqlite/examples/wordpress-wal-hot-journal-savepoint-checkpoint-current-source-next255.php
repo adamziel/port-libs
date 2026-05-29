@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next255 checkpointed wp_options image');
@@ -49,7 +49,7 @@ $receipt = static function (string $name, string $readerName, int $slot) use ($r
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext255Plan::admitRestartedWalReaders($resetPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next255AdmitRestartedWalReaders($resetPlan, [
     $receipt('front-reopen', 'front-reader', 1),
     $receipt('import-reopen', 'import-reader', 2),
     $receipt('object-cache-reopen', 'object-cache-reader', 3),

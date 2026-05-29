@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next238
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Plan`, a post-publication writer-generation fence after accepted next235 durable publication. It admits the first next writer only when reopened readers observe the same database digest, schema cookie, WAL salt, zero-frame restarted WAL, absent hot journal, clean page cache, checkpoint-covered pages, and shared read locks.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-publication writer-generation fence after accepted next235 durable publication. It admits the first next writer only when reopened readers observe the same database digest, schema cookie, WAL salt, zero-frame restarted WAL, absent hot journal, clean page cache, checkpoint-covered pages, and shared read locks.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next238.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Test.php

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows251 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -33,7 +33,7 @@ $plan251 = static fn (
     string $nextEpoch = 'wp-next-source-251',
     ?string $expectedCurrent = null,
     ?string $expectedNext = null,
-): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext251Plan::execute(
+): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext251(
     $tables251,
     [$yieldUpdate251, $yieldDelete251],
     [$attemptUpdate251, $attemptDelete251],
@@ -114,7 +114,7 @@ $cases251 = [
     'empty current epoch rejected' => [static fn (): mixed => $plan251(null, null, ''), InvalidArgumentException::class],
     'empty next epoch rejected' => [static fn (): mixed => $plan251(null, null, 'wp-current-source-251', ''), InvalidArgumentException::class],
     'same epochs rejected' => [static fn (): mixed => $plan251(null, null, 'same-source-251', 'same-source-251'), InvalidArgumentException::class],
-    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext251Plan::execute($tables251, [$yieldUpdate251], [$attemptUpdate251], [$retryUpdate251], $unique251, 'bad-name'), InvalidArgumentException::class],
+    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext251($tables251, [$yieldUpdate251], [$attemptUpdate251], [$retryUpdate251], $unique251, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

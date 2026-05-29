@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -51,7 +49,7 @@ $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 $currentSalt = [$currentWal->header->salt1, $currentWal->header->salt2];
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -84,7 +82,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::pla
     196
 );
 $token = $bootstrap['current_source_token'];
-$base188 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan::plan(
+$base188 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next188Plan(
     $databasePath,
     $preDatabase,
     $pageSize,
@@ -128,7 +126,7 @@ $pageDigests = [
     2 => $digest($page('next196 current wp_options committed')),
     4 => $digest($page('next196 current cron committed')),
 ];
-$base192 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext192Plan::plan(
+$base192 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next192Plan(
     $base188,
     $preDatabase,
     $checkpointedDatabase,
@@ -176,12 +174,12 @@ $preserveReaders = [
     ['name' => 'reader-restarted-before-preserve', 'observed_wal_digest' => $restartDigest],
 ];
 
-$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, $restartReaders);
-$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, '', 'truncate', $truncateStatements, $truncateReaders);
-$preserve = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 2);
-$badRestart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'restart', $restartStatements, $restartReaders);
-$badTruncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'truncate', $truncateStatements, $truncateReaders);
-$badPreserve = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 2);
+$restart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, $restartReaders);
+$truncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, '', 'truncate', $truncateStatements, $truncateReaders);
+$preserve = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 2);
+$badRestart = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'restart', $restartStatements, $restartReaders);
+$badTruncate = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'truncate', $truncateStatements, $truncateReaders);
+$badPreserve = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 2);
 
 $cases = [
     'restart status' => [static fn (): mixed => $restart()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next196'],
@@ -250,14 +248,14 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan(['status' => 'bad'], $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, $restartReaders),
-    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'passive', $restartStatements, $restartReaders),
-    'missing statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', [], $restartReaders),
-    'missing readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, []),
-    'bad current bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, substr($currentWalBytes, 0, -1) . 'x', $restartWalBytes, 'restart', $restartStatements, $restartReaders),
-    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 9),
-    'missing statement digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', [['name' => 'bad']], $restartReaders),
-    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan::plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, [['name' => 'bad-reader', 'observed_wal_digest' => 'short']]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan(['status' => 'bad'], $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, $restartReaders),
+    'bad mode rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'passive', $restartStatements, $restartReaders),
+    'missing statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', [], $restartReaders),
+    'missing readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, []),
+    'bad current bytes rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, substr($currentWalBytes, 0, -1) . 'x', $restartWalBytes, 'restart', $restartStatements, $restartReaders),
+    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $currentWalBytes, 'preserve_busy', $preserveStatements, $preserveReaders, 9),
+    'missing statement digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', [['name' => 'bad']], $restartReaders),
+    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next196Plan($base192, $currentWal, $currentWalBytes, $restartWalBytes, 'restart', $restartStatements, [['name' => 'bad-reader', 'observed_wal_digest' => 'short']]),
 ];
 
 foreach ($throws as $name => $callback) {

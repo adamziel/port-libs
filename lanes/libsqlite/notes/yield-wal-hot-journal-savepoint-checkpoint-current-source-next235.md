@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next235
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan`, a durable publication receipt fence after accepted next232 reader-slot admission. It admits reopened WordPress readers only when database, WAL, hot-journal delete, and directory fsync receipts all match the same source token, writer generation, schema cookie, WAL salt, checkpoint pages, and lock receipt.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a durable publication receipt fence after accepted next232 reader-slot admission. It admits reopened WordPress readers only when database, WAL, hot-journal delete, and directory fsync receipts all match the same source token, writer generation, schema cookie, WAL salt, checkpoint pages, and lock receipt.
 
 WordPress smoke:
 
@@ -9,7 +9,7 @@ WordPress smoke:
 Verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Plan.php
+php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Test.php
 php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next235.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext235Test.php

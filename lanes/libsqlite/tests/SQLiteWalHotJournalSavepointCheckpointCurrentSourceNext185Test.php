@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -48,7 +48,7 @@ $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 $currentSalt = [$currentWal->header->salt1, $currentWal->header->salt2];
 $nextSalt = [$nextWal->header->salt1, $nextWal->header->salt2];
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next185Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -99,7 +99,7 @@ $readers = [
     ['name' => 'reader-dirty', 'source_id' => $currentToken['id'], 'epoch' => $currentToken['epoch'], 'observed_checkpoint_sequence' => 185, 'observed_salt' => $currentSalt, 'dirty' => true],
 ];
 
-$plan = static fn (?array $statementRows = null, ?array $readerRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext185Plan::plan(
+$plan = static fn (?array $statementRows = null, ?array $readerRows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next185Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,

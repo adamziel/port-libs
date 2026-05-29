@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext196Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 post-next192 WAL sidecar publication guard. After hot-journal recovery,
 savepoint rollback, and checkpoint page-image publication, the plan verifies
 that the persisted `-wal` sidecar matches the selected checkpoint mode:

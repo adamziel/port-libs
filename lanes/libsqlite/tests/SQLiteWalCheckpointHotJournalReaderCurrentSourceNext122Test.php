@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteWal;
-use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
 $tests = [];
@@ -61,7 +61,7 @@ $walBytes = $makeWal([
 ]);
 $wal = SQLiteWal::parse($walBytes, $pageSize, true);
 
-$plan = static fn (string $mode = 'restart', ?int $reader = 2, array $pages = [1, 2, 3, 4], bool $reserved = false, bool $requiresSuper = false, ?bool $superExists = null): array => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan(
+$plan = static fn (string $mode = 'restart', ?int $reader = 2, array $pages = [1, 2, 3, 4], bool $reserved = false, bool $requiresSuper = false, ?bool $superExists = null): array => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan(
     $databasePath,
     $databaseBytes,
     $journalBytes,
@@ -154,14 +154,14 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $throws = [
-    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan('', $databaseBytes, $journalBytes, $wal, $walBytes, [1]),
-    'empty journal rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, '', $wal, $walBytes, [1]),
-    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, []),
-    'bad mode rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, [1], 'passive'),
-    'unaligned database rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, 'short', $journalBytes, $wal, $walBytes, [1]),
-    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, $journalBytes, $wal, substr($walBytes, 0, -1) . 'x', [1]),
-    'reader outside range rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, [1], 'restart', 5),
-    'non integer page rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan::plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, ['1']),
+    'empty path rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan('', $databaseBytes, $journalBytes, $wal, $walBytes, [1]),
+    'empty journal rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, '', $wal, $walBytes, [1]),
+    'empty pages rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, []),
+    'bad mode rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, [1], 'passive'),
+    'unaligned database rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, 'short', $journalBytes, $wal, $walBytes, [1]),
+    'stale wal bytes rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, $journalBytes, $wal, substr($walBytes, 0, -1) . 'x', [1]),
+    'reader outside range rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, [1], 'restart', 5),
+    'non integer page rejected' => static fn () => SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan::next122Plan($databasePath, $databaseBytes, $journalBytes, $wal, $walBytes, ['1']),
 ];
 
 foreach ($throws as $name => $callback) {

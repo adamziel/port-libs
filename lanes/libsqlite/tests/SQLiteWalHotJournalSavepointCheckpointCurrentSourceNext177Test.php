@@ -7,8 +7,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -92,7 +91,7 @@ $allTruncate = array_merge($releaseStarted, [
     'sync_released_checkpoint_after_savepoint_publish_next165',
 ]);
 
-$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$base = static fn (array $completed = [], ?array $files = null, string $mode = 'restart', bool $reserved = false): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -127,7 +126,7 @@ $filesFrom = static function (array $completed, string $mode = 'restart') use ($
 };
 
 $matching = static fn (array $completed = [], string $mode = 'restart'): array => $base($completed, $filesFrom($completed, $mode), $mode);
-$plan = static fn (array $resume, bool $lock = true, bool $dirSync = true): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume, $lock, $dirSync);
+$plan = static fn (array $resume, bool $lock = true, bool $dirSync = true): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume, $lock, $dirSync);
 $noReplay = static fn (): array => $plan($matching());
 $missingDatabase = static fn (): array => $plan($base($currentComplete, [
     $journalPath => $journalBytes,
@@ -207,22 +206,22 @@ $throws = [
     'missing status rejected' => static function () use ($matching): void {
         $resume = $matching();
         unset($resume['status']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
     },
     'missing rows rejected' => static function () use ($matching): void {
         $resume = $matching();
         unset($resume['file_rows']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
     },
     'bad rows rejected' => static function () use ($matching): void {
         $resume = $matching();
         $resume['file_rows'] = 'bad';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
     },
     'missing wal role rejected' => static function () use ($matching): void {
         $resume = $matching();
         $resume['file_rows'] = array_slice($resume['file_rows'], 0, 2);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext177Plan::plan($resume);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next177Plan($resume);
     },
 ];
 

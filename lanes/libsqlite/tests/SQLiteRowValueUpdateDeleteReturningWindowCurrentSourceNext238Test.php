@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows238 = [
@@ -43,13 +43,13 @@ $retryDelete238 = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SEL
 
 $attemptUpdateResult238 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptUpdate238, $tables238, 'option_id', $unique238);
 $retryUpdateResult238 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate238, $tables238, 'option_id', $unique238);
-$plan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute(
+$plan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238(
     $tables238,
     [$attemptUpdate238, $attemptDelete238],
     [$retryUpdate238, $retryDelete238],
     $unique238,
 );
-$customPlan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute(
+$customPlan238 = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238(
     $tables238,
     [$attemptUpdate238],
     [$retryUpdate238],
@@ -128,11 +128,11 @@ $cases238 = [
     'custom replay ids' => [static fn (): mixed => $customPlan238()['window_replayed_rowids_next238'], [8, 9]],
     'custom discarded only ids' => [static fn (): mixed => $customPlan238()['window_discarded_only_rowids_next238'], [7]],
     'custom restart only ids' => [static fn (): mixed => $customPlan238()['window_restart_only_rowids_next238'], [10]],
-    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute($tables238, [], [$retryUpdate238], $unique238), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute($tables238, [$attemptUpdate238], [], $unique238), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute($tables238, [$attemptUpdate238], [$retryUpdate238], []), InvalidArgumentException::class],
-    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute($tables238, [$attemptUpdate238], [$retryUpdate238], $unique238, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan::execute(['wp_options' => ['bad']], [$attemptUpdate238], [$retryUpdate238], $unique238), InvalidArgumentException::class],
+    'malformed empty attempt rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238($tables238, [], [$retryUpdate238], $unique238), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238($tables238, [$attemptUpdate238], [], $unique238), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238($tables238, [$attemptUpdate238], [$retryUpdate238], []), InvalidArgumentException::class],
+    'malformed savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238($tables238, [$attemptUpdate238], [$retryUpdate238], $unique238, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext238(['wp_options' => ['bad']], [$attemptUpdate238], [$retryUpdate238], $unique238), InvalidArgumentException::class],
 ];
 
 $tests = [];

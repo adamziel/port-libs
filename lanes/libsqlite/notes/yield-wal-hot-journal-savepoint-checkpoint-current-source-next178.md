@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext178Plan`, a post-apply receipt check for the WAL hot-journal savepoint checkpoint publication path. The receipt verifies that after the guarded next175 VFS publication:
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-apply receipt check for the WAL hot-journal savepoint checkpoint publication path. The receipt verifies that after the guarded next175 VFS publication:
 
 - the database bytes match the durable checkpoint payload,
 - the hot journal is removed,

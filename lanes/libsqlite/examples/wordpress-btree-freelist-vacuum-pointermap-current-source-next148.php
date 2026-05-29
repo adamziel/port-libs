@@ -13,10 +13,10 @@ require_once __DIR__ . '/../src/SQLiteFreelistAllocationPlan.php';
 require_once __DIR__ . '/../src/SQLiteOverflowPage.php';
 require_once __DIR__ . '/../src/SQLiteOverflowFreelistReleasePlan.php';
 require_once __DIR__ . '/../src/SQLiteOverflowVacuumTruncatePlan.php';
-require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext139Plan.php';
-require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -66,7 +66,7 @@ foreach ([309, 310, 312, 313] as $index => $pageNumber) {
         . str_repeat(chr(65 + $index), $pageSize - 4);
 }
 
-$plan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNext148Plan::fromDeleteResults(
+$plan = SQLiteBTreeFreelistVacuumPointerMapCurrentSourceNextPlan::next148FromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

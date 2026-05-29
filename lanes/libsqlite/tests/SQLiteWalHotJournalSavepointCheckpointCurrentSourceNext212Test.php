@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -118,10 +118,10 @@ $readers = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, $readers, 212);
-$complete = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [$readers[1]], 211);
-$noStale = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [$readers[0], $readers[1]], 212);
-$noPin = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, array_slice($readers, 2), 212);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, $readers, 212);
+$complete = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [$readers[1]], 211);
+$noStale = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [$readers[0], $readers[1]], 212);
+$noPin = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, array_slice($readers, 2), 212);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next212'],
@@ -180,8 +180,8 @@ $cases = [
     'complete checkpoint blocked guard' => [static fn (): mixed => $complete()['blocked_guard_names'], ['stale_readers_reopened']],
     'no stale blocked guard' => [static fn (): mixed => $noStale()['blocked_guard_names'], ['stale_readers_reopened']],
     'no pin blocked guard' => [static fn (): mixed => $noPin()['blocked_guard_names'], ['active_reader_pin_detected']],
-    'bad base blocked guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(array_merge($base, ['admitted_writer_names' => []]), $readers, 212)['blocked_guard_names'], ['next209_writer_generation_admitted']],
-    'bad frame blocked guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, $readers, 208)['blocked_guard_names'], ['checkpoint_frame_not_before_statement_generation', 'active_reader_pin_detected']],
+    'bad base blocked guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(array_merge($base, ['admitted_writer_names' => []]), $readers, 212)['blocked_guard_names'], ['next209_writer_generation_admitted']],
+    'bad frame blocked guard' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, $readers, 208)['blocked_guard_names'], ['checkpoint_frame_not_before_statement_generation', 'active_reader_pin_detected']],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
@@ -191,16 +191,16 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(['status' => 'bad'], $readers, 212),
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [], 212),
-    'zero frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, $readers, 0),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(array_merge($base, ['checkpointed_database_digest' => 'short']), $readers, 212),
-    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(array_merge($base, ['next_writer_generation' => 0]), $readers, 212),
-    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(array_merge($base, ['minimum_statement_generation' => -1]), $readers, 212),
-    'bad writer list rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint(array_merge($base, ['admitted_writer_names' => [null]]), $readers, 212),
-    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [array_merge($readers[0], ['name' => ''])], 212),
-    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [array_merge($readers[0], ['reader_end_frame' => 0])], 212),
-    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, [array_merge($readers[0], ['observed_wal_digest' => 'short'])], 212),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(['status' => 'bad'], $readers, 212),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [], 212),
+    'zero frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, $readers, 0),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(array_merge($base, ['checkpointed_database_digest' => 'short']), $readers, 212),
+    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(array_merge($base, ['next_writer_generation' => 0]), $readers, 212),
+    'bad statement generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(array_merge($base, ['minimum_statement_generation' => -1]), $readers, 212),
+    'bad writer list rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint(array_merge($base, ['admitted_writer_names' => [null]]), $readers, 212),
+    'missing reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [array_merge($readers[0], ['name' => ''])], 212),
+    'bad reader frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [array_merge($readers[0], ['reader_end_frame' => 0])], 212),
+    'bad reader digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, [array_merge($readers[0], ['observed_wal_digest' => 'short'])], 212),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -73,11 +73,11 @@ $database140 = static function () use ($makeFirstPage140, $putPointerMapEntry140
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan140 = static function (int $maxTruncatedPages = 4) use ($database140): SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan {
+$plan140 = static function (int $maxTruncatedPages = 4) use ($database140): SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan {
     $database = $database140();
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan::tableLeafFromCurrentSourceDeleteResult(
+    return SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
         $database,
         3,
         [[
@@ -160,7 +160,7 @@ $cases140 = [
     'single page vacuum truncates only tail' => static fn (): mixed => $plan140(1)->truncatedCurrentSourcePages(),
     'bad truncation limit rejected' => static fn (): mixed => $throwsMessage140(static fn () => $plan140(0)),
     'bad current chain rejected' => static function () use ($database140, $throwsMessage140): mixed {
-        return $throwsMessage140(static fn () => SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext140Plan::tableLeafFromCurrentSourceDeleteResult(
+        return $throwsMessage140(static fn () => SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next140TableLeafFromCurrentSourceDeleteResult(
             $database140(),
             3,
             [['source' => 'bad', 'first_page' => 106, 'overflow_payload_bytes' => 508]],

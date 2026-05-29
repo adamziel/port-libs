@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $makeStack = static function (): SQLiteSavepointStack {
 };
 
 $plan = static function (?int $reader = 7, ?string $readerBytes = null, array $pages = [1, 2, 3, 4, 5]) use ($makeStack, $wal, $walBytes, $databaseBytes): array {
-    return SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan(
+    return SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan(
         $makeStack(),
         'plugin-settings-next123',
         $wal,
@@ -156,32 +156,32 @@ foreach ($cases as $name => [$actual, $expected]) {
 }
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects empty savepoint'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), '', $wal, $walBytes, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), '', $wal, $walBytes, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects empty wal bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, '', $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, '', $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects empty reader wal bytes'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, '', $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, '', $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects empty pages'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, []));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects source mismatch'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
     $bad = substr_replace($walBytes, 'x', 1600, 1);
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, $bad, $walBytes, $databaseBytes, [1]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, $bad, $walBytes, $databaseBytes, [1]));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects negative reader frame'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, [1], -1));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, [1], -1));
 };
 
 $tests['wal reader checkpoint savepoint truncate current source next123 rejects non integer page'] = static function (TestRunner $t) use ($makeStack, $wal, $walBytes, $databaseBytes): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNext123Plan::plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, ['1']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteWalReaderCheckpointSavepointTruncateCurrentSourceNextPlan::next123Plan($makeStack(), 'plugin-settings-next123', $wal, $walBytes, $walBytes, $databaseBytes, ['1']));
 };
 
 return $tests;

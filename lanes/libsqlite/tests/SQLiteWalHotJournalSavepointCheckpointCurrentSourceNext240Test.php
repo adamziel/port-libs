@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -58,8 +58,8 @@ $receipts = [
     $receipt('index-commit-receipt', ['select-option-index'], ['dirty_pages' => [5], 'commit_frames' => [12]]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, $receipts, 241);
-$blockedReceipt = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, $receipts, 241);
+$blockedReceipt = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(
     $finalizerPlan,
     [
         $receipts[0],
@@ -68,7 +68,7 @@ $blockedReceipt = static fn (array $override): array => SQLiteWalHotJournalSavep
     ],
     241
 );
-$missingStatement = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(
+$missingStatement = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(
     $finalizerPlan,
     [$receipts[0], $receipts[1]],
     241
@@ -160,24 +160,24 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['status' => 'bad']), $receipts, 241),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['next_writer_allowed' => false]), $receipts, 241),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [], 241),
-    'same commit generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, $receipts, 240),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['source_token' => 'bad token']), $receipts, 241),
-    'bad released generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['next_writer_generation' => 0]), $receipts, 241),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['schema_cookie' => 0]), $receipts, 241),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['database_digest' => 'short']), $receipts, 241),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['page_cache_digest' => 'short']), $receipts, 241),
-    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['wal_index_salt' => ['one']]), $receipts, 241),
-    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['wal_index_mx_frame' => 0]), $receipts, 241),
-    'bad finalized statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline(array_replace($finalizerPlan, ['finalized_statement_names' => []]), $receipts, 241),
-    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['name' => 'bad name'])], 241),
-    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['commit_generation' => 0])], 241),
-    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['database_digest' => 'short'])], 241),
-    'bad covered statement rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['covered_statement_names' => ['bad statement']])], 241),
-    'bad dirty page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['dirty_pages' => [0]])], 241),
-    'bad commit frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext240Plan::admitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['commit_frames' => ['bad']])], 241),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['status' => 'bad']), $receipts, 241),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['next_writer_allowed' => false]), $receipts, 241),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [], 241),
+    'same commit generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, $receipts, 240),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['source_token' => 'bad token']), $receipts, 241),
+    'bad released generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['next_writer_generation' => 0]), $receipts, 241),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['schema_cookie' => 0]), $receipts, 241),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['database_digest' => 'short']), $receipts, 241),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['page_cache_digest' => 'short']), $receipts, 241),
+    'bad wal salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['wal_index_salt' => ['one']]), $receipts, 241),
+    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['wal_index_mx_frame' => 0]), $receipts, 241),
+    'bad finalized statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline(array_replace($finalizerPlan, ['finalized_statement_names' => []]), $receipts, 241),
+    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['name' => 'bad name'])], 241),
+    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['commit_generation' => 0])], 241),
+    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['database_digest' => 'short'])], 241),
+    'bad covered statement rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['covered_statement_names' => ['bad statement']])], 241),
+    'bad dirty page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['dirty_pages' => [0]])], 241),
+    'bad commit frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next240AdmitAutocheckpointBaseline($finalizerPlan, [array_replace($receipts[0], ['commit_frames' => ['bad']])], 241),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -6,8 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $databasePath = 'wp-content/database/wp-next173.sqlite';
@@ -41,7 +40,7 @@ $nextWalBytes = $makeWalBytes([
 $currentWal = SQLiteWal::parse($currentWalBytes, $pageSize, true);
 $nextWal = SQLiteWal::parse($nextWalBytes, $pageSize, true);
 
-$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -67,7 +66,7 @@ $bootstrap = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::pla
 );
 $currentToken = $bootstrap['current_source_token'];
 $nextToken = $bootstrap['next_source_token'];
-$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan(
+$prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next167Plan(
     $databasePath,
     $databaseBytes,
     $pageSize,
@@ -92,7 +91,7 @@ $prepared = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext167Plan::plan
     173
 );
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan(
     $prepared,
     $databaseBytes,
     $journalBytes,
@@ -101,7 +100,7 @@ $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
     hash('sha256', $journalBytes),
     hash('sha256', $currentWalBytes)
 );
-$stale = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext173Plan::plan(
+$stale = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next173Plan(
     $prepared,
     $databaseBytes,
     $journalBytes,

@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext188Plan`, a bounded admission layer after the accepted next185 WAL generation guard. The new behavior admits prepared statements and readers only when their observed commit-hook counter and schema cookie still match the current WAL source after hot-journal recovery, savepoint rollback, and checkpoint publication.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded admission layer after the accepted next185 WAL generation guard. The new behavior admits prepared statements and readers only when their observed commit-hook counter and schema cookie still match the current WAL source after hot-journal recovery, savepoint rollback, and checkpoint publication.
 
 ## Evidence
 

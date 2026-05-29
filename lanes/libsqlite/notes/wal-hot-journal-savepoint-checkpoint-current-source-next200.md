@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next200
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext200Plan`, a post-next194 durable-reader admission gate for retry-checkpoint readers.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-next194 durable-reader admission gate for retry-checkpoint readers.
 
 Behavior covered:
 

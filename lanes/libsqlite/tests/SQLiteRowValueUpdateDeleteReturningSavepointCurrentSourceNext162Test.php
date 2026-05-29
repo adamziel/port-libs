@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -24,8 +24,8 @@ $deleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_tran
 $releaseSql = "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':released', 'released', option_value || ':released', bytes + 5) WHERE option_id IN (7, 8) RETURNING option_id, option_name, status, option_value, bytes ORDER BY option_id";
 
 $preservedFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $tables, 'option_id', $unique, true);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan::execute($tables, [$failSql, $deleteSql], $unique);
-$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan::execute($tables, [$releaseSql, $deleteSql], $unique, 'wp_options_no_fail_next162');
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162($tables, [$failSql, $deleteSql], $unique);
+$releasePlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162($tables, [$releaseSql, $deleteSql], $unique, 'wp_options_no_fail_next162');
 
 $cases = [
     'parser fail conflict action' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($failSql)['conflict_action'], 'fail'],
@@ -87,9 +87,9 @@ $cases = [
     'release plan current row seven released' => [static fn (): mixed => array_column($releasePlan()['current_source_tables']['wp_options'], 'status', 'option_id')[7], 'released'],
     'release plan deleted transients and original siteurl' => [static fn (): mixed => array_column($releasePlan()['current_source_tables']['wp_options'], 'option_id'), [2, 5, 6, 7, 8]],
 
-    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan::execute($tables, [$failSql], []), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext162Plan::execute(['wp_options' => ['bad']], [$failSql], $unique), InvalidArgumentException::class],
+    'malformed empty statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162($tables, [], $unique), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162($tables, [$failSql], []), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext162(['wp_options' => ['bad']], [$failSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

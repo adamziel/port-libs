@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $rows164 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'source' => 'seed'],
@@ -52,7 +52,7 @@ $returning164 = [
     static fn (array $new, array $viewRow, ?array $old, string $event, int $ordinal, int $depth, string $source): string => $source . ':' . $event . ':' . $ordinal . ':' . $depth . ':' . ($old['option_value'] ?? 'insert') . '>' . $new['option_value'],
 ];
 
-$plan164 = static fn (array $options = [], ?array $currentInput = null, ?array $nextInput = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan::execute(
+$plan164 = static fn (array $options = [], ?array $currentInput = null, ?array $nextInput = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext164(
     $rows164,
     $currentInput ?? $currentInput164,
     $nextInput ?? $nextInput164,
@@ -125,7 +125,7 @@ $cases164 = [
     'bad view mapping throws' => [static fn (): mixed => $plan164([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => ['name'], 'mapping' => ['missing' => 'option_name']]), InvalidArgumentException::class],
     'missing recursive mapping throws' => [static fn (): mixed => $plan164([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'columns' => ['name'], 'mapping' => ['name' => 'option_name'], 'recursive_column' => 'missing']), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $plan164([], [['import_id' => 1, 'value' => 'x', 'autoload_flag' => 'yes']]), InvalidArgumentException::class],
-    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNext164Plan::execute(array_merge($rows164, [['option_name' => 'siteurl']]), $currentInput164, $nextInput164, $currentView164, $nextView164, $returning164), InvalidArgumentException::class],
+    'duplicate base key throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext164(array_merge($rows164, [['option_name' => 'siteurl']]), $currentInput164, $nextInput164, $currentView164, $nextView164, $returning164), InvalidArgumentException::class],
 ];
 
 $tests = [];

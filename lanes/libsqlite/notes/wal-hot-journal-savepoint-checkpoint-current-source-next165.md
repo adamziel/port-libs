@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext165Plan`, a publish-order layer on top of the accepted next162 current-source admission.
+- Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a publish-order layer on top of the accepted next162 current-source admission.
 - The plan requires hot rollback-journal recovery before checkpoint publication, rolls back WAL frames owned by the failed savepoint, preserves the retained WAL bytes for pinned readers, then publishes the released checkpoint database and restarted/truncated WAL payload for the next reader.
 - It rejects stale dirty database checkpoint publication by carrying forward the next162 dirty-page comparison and exposes ordered VFS-style write/truncate/sync/delete operations for clean integration.
 

@@ -9,7 +9,7 @@ foreach (glob(__DIR__ . '/../src/SQLiteTriggerRecursiveViewUpsertCurrentSourceNe
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext253Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $view253 = [
     'name' => 'wp_recursive_option_import',
@@ -142,7 +142,7 @@ $baseOptions253 = [
     'current_source_materialization_cursor_next253' => 'wp.returning.materialized.cursor.253',
 ];
 
-$plan253 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext253Plan::execute(
+$plan253 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext253(
     $baseRows253,
     $currentInput253,
     $nextInput253,

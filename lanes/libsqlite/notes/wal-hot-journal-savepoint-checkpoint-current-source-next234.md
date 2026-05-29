@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next234`.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan`. It verifies a durable current-source handoff after the accepted next231 WAL-index reopen/readmark fence: the repaired source is only servable when database, WAL, SHM, journal-unlink, directory-sync, reader-cache, writer-generation, checkpoint-cookie, schema-cookie, and WAL-digest receipts all match the reopened checkpoint source.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It verifies a durable current-source handoff after the accepted next231 WAL-index reopen/readmark fence: the repaired source is only servable when database, WAL, SHM, journal-unlink, directory-sync, reader-cache, writer-generation, checkpoint-cookie, schema-cookie, and WAL-digest receipts all match the reopened checkpoint source.
 
 WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next234.php` models a copied `wp_options` import after hot-journal recovery and savepoint checkpoint publication. It holds the repaired source until the checkpointed database, restarted WAL, synced SHM, unlinked hot journal, and containing directory receipts are all durable.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next234.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext234Test.php`

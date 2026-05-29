@@ -8,7 +8,7 @@ foreach ($planFiles as $planFile) {
     require_once $planFile;
 }
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNext217Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $currentView = [
     'name' => 'wp_recursive_option_import',
@@ -23,7 +23,7 @@ $nextView = $currentView;
 $nextView['source'] = 'main@view-cookie-217-next';
 $nextView['trigger_source'] = 'main@trigger-cookie-217-next';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNext217Plan::execute(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext217(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

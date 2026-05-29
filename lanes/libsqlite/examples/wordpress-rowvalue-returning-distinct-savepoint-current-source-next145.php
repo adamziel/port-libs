@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 24, 'option_value' => 'https://old.test', 'checksum' => 'a1'],
@@ -18,7 +18,7 @@ $statements = [
     "UPDATE OR REPLACE wp_options SET (option_name, status, checksum) = ('siteurl', 'synced', option_name || ':synced') WHERE (blog_id, option_name) IS NOT DISTINCT FROM (2, '_transient_feed') AND (autoload, bytes) IS NOT DISTINCT FROM ('no', 18) RETURNING option_id, option_name, status, checksum, (bytes, checksum) IS DISTINCT FROM (18, NULL) AS storage_changed ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext135Plan::execute(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext135(
     ['wp_options' => $rows],
     $statements,
     [['blog_id', 'option_name'], ['option_name']],

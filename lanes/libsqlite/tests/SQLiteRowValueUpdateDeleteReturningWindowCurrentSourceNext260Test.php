@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext260Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows260 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -26,7 +26,7 @@ $attemptDelete260 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate260 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry260', option_value || ':retry260', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete260 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan260 = static fn (?array $ackYield = null, ?string $resume = null, ?array $ackNext = null, ?array $ackBoundary = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext260Plan::execute(
+$plan260 = static fn (?array $ackYield = null, ?string $resume = null, ?array $ackNext = null, ?array $ackBoundary = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext260(
     $tables260,
     [$yieldUpdate260, $yieldDelete260],
     [$attemptUpdate260, $attemptDelete260],
@@ -113,7 +113,7 @@ $cases260 = [
     'bad resume ticket rejected' => [static fn (): mixed => $plan260(null, 'missing-ticket-next260'), InvalidArgumentException::class],
     'blocked resume ticket rejected' => [static fn (): mixed => $plan260(null, $tickets260()[3], null, $ackBoundaryFirst260()), InvalidArgumentException::class],
     'empty boundary ticket rejected' => [static fn (): mixed => $plan260(null, null, null, ['']), InvalidArgumentException::class],
-    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext260Plan::execute($tables260, [$yieldUpdate260], [$attemptUpdate260], [$retryUpdate260], $unique260, 'bad-name'), InvalidArgumentException::class],
+    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext260($tables260, [$yieldUpdate260], [$attemptUpdate260], [$retryUpdate260], $unique260, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

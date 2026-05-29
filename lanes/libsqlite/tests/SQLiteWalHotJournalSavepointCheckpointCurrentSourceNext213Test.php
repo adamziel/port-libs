@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -80,12 +80,12 @@ $blockedReceipts = [
     array_merge($receipt('closed-reader'), ['closed' => true]),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, $receipts, 213);
-$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, $blockedReceipts, 213);
-$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, array_slice($receipts, 0, 8), 213);
-$activeReuse = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, array_merge($receipts, [$receipt('wp-options-current-reader')]), 213);
-$earlyTarget = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, $receipts, 212);
-$notBusy = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['busy' => false, 'wal_action' => 'passive_checkpoint_complete']), $receipts, 213);
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, $receipts, 213);
+$blocked = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, $blockedReceipts, 213);
+$missing = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, array_slice($receipts, 0, 8), 213);
+$activeReuse = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, array_merge($receipts, [$receipt('wp-options-current-reader')]), 213);
+$earlyTarget = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, $receipts, 212);
+$notBusy = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['busy' => false, 'wal_action' => 'passive_checkpoint_complete']), $receipts, 213);
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next213'],
@@ -180,18 +180,18 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(['status' => 'bad'], $receipts, 213),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, [], 213),
-    'zero target rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, $receipts, 0),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['database_digest' => 'short']), $receipts, 213),
-    'bad checkpointed frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['checkpointed_frame' => 0]), $receipts, 213),
-    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['next_writer_generation' => 0]), $receipts, 213),
-    'bad minimum generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['minimum_statement_generation' => -1]), $receipts, 213),
-    'bad active reader list rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission(array_merge($base, ['active_reader_names' => [null]]), $receipts, 213),
-    'missing receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, [array_merge($receipts[0], ['name' => ''])], 213),
-    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, [array_merge($receipts[0], ['reader_end_frame' => 0])], 213),
-    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, [array_merge($receipts[0], ['observed_wal_digest' => 'short'])], 213),
-    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext213Plan::restartAdmission($base, [array_merge($receipts[0], ['hot_journal_digest' => 'short'])], 213),
+    'bad status rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(['status' => 'bad'], $receipts, 213),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, [], 213),
+    'zero target rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, $receipts, 0),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['database_digest' => 'short']), $receipts, 213),
+    'bad checkpointed frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['checkpointed_frame' => 0]), $receipts, 213),
+    'bad writer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['next_writer_generation' => 0]), $receipts, 213),
+    'bad minimum generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['minimum_statement_generation' => -1]), $receipts, 213),
+    'bad active reader list rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission(array_merge($base, ['active_reader_names' => [null]]), $receipts, 213),
+    'missing receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, [array_merge($receipts[0], ['name' => ''])], 213),
+    'bad receipt frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, [array_merge($receipts[0], ['reader_end_frame' => 0])], 213),
+    'bad receipt digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, [array_merge($receipts[0], ['observed_wal_digest' => 'short'])], 213),
+    'bad hot journal digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next213RestartAdmission($base, [array_merge($receipts[0], ['hot_journal_digest' => 'short'])], 213),
 ];
 
 foreach ($throws as $name => $callback) {

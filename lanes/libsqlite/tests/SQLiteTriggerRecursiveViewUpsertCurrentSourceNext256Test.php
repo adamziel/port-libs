@@ -5,9 +5,9 @@ declare(strict_types=1);
 $existing253Tests = require __DIR__ . '/SQLiteTriggerRecursiveViewUpsertCurrentSourceNext253Test.php';
 unset($existing253Tests);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext256Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
-$plan256 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext256Plan::execute(
+$plan256 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext256(
     $baseRows253,
     $currentInput253,
     $nextInput253,

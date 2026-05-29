@@ -9,18 +9,14 @@ require_once __DIR__ . '/../src/SQLiteSavepointStack.php';
 require_once __DIR__ . '/../src/SQLiteWalHeader.php';
 require_once __DIR__ . '/../src/SQLiteWalFrame.php';
 require_once __DIR__ . '/../src/SQLiteWal.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext162Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext165Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan.php';
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -81,7 +77,7 @@ $completed = [
     'preserve_retained_wal_for_pinned_reader_next165',
     'sync_current_checkpoint_before_reader_release_next165',
 ];
-$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext169Plan::plan(
+$base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next169Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,
@@ -99,7 +95,7 @@ $files = [
     $walPath => (string) $payloads[$walPath . '#next165-current-reader'],
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext174Plan::plan(
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next174Plan(
     $databasePath,
     $dirtyDatabase,
     $journalBytes,

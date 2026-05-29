@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for WAL checkpoint reader visibility after hot rollback-journal recovery.
 
-This slice adds `SQLiteWalCheckpointHotJournalReaderCurrentSourceNext122Plan`, a bounded native PHP planner for the SQLite edge where a database has a hot rollback journal, recovery restores the current database image, and a WAL reader pins that recovered current source while a RESTART/TRUNCATE checkpoint is attempted. The plan verifies that checkpoint visibility is computed from the hot-recovered database bytes rather than dirty pre-recovery pages, records reader-pinned versus released checkpoint actions, and reports blocked cases for reserved locks or missing super-journals.
+This slice adds `SQLiteWalCheckpointHotJournalReaderCurrentSourceNextPlan`, a bounded native PHP planner for the SQLite edge where a database has a hot rollback journal, recovery restores the current database image, and a WAL reader pins that recovered current source while a RESTART/TRUNCATE checkpoint is attempted. The plan verifies that checkpoint visibility is computed from the hot-recovered database bytes rather than dirty pre-recovery pages, records reader-pinned versus released checkpoint actions, and reports blocked cases for reserved locks or missing super-journals.
 
 Focused verification:
 

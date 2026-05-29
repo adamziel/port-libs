@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $databaseDigest = hash('sha256', 'wordpress next259 post truncate writer generation');
 $sealedPlan = [
@@ -51,7 +51,7 @@ $receipts = [
     array_replace($base, ['name' => 'release-writer-lock', 'kind' => 'writer-lock-release', 'writer_lock_released' => true]),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext259Plan::admitWriterAfterPostTruncateSeal($sealedPlan, $receipts);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next259AdmitWriterAfterPostTruncateSeal($sealedPlan, $receipts);
 
 echo json_encode([
     'status' => $plan['status'],

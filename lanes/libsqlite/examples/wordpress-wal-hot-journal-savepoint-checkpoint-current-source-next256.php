@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = hash('sha256', 'wordpress next256 sealed checkpoint source');
 $sealedPlan = [
@@ -48,7 +48,7 @@ $receipts = [
     array_replace($baseReceipt, ['name' => 'wordpress-next256-options-import', 'reader_name' => 'wp-options-import', 'readmark_slot' => 3, 'page_numbers' => [8, 13]]),
 ];
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext256Plan::admitReopenedReaders($sealedPlan, $receipts);
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next256AdmitReopenedReaders($sealedPlan, $receipts);
 
 echo json_encode([
     'status' => $plan['status'],

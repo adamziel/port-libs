@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -65,12 +65,12 @@ $receipts = [
     $receipt('delete-hot-journal', 'journal', 'delete', 8),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, $receipts);
-$blockedPlan = static fn (array $replaceReceipt, ?array $replacePlan = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, $receipts);
+$blockedPlan = static fn (array $replaceReceipt, ?array $replacePlan = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(
     $replacePlan ?? $readerPlan,
     array_replace($receipts, [1 => array_replace($receipts[1], $replaceReceipt)])
 );
-$withoutReceipt = static fn (int $index): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(
+$withoutReceipt = static fn (int $index): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(
     $readerPlan,
     array_values(array_filter($receipts, static fn (array $_, int $key): bool => $key !== $index, ARRAY_FILTER_USE_BOTH))
 );
@@ -135,8 +135,8 @@ $cases = [
     'missing commit frames blocked' => [static fn (): mixed => $withoutReceipt(3)['blocked_write_reasons'], ['checkpoint_commit_frame_mark_missing', 'checkpoint_current_source_write_order_unsafe']],
     'missing wal sync blocked' => [static fn (): mixed => $withoutReceipt(5)['missing_sync_targets'], ['wal']],
     'missing hot journal delete blocked' => [static fn (): mixed => $withoutReceipt(7)['blocked_write_reasons'], ['checkpoint_hot_journal_delete_missing', 'checkpoint_current_source_write_order_unsafe']],
-    'unsafe order blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, array_merge([$receipts[7]], array_slice($receipts, 0, 7)))['blocked_guard_names'], ['hot_journal_deleted_after_sync']],
-    'duplicate receipt names' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, array_replace($receipts, [2 => array_replace($receipts[2], ['name' => 'write-options-page'])]))['duplicate_write_receipt_names'], ['write-options-page']],
+    'unsafe order blocked' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, array_merge([$receipts[7]], array_slice($receipts, 0, 7)))['blocked_guard_names'], ['hot_journal_deleted_after_sync']],
+    'duplicate receipt names' => [static fn (): mixed => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, array_replace($receipts, [2 => array_replace($receipts[2], ['name' => 'write-options-page'])]))['duplicate_write_receipt_names'], ['write-options-page']],
     'blocked status' => [static fn (): mixed => $blockedPlan(['path' => '/tmp/wrong.sqlite'])['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-blocked-next246'],
     'blocked reason' => [static fn (): mixed => $blockedPlan(['path' => '/tmp/wrong.sqlite'])['reason'], 'durable_vfs_handoff_holds_checkpoint_current_source'],
     'blocked checkpoint action' => [static fn (): mixed => $blockedPlan(['path' => '/tmp/wrong.sqlite'])['checkpoint_action'], 'retain_previous_current_source_until_vfs_handoff_is_durable'],
@@ -152,29 +152,29 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['status' => 'bad']), $receipts),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['reader_snapshot_admitted' => false]), $receipts),
-    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, []),
-    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['database_path' => '']), $receipts),
-    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['wal_path' => '']), $receipts),
-    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['journal_path' => '']), $receipts),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['source_token' => 'bad token']), $receipts),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['commit_generation' => 0]), $receipts),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['schema_cookie' => 0]), $receipts),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['database_digest' => 'short']), $receipts),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['page_cache_digest' => 'short']), $receipts),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['checkpoint_frame' => -1]), $receipts),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['dirty_pages' => []]), $receipts),
-    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['commit_frames' => [0]]), $receipts),
-    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff(array_replace($readerPlan, ['accepted_reader_names' => []]), $receipts),
-    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
-    'bad receipt target rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['target' => 'temp'])]),
-    'bad receipt operation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['operation' => 'truncate'])]),
-    'bad receipt sequence rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['sequence' => 0])]),
-    'bad receipt pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['pages' => ['bad']])]),
-    'bad receipt frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[3], ['frames' => ['bad']])]),
-    'bad receipt token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['source_token' => 'bad token'])]),
-    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext246Plan::admitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['commit_generation' => 0])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['status' => 'bad']), $receipts),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['reader_snapshot_admitted' => false]), $receipts),
+    'empty receipts rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, []),
+    'bad database path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['database_path' => '']), $receipts),
+    'bad wal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['wal_path' => '']), $receipts),
+    'bad journal path rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['journal_path' => '']), $receipts),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['source_token' => 'bad token']), $receipts),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['commit_generation' => 0]), $receipts),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['schema_cookie' => 0]), $receipts),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['database_digest' => 'short']), $receipts),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['page_cache_digest' => 'short']), $receipts),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['checkpoint_frame' => -1]), $receipts),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['dirty_pages' => []]), $receipts),
+    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['commit_frames' => [0]]), $receipts),
+    'bad reader names rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff(array_replace($readerPlan, ['accepted_reader_names' => []]), $receipts),
+    'bad receipt name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['name' => 'bad name'])]),
+    'bad receipt target rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['target' => 'temp'])]),
+    'bad receipt operation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['operation' => 'truncate'])]),
+    'bad receipt sequence rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['sequence' => 0])]),
+    'bad receipt pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['pages' => ['bad']])]),
+    'bad receipt frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[3], ['frames' => ['bad']])]),
+    'bad receipt token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['source_token' => 'bad token'])]),
+    'bad receipt generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next246AdmitDurableCurrentSourceHandoff($readerPlan, [array_replace($receipts[0], ['commit_generation' => 0])]),
 ];
 
 foreach ($throws as $name => $callback) {

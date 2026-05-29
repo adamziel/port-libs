@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -69,7 +69,7 @@ $readers = [
     $reader('closed-page-reader', 2, ['closed' => true]),
 ];
 
-$plan = static fn (?array $base = null, ?array $rows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($base ?? $checkpoint, $rows ?? $readers);
+$plan = static fn (?array $base = null, ?array $rows = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($base ?? $checkpoint, $rows ?? $readers);
 $ok = static fn (): array => $plan();
 $unpublished = $checkpoint;
 $unpublished['checkpoint_published'] = false;
@@ -153,28 +153,28 @@ $throws = [
     'missing page digests rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $checkpoint;
         unset($bad['page_digests']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($bad, $readers);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($bad, $readers);
     },
     'bad digest rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $checkpoint;
         $bad['page_digests'][2] = 'not-a-sha';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($bad, $readers);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($bad, $readers);
     },
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($checkpoint, []),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, []),
     'missing reader digest rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $readers;
         unset($bad[0]['image_sha256']);
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($checkpoint, $bad);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, $bad);
     },
     'bad reader digest rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $readers;
         $bad[0]['image_sha256'] = 'bad-digest';
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($checkpoint, $bad);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, $bad);
     },
     'bad reader page rejected' => static function () use ($checkpoint, $readers): void {
         $bad = $readers;
         $bad[0]['page'] = 0;
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext205Plan::plan($checkpoint, $bad);
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next205Plan($checkpoint, $bad);
     },
 ];
 

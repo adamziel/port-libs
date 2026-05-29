@@ -1,6 +1,6 @@
 # WAL Hot-Journal Savepoint Checkpoint Current Source Next161
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext161Plan`, covering reader-cache source-token fencing after:
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, covering reader-cache source-token fencing after:
 
 - hot rollback-journal recovery restores dirty database pages;
 - `ROLLBACK TO` restores savepoint before-images on top of the recovered current source;

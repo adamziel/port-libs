@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext241Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next241 checkpoint database image');
@@ -54,7 +54,7 @@ $receipt = static function (string $name, string $kind, string $path, array $ove
     ], $overrides);
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext241Plan::admitCommittedWriter($writerPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next241AdmitCommittedWriter($writerPlan, [
     $receipt('wp-next241-commit', 'commit', $writerPlan['wal_path']),
     $receipt('wp-next241-wal', 'wal', $writerPlan['wal_path'], ['page_numbers' => [2, 5, 8]]),
     $receipt('wp-next241-lock', 'lock', $writerPlan['database_path'], ['page_numbers' => [1]]),

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $rootPages = [
@@ -42,7 +42,7 @@ $statement = static function (string $name, string $handle, array $pages) use ($
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan::admitStatements($handlePlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next233AdmitStatements($handlePlan, [
     $statement('wp-options-schema-select', 'schema-handle', [1 => $rootPages[1]]),
     $statement('wp-options-autoload-select', 'options-handle', [2 => $rootPages[2]]),
     $statement('wp-options-name-index-select', 'index-handle', [5 => $rootPages[5]]),

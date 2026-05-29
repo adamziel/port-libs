@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext191Plan`, a bounded page-cache admission layer after the existing next188 current-source commit-hook guard. It retains cache entries only when they still match the current source token, epoch, commit hook, and schema cookie, and when the page was not touched by hot-journal recovery, savepoint rollback, or checkpoint publication.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a bounded page-cache admission layer after the existing next188 current-source commit-hook guard. It retains cache entries only when they still match the current source token, epoch, commit hook, and schema cookie, and when the page was not touched by hot-journal recovery, savepoint rollback, or checkpoint publication.
 
 ## Evidence
 

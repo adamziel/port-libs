@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan;
 
 $pageSize = 512;
 $sectorSize = 512;
@@ -66,7 +66,7 @@ $savepoints->recordWalFrameWrite(3, 3);
 $savepoints->recordWalFrameWrite(4, 4, true);
 $savepoints->recordWalFrameWrite(5, 2, true);
 
-$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan::plan(
+$plan = SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan::next120Plan(
     $journal,
     $dirtyDatabase,
     $journalBytes,

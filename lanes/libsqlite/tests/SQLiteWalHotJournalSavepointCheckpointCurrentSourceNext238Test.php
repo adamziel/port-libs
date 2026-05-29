@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $receipts = [
     $reader('wp-next238-schema-reader', ['observed_page_numbers' => [1]]),
 ];
 $plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext238Plan::admitNextWriter($inputPlan ?? $publication, $inputReceipts ?? $receipts);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next238AdmitNextWriter($inputPlan ?? $publication, $inputReceipts ?? $receipts);
 $blocked = static fn (int $index, array $overrides): array => $plan(null, array_map(
     static fn (array $row, int $rowIndex): array => $rowIndex === $index ? array_replace($row, $overrides) : $row,
     $receipts,

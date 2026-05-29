@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext170Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext170Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
@@ -52,7 +52,7 @@ $journalDigest = hash('sha256', implode('|', [
 ]));
 $sourceId = 'wp-next170-before-rollback-source';
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext170Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext170(
     $databasePath,
     $masterPath,
     $masterBytes,

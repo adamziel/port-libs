@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows254 = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -26,7 +26,7 @@ $attemptDelete254 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate254 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry254', option_value || ':retry254', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete254 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan254 = static fn (?array $receipts = null, ?string $resume = null, ?array $ack = null, bool $requireNext = true): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan::execute(
+$plan254 = static fn (?array $receipts = null, ?string $resume = null, ?array $ack = null, bool $requireNext = true): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext254(
     $tables254,
     [$yieldUpdate254, $yieldDelete254],
     [$attemptUpdate254, $attemptDelete254],
@@ -132,9 +132,9 @@ $cases254 = [
     'empty receipt ticket rejected' => [static function () use ($receipts254): mixed {
         $receipts = $receipts254();
         $receipts[0]['ticket'] = '';
-        return SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan::execute($GLOBALS['tables254'], [$GLOBALS['yieldUpdate254'], $GLOBALS['yieldDelete254']], [$GLOBALS['attemptUpdate254'], $GLOBALS['attemptDelete254']], [$GLOBALS['retryUpdate254'], $GLOBALS['retryDelete254']], $GLOBALS['unique254'], 'wp_options_rowvalue_window_current_next254', 'option_id', null, null, 'wp-current-source-254', 'wp-next-source-254', null, null, $receipts);
+        return SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext254($GLOBALS['tables254'], [$GLOBALS['yieldUpdate254'], $GLOBALS['yieldDelete254']], [$GLOBALS['attemptUpdate254'], $GLOBALS['attemptDelete254']], [$GLOBALS['retryUpdate254'], $GLOBALS['retryDelete254']], $GLOBALS['unique254'], 'wp_options_rowvalue_window_current_next254', 'option_id', null, null, 'wp-current-source-254', 'wp-next-source-254', null, null, $receipts);
     }, InvalidArgumentException::class],
-    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan::execute($tables254, [$yieldUpdate254], [$attemptUpdate254], [$retryUpdate254], $unique254, 'wp_options_rowvalue_window_current_next254', 'missing_id'), InvalidArgumentException::class],
+    'bad rowid column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext254($tables254, [$yieldUpdate254], [$attemptUpdate254], [$retryUpdate254], $unique254, 'wp_options_rowvalue_window_current_next254', 'missing_id'), InvalidArgumentException::class],
 ];
 
 $tests = [];

@@ -5,15 +5,15 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/src/SQLiteSelectResult.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteLimitPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUpdateDeleteReturningSql.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext212Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext232Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext233Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext235Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext238Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext241Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
+require_once dirname(__DIR__) . '/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://one.test'],
@@ -43,7 +43,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELE
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry244', option_value || ':retry244', bytes + 2) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_update') RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC";
 $retryDelete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'retry_delete') RETURNING option_id, blog_id, option_name, status ORDER BY option_id DESC";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext244Plan::execute(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext244(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

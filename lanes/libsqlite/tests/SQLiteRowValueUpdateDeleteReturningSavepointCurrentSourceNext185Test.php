@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows185 = [
@@ -32,7 +32,7 @@ $preUpdateResult185 = static fn (): array => SQLiteUpdateDeleteReturningSql::exe
 $failDefault185 = static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($failUpdate185, $preUpdateResult185()['tables'], 'option_id', $unique185);
 $failPartial185 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failUpdate185, $preUpdateResult185()['tables'], 'option_id', $unique185, true);
 $retryUpdateResult185 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate185, $tables185, 'option_id', $unique185);
-$plan185 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute(
+$plan185 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185(
     $tables185,
     [$preDelete185, $preUpdate185],
     $failUpdate185,
@@ -113,12 +113,12 @@ $cases185 = [
     'plan dependency rollback discards partial returning' => [static fn (): mixed => in_array('sqlite-rollback-to-discards-partial-or-fail-returning-next185', $plan185()['dependencies'], true), true],
     'plan dependency retry current source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-after-or-fail-current-source-next185', $plan185()['dependencies'], true), true],
 
-    'malformed empty pre fail statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute($tables185, [], $failUpdate185, [$retryUpdate185], $unique185), InvalidArgumentException::class],
-    'malformed empty fail statement rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute($tables185, [$preDelete185], '', [$retryUpdate185], $unique185), InvalidArgumentException::class],
-    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute($tables185, [$preDelete185], $failUpdate185, [], $unique185), InvalidArgumentException::class],
-    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute($tables185, [$preDelete185], $failUpdate185, [$retryUpdate185], []), InvalidArgumentException::class],
-    'malformed savepoint name rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute($tables185, [$preDelete185], $failUpdate185, [$retryUpdate185], $unique185, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext185Plan::execute(['wp_options' => ['bad']], [$preDelete185], $failUpdate185, [$retryUpdate185], $unique185), InvalidArgumentException::class],
+    'malformed empty pre fail statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185($tables185, [], $failUpdate185, [$retryUpdate185], $unique185), InvalidArgumentException::class],
+    'malformed empty fail statement rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185($tables185, [$preDelete185], '', [$retryUpdate185], $unique185), InvalidArgumentException::class],
+    'malformed empty retry statements rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185($tables185, [$preDelete185], $failUpdate185, [], $unique185), InvalidArgumentException::class],
+    'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185($tables185, [$preDelete185], $failUpdate185, [$retryUpdate185], []), InvalidArgumentException::class],
+    'malformed savepoint name rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185($tables185, [$preDelete185], $failUpdate185, [$retryUpdate185], $unique185, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext185(['wp_options' => ['bad']], [$preDelete185], $failUpdate185, [$retryUpdate185], $unique185), InvalidArgumentException::class],
 ];
 
 $tests = [];

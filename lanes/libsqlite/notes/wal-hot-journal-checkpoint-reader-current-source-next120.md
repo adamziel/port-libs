@@ -1,6 +1,6 @@
 # WAL hot-journal checkpoint reader current-source next120
 
-Implemented `SQLiteWalHotJournalCheckpointReaderCurrentSourceNext120Plan`, a
+Implemented `SQLiteWalHotJournalCheckpointReaderCurrentSourceNextPlan`, a
 current-source guard for the WAL/pager path where a copied WordPress database
 has both a hot rollback journal and a stale reader WAL source. The planner:
 

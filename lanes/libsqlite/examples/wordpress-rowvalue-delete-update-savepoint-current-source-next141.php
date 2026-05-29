@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan;
+use PortLibs\LibSqlite\SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bucket' => 'core', 'bytes' => 40, 'option_value' => 'https://old.test'],
@@ -20,7 +20,7 @@ $statements = [
     "DELETE FROM wp_options WHERE (status, bucket) BETWEEN ('reviewed', 'cache') AND ('reviewed', 'rewrite') RETURNING option_id, option_name, (status, bucket) BETWEEN ('reviewed', 'cache') AND ('reviewed', 'rewrite') AS reviewed_bucket ORDER BY option_id",
 ];
 
-$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNext141Plan::execute(
+$plan = SQLiteRowValueDeleteUpdateSavepointCurrentSourceNextPlan::executeNext141(
     $tables,
     $statements,
     [['blog_id', 'option_name']],

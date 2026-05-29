@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -47,8 +47,8 @@ $finalizers = [
     $finalizer('index-finalizer', 'select-option-name-index'),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, $finalizers, 237);
-$blockedFinalizer = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, $finalizers, 237);
+$blockedFinalizer = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(
     $statementPlan,
     [
         $finalizers[0],
@@ -57,7 +57,7 @@ $blockedFinalizer = static fn (array $override): array => SQLiteWalHotJournalSav
     ],
     237
 );
-$missingStatement = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(
+$missingStatement = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(
     $statementPlan,
     [$finalizers[0], $finalizers[1]],
     237
@@ -138,20 +138,20 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['status' => 'bad']), $finalizers, 237),
-    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['statement_admission_allowed' => false]), $finalizers, 237),
-    'empty finalizers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [], 237),
-    'bad next generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, $finalizers, 0),
-    'same generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, $finalizers, 236),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['source_token' => 'bad token']), $finalizers, 237),
-    'bad current generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['next_writer_generation' => 0]), $finalizers, 237),
-    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['schema_cookie' => 0]), $finalizers, 237),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['database_digest' => 'short']), $finalizers, 237),
-    'bad admitted statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter(array_replace($statementPlan, ['admitted_statement_names' => []]), $finalizers, 237),
-    'bad finalizer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['name' => 'bad name'])], 237),
-    'bad statement name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['statement_name' => 'bad name'])], 237),
-    'bad finalizer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['generation' => 0])], 237),
-    'bad finalizer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext236Plan::finalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['database_digest' => 'short'])], 237),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['status' => 'bad']), $finalizers, 237),
+    'not admitted rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['statement_admission_allowed' => false]), $finalizers, 237),
+    'empty finalizers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [], 237),
+    'bad next generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, $finalizers, 0),
+    'same generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, $finalizers, 236),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['source_token' => 'bad token']), $finalizers, 237),
+    'bad current generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['next_writer_generation' => 0]), $finalizers, 237),
+    'bad schema cookie rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['schema_cookie' => 0]), $finalizers, 237),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['database_digest' => 'short']), $finalizers, 237),
+    'bad admitted statements rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter(array_replace($statementPlan, ['admitted_statement_names' => []]), $finalizers, 237),
+    'bad finalizer name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['name' => 'bad name'])], 237),
+    'bad statement name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['statement_name' => 'bad name'])], 237),
+    'bad finalizer generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['generation' => 0])], 237),
+    'bad finalizer digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next236FinalizeForNextWriter($statementPlan, [array_replace($finalizers[0], ['database_digest' => 'short'])], 237),
 ];
 
 foreach ($throws as $name => $callback) {

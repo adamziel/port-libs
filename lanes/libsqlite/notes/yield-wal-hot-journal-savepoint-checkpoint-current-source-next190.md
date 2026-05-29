@@ -2,7 +2,7 @@
 
 ## Slice
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext190Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 post-reader-fence publication guard for the WAL hot-journal/savepoint/checkpoint
 current-source chain. It verifies that a retry checkpoint source can be
 published only after the accepted next187 reader-token fence and after the final

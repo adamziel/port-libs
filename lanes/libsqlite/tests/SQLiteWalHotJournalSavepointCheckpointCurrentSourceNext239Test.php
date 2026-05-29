@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -62,7 +62,7 @@ $receipts = [
     $receipt('wp-next239-directory', 'directory', ['select-schema', 'select-options', 'select-option-name-index']),
 ];
 $plan = static fn (?array $inputPlan = null, ?array $inputReceipts = null): array =>
-    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext239Plan::admitAtomicCommitBarrier($inputPlan ?? $finalizerPlan, $inputReceipts ?? $receipts);
+    SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next239AdmitAtomicCommitBarrier($inputPlan ?? $finalizerPlan, $inputReceipts ?? $receipts);
 $blockedReceipt = static fn (string $kind, array $override): array => $plan(null, array_map(
     static fn (array $row): array => $row['kind'] === $kind ? array_replace($row, $override) : $row,
     $receipts

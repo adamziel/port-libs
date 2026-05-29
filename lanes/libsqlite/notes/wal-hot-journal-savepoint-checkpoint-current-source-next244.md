@@ -1,6 +1,6 @@
 # WAL hot-journal savepoint checkpoint current-source next244
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan`, a durability seal after accepted next240 autocheckpoint admission.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a durability seal after accepted next240 autocheckpoint admission.
 
 Behavior covered:
 

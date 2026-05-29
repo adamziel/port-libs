@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext242Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows242 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -114,7 +114,7 @@ $baseOptions242 = [
     'current_source_upsert_sql_hash_next242' => 'insert-into-recursive-view-upsert-242',
 ];
 
-$plan242 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext242Plan::execute(
+$plan242 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext242(
     $rows242,
     $currentInput242,
     $nextInput242,

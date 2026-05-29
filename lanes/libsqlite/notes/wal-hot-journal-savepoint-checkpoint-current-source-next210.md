@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext210Plan`, a
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a
 post-checkpoint WAL append fence layered after the next209 writer-generation
 admission. It accepts append batches only when the writer is current, the
 first frame follows the checkpoint frame, the commit frame matches the new

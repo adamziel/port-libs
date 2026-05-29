@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
 foreach (glob(__DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext*Plan.php') ?: [] as $file) {
     require_once $file;
@@ -125,7 +125,7 @@ $read = static fn (int $pageNumber, string $token): array => [
     'master_journal_recovery_receipt_token' => $token,
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext254Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext254(
     $database,
     $master,
     $masterBytes,

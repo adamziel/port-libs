@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNext175Plan;
+use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 
-require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNext175Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournal.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalHeader.php';
 require_once __DIR__ . '/../src/SQLiteRollbackJournalPage.php';
@@ -48,7 +48,7 @@ $recovered = [
 $journal = $journalBytes($recovered, [3]);
 $journalDigest = hash('sha256', $databasePath . '-journal|' . strlen($journal) . '|' . hash('sha256', $journal));
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNext175Plan::plan(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext175(
     $databasePath,
     $masterPath,
     $masterBytes,

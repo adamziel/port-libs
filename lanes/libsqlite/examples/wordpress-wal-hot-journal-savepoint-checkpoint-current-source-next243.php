@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $hash = static fn (string $value): string => hash('sha256', $value);
 $databaseDigest = $hash('wordpress next243 checkpoint database image');
@@ -51,7 +51,7 @@ $reader = static function (string $name, array $pages, int $readmark) use ($base
     ];
 };
 
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext243Plan::admitReaderSnapshotBaseline($baselinePlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next243AdmitReaderSnapshotBaseline($baselinePlan, [
     $reader('wp-schema-reader', [1], 15),
     $reader('wp-options-reader', [2], 16),
     $reader('wp-index-reader', [5], 18),

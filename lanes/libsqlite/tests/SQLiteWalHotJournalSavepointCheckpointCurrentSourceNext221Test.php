@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -47,7 +47,7 @@ $receipts = [
     $receipt('restart-wal-generation', 'wal', 'restart-header', '/srv/www/wp-content/database/wp-next221.sqlite-wal'),
     $receipt('reset-shm-readmarks', 'shm', 'reset-read-marks', '/srv/www/wp-content/database/wp-next221.sqlite-shm'),
 ];
-$plan = static fn (?array $input = null, ?array $receiptInput = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext221Plan::plan($input ?? $next217, $receiptInput ?? $receipts);
+$plan = static fn (?array $input = null, ?array $receiptInput = null): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next221Plan($input ?? $next217, $receiptInput ?? $receipts);
 
 $missingShm = [$receipts[0], $receipts[1]];
 $badSource = $receipts;

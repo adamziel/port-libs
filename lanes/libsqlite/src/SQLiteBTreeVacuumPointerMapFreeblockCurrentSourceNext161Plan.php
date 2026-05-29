@@ -11,7 +11,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext161Plan
      * @param list<array<string, mixed>> $rows
      */
     private function __construct(
-        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan,
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
         public readonly SQLiteFreelistAllocationPlan $allocationPlan,
         public readonly SQLiteDatabase $databaseAfterAllocation,
         private readonly array $overflowPageImages,
@@ -32,7 +32,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext161Plan
         bool $secureDelete = true,
     ): self {
         return self::fromBasePlan(
-            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan::tableLeafFromDeleteResult(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
                 $database,
                 $leafPageNumber,
                 $deleteResult,
@@ -45,7 +45,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext161Plan
     }
 
     public static function fromBasePlan(
-        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan,
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
         string $replacementOverflowPayload,
         int $parentBtreePageNumber,
     ): self {
@@ -178,7 +178,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext161Plan
      * @return list<array<string, mixed>>
      */
     private static function buildRows(
-        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNext144Plan $basePlan,
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
         SQLiteFreelistAllocationPlan $allocationPlan,
         SQLiteDatabase $databaseAfterAllocation,
     ): array {

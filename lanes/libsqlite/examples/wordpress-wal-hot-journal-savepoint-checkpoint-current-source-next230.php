@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $digest = static fn (string $value): string => hash('sha256', $value);
 $pageDigests = static function (string $scope, array $pages) use ($digest): array {
@@ -54,7 +54,7 @@ $ticket = static function (string $reader, string $scope, array $pages) use ($pa
         'wal_tail_visible' => false,
     ];
 };
-$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext230Plan::plan($publishPlan, [
+$plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next230Plan($publishPlan, [
     $ticket('wp-options-reader', 'wp-options-savepoint', [1, 2]),
     $ticket('wp-autoload-reader', 'wp-autoload-savepoint', [3]),
 ]);

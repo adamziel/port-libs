@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan;
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -79,7 +78,7 @@ $fixture = static function (array $receiptMutations = [], array $walReceiptMutat
     $checkpointPages = [1, 2, 3, 4, 5, 6];
     $release = $released ?? ['plugin-import-inner-next172' => [3, 5]];
 
-    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext166Plan::plan(
+    $base = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next166Plan(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -130,7 +129,7 @@ $fixture = static function (array $receiptMutations = [], array $walReceiptMutat
         'label' => 'next WAL sidecar sync',
     ], $walReceiptMutations);
 
-    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan::plan(
+    $plan = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
         $databasePath,
         $databaseBytes,
         $pageSize,
@@ -233,7 +232,7 @@ foreach ($cases as $name => [$callback, $expected]) {
 $throws = [
     'empty receipts rejected' => static function () use ($fixture): void {
         [$plan, $base, $receipts, $walReceipt] = $fixture();
-        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext172Plan::plan(
+        SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next172Plan(
             $plan['database_path'],
             str_repeat('x', 512),
             512,

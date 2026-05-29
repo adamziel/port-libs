@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNext244Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan;
 
 $rows244 = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
@@ -121,7 +121,7 @@ $baseOptions244 = [
     'current_upsert_commit_trigger_cookie_next244' => 'main@trigger-cookie-244-current',
 ];
 
-$plan244 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNext244Plan::execute(
+$plan244 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewUpsertCurrentSourceNextPlan::executeNext244(
     $rows244,
     $currentInput244,
     $nextInput244,

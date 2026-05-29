@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows195 = [
@@ -26,7 +26,7 @@ $attemptUpdateResult195 = static fn (): array => SQLiteUpdateDeleteReturningSql:
 $attemptDeleteAfterUpdate195 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($attemptDelete195, $attemptUpdateResult195()['tables']);
 $retryUpdateResult195 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryUpdate195, $tables195);
 $retryDeleteAfterUpdate195 = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($retryDelete195, $retryUpdateResult195()['tables']);
-$plan195 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext188Plan::execute(
+$plan195 = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext188(
     $tables195,
     [$attemptUpdate195, $attemptDelete195],
     [$retryUpdate195, $retryDelete195],

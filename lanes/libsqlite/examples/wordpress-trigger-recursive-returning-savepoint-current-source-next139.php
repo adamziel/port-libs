@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNext139Plan::insertRowsWithinSavepoint(
+$plan = SQLiteTriggerRecursiveReturningSavepointCurrentSourceNextPlan::insertRowsWithinSavepointNext139(
     [['option_id' => 40, 'option_name' => 'existing', 'level' => 0, 'autoload' => 'no']],
     [['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes']],
     [[

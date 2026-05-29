@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext129Plan;
+use PortLibs\LibSqlite\SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -55,7 +55,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parent);
 }
 
-$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNext129Plan::fromOverflowChains(
+$plan = SQLiteBTreePointerMapFreelistOverflowCurrentSourceNextPlan::next129FromOverflowChains(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [[
         'source' => 'wp-option-delete-stale-cache-overflow-chain',

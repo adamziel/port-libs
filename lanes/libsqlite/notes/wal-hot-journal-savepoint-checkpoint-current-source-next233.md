@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next233`.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext233Plan`. It admits prepared statements after an accepted next229 checkpoint current-source handle publication only when each statement is bound to the new source token, writer generation, schema cookie, checkpoint database digest, admitted reopened handle, root-page digests, schema reparse receipt, and read-lock receipt.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It admits prepared statements after an accepted next229 checkpoint current-source handle publication only when each statement is bound to the new source token, writer generation, schema cookie, checkpoint database digest, admitted reopened handle, root-page digests, schema reparse receipt, and read-lock receipt.
 
 Blocked statements expire before the next step when they use a stale source token/generation/schema cookie/database digest, refer to an unadmitted handle, miss root-page coverage, retain a hot journal, keep a savepoint open, hold a dirty cache image, or lack schema/read-lock receipts.
 

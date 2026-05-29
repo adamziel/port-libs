@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -86,11 +86,11 @@ $readers = [
     ],
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, $checkpoints, $readers);
-$blockedJournal = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, [array_replace($journal[0], $replace)], $savepoints, $checkpoints, $readers);
-$blockedSavepoint = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, [array_replace($savepoints[0], $replace)], $checkpoints, $readers);
-$blockedCheckpoint = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], $replace)], $readers);
-$blockedReader = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, $checkpoints, array_replace($readers, [$index => array_replace($readers[$index], $replace)]));
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, $checkpoints, $readers);
+$blockedJournal = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, [array_replace($journal[0], $replace)], $savepoints, $checkpoints, $readers);
+$blockedSavepoint = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, [array_replace($savepoints[0], $replace)], $checkpoints, $readers);
+$blockedCheckpoint = static fn (array $replace): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], $replace)], $readers);
+$blockedReader = static fn (array $replace, int $index = 0): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, $checkpoints, array_replace($readers, [$index => array_replace($readers[$index], $replace)]));
 
 $cases = [
     'status' => [static fn (): mixed => $plan()['status'], 'wal-hot-journal-savepoint-checkpoint-current-source-next260'],
@@ -186,26 +186,26 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['status' => 'bad']), $journal, $savepoints, $checkpoints, $readers),
-    'not durable rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['durable_handoff_admitted' => false]), $journal, $savepoints, $checkpoints, $readers),
-    'empty journal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, [], $savepoints, $checkpoints, $readers),
-    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, [], $checkpoints, $readers),
-    'empty checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, [], $readers),
-    'empty reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, $checkpoints, []),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['source_token' => 'bad token']), $journal, $savepoints, $checkpoints, $readers),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['database_digest' => 'short']), $journal, $savepoints, $checkpoints, $readers),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['page_cache_digest' => 'short']), $journal, $savepoints, $checkpoints, $readers),
-    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['commit_generation' => 0]), $journal, $savepoints, $checkpoints, $readers),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['schema_cookie' => 0]), $journal, $savepoints, $checkpoints, $readers),
-    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['checkpoint_frame' => 0]), $journal, $savepoints, $checkpoints, $readers),
-    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['dirty_pages' => []]), $journal, $savepoints, $checkpoints, $readers),
-    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['commit_frames' => [0]]), $journal, $savepoints, $checkpoints, $readers),
-    'bad reader set rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource(array_replace($base, ['accepted_reader_names' => []]), $journal, $savepoints, $checkpoints, $readers),
-    'bad journal pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, [array_replace($journal[0], ['recovered_pages' => ['bad']])], $savepoints, $checkpoints, $readers),
-    'bad savepoint frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, [array_replace($savepoints[0], ['retained_wal_frames' => ['bad']])], $checkpoints, $readers),
-    'bad checkpoint pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], ['database_pages' => ['bad']])], $readers),
-    'bad checkpoint frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], ['checkpointed_wal_frames' => ['bad']])], $readers),
-    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext260Plan::admitCurrentSource($base, $journal, $savepoints, $checkpoints, [array_replace($readers[0], ['name' => 'bad name'])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['status' => 'bad']), $journal, $savepoints, $checkpoints, $readers),
+    'not durable rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['durable_handoff_admitted' => false]), $journal, $savepoints, $checkpoints, $readers),
+    'empty journal rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, [], $savepoints, $checkpoints, $readers),
+    'empty savepoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, [], $checkpoints, $readers),
+    'empty checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, [], $readers),
+    'empty reader rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, $checkpoints, []),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['source_token' => 'bad token']), $journal, $savepoints, $checkpoints, $readers),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['database_digest' => 'short']), $journal, $savepoints, $checkpoints, $readers),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['page_cache_digest' => 'short']), $journal, $savepoints, $checkpoints, $readers),
+    'bad generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['commit_generation' => 0]), $journal, $savepoints, $checkpoints, $readers),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['schema_cookie' => 0]), $journal, $savepoints, $checkpoints, $readers),
+    'bad checkpoint frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['checkpoint_frame' => 0]), $journal, $savepoints, $checkpoints, $readers),
+    'bad dirty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['dirty_pages' => []]), $journal, $savepoints, $checkpoints, $readers),
+    'bad commit frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['commit_frames' => [0]]), $journal, $savepoints, $checkpoints, $readers),
+    'bad reader set rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource(array_replace($base, ['accepted_reader_names' => []]), $journal, $savepoints, $checkpoints, $readers),
+    'bad journal pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, [array_replace($journal[0], ['recovered_pages' => ['bad']])], $savepoints, $checkpoints, $readers),
+    'bad savepoint frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, [array_replace($savepoints[0], ['retained_wal_frames' => ['bad']])], $checkpoints, $readers),
+    'bad checkpoint pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], ['database_pages' => ['bad']])], $readers),
+    'bad checkpoint frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, [array_replace($checkpoints[0], ['checkpointed_wal_frames' => ['bad']])], $readers),
+    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next260AdmitCurrentSource($base, $journal, $savepoints, $checkpoints, [array_replace($readers[0], ['name' => 'bad name'])]),
 ];
 
 foreach ($throws as $name => $callback) {

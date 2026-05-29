@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 
 $tests = [];
 
@@ -79,23 +79,23 @@ $readers = [
     $reader('wp-usermeta-reader'),
 ];
 
-$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, $durables, $readers);
-$blockedDurable = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(
+$plan = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, $durables, $readers);
+$blockedDurable = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(
     $baselinePlan,
     [$durables[0], $durable('database-index-blocked', [5], [18], $override)],
     $readers
 );
-$blockedReader = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(
+$blockedReader = static fn (array $override): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(
     $baselinePlan,
     $durables,
     [$readers[0], $reader('wp-usermeta-blocked', $override)]
 );
-$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(
+$missingPage = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(
     $baselinePlan,
     [$durable('database-main-sync', [1, 2], [16, 17, 18])],
     $readers
 );
-$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(
+$missingFrame = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(
     $baselinePlan,
     [$durable('database-main-sync', [1, 2, 5], [16, 17])],
     $readers
@@ -195,25 +195,25 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $throws = [
-    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['status' => 'bad']), $durables, $readers),
-    'baseline not allowed rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['autocheckpoint_baseline_allowed' => false]), $durables, $readers),
-    'empty durable rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, [], $readers),
-    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, $durables, []),
-    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['source_token' => 'bad token']), $durables, $readers),
-    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['database_digest' => 'short']), $durables, $readers),
-    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['page_cache_digest' => 'short']), $durables, $readers),
-    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['schema_cookie' => 0]), $durables, $readers),
-    'bad commit generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['commit_generation' => 0]), $durables, $readers),
-    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['checkpoint_frame' => 0]), $durables, $readers),
-    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['wal_index_mx_frame' => 0]), $durables, $readers),
-    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['wal_index_salt' => ['one']]), $durables, $readers),
-    'empty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['dirty_pages' => []]), $durables, $readers),
-    'empty frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource(array_replace($baselinePlan, ['commit_frames' => []]), $durables, $readers),
-    'bad durable name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['name' => 'bad name'])], $readers),
-    'bad durable page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['database_pages_written' => [0]])], $readers),
-    'bad durable frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['wal_frames_synced' => ['bad']])], $readers),
-    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, $durables, [array_replace($readers[0], ['name' => 'bad name'])]),
-    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext244Plan::sealDurableCurrentSource($baselinePlan, $durables, [array_replace($readers[0], ['commit_generation' => 0])]),
+    'bad base rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['status' => 'bad']), $durables, $readers),
+    'baseline not allowed rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['autocheckpoint_baseline_allowed' => false]), $durables, $readers),
+    'empty durable rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, [], $readers),
+    'empty readers rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, $durables, []),
+    'bad source token rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['source_token' => 'bad token']), $durables, $readers),
+    'bad database digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['database_digest' => 'short']), $durables, $readers),
+    'bad page cache digest rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['page_cache_digest' => 'short']), $durables, $readers),
+    'bad schema rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['schema_cookie' => 0]), $durables, $readers),
+    'bad commit generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['commit_generation' => 0]), $durables, $readers),
+    'bad checkpoint rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['checkpoint_frame' => 0]), $durables, $readers),
+    'bad mx frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['wal_index_mx_frame' => 0]), $durables, $readers),
+    'bad salt rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['wal_index_salt' => ['one']]), $durables, $readers),
+    'empty pages rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['dirty_pages' => []]), $durables, $readers),
+    'empty frames rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource(array_replace($baselinePlan, ['commit_frames' => []]), $durables, $readers),
+    'bad durable name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['name' => 'bad name'])], $readers),
+    'bad durable page rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['database_pages_written' => [0]])], $readers),
+    'bad durable frame rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, [array_replace($durables[0], ['wal_frames_synced' => ['bad']])], $readers),
+    'bad reader name rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, $durables, [array_replace($readers[0], ['name' => 'bad name'])]),
+    'bad reader generation rejected' => static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next244SealDurableCurrentSource($baselinePlan, $durables, [array_replace($readers[0], ['commit_generation' => 0])]),
 ];
 
 foreach ($throws as $name => $callback) {

@@ -2,14 +2,14 @@
 
 Status: focused PHP behavior growth for `wal-hot-journal-savepoint-checkpoint-current-source-next212`.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan`. It models a PASSIVE checkpoint after hot-journal recovery, savepoint rollback, and next209 writer admission. A current reader pin limits checkpoint progress to that reader's end frame, preserves WAL bytes, and forbids restart/truncate-style reset while stale readers are reopened against the current source.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`. It models a PASSIVE checkpoint after hot-journal recovery, savepoint rollback, and next209 writer admission. A current reader pin limits checkpoint progress to that reader's end frame, preserves WAL bytes, and forbids restart/truncate-style reset while stale readers are reopened against the current source.
 
 WordPress smoke: `wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php` covers a copied `wp_options` import where a recovered hot journal and plugin savepoint rollback are followed by a PASSIVE checkpoint while a current options reader is still open.
 
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Test.php`
-- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`
 - `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next212.php`

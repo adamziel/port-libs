@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext247Plan`, a post-checkpoint cleanup admission guard for the WAL/hot-journal current-source chain.
+Adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-checkpoint cleanup admission guard for the WAL/hot-journal current-source chain.
 
 The slice starts from an admitted `next243` reopened-reader baseline and seals cleanup only when receipts prove:
 

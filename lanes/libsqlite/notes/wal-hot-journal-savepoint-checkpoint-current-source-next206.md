@@ -2,7 +2,7 @@
 
 Status: focused WAL/pager current-source behavior slice.
 
-This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext206Plan`, a post-next203 checkpoint generation fence for reopened WordPress prepared statements and page-cache consumers. It admits consumers only when their statement generation, database digest, WAL digest, root-page digests, savepoint depth, dirty/closed state, and hot-journal identity all match the current checkpoint generation.
+This slice adds `SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan`, a post-next203 checkpoint generation fence for reopened WordPress prepared statements and page-cache consumers. It admits consumers only when their statement generation, database digest, WAL digest, root-page digests, savepoint depth, dirty/closed state, and hot-journal identity all match the current checkpoint generation.
 
 Focused evidence:
 

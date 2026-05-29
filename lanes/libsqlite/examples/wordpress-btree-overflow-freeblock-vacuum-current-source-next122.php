@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -67,7 +67,7 @@ foreach ([6 => 7, 7 => 8, 8 => 0, 12 => 13, 13 => 14, 14 => 0] as $pageNumber =>
     $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(65 + $pageNumber), 508);
 }
 
-$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNext122Plan::fromDeleteResults(
+$plan = SQLiteBTreeOverflowFreeblockVacuumCurrentSourceNextPlan::next122FromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [

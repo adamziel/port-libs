@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../src/SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1, 'source' => 'seed'],
@@ -48,7 +48,7 @@ $returning = [
     ['expr' => 'event', 'as' => 'event_name'],
 ];
 
-$plan = SQLiteTriggerSavepointReturningViewCurrentSourceNext134Plan::execute(
+$plan = SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(
     $rows,
     $current,
     $next,
