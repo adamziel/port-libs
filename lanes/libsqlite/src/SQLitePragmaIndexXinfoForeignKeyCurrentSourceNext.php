@@ -28082,6 +28082,150 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page367(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 367, 'update_no_action_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page368(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 368, 'delete_no_action_order_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page369(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 369, 'update_no_action_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page370(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 370, 'delete_no_action_collation_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page371(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 371, 'update_cascade_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page372(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 372, 'delete_cascade_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page373(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 373, 'update_restrict_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page374(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 374, 'delete_restrict_desc_mismatch_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
@@ -28377,6 +28521,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                         $status = "{$actionPrefix}_cascade_order_mismatch_child_lookup_index";
                     } elseif ($lookupStatus === 'child_lookup_collation_mismatch') {
                         $status = "{$actionPrefix}_cascade_collation_mismatch_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_desc_mismatch') {
+                        $status = "{$actionPrefix}_cascade_desc_mismatch_child_lookup_index";
                     }
                 }
                 if ($action === 'RESTRICT') {
@@ -28391,6 +28537,8 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                         $status = "{$actionPrefix}_restrict_order_mismatch_child_lookup_index";
                     } elseif ($lookupStatus === 'child_lookup_collation_mismatch') {
                         $status = "{$actionPrefix}_restrict_collation_mismatch_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_desc_mismatch') {
+                        $status = "{$actionPrefix}_restrict_desc_mismatch_child_lookup_index";
                     }
                 }
                 if ($action === 'NO ACTION') {
@@ -28401,6 +28549,12 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                         $status = "{$actionPrefix}_no_action_partial_child_lookup_index";
                     } elseif ($lookupStatus === 'child_lookup_expression_index') {
                         $status = "{$actionPrefix}_no_action_expression_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_order_mismatch') {
+                        $status = "{$actionPrefix}_no_action_order_mismatch_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_collation_mismatch') {
+                        $status = "{$actionPrefix}_no_action_collation_mismatch_child_lookup_index";
+                    } elseif ($lookupStatus === 'child_lookup_desc_mismatch') {
+                        $status = "{$actionPrefix}_no_action_desc_mismatch_child_lookup_index";
                     }
                 }
                 if ($status === null || ($statusFilter !== null && $status !== $statusFilter)) {
@@ -29316,6 +29470,16 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'delete_restrict_order_mismatch_child_lookup_index' => 0,
             'update_restrict_collation_mismatch_child_lookup_index' => 0,
             'delete_restrict_collation_mismatch_child_lookup_index' => 0,
+            'update_no_action_order_mismatch_child_lookup_index' => 0,
+            'delete_no_action_order_mismatch_child_lookup_index' => 0,
+            'update_no_action_collation_mismatch_child_lookup_index' => 0,
+            'delete_no_action_collation_mismatch_child_lookup_index' => 0,
+            'update_no_action_desc_mismatch_child_lookup_index' => 0,
+            'delete_no_action_desc_mismatch_child_lookup_index' => 0,
+            'update_cascade_desc_mismatch_child_lookup_index' => 0,
+            'delete_cascade_desc_mismatch_child_lookup_index' => 0,
+            'update_restrict_desc_mismatch_child_lookup_index' => 0,
+            'delete_restrict_desc_mismatch_child_lookup_index' => 0,
         ];
         foreach ($rows as $row) {
             if (($row['blocked'] ?? false) === true) {
