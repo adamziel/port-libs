@@ -28139,6 +28139,280 @@ final class SQLiteJsonTablePlan
         return 'stable-hidden-rowid-source-row';
     }
 
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext261(
+        string $function,
+        array $currentSource,
+        array $nextSource,
+        string $jsonColumn,
+        string $generatedPathColumn,
+        array $constraints = [],
+        ?string $rootColumn = null,
+        array $orderBy = [],
+        ?int $limit = null,
+        ?int $lastYieldedRowid = null,
+        ?int $yieldBatchSize = null,
+        array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+        ?string $observedFingerprint = null,
+        ?int $observedRowid = null,
+    ): array {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(261, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projectedColumns
+     * @return array<string,mixed>
+     */
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext262(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(262, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext263(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(263, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext264(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(264, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext265(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(265, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext266(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(266, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext267(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(267, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext268(string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    {
+        return self::currentSourceGeneratedPathRowidCostCurrentSourceSlice(268, $function, $currentSource, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid, $projectedColumns);
+    }
+
+    /**
+     * @param array<string,mixed> $currentSource
+     * @param array<string,mixed> $nextSource
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $projectedColumns
+     * @return array<string,mixed>
+     */
+    private static function currentSourceGeneratedPathRowidCostCurrentSourceSlice(int $slice, string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints, ?string $rootColumn, array $orderBy, ?int $limit, ?int $lastYieldedRowid, ?int $yieldBatchSize, ?string $observedFingerprint, ?int $observedRowid, array $projectedColumns): array
+    {
+        if ($jsonColumn === '' || $generatedPathColumn === '') {
+            throw new \InvalidArgumentException('SQLite JSON table generated-path rowid cost planner requires source columns');
+        }
+        if (!array_key_exists($jsonColumn, $currentSource) || !array_key_exists($jsonColumn, $nextSource)) {
+            throw new \InvalidArgumentException("SQLite JSON table source row is missing {$jsonColumn}");
+        }
+        if (!array_key_exists($generatedPathColumn, $currentSource) || !array_key_exists($generatedPathColumn, $nextSource)) {
+            throw new \InvalidArgumentException("SQLite JSON table source row is missing {$generatedPathColumn}");
+        }
+        if ($observedFingerprint !== null && !preg_match('/^[a-f0-9]{64}$/', $observedFingerprint)) {
+            throw new \InvalidArgumentException('SQLite JSON table observed fingerprint must be a sha256 hex string');
+        }
+
+        $current = self::generatedPathRowidCostProfile($slice, $function, $currentSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, $lastYieldedRowid, $yieldBatchSize, $observedFingerprint, $observedRowid);
+        $next = self::generatedPathRowidCostProfile($slice, $function, $nextSource, $jsonColumn, $generatedPathColumn, $constraints, $rootColumn, $orderBy, $limit, null, $yieldBatchSize, null, null);
+        $transitions = self::generatedPathRowidCostTransitions($current, $next);
+        $reasons = self::generatedPathRowidCostReasons($slice, $transitions);
+
+        return [
+            'function' => $current['function'],
+            'currentGeneratedPathRowidCurrentSourceCostSelection' . $slice => $current,
+            'nextGeneratedPathRowidCurrentSourceCostSelection' . $slice => $next,
+            'generatedPathRowidCurrentSourceCostSelection' . $slice . 'Transitions' => $transitions,
+            'replanRequired' => $reasons !== [],
+            'next' . $slice . 'ReplanReasons' => $reasons === [] ? [] : array_values(array_unique(array_merge([
+                'json-table-generated-path-rowid-yield-guard-source-changed-next224',
+            ], $reasons))),
+            'currentReaderPolicy' => 'cost-select-current-json-table-generated-path-rowid-next' . $slice,
+            'nextReaderPolicy' => $reasons === [] ? 'reuse-cost-select-current-json-table-generated-path-rowid-next' . $slice : 'reprepare-cost-select-next-json-table-generated-path-rowid-next' . $slice,
+            'projectedColumns' => $projectedColumns,
+            'dependencies' => [
+                'sqlite-json-table-generated-path-rowid-cost-current-source-next224',
+                'sqlite-json-table-generated-path-rowid-cost-current-source-next' . $slice,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array<string,mixed>
+     */
+    private static function generatedPathRowidCostProfile(int $slice, string $function, array $source, string $jsonColumn, string $generatedPathColumn, array $constraints, ?string $rootColumn, array $orderBy, ?int $limit, ?int $lastYieldedRowid, ?int $yieldBatchSize, ?string $observedFingerprint, ?int $observedRowid): array
+    {
+        $generatedPath = (string) $source[$generatedPathColumn];
+        if (!SQLiteJsonPath::isWellFormed($generatedPath)) {
+            throw new \InvalidArgumentException('SQLite JSON table generated path source column is not a well-formed path');
+        }
+        $root = $rootColumn === null ? '$' : (string) ($source[$rootColumn] ?? '$');
+        if (!SQLiteJsonPath::isWellFormed($root)) {
+            throw new \InvalidArgumentException('SQLite JSON table root source column is not a well-formed path');
+        }
+
+        $rowConstraints = array_merge([
+            ['column' => 'json', 'operator' => '=', 'value' => $source[$jsonColumn]],
+            ['column' => 'root', 'operator' => '=', 'value' => $root],
+        ], $constraints);
+        $rows = self::filteredRows($function, $rowConstraints);
+        $matchingRows = array_values(array_filter($rows, static fn (array $row): bool => str_starts_with((string) ($row['path'] ?? ''), $generatedPath)));
+        if ($lastYieldedRowid !== null) {
+            $matchingRows = array_values(array_filter($matchingRows, static fn (array $row): bool => (int) $row['id'] > $lastYieldedRowid));
+        }
+        $restartCandidateRowids = array_values(array_map(static fn (array $row): int => (int) $row['id'], $matchingRows));
+        if ($limit !== null) {
+            $matchingRows = array_slice($matchingRows, 0, max(0, $limit));
+        }
+        if ($yieldBatchSize !== null) {
+            $matchingRows = array_slice($matchingRows, 0, max(0, $yieldBatchSize));
+        }
+        $deliveredRowids = array_values(array_map(static fn (array $row): int => (int) $row['id'], $matchingRows));
+        $activeRowid = $deliveredRowids[0] ?? null;
+        $actualFingerprint = hash('sha256', json_encode([
+            $function,
+            $source[$jsonColumn],
+            $root,
+            $generatedPath,
+            $deliveredRowids,
+            $source['source_generation'] ?? null,
+            $limit,
+            $lastYieldedRowid,
+            $yieldBatchSize,
+        ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $fingerprintMatches = $observedFingerprint === null || $observedFingerprint === $actualFingerprint;
+        $rowidMatches = $observedRowid === null || $observedRowid === $activeRowid;
+
+        $rowidAliases = [];
+        foreach ($constraints as $constraint) {
+            if (($constraint['usable'] ?? true) !== true) {
+                continue;
+            }
+            $column = strtolower((string) ($constraint['column'] ?? ''));
+            if (self::isRowIdAlias($column)) {
+                $rowidAliases[] = $column;
+            }
+        }
+        $rowidAliases = array_values(array_unique($rowidAliases));
+
+        $orderColumns = [];
+        foreach ($orderBy as $term) {
+            $column = self::normalizeConstraintColumn((string) ($term['column'] ?? ''));
+            if (self::isRowIdAlias($column)) {
+                $column = 'id';
+            }
+            if ($column !== '') {
+                $orderColumns[] = $column;
+            }
+        }
+
+        $aliasConsistent = $rowidAliases !== [] && in_array('rowid', $rowidAliases, true);
+        $yieldGuardReusable = $fingerprintMatches && $rowidMatches && $activeRowid !== null;
+        $xRowidReusable = $aliasConsistent && $activeRowid !== null;
+        $orderByConsumed = $yieldGuardReusable && $xRowidReusable && $orderColumns !== [] && array_diff($orderColumns, ['id', 'path', 'fullkey']) === [];
+        $pointReusable = $yieldGuardReusable && $xRowidReusable && $orderByConsumed;
+        $restartRowids = $pointReusable ? [] : $restartCandidateRowids;
+        $estimatedRows = $pointReusable ? count($deliveredRowids) : 0;
+        $estimatedCost = $pointReusable ? 1 : 1000000;
+        $idxNum = ($pointReusable ? 1 : 0) | ($fingerprintMatches ? 2 : 0) | ($rowidMatches ? 4 : 0) | ($orderByConsumed ? 8 : 0);
+        $idxStr = implode('|', array_values(array_filter([
+            $pointReusable ? 'current-source-rowid-point' : null,
+            $fingerprintMatches ? 'fingerprint-match' : 'fingerprint-stale',
+            $rowidMatches ? 'rowid-match' : 'rowid-stale',
+            $orderByConsumed ? 'orderby' : null,
+        ])));
+        $costClass = match (true) {
+            $pointReusable && $orderByConsumed => 'json-table-generated-path-rowid-current-source-cost-covering-point-next' . $slice,
+            $pointReusable => 'json-table-generated-path-rowid-current-source-cost-point-next' . $slice,
+            !$fingerprintMatches => 'json-table-generated-path-rowid-current-source-cost-stale-fingerprint-next' . $slice,
+            !$rowidMatches => 'json-table-generated-path-rowid-current-source-cost-stale-rowid-next' . $slice,
+            $restartRowids === [] => 'json-table-generated-path-rowid-current-source-cost-eof-next' . $slice,
+            default => 'json-table-generated-path-rowid-current-source-cost-reprepare-next' . $slice,
+        };
+        $selectionFingerprint = hash('sha256', json_encode([$actualFingerprint, $rowidAliases, $orderColumns, $idxNum, $estimatedRows, $estimatedCost], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        return [
+            'function' => self::normalizeFunction($function),
+            'root' => $root,
+            'generatedPath' => $generatedPath,
+            'sourceGeneration' => (string) ($source['source_generation'] ?? ''),
+            'rowidAliases' => $rowidAliases,
+            'orderByColumns' => $orderColumns,
+            'activeRowid' => $activeRowid,
+            'deliveredRowids' => $deliveredRowids,
+            'restartRowids' => $restartRowids,
+            'fingerprintMatches' => $fingerprintMatches,
+            'rowidMatches' => $rowidMatches,
+            'aliasConsistent' => $aliasConsistent,
+            'yieldGuardReusable' => $yieldGuardReusable,
+            'xRowidReusable' => $xRowidReusable,
+            'currentSourceCostReusable' => $pointReusable,
+            'orderByConsumed' => $orderByConsumed,
+            'idxNum' => $idxNum,
+            'idxStr' => $idxStr,
+            'estimatedRows' => $estimatedRows,
+            'estimatedCost' => $estimatedCost,
+            'costClass' => $costClass,
+            'selectionFingerprint' => $selectionFingerprint,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $current
+     * @param array<string,mixed> $next
+     * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
+     */
+    private static function generatedPathRowidCostTransitions(array $current, array $next): array
+    {
+        $fields = ['function', 'root', 'generatedPath', 'sourceGeneration', 'rowidAliases', 'orderByColumns', 'activeRowid', 'deliveredRowids', 'restartRowids', 'fingerprintMatches', 'rowidMatches', 'aliasConsistent', 'yieldGuardReusable', 'xRowidReusable', 'currentSourceCostReusable', 'orderByConsumed', 'idxNum', 'idxStr', 'estimatedRows', 'estimatedCost', 'costClass', 'selectionFingerprint'];
+
+        return array_map(static fn (string $field): array => [
+            'field' => $field,
+            'current' => $current[$field] ?? null,
+            'next' => $next[$field] ?? null,
+            'changed' => ($current[$field] ?? null) !== ($next[$field] ?? null),
+        ], $fields);
+    }
+
+    /**
+     * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
+     * @return list<string>
+     */
+    private static function generatedPathRowidCostReasons(int $slice, array $transitions): array
+    {
+        $reasons = [];
+        foreach ($transitions as $transition) {
+            if (!$transition['changed']) {
+                continue;
+            }
+            $reasons[] = match ($transition['field']) {
+                'function', 'root', 'generatedPath', 'sourceGeneration', 'selectionFingerprint' => 'json-table-generated-path-rowid-cost-selection-source-changed-next' . $slice,
+                'rowidAliases', 'activeRowid', 'deliveredRowids', 'restartRowids' => 'json-table-generated-path-rowid-cost-selection-rowset-changed-next' . $slice,
+                'fingerprintMatches', 'rowidMatches', 'aliasConsistent', 'yieldGuardReusable', 'xRowidReusable', 'currentSourceCostReusable' => 'json-table-generated-path-rowid-cost-selection-admission-changed-next' . $slice,
+                'orderByColumns', 'orderByConsumed', 'idxNum', 'idxStr' => 'json-table-generated-path-rowid-cost-selection-index-changed-next' . $slice,
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-cost-selection-cost-changed-next' . $slice,
+                default => 'json-table-generated-path-rowid-cost-selection-state-changed-next' . $slice,
+            };
+        }
+
+        return array_values(array_unique($reasons));
+    }
+
+
     private static function isRowIdAlias(string $column): bool
     {
         return $column === 'rowid' || $column === '_rowid_' || $column === 'oid';
