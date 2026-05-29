@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 16:33:55 UTC",
-    "sourceCommit": "e85872f612ec6b8dd53f997338daecd7b77aed0e",
-    "sourceCommitShort": "e85872f612ec",
+    "generated": "2026-05-29 16:41:23 UTC",
+    "sourceCommit": "5c13f9433a7c9dfb09af0303238bbc39f1f4eefa",
+    "sourceCommitShort": "5c13f9433a7c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e85872f612ec6b8dd53f997338daecd7b77aed0e",
-    "dashboardCommitShort": "e85872f612ec",
+    "dashboardCommit": "5c13f9433a7c9dfb09af0303238bbc39f1f4eefa",
+    "dashboardCommitShort": "5c13f9433a7c",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted five ready-marked BN consolidati...",
-            "currentWork": "Consolidated five BN numbered method/helper cleanup handoffs across attach schema-cache l...",
-            "nextTarget": "Rebase or retire deferred BN/BM/BL/BK/BJ/BI/BH/BG/BF leftovers, then continue consolidati...",
+            "audit": "Accepted seven ready-marked BO/BP consoli...",
+            "currentWork": "Consolidated seven BO/BP numbered method/helper cleanup handoffs across attach schema-cac...",
+            "nextTarget": "Rebase or retire deferred trigger BO and BN/BM/BL/BK/BJ/BI/BH/BG/BF leftovers, then conti...",
             "blocker": "No blocker for the accepted reduced consolidation slice.",
             "commit": "fifty-f"
         },
