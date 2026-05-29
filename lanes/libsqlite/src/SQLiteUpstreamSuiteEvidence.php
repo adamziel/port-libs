@@ -24741,6 +24741,248 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $evidenceRows
+     * @return array<string, mixed>
+     */
+    public function suiteEvidenceSliceCurrentNext77(
+        array $evidenceRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $acceptedRepositoryHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        if ($evidenceRows === []) {
+            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires at least one evidence row');
+        }
+        if ($currentMapped < 0) {
+            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires a non-negative mapped count');
+        }
+        if (trim($acceptedRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite current-next77 suite evidence slice requires an accepted repository HEAD');
+        }
+
+        $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
+            $currentPhpPass,
+            $acceptedRepositoryHead,
+            $acceptedRepositoryHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta
+        );
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $entries = [];
+        $blockers = [];
+        $seen = [];
+        $advanced = [];
+        $preserved = [];
+        $blockedUnits = [];
+        $regressed = [];
+        $tiers = [];
+        $scripts = [];
+        $currentTestsTotal = 0;
+        $nextTestsTotal = 0;
+
+        foreach ($evidenceRows as $label => $row) {
+            $fallbackUnit = is_string($label) ? $label : 'current-next77-suite-evidence-' . count($entries);
+            if (!is_array($row)) {
+                $blockedUnits[] = $fallbackUnit;
+                $blockers[] = [
+                    'id' => 'current-next77-evidence-row-invalid',
+                    'unit' => $fallbackUnit,
+                    'evidence' => 'suite evidence row must be an array',
+                ];
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) && $row['unit'] !== '' ? $row['unit'] : $fallbackUnit;
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? strtolower($row['tier']) : 'unknown';
+            $head = is_string($row['repository_head'] ?? null) ? trim($row['repository_head']) : '';
+            $artifactPath = is_string($row['artifact_path'] ?? null) ? trim($row['artifact_path']) : '';
+            $command = is_string($row['runner_command'] ?? null) ? trim($row['runner_command']) : '';
+            $evidence = is_string($row['evidence'] ?? null) ? trim($row['evidence']) : '';
+            $currentCountable = (bool) ($row['current_countable'] ?? false);
+            $nextCountable = (bool) ($row['next_countable'] ?? false);
+            $exit = $this->denominatorAuditInt($row, 'exit');
+            $errors = max(0, $this->denominatorAuditInt($row, 'errors'));
+            $currentTests = max(0, $this->denominatorAuditInt($row, 'current_tests'));
+            $nextTests = max(0, $this->denominatorAuditInt($row, 'next_tests'));
+            $rowScripts = array_values(array_unique(array_filter(
+                is_array($row['scripts'] ?? null) ? $row['scripts'] : [],
+                static fn (mixed $script): bool => is_string($script) && (str_ends_with($script, '.test') || str_contains($script, '*.test'))
+            )));
+            sort($rowScripts, SORT_STRING);
+            foreach ($rowScripts as $script) {
+                $scripts[$script] = true;
+            }
+
+            $rowBlockers = [];
+            if (isset($seen[$unit])) {
+                $rowBlockers[] = 'duplicate-suite-evidence-unit';
+            }
+            $seen[$unit] = true;
+            if (!in_array($tier, ['veryquick', 'release', 'all', 'focused'], true)) {
+                $rowBlockers[] = 'unsupported-suite-evidence-tier';
+            }
+            if ($head !== $acceptedRepositoryHead) {
+                $rowBlockers[] = 'accepted-head-mismatch';
+            }
+            if ($artifactPath === '' || !str_starts_with($artifactPath, 'lanes/libsqlite/')) {
+                $rowBlockers[] = 'artifact-path-not-lane-local';
+            }
+            if ($command === '' || !str_contains($command, 'testfixture') || !str_contains($command, 'testrunner.tcl')) {
+                $rowBlockers[] = 'suite-runner-command-missing';
+            }
+            if ($nextCountable && $exit !== 0) {
+                $rowBlockers[] = 'runner-exit-not-zero';
+            }
+            if ($nextCountable && $errors !== 0) {
+                $rowBlockers[] = 'runner-errors-not-zero';
+            }
+            if ($nextCountable && $nextTests < 1) {
+                $rowBlockers[] = 'runner-test-count-missing';
+            }
+            if ($nextCountable && $rowScripts === []) {
+                $rowBlockers[] = 'suite-scripts-missing';
+            }
+            if ($nextCountable && $evidence === '') {
+                $rowBlockers[] = 'suite-evidence-missing';
+            }
+            if ($currentCountable && !$nextCountable) {
+                $rowBlockers[] = 'suite-evidence-countability-regressed';
+            }
+            if ($nextTests < $currentTests) {
+                $rowBlockers[] = 'suite-evidence-test-count-regressed';
+            }
+            if (($row['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+            foreach (is_array($row['blockers'] ?? null) ? $row['blockers'] : [] as $blocker) {
+                if (is_string($blocker) && $blocker !== '') {
+                    $rowBlockers[] = $blocker;
+                }
+            }
+            $rowBlockers = array_values(array_unique($rowBlockers));
+
+            $movement = 'open';
+            if ($rowBlockers !== []) {
+                $movement = 'blocked';
+                $blockedUnits[] = $unit;
+                if (in_array('suite-evidence-countability-regressed', $rowBlockers, true) || in_array('suite-evidence-test-count-regressed', $rowBlockers, true)) {
+                    $regressed[] = $unit;
+                }
+                $blockers[] = [
+                    'id' => 'current-next77-suite-evidence-blocked',
+                    'unit' => $unit,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($nextCountable && !$currentCountable) {
+                $movement = 'advanced';
+                $advanced[] = $unit;
+            } elseif ($nextCountable) {
+                $movement = 'preserved';
+                $preserved[] = $unit;
+            }
+
+            if ($currentCountable) {
+                $currentTestsTotal += $currentTests;
+            }
+            if ($nextCountable) {
+                $nextTestsTotal += $nextTests;
+            }
+            $tiers[$tier] = ($tiers[$tier] ?? 0) + 1;
+
+            $entries[] = [
+                'unit' => $unit,
+                'tier' => $tier,
+                'movement' => $movement,
+                'repository_head' => $head,
+                'current_countable' => $currentCountable,
+                'next_countable' => $nextCountable,
+                'exit' => $exit,
+                'errors' => $errors,
+                'current_tests' => $currentTests,
+                'next_tests' => $nextTests,
+                'scripts' => $rowScripts,
+                'artifact_path' => $artifactPath,
+                'blocker_ids' => $rowBlockers,
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'current-head-focused-pass-countable') {
+            $blockers[] = [
+                'id' => 'focused-current-head-php-pass-blocked',
+                'evidence' => 'focused PHP PASS-line admission did not satisfy current-head gates',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        ksort($tiers, SORT_STRING);
+        sort($advanced, SORT_STRING);
+        sort($preserved, SORT_STRING);
+        sort($blockedUnits, SORT_STRING);
+        sort($regressed, SORT_STRING);
+        $scriptList = array_keys($scripts);
+        sort($scriptList, SORT_STRING);
+
+        $blocked = $blockers !== [];
+        $mappedDelta = count($advanced) > 0 ? 1 : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-next77-suite-evidence-countable';
+        } elseif (!$blocked) {
+            $status = 'current-next77-suite-evidence-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'countable' => $status === 'current-next77-suite-evidence-countable',
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'current_mapped' => $currentMapped,
+            'next_mapped' => $blocked ? $currentMapped : $currentMapped + $mappedDelta,
+            'mapped_delta' => $blocked ? 0 : $mappedDelta,
+            'current_php_pass' => $currentPhpPass,
+            'php_pass_delta' => $blocked ? 0 : (int) ($phpAdmission['pass_delta'] ?? 0),
+            'next_php_pass' => $blocked ? $currentPhpPass : (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'row_count' => count($entries),
+            'tier_count' => count($tiers),
+            'tiers' => $tiers,
+            'advanced_units' => $advanced,
+            'preserved_units' => $preserved,
+            'blocked_units' => $blockedUnits,
+            'regressed_units' => $regressed,
+            'current_tests_total' => $currentTestsTotal,
+            'next_tests_total' => $nextTestsTotal,
+            'tests_total_delta' => $blocked ? 0 : max(0, $nextTestsTotal - $currentTestsTotal),
+            'target_script_count' => count($scriptList),
+            'target_scripts' => $scriptList,
+            'entries' => $entries,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_suite_evidence_current_next77' => $status === 'current-next77-suite-evidence-countable',
+            'counts_release_parity' => false,
+            'non_overlap_note' => trim($nonOverlapNote),
+            'next_gate' => $status === 'current-next77-suite-evidence-countable'
+                ? 'publish current-next77 as one bounded suite-evidence countability slice; release/all parity remains blocked until complete zero-error closure evidence is separately accepted'
+                : 'keep current-next77 suite evidence uncounted until accepted-head, lane-local artifact, zero-error runner, duplicate-runner, and focused PASS-line gates are clear',
+            'dependency_closure' => 'no new support component needed; current-next77 suite evidence composes lane-local artifact metadata, guarded runner commands, active-runner gates, and focused TestRunner PASS-line output only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
