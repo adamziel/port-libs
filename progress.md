@@ -49,8 +49,8 @@
 ## Current Coordination Snapshot
 
 - 2026-05-29 supervisor continuation (shell samples 19:12 UTC):
-  Seventieth safe consolidation follow-up is staged and validated in the
-  rolling libsqlite integration worktree. The batch accepts 2 current-base
+  Seventieth safe consolidation follow-up is integrated and pushed as
+  `dcc7060a4`. The batch accepts 2 current-base
   handoffs on top of `aab386b`: planner STAT4 expression-partial multi-value
   IN bucket fence Next166 helper rename and row-value empty-IN savepoint retry
   test/example path rename. Validation passed PHP lint on changed files,

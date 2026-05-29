@@ -12,6 +12,6 @@
   "blocker": "No blocker for the accepted safe subset. Remaining ready markers are mostly stale-base and must be rebased or rejected; pager broad-family tests still contain unrelated later dispatch failures, so pager cleanup gates need focused tests or baseline comparisons until that family is repaired.",
   "nextTask": "Keep 10-11 current-base libsqlite workers active, intake the next current-head handoffs through affected-domain tests, and continue reducing numbered production helper groups without changing observable metadata.",
     "wordpressScenarioLatest": "Latest accepted consolidation keeps the planner STAT4 multi-value IN bucket WordPress smoke and row-value empty-IN savepoint retry smoke behavior while moving direct callers/paths to stable descriptive names.",
-    "latestCommit": "seventieth safe consolidation follow-up",
-    "commit": "seventieth-safe-consolidation-followup"
+    "latestCommit": "dcc7060a4edf864023be8e36f6162894314672e4 (libsqlite: consolidate seventieth safe subset)",
+    "commit": "dcc7060a4edf864023be8e36f6162894314672e4"
 }
