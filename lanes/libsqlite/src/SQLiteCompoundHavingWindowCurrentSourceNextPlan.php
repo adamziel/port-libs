@@ -14,7 +14,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext128(string $sql, array $currentTables, array $nextTables): array
+        public static function compareHavingWindow(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -24,18 +24,18 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $currentHaving = self::havingTermsNext128($currentPlan);
-            $nextHaving = self::havingTermsNext128($nextPlan);
-            $currentWindows = self::windowTermsNext128($currentPlan);
-            $nextWindows = self::windowTermsNext128($nextPlan);
+            $currentHaving = self::havingTermsHavingWindow($currentPlan);
+            $nextHaving = self::havingTermsHavingWindow($nextPlan);
+            $currentWindows = self::windowTermsHavingWindow($currentPlan);
+            $nextWindows = self::windowTermsHavingWindow($nextPlan);
 
             return [
                 'status' => 'compound-having-window-current-source-next128',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext128($currentRows),
-                'nextSignatures' => self::rowSignaturesNext128($nextRows),
-                'changedSignatures' => self::changedSignaturesNext128($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignaturesHavingWindow($currentRows),
+                'nextSignatures' => self::rowSignaturesHavingWindow($nextRows),
+                'changedSignatures' => self::changedSignaturesHavingWindow($currentRows, $nextRows),
                 'compound' => [
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
@@ -49,14 +49,14 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
                     'current' => $currentHaving,
                     'next' => $nextHaving,
                     'arms' => array_values(array_unique(array_map(static fn (array $term): int => (int) $term['arm'], $currentHaving))),
-                    'correlatedArms' => self::correlatedHavingArmsNext128($currentHaving),
+                    'correlatedArms' => self::correlatedHavingArmsHavingWindow($currentHaving),
                 ],
                 'windows' => [
                     'current' => $currentWindows,
                     'next' => $nextWindows,
-                    'aliases' => self::windowAliasesNext128($currentWindows),
+                    'aliases' => self::windowAliasesHavingWindow($currentWindows),
                 ],
-                'replanReasons' => self::replanReasonsNext128($currentRows, $nextRows, $currentHaving, $nextHaving, $currentWindows, $nextWindows),
+                'replanReasons' => self::replanReasonsHavingWindow($currentRows, $nextRows, $currentHaving, $nextHaving, $currentWindows, $nextWindows),
                 'dependencies' => [
                     'sqlite-select-compound-current-source',
                     'sqlite-select-having-aggregate-current-source',
@@ -70,7 +70,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function havingTermsNext128(array $plan): array
+        private static function havingTermsHavingWindow(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -88,7 +88,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
                     'type' => (string) ($having['type'] ?? 'predicate'),
                     'groupColumns' => is_array($arm['groupBy']['columns'] ?? null) ? array_values($arm['groupBy']['columns']) : [],
                     'valueColumn' => (string) ($arm['groupBy']['valueColumn'] ?? ''),
-                    'correlated' => self::expressionReferencesQualifiedColumnNext128($having) || self::expressionHasSubqueryNext128($having),
+                    'correlated' => self::expressionReferencesQualifiedColumnHavingWindow($having) || self::expressionHasSubqueryHavingWindow($having),
                 ];
             }
 
@@ -99,7 +99,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext128(array $plan): array
+        private static function windowTermsHavingWindow(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -135,7 +135,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return list<int>
          */
-        private static function correlatedHavingArmsNext128(array $terms): array
+        private static function correlatedHavingArmsHavingWindow(array $terms): array
         {
             $arms = [];
             foreach ($terms as $term) {
@@ -151,7 +151,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $windows
          * @return list<string>
          */
-        private static function windowAliasesNext128(array $windows): array
+        private static function windowAliasesHavingWindow(array $windows): array
         {
             $aliases = [];
             foreach ($windows as $window) {
@@ -167,7 +167,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext128(array $rows): array
+        private static function rowSignaturesHavingWindow(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -177,10 +177,10 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext128(array $currentRows, array $nextRows): array
+        private static function changedSignaturesHavingWindow(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext128($currentRows);
-            $next = self::rowSignaturesNext128($nextRows);
+            $current = self::rowSignaturesHavingWindow($currentRows);
+            $next = self::rowSignaturesHavingWindow($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -194,29 +194,29 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextWindows
          * @return list<string>
          */
-        private static function replanReasonsNext128(array $currentRows, array $nextRows, array $currentHaving, array $nextHaving, array $currentWindows, array $nextWindows): array
+        private static function replanReasonsHavingWindow(array $currentRows, array $nextRows, array $currentHaving, array $nextHaving, array $currentWindows, array $nextWindows): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext128($currentRows) !== self::rowSignaturesNext128($nextRows)) {
+            if (self::rowSignaturesHavingWindow($currentRows) !== self::rowSignaturesHavingWindow($nextRows)) {
                 $reasons[] = 'compound-rowset-changed';
             }
             if ($currentHaving !== []) {
                 $reasons[] = 'having-aggregate-source';
             }
-            if (self::correlatedHavingArmsNext128($currentHaving) !== []) {
+            if (self::correlatedHavingArmsHavingWindow($currentHaving) !== []) {
                 $reasons[] = 'correlated-having-source';
             }
-            if (self::rowSignaturesNext128($currentHaving) !== self::rowSignaturesNext128($nextHaving)) {
+            if (self::rowSignaturesHavingWindow($currentHaving) !== self::rowSignaturesHavingWindow($nextHaving)) {
                 $reasons[] = 'having-plan-changed';
             }
-            if (self::rowSignaturesNext128($currentWindows) !== self::rowSignaturesNext128($nextWindows)) {
+            if (self::rowSignaturesHavingWindow($currentWindows) !== self::rowSignaturesHavingWindow($nextWindows)) {
                 $reasons[] = 'window-plan-changed';
             }
 
             return $reasons;
         }
 
-        private static function expressionReferencesQualifiedColumnNext128(mixed $expression): bool
+        private static function expressionReferencesQualifiedColumnHavingWindow(mixed $expression): bool
         {
             if (!is_array($expression)) {
                 return false;
@@ -228,7 +228,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
                 return true;
             }
             foreach ($expression as $value) {
-                if (self::expressionReferencesQualifiedColumnNext128($value)) {
+                if (self::expressionReferencesQualifiedColumnHavingWindow($value)) {
                     return true;
                 }
             }
@@ -236,7 +236,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
             return false;
         }
 
-        private static function expressionHasSubqueryNext128(mixed $expression): bool
+        private static function expressionHasSubqueryHavingWindow(mixed $expression): bool
         {
             if (!is_array($expression)) {
                 return false;
@@ -245,7 +245,7 @@ final class SQLiteCompoundHavingWindowCurrentSourceNextPlan
                 return true;
             }
             foreach ($expression as $value) {
-                if (self::expressionHasSubqueryNext128($value)) {
+                if (self::expressionHasSubqueryHavingWindow($value)) {
                     return true;
                 }
             }

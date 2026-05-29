@@ -53,7 +53,7 @@ SELECT option_name AS name,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary141 = static fn (): array => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareNext141($sql141, $currentTables141, $nextTables141);
+$summary141 = static fn (): array => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareWindowExceptLimit($sql141, $currentTables141, $nextTables141);
 $tests = [];
 
 $tests['compound window except limit current source next141 status dependencies'] = static function (TestRunner $t) use ($summary141): void {
@@ -141,7 +141,7 @@ $tests['compound window except limit current source next141 changed signatures a
 };
 
 $tests['compound window except limit current source next141 rejects missing except'] = static function (TestRunner $t) use ($currentTables141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareNext141(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareWindowExceptLimit(
         'SELECT option_name AS name, sum(weight) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS frame_weight FROM wp_options UNION SELECT option_name AS name, weight AS frame_weight FROM network_options ORDER BY frame_weight LIMIT 1',
         $currentTables141,
         $currentTables141,
@@ -149,7 +149,7 @@ $tests['compound window except limit current source next141 rejects missing exce
 };
 
 $tests['compound window except limit current source next141 rejects missing limit'] = static function (TestRunner $t) use ($currentTables141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareNext141(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareWindowExceptLimit(
         'SELECT option_name AS name, sum(weight) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS frame_weight FROM wp_options EXCEPT SELECT option_name AS name, weight AS frame_weight FROM network_options ORDER BY frame_weight',
         $currentTables141,
         $currentTables141,
@@ -157,7 +157,7 @@ $tests['compound window except limit current source next141 rejects missing limi
 };
 
 $tests['compound window except limit current source next141 rejects missing window'] = static function (TestRunner $t) use ($currentTables141): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareNext141(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareWindowExceptLimit(
         'SELECT option_name AS name, weight AS frame_weight FROM wp_options EXCEPT SELECT option_name AS name, weight AS frame_weight FROM network_options ORDER BY frame_weight LIMIT 1',
         $currentTables141,
         $currentTables141,

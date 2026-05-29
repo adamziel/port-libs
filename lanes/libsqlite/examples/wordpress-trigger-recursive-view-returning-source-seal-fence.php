@@ -92,14 +92,14 @@ $options = [
     'auto_ack_current_source_watermarks_next209' => true,
 ];
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext211($rows, $currentInput, $nextInput, $view, $nextView, $returning, $options);
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::currentSourceSealFence($rows, $currentInput, $nextInput, $view, $nextView, $returning, $options);
 
 if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status_next211'] === 'trigger-recursive-view-returning-current-source-next211-source-sealed');
     assert($plan['next_source_visible_after_current_source_seal_next211'] === true);
     assert(array_column($plan['visible_returning_payloads_next211'], 'name') === ['blogdescription_child', 'template_child', 'home', 'next_plugin']);
     assert($plan['blocked_reasons_next211'] === []);
-    echo "wordpress-trigger-recursive-view-returning-current-source-next211 self-test passed\n";
+    echo "wordpress-trigger-recursive-view-returning-source-seal-fence self-test passed\n";
     return;
 }
 

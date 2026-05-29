@@ -83,7 +83,7 @@ $options = [
     'auto_ack_current_source_sequence_next210' => true,
 ];
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext210(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::currentSourceSequenceFence(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -117,8 +117,8 @@ if (
     || $summary['held_next_source_rows_next210'] !== []
     || array_column($summary['visible_returning_payloads_next210'], 'name') !== ['blogdescription_child', 'template_child', 'home', 'next_plugin']
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next210 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-sequence-fence self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next210 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-sequence-fence self-test passed\n";

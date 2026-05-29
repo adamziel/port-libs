@@ -52,7 +52,7 @@ HAVING count(*) <= (
  ORDER BY autoload, total_bytes DESC
 SQL;
 
-$plan = SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareNext128($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundHavingWindowCurrentSourceNextPlan::compareHavingWindow($sql, $currentTables, $nextTables);
 
 if (in_array('--self-test', $argv, true)) {
     if (($plan['status'] ?? null) !== 'compound-having-window-current-source-next128') {

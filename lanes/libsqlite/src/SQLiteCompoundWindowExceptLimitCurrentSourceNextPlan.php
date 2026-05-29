@@ -14,7 +14,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext141(string $sql, array $currentTables, array $nextTables): array
+        public static function compareWindowExceptLimit(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -29,55 +29,55 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
             if (($currentPlan['compound']['limit'] ?? null) === null) {
                 throw new \InvalidArgumentException('SQLite compound window EXCEPT LIMIT current-source next141 plan needs a final LIMIT');
             }
-            if (self::windowTermsNext141($currentPlan) === []) {
+            if (self::windowTermsWindowExceptLimit($currentPlan) === []) {
                 throw new \InvalidArgumentException('SQLite compound window EXCEPT LIMIT current-source next141 plan needs a window function arm');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $preLimitSql = self::withoutFinalLimitNext141($sql);
+            $preLimitSql = self::withoutFinalLimitWindowExceptLimit($sql);
             $currentPreLimit = SQLiteSelectSql::execute($preLimitSql, $currentTables);
             $nextPreLimit = SQLiteSelectSql::execute($preLimitSql, $nextTables);
-            $currentRemoved = self::exceptRemovedRowsNext141($currentPlan);
-            $nextRemoved = self::exceptRemovedRowsNext141($nextPlan);
+            $currentRemoved = self::exceptRemovedRowsWindowExceptLimit($currentPlan);
+            $nextRemoved = self::exceptRemovedRowsWindowExceptLimit($nextPlan);
 
             return [
                 'status' => 'compound-window-except-limit-current-source-next141-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext141($currentRows),
-                'nextSignatures' => self::rowSignaturesNext141($nextRows),
-                'changedSignatures' => self::changedSignaturesNext141($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignaturesWindowExceptLimit($currentRows),
+                'nextSignatures' => self::rowSignaturesWindowExceptLimit($nextRows),
+                'changedSignatures' => self::changedSignaturesWindowExceptLimit($currentRows, $nextRows),
                 'compound' => [
                     'operators' => $operators,
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext141($currentPlan),
+                    'orderColumns' => self::orderColumnsWindowExceptLimit($currentPlan),
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
-                    'exceptArmIndexes' => self::exceptArmIndexesNext141($operators),
+                    'exceptArmIndexes' => self::exceptArmIndexesWindowExceptLimit($operators),
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext141($currentPlan),
-                    'next' => self::windowTermsNext141($nextPlan),
+                    'current' => self::windowTermsWindowExceptLimit($currentPlan),
+                    'next' => self::windowTermsWindowExceptLimit($nextPlan),
                 ],
                 'except' => [
                     'currentRemoved' => $currentRemoved,
                     'nextRemoved' => $nextRemoved,
-                    'currentRemovedClasses' => self::valueClassesNext141($currentRemoved),
-                    'nextRemovedClasses' => self::valueClassesNext141($nextRemoved),
+                    'currentRemovedClasses' => self::valueClassesWindowExceptLimit($currentRemoved),
+                    'nextRemovedClasses' => self::valueClassesWindowExceptLimit($nextRemoved),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext141($currentPreLimit, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext141($nextPreLimit, $nextRows, $nextPlan),
+                    'current' => self::limitTraceWindowExceptLimit($currentPreLimit, $currentRows, $currentPlan),
+                    'next' => self::limitTraceWindowExceptLimit($nextPreLimit, $nextRows, $nextPlan),
                 ],
                 'affinity' => [
-                    'currentClasses' => self::valueClassesNext141($currentRows),
-                    'nextClasses' => self::valueClassesNext141($nextRows),
-                    'changedClasses' => self::changedValueClassesNext141($currentRows, $nextRows),
-                    'boundaryClasses' => self::boundaryClassesNext141($currentRows, $nextRows),
+                    'currentClasses' => self::valueClassesWindowExceptLimit($currentRows),
+                    'nextClasses' => self::valueClassesWindowExceptLimit($nextRows),
+                    'changedClasses' => self::changedValueClassesWindowExceptLimit($currentRows, $nextRows),
+                    'boundaryClasses' => self::boundaryClassesWindowExceptLimit($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext141($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentPlan, $nextPlan, $currentRemoved, $nextRemoved),
+                'replanReasons' => self::replanReasonsWindowExceptLimit($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentPlan, $nextPlan, $currentRemoved, $nextRemoved),
                 'dependencies' => [
                     'sqlite-compound-except-affinity',
                     'sqlite-select-sql-window-arm-evaluation',
@@ -91,7 +91,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext141(array $plan): array
+        private static function orderColumnsWindowExceptLimit(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -105,7 +105,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<string> $operators
          * @return list<int>
          */
-        private static function exceptArmIndexesNext141(array $operators): array
+        private static function exceptArmIndexesWindowExceptLimit(array $operators): array
         {
             $indexes = [];
             foreach ($operators as $index => $operator) {
@@ -121,7 +121,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext141(array $plan): array
+        private static function windowTermsWindowExceptLimit(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -155,7 +155,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
             return $windows;
         }
 
-        private static function withoutFinalLimitNext141(string $sql): string
+        private static function withoutFinalLimitWindowExceptLimit(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:,\s*\d+|OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -170,7 +170,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function exceptRemovedRowsNext141(array $plan): array
+        private static function exceptRemovedRowsWindowExceptLimit(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null) || !is_array($compound['operators'] ?? null)) {
@@ -183,7 +183,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
                 if (!is_array($arm)) {
                     continue;
                 }
-                $armRows = self::executeArmNext141($arm);
+                $armRows = self::executeArmWindowExceptLimit($arm);
                 if ($index === 0) {
                     $rows = $armRows;
                     continue;
@@ -191,13 +191,13 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
 
                 $operator = strtoupper((string) ($compound['operators'][$index - 1] ?? ''));
                 if ($operator === 'EXCEPT' && is_array($rows)) {
-                    $nextRows = SQLiteSelectCompound::combine($rows, $armRows, 'EXCEPT', self::compoundSelectCollationsNext141($compound['arms'][0]));
-                    $removed = array_merge($removed, self::removedBySignatureNext141($rows, $nextRows));
+                    $nextRows = SQLiteSelectCompound::combine($rows, $armRows, 'EXCEPT', self::compoundSelectCollationsWindowExceptLimit($compound['arms'][0]));
+                    $removed = array_merge($removed, self::removedBySignatureWindowExceptLimit($rows, $nextRows));
                     $rows = $nextRows;
                     continue;
                 }
                 if (is_array($rows)) {
-                    $rows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollationsNext141($compound['arms'][0]));
+                    $rows = SQLiteSelectCompound::combine($rows, $armRows, $operator, self::compoundSelectCollationsWindowExceptLimit($compound['arms'][0]));
                 }
             }
 
@@ -208,7 +208,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return list<array<string,mixed>>
          */
-        private static function executeArmNext141(array $arm): array
+        private static function executeArmWindowExceptLimit(array $arm): array
         {
             $rows = SQLiteSelectQuery::execute($arm);
             $hidden = [];
@@ -231,7 +231,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $arm
          * @return array<string,string>
          */
-        private static function compoundSelectCollationsNext141(array $arm): array
+        private static function compoundSelectCollationsWindowExceptLimit(array $arm): array
         {
             if (!is_array($arm['select'] ?? null)) {
                 return [];
@@ -256,9 +256,9 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $after
          * @return list<array<string,mixed>>
          */
-        private static function removedBySignatureNext141(array $before, array $after): array
+        private static function removedBySignatureWindowExceptLimit(array $before, array $after): array
         {
-            $afterSignatures = array_fill_keys(self::rowSignaturesNext141($after), true);
+            $afterSignatures = array_fill_keys(self::rowSignaturesWindowExceptLimit($after), true);
             $removed = [];
             foreach ($before as $row) {
                 if (!isset($afterSignatures[json_encode($row, JSON_THROW_ON_ERROR)])) {
@@ -275,7 +275,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext141(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceWindowExceptLimit(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -294,7 +294,7 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext141(array $rows): array
+        private static function rowSignaturesWindowExceptLimit(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -304,10 +304,10 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext141(array $currentRows, array $nextRows): array
+        private static function changedSignaturesWindowExceptLimit(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext141($currentRows);
-            $next = self::rowSignaturesNext141($nextRows);
+            $current = self::rowSignaturesWindowExceptLimit($currentRows);
+            $next = self::rowSignaturesWindowExceptLimit($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -316,12 +316,12 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function valueClassesNext141(array $rows): array
+        private static function valueClassesWindowExceptLimit(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $classes[self::sqliteValueClassNext141($value)] = true;
+                    $classes[self::sqliteValueClassWindowExceptLimit($value)] = true;
                 }
             }
 
@@ -333,10 +333,10 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedValueClassesNext141(array $currentRows, array $nextRows): array
+        private static function changedValueClassesWindowExceptLimit(array $currentRows, array $nextRows): array
         {
-            $current = self::valueClassesNext141($currentRows);
-            $next = self::valueClassesNext141($nextRows);
+            $current = self::valueClassesWindowExceptLimit($currentRows);
+            $next = self::valueClassesWindowExceptLimit($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -346,15 +346,15 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array{currentLast:string|null,nextLast:string|null}
          */
-        private static function boundaryClassesNext141(array $currentRows, array $nextRows): array
+        private static function boundaryClassesWindowExceptLimit(array $currentRows, array $nextRows): array
         {
-            $currentLast = $currentRows === [] ? null : self::sqliteValueClassNext141($currentRows[count($currentRows) - 1]['class_value'] ?? null);
-            $nextLast = $nextRows === [] ? null : self::sqliteValueClassNext141($nextRows[count($nextRows) - 1]['class_value'] ?? null);
+            $currentLast = $currentRows === [] ? null : self::sqliteValueClassWindowExceptLimit($currentRows[count($currentRows) - 1]['class_value'] ?? null);
+            $nextLast = $nextRows === [] ? null : self::sqliteValueClassWindowExceptLimit($nextRows[count($nextRows) - 1]['class_value'] ?? null);
 
             return ['currentLast' => $currentLast, 'nextLast' => $nextLast];
         }
 
-        private static function sqliteValueClassNext141(mixed $value): string
+        private static function sqliteValueClassWindowExceptLimit(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -380,28 +380,28 @@ final class SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRemoved
          * @return list<string>
          */
-        private static function replanReasonsNext141(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentPlan, array $nextPlan, array $currentRemoved, array $nextRemoved): array
+        private static function replanReasonsWindowExceptLimit(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentPlan, array $nextPlan, array $currentRemoved, array $nextRemoved): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext141($currentRows) !== self::rowSignaturesNext141($nextRows)) {
+            if (self::rowSignaturesWindowExceptLimit($currentRows) !== self::rowSignaturesWindowExceptLimit($nextRows)) {
                 $reasons[] = 'limited-except-window-rowset-changed';
             }
-            if (self::rowSignaturesNext141($currentPreLimit) !== self::rowSignaturesNext141($nextPreLimit)) {
+            if (self::rowSignaturesWindowExceptLimit($currentPreLimit) !== self::rowSignaturesWindowExceptLimit($nextPreLimit)) {
                 $reasons[] = 'prelimit-except-window-rowset-changed';
             }
-            if (self::rowSignaturesNext141($currentRemoved) !== self::rowSignaturesNext141($nextRemoved)) {
+            if (self::rowSignaturesWindowExceptLimit($currentRemoved) !== self::rowSignaturesWindowExceptLimit($nextRemoved)) {
                 $reasons[] = 'except-removal-set-changed';
             }
             if (($currentPlan['compound']['limit'] ?? null) !== null) {
                 $reasons[] = 'compound-final-limit';
             }
-            if (self::windowTermsNext141($currentPlan) !== []) {
+            if (self::windowTermsWindowExceptLimit($currentPlan) !== []) {
                 $reasons[] = 'compound-window-arm-source';
             }
-            if (self::changedValueClassesNext141($currentRows, $nextRows) !== []) {
+            if (self::changedValueClassesWindowExceptLimit($currentRows, $nextRows) !== []) {
                 $reasons[] = 'affinity-class-boundary-changed';
             }
-            if (self::windowTermsNext141($currentPlan) !== self::windowTermsNext141($nextPlan)) {
+            if (self::windowTermsWindowExceptLimit($currentPlan) !== self::windowTermsWindowExceptLimit($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 

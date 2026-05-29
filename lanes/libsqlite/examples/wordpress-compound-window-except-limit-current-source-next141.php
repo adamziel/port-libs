@@ -8,6 +8,7 @@ require_once __DIR__ . '/../src/SQLiteJsonEach.php';
 require_once __DIR__ . '/../src/SQLiteJsonTree.php';
 require_once __DIR__ . '/../src/SQLiteJsonTableCursor.php';
 require_once __DIR__ . '/../src/SQLiteJson5Parser.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
 require_once __DIR__ . '/../src/SQLiteWindowFunction.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
@@ -63,7 +64,7 @@ SELECT option_name AS name,
  LIMIT 3 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareNext141($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundWindowExceptLimitCurrentSourceNextPlan::compareWindowExceptLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'name') !== ['home', 'blogname', 'theme_mods']) {

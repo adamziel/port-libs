@@ -43,7 +43,7 @@ SELECT option_name AS name,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareNext137($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareLimitWindowAffinity($sql, $currentTables, $nextTables);
 $tests = [];
 
 $tests['compound limit window affinity current source next137 status dependencies'] = static function (TestRunner $t) use ($summary): void {
@@ -123,7 +123,7 @@ $tests['compound limit window affinity current source next137 changed signatures
 };
 
 $tests['compound limit window affinity current source next137 rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareNext137(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareLimitWindowAffinity(
         'SELECT option_name AS name FROM wp_options LIMIT 1',
         $currentTables,
         $currentTables,
@@ -131,7 +131,7 @@ $tests['compound limit window affinity current source next137 rejects non compou
 };
 
 $tests['compound limit window affinity current source next137 rejects compound without final limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareNext137(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan::compareLimitWindowAffinity(
         'SELECT option_name AS name, sum(weight) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS frame_weight FROM wp_options UNION ALL SELECT option_name AS name, weight AS frame_weight FROM wp_options ORDER BY frame_weight',
         $currentTables,
         $currentTables,

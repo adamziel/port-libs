@@ -14,7 +14,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext137(string $sql, array $currentTables, array $nextTables): array
+        public static function compareLimitWindowAffinity(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
@@ -24,47 +24,47 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
             if (($currentPlan['compound']['limit'] ?? null) === null) {
                 throw new \InvalidArgumentException('SQLite compound LIMIT window affinity current-source plan needs a final LIMIT');
             }
-            if (self::windowTermsNext137($currentPlan) === []) {
+            if (self::windowTermsLimitWindowAffinity($currentPlan) === []) {
                 throw new \InvalidArgumentException('SQLite compound LIMIT window affinity current-source plan needs a window function arm');
             }
 
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
-            $currentPreLimit = SQLiteSelectSql::execute(self::withoutFinalLimitNext137($sql), $currentTables);
-            $nextPreLimit = SQLiteSelectSql::execute(self::withoutFinalLimitNext137($sql), $nextTables);
+            $currentPreLimit = SQLiteSelectSql::execute(self::withoutFinalLimitLimitWindowAffinity($sql), $currentTables);
+            $nextPreLimit = SQLiteSelectSql::execute(self::withoutFinalLimitLimitWindowAffinity($sql), $nextTables);
 
             return [
                 'status' => 'compound-limit-window-affinity-current-source-next137-ready',
                 'currentRows' => $currentRows,
                 'nextRows' => $nextRows,
-                'currentSignatures' => self::rowSignaturesNext137($currentRows),
-                'nextSignatures' => self::rowSignaturesNext137($nextRows),
-                'changedSignatures' => self::changedSignaturesNext137($currentRows, $nextRows),
+                'currentSignatures' => self::rowSignaturesLimitWindowAffinity($currentRows),
+                'nextSignatures' => self::rowSignaturesLimitWindowAffinity($nextRows),
+                'changedSignatures' => self::changedSignaturesLimitWindowAffinity($currentRows, $nextRows),
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext137($currentPlan),
+                    'orderColumns' => self::orderColumnsLimitWindowAffinity($currentPlan),
                     'limit' => $currentPlan['compound']['limit'],
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
                 ],
                 'windows' => [
-                    'current' => self::windowTermsNext137($currentPlan),
-                    'next' => self::windowTermsNext137($nextPlan),
+                    'current' => self::windowTermsLimitWindowAffinity($currentPlan),
+                    'next' => self::windowTermsLimitWindowAffinity($nextPlan),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext137($currentPreLimit, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext137($nextPreLimit, $nextRows, $nextPlan),
+                    'current' => self::limitTraceLimitWindowAffinity($currentPreLimit, $currentRows, $currentPlan),
+                    'next' => self::limitTraceLimitWindowAffinity($nextPreLimit, $nextRows, $nextPlan),
                 ],
                 'affinity' => [
-                    'currentClasses' => self::valueClassesNext137($currentRows),
-                    'nextClasses' => self::valueClassesNext137($nextRows),
-                    'currentPreLimitClasses' => self::valueClassesNext137($currentPreLimit),
-                    'nextPreLimitClasses' => self::valueClassesNext137($nextPreLimit),
-                    'changedClasses' => self::changedValueClassesNext137($currentRows, $nextRows),
-                    'boundaryClasses' => self::boundaryClassesNext137($currentRows, $nextRows),
+                    'currentClasses' => self::valueClassesLimitWindowAffinity($currentRows),
+                    'nextClasses' => self::valueClassesLimitWindowAffinity($nextRows),
+                    'currentPreLimitClasses' => self::valueClassesLimitWindowAffinity($currentPreLimit),
+                    'nextPreLimitClasses' => self::valueClassesLimitWindowAffinity($nextPreLimit),
+                    'changedClasses' => self::changedValueClassesLimitWindowAffinity($currentRows, $nextRows),
+                    'boundaryClasses' => self::boundaryClassesLimitWindowAffinity($currentRows, $nextRows),
                 ],
-                'replanReasons' => self::replanReasonsNext137($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentPlan, $nextPlan),
+                'replanReasons' => self::replanReasonsLimitWindowAffinity($currentRows, $nextRows, $currentPreLimit, $nextPreLimit, $currentPlan, $nextPlan),
                 'dependencies' => [
                     'sqlite-select-sql-compound-final-limit',
                     'sqlite-select-sql-window-arm-evaluation',
@@ -78,7 +78,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext137(array $plan): array
+        private static function orderColumnsLimitWindowAffinity(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -95,7 +95,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<array<string,mixed>>
          */
-        private static function windowTermsNext137(array $plan): array
+        private static function windowTermsLimitWindowAffinity(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['arms'] ?? null)) {
@@ -130,7 +130,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
             return $windows;
         }
 
-        private static function withoutFinalLimitNext137(string $sql): string
+        private static function withoutFinalLimitLimitWindowAffinity(string $sql): string
         {
             $trimmed = rtrim(trim($sql), ';');
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?\s*$/i', '', $trimmed);
@@ -147,7 +147,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext137(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTraceLimitWindowAffinity(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -168,7 +168,7 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext137(array $rows): array
+        private static function rowSignaturesLimitWindowAffinity(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -178,10 +178,10 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext137(array $currentRows, array $nextRows): array
+        private static function changedSignaturesLimitWindowAffinity(array $currentRows, array $nextRows): array
         {
-            $current = self::rowSignaturesNext137($currentRows);
-            $next = self::rowSignaturesNext137($nextRows);
+            $current = self::rowSignaturesLimitWindowAffinity($currentRows);
+            $next = self::rowSignaturesLimitWindowAffinity($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -190,12 +190,12 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function valueClassesNext137(array $rows): array
+        private static function valueClassesLimitWindowAffinity(array $rows): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 foreach ($row as $value) {
-                    $classes[self::sqliteValueClassNext137($value)] = true;
+                    $classes[self::sqliteValueClassLimitWindowAffinity($value)] = true;
                 }
             }
 
@@ -207,10 +207,10 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedValueClassesNext137(array $currentRows, array $nextRows): array
+        private static function changedValueClassesLimitWindowAffinity(array $currentRows, array $nextRows): array
         {
-            $current = self::valueClassesNext137($currentRows);
-            $next = self::valueClassesNext137($nextRows);
+            $current = self::valueClassesLimitWindowAffinity($currentRows);
+            $next = self::valueClassesLimitWindowAffinity($nextRows);
 
             return array_values(array_merge(array_diff($current, $next), array_diff($next, $current)));
         }
@@ -220,15 +220,15 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return array{currentLast:string|null,nextLast:string|null}
          */
-        private static function boundaryClassesNext137(array $currentRows, array $nextRows): array
+        private static function boundaryClassesLimitWindowAffinity(array $currentRows, array $nextRows): array
         {
-            $currentLast = $currentRows === [] ? null : self::sqliteValueClassNext137($currentRows[count($currentRows) - 1]['class_value'] ?? null);
-            $nextLast = $nextRows === [] ? null : self::sqliteValueClassNext137($nextRows[count($nextRows) - 1]['class_value'] ?? null);
+            $currentLast = $currentRows === [] ? null : self::sqliteValueClassLimitWindowAffinity($currentRows[count($currentRows) - 1]['class_value'] ?? null);
+            $nextLast = $nextRows === [] ? null : self::sqliteValueClassLimitWindowAffinity($nextRows[count($nextRows) - 1]['class_value'] ?? null);
 
             return ['currentLast' => $currentLast, 'nextLast' => $nextLast];
         }
 
-        private static function sqliteValueClassNext137(mixed $value): string
+        private static function sqliteValueClassLimitWindowAffinity(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -252,25 +252,25 @@ final class SQLiteCompoundLimitWindowAffinityCurrentSourceNextPlan
          * @param array<string,mixed> $nextPlan
          * @return list<string>
          */
-        private static function replanReasonsNext137(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentPlan, array $nextPlan): array
+        private static function replanReasonsLimitWindowAffinity(array $currentRows, array $nextRows, array $currentPreLimit, array $nextPreLimit, array $currentPlan, array $nextPlan): array
         {
             $reasons = [];
-            if (self::rowSignaturesNext137($currentRows) !== self::rowSignaturesNext137($nextRows)) {
+            if (self::rowSignaturesLimitWindowAffinity($currentRows) !== self::rowSignaturesLimitWindowAffinity($nextRows)) {
                 $reasons[] = 'limited-compound-rowset-changed';
             }
-            if (self::rowSignaturesNext137($currentPreLimit) !== self::rowSignaturesNext137($nextPreLimit)) {
+            if (self::rowSignaturesLimitWindowAffinity($currentPreLimit) !== self::rowSignaturesLimitWindowAffinity($nextPreLimit)) {
                 $reasons[] = 'prelimit-compound-rowset-changed';
             }
             if (($currentPlan['compound']['limit'] ?? null) !== null) {
                 $reasons[] = 'compound-final-limit';
             }
-            if (self::windowTermsNext137($currentPlan) !== []) {
+            if (self::windowTermsLimitWindowAffinity($currentPlan) !== []) {
                 $reasons[] = 'compound-window-arm-source';
             }
-            if (self::changedValueClassesNext137($currentRows, $nextRows) !== []) {
+            if (self::changedValueClassesLimitWindowAffinity($currentRows, $nextRows) !== []) {
                 $reasons[] = 'affinity-class-boundary-changed';
             }
-            if (self::windowTermsNext137($currentPlan) !== self::windowTermsNext137($nextPlan)) {
+            if (self::windowTermsLimitWindowAffinity($currentPlan) !== self::windowTermsLimitWindowAffinity($nextPlan)) {
                 $reasons[] = 'window-plan-changed';
             }
 
