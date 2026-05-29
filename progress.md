@@ -3063,3 +3063,15 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   worker processes and no long sleepers. Public counts still remain 154,019
   pass / 0 fail and 830 / 1,589 mapped until a clean root dashboard gate can be
   committed and pushed.
+
+## Supervisor Rolling Integration 2026-05-29T21:20Z Rowvalue Memory Sweep
+
+- Stopped the superseded root dashboard gate before it reached the next known
+  retained-plan rowvalue examples, then swept the rowvalue continuation family
+  instead of waiting for one memory failure per 16-step example.
+- Compacting the example-local `$plans` arrays now preserves only asserted
+  summary fields for 33 next366-957 continuation examples. Existing summaries
+  and tests stayed structurally unchanged.
+- Validation passed for 33 changed examples: PHP lint, `git diff --check`, the
+  33 matching rowvalue tests with 547 assertions / 0 failures, and all 33
+  example self-tests.
