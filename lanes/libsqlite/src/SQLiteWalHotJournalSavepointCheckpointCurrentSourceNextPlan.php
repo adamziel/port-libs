@@ -28554,6 +28554,46 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 323, 'seal_after_ready_checkpoint_current_source_next316_323');
     }
 
+    public static function next324AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 324, 'verify_after_ready_checkpoint_wal_index_generation_receipt');
+    }
+
+    public static function next325AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 325, 'verify_after_ready_checkpoint_reader_reopen_epoch_receipt');
+    }
+
+    public static function next326AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 326, 'verify_after_ready_checkpoint_savepoint_release_source_receipt');
+    }
+
+    public static function next327AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 327, 'verify_after_ready_checkpoint_hot_journal_delete_source_receipt');
+    }
+
+    public static function next328AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 328, 'verify_after_ready_checkpoint_database_page_cache_generation');
+    }
+
+    public static function next329AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 329, 'verify_after_ready_checkpoint_wal_frame_reader_boundary');
+    }
+
+    public static function next330AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 330, 'verify_after_ready_checkpoint_savepoint_retry_hot_journal_absence');
+    }
+
+    public static function next331AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    {
+        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 331, 'seal_after_ready_checkpoint_current_source_next324_331');
+    }
+
     /**
      * @param array<string,mixed> $basePlan
      * @param list<array<string,mixed>> $checkpointReceipts
