@@ -6,7 +6,7 @@ WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next168.php` m
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next168.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Test.php`

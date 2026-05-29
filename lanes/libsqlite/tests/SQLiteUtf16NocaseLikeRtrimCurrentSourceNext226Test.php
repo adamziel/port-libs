@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $plan226 = static fn (
     string $nextSource = 'main.wp_options@226',
     int $currentCookie = 225,
     int $nextCookie = 226,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan::wordpressOptionNameCombiningMarkPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
     $current ?? $currentRows226,
     $next ?? $nextRows226,
     $pattern,
@@ -178,7 +178,7 @@ $tests['utf16 nocase like rtrim current source next226 stable composed rows are 
         $row226(2, 'Plugin_Caf' . $composed226 . '  ', 'UTF-16BE'),
         $row226(3, 'plugin_cafe', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf_',
@@ -203,7 +203,7 @@ $tests['utf16 nocase like rtrim current source next226 decomposed text needs two
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
         $row226(3, 'plugin_cafex', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf__',
@@ -225,7 +225,7 @@ $tests['utf16 nocase like rtrim current source next226 ascii nocase does not fol
         $row226(1, 'PLUGIN_CAF' . $composed226, 'UTF-16LE'),
         $row226(2, 'plugin_caf' . $composed226, 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan::wordpressOptionNameCombiningMarkPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan(
         $rows,
         $rows,
         'plugin_caf_',
@@ -243,7 +243,7 @@ $tests['utf16 nocase like rtrim current source next226 ascii nocase does not fol
 
 $tests['utf16 nocase like rtrim current source next226 rejects malformed row shape'] = static function (TestRunner $t) use ($enc226): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc226('plugin_cafe', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext226Plan::wordpressOptionNameCombiningMarkPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCombiningMarkPlan($rows, $rows));
 };
 
 return $tests;

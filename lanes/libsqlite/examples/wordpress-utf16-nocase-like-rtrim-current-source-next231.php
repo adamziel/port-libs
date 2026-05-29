@@ -8,7 +8,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
 }
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
@@ -32,7 +32,7 @@ $next = [
     $row(3, 'PLUGIN_CAFÉ_AUX ', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan($current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [3, 1]);

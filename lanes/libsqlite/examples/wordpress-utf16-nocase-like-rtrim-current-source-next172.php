@@ -3,17 +3,17 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext172Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext156Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext172Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 
 $enc = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $code = static fn (string $encoding): int => match ($encoding) {
@@ -41,7 +41,7 @@ $nextRows = [
     $row(4, 'plugin_cache_gamma', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext172Plan::wordpressOptionNameYieldTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldTokenPlan(
     $currentRows,
     $nextRows,
     $enc('plugin\\_cache%', 'UTF-16LE'),

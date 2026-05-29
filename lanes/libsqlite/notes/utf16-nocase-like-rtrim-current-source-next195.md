@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for escaped-literal LIKE tails over UTF-16
 `rtrim(option_name) COLLATE NOCASE` expression keys.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext195Plan`. It reuses
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It reuses
 the accepted UTF-16 decode, ASCII NOCASE prefix range, and RTRIM expression
 key machinery, then adds the current/next residual fence needed when an escaped
 literal LIKE pattern has no trailing wildcard. The index range can contain

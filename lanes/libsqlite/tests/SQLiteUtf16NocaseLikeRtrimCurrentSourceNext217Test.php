@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $plan217 = static fn (
     string $nextSource = 'main.wp_options@217',
     int $currentCookie = 216,
     int $nextCookie = 217,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan::wordpressOptionNamePreparedPatternSpacePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
     $current ?? $currentRows217,
     $next ?? $nextRows217,
     $enc217($currentPattern, $currentPatternEncoding),
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source next217 stable pattern space can 
         $row217(2, 'Plugin_Cache alpha  ', 'UTF-16BE'),
         $row217(3, 'plugin_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan::wordpressOptionNamePreparedPatternSpacePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
         $rows,
         $rows,
         $enc217('plugin!_cache %', 'UTF-16LE'),
@@ -219,7 +219,7 @@ $tests['utf16 nocase like rtrim current source next217 escaped wildcard before p
 };
 
 $tests['utf16 nocase like rtrim current source next217 rejects malformed prepared pattern bytes'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan::wordpressOptionNamePreparedPatternSpacePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,
         "\x00\xd8",
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source next217 rejects malformed prepare
 };
 
 $tests['utf16 nocase like rtrim current source next217 rejects invalid encoding label'] = static function (TestRunner $t) use ($currentRows217, $nextRows217, $enc217): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan::wordpressOptionNamePreparedPatternSpacePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
         $currentRows217,
         $nextRows217,
         $enc217('plugin!_cache %', 'UTF-16LE'),

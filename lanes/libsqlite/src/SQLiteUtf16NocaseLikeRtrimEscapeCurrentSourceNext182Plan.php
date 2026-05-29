@@ -72,7 +72,7 @@ final class SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan
 
         $base = null;
         if ($pattern['value'] !== null && $nextEscape['value'] !== null && $nextEscape['width'] === 1) {
-            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan(
+            $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
                 $currentRows,
                 $nextRows,
                 $pattern['value'],

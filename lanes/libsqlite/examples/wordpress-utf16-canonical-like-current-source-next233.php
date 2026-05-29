@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -30,7 +30,7 @@ $next = [
     $row(3, "plugin_caf\u{00e9}", 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [1, 2]);

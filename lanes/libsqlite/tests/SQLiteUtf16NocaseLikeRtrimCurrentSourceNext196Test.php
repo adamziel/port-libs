@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -55,7 +55,7 @@ $plan196 = static fn (
     string $nextSource = 'main.wp_options@196',
     int $currentCookie = 195,
     int $nextCookie = 196,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
     $current ?? $current196,
     $next ?? $next196,
     'plugin!_cache',
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source next196 stable duplicate peers re
         $row196(11, 'plugin_cache', 'UTF-16BE'),
         $row196(12, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -186,7 +186,7 @@ $tests['utf16 nocase like rtrim current source next196 duplicate peer inserted b
         $row196(6, 'plugin_cache', 'UTF-16LE'),
         $row196(12, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $current,
         $next,
         'plugin!_cache',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source next196 false positive duplicate 
         $row196(6, "plugin_cache\t", 'UTF-16BE'),
         $row196(8, "plugin_cache\t", 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $current,
         $next,
         'plugin!_cache',
@@ -239,7 +239,7 @@ $tests['utf16 nocase like rtrim current source next196 canonical token key is un
         $row196(1, 'Plugin_Cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache_zip', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -261,7 +261,7 @@ $tests['utf16 nocase like rtrim current source next196 missing token blocks dupl
         $row196(1, 'plugin_cache', 'UTF-16LE'),
         $row196(2, 'plugin_cache', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -281,7 +281,7 @@ $tests['utf16 nocase like rtrim current source next196 missing token blocks dupl
 
 $tests['utf16 nocase like rtrim current source next196 rejects malformed token key'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin%',
@@ -292,7 +292,7 @@ $tests['utf16 nocase like rtrim current source next196 rejects malformed token k
 
 $tests['utf16 nocase like rtrim current source next196 rejects malformed token rowid'] = static function (TestRunner $t) use ($row196): void {
     $rows = [$row196(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext196Plan::wordpressOptionNameDuplicatePeerResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicatePeerResumePlan(
         $rows,
         $rows,
         'plugin%',

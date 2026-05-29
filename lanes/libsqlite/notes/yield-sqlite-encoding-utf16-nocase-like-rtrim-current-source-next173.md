@@ -2,7 +2,7 @@
 
 ## Slice
 
-- Added `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan` for UTF-16
+- Added `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for UTF-16
   `rtrim(option_name) COLLATE NOCASE LIKE` current-source revalidation.
 - The slice distinguishes byte-only decoded-text/trailing-space/encoding
   changes from semantic RTRIM key, NOCASE key, residual-result, candidate, and

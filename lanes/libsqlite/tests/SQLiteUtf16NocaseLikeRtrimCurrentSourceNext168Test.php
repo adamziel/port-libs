@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@168',
     int $currentCookie = 167,
     int $nextCookie = 168,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -165,7 +165,7 @@ $tests['utf16 nocase like rtrim current source next168 invalidation reason order
 
 $tests['utf16 nocase like rtrim current source next168 stable default like remains reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache_shadow', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -185,7 +185,7 @@ $tests['utf16 nocase like rtrim current source next168 stable default like remai
 
 $tests['utf16 nocase like rtrim current source next168 stable case-sensitive like over lowercase rows keeps output but reparses index'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2), $row(2, 'plugin_cache_shadow', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -204,7 +204,7 @@ $tests['utf16 nocase like rtrim current source next168 stable case-sensitive lik
 
 $tests['utf16 nocase like rtrim current source next168 case-sensitive current and next still require a binary scan'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache', 2), $row(2, 'Plugin_Cache', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -224,7 +224,7 @@ $tests['utf16 nocase like rtrim current source next168 case-sensitive current an
 
 $tests['utf16 nocase like rtrim current source next168 tab is retained before residual matching'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache' . "\t", 2), $row(2, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         "plugin!_cache\t",
@@ -242,7 +242,7 @@ $tests['utf16 nocase like rtrim current source next168 tab is retained before re
 
 $tests['utf16 nocase like rtrim current source next168 escaped percent literal keeps prefix range'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache%', 2), $row(2, 'plugin_cache_extra', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         'plugin!_cache!%',
@@ -260,7 +260,7 @@ $tests['utf16 nocase like rtrim current source next168 escaped percent literal k
 
 $tests['utf16 nocase like rtrim current source next168 non ascii prefix rejects nocase range'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'Æther_cache', 2), $row(2, 'æther_cache', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan(
         $rows,
         $rows,
         'Æther%',
@@ -278,12 +278,12 @@ $tests['utf16 nocase like rtrim current source next168 non ascii prefix rejects 
 };
 
 $tests['utf16 nocase like rtrim current source next168 rejects invalid escape'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan([], [], 'plugin%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan([], [], 'plugin%', '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source next168 rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext168Plan::wordpressOptionNameCaseSensitiveLikePlan($rows, $rows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCaseSensitiveLikePlan($rows, $rows, 'plugin%'));
 };
 
 return $tests;

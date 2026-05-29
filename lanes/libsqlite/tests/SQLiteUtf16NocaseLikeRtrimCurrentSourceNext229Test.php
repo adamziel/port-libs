@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -45,7 +45,7 @@ $next229 = [
     $bad229(10, "x\0y", 2),
 ];
 
-$plan229 = static fn (?array $current = null, ?array $next = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+$plan229 = static fn (?array $current = null, ?array $next = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
     $current ?? $current229,
     $next ?? $next229,
     'plugin!_cache%',
@@ -156,7 +156,7 @@ $tests['utf16 nocase like rtrim current source next229 reusable when unicode whi
         $row229(2, "plugin_cache\u{00a0}", 'UTF-16BE'),
         $row229(3, "plugin_cache\u{3000}", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -184,7 +184,7 @@ $tests['utf16 nocase like rtrim current source next229 detects ascii space chang
         $row229(1, "plugin_cache\u{00a0}", 'UTF-16LE'),
         $row229(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -205,7 +205,7 @@ $tests['utf16 nocase like rtrim current source next229 detects ascii space chang
 };
 
 $tests['utf16 nocase like rtrim current source next229 rejects invalid page size through base keyset plan'] = static function (TestRunner $t) use ($current229, $next229, $enc229): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan::wordpressOptionNameUnicodeSpaceRtrimPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeSpaceRtrimPlan(
         $current229,
         $next229,
         'plugin!_cache%',

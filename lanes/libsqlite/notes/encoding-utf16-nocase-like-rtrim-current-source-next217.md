@@ -1,6 +1,6 @@
 # UTF-16 NOCASE LIKE RTRIM current-source next217
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan` for a
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for a
 current-source `wp_options` scan using:
 
 `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?`
@@ -13,7 +13,7 @@ expression before range/residual matching. A stale cursor planned for
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next217.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Test.php`

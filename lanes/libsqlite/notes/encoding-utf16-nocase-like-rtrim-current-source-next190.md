@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for UTF-16 `rtrim(option_name) COLLATE NOCAS
 
 Behavior:
 
-- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan`.
+- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`.
 - Covers SQLite's ASCII-space-only `RTRIM` boundary: trailing ASCII spaces are stripped, but tab, newline, and non-breaking space remain part of the expression key.
 - Reports retained prefix-cursor rows whose `RTRIM` / ASCII `NOCASE` keys change across current/next sources even while the `LIKE 'plugin%'` row remains a candidate and residual match.
 - Keeps malformed UTF-16 rows isolated from the cursor, preserving existing decode diagnostics.
@@ -15,7 +15,7 @@ WordPress path:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next190.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Test.php`

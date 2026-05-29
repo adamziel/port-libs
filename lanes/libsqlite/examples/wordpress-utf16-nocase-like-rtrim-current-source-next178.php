@@ -3,14 +3,14 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $code = static fn (int|string $encoding): int => match ($encoding) {
@@ -37,7 +37,7 @@ $next = [
 ];
 $tokenBytes = $enc('Plugin_Cache  ', 'UTF-16LE');
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
     $current,
     $next,
     'plugin!_cache%',

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `encoding-utf16-nocase-like-rtrim-current-source-next231`.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan` for UTF-16 `wp_options.option_name` scans using:
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for UTF-16 `wp_options.option_name` scans using:
 
 `rtrim(option_name) COLLATE NOCASE LIKE ?`
 
@@ -12,7 +12,7 @@ WordPress smoke: `examples/wordpress-utf16-nocase-like-rtrim-current-source-next
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next231.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Test.php`

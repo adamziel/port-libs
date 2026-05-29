@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -52,7 +52,7 @@ $plan186 = static fn (
     int $currentCookie = 185,
     int $nextCookie = 186,
     ?array $resumeToken = ['key' => 'plugin_cache', 'rowid' => 2],
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan::wordpressOptionNameResumeBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
     $current ?? $current186,
     $next ?? $next186,
     $pattern,
@@ -175,7 +175,7 @@ $tests['utf16 nocase like rtrim current source next186 stable byte order refresh
         $row186(2, 'plugin_cache_alpha', 3),
         $row186(3, 'plugin_cache_beta', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan::wordpressOptionNameResumeBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source next186 rtrim tab boundary is not
         $row186(2, 'plugin_cache' . "\t", 2),
         $row186(3, 'plugin_cache ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan::wordpressOptionNameResumeBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -219,7 +219,7 @@ $tests['utf16 nocase like rtrim current source next186 rtrim tab boundary is not
 
 $tests['utf16 nocase like rtrim current source next186 rejects malformed resume key'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan::wordpressOptionNameResumeBoundaryPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin%',
@@ -234,7 +234,7 @@ $tests['utf16 nocase like rtrim current source next186 rejects malformed resume 
 
 $tests['utf16 nocase like rtrim current source next186 rejects malformed resume rowid'] = static function (TestRunner $t) use ($row186): void {
     $rows = [$row186(1, 'plugin_cache', 2)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext186Plan::wordpressOptionNameResumeBoundaryPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumeBoundaryPlan(
         $rows,
         $rows,
         'plugin%',

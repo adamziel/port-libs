@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@171',
     int $currentCookie = 170,
     int $nextCookie = 171,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan::wordpressOptionNameDuplicateKeyReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -145,7 +145,7 @@ $tests['utf16 nocase like rtrim current source next171 stable duplicate keys can
         $row(3, 'PLUGIN_CACHE', 'UTF-8'),
         $row(4, 'plugin_cache_extra', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -169,7 +169,7 @@ $tests['utf16 nocase like rtrim current source next171 unique keys can safely re
         $row(2, 'plugin_cache_beta', 'UTF-16BE'),
         $row(3, 'plugin_cache_gamma', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source next171 malformed error text is e
 };
 
 $tests['utf16 nocase like rtrim current source next171 rejects invalid token'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan::wordpressOptionNameDuplicateKeyReplayPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
         $currentRows,
         $nextRows,
         'plugin%',

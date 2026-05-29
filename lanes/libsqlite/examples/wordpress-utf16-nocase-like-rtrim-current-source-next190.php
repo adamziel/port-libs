@@ -5,12 +5,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
@@ -34,7 +34,7 @@ $next = [
     $row(3, 'plugin_cache  ', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
     $current,
     $next,
     'plugin%',

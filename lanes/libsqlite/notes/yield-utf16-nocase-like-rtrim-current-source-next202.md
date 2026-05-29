@@ -1,6 +1,6 @@
 # UTF-16 NOCASE LIKE RTRIM current-source next202
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan`, covering
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, covering
 `rtrim(option_name) COLLATE NOCASE LIKE (...)` when the LIKE RHS pattern is read
 from a UTF-16 current/next source row rather than from a stable prepared
 parameter.
@@ -29,7 +29,7 @@ RTRIM expression keys, and current-source diagnostics.
 Focused verification:
 
 ```sh
-php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan.php
+php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Test.php
 php -l lanes/libsqlite/examples/wordpress-utf16-source-pattern-like-current-source-next202.php
 php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Test.php

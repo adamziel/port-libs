@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -51,7 +51,7 @@ $plan225 = static fn (
     string $nextSource = 'main.wp_options@225',
     int $currentCookie = 224,
     int $nextCookie = 225,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Plan::wordpressOptionNameSourceBytePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceBytePlan(
     $current ?? $current225,
     $next ?? $next225,
     'plugin!_cache%',
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source next225 same decoded rows still i
         $row225(1, 'plugin_cache', 'UTF-16BE'),
         $row225(2, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Plan::wordpressOptionNameSourceBytePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceBytePlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next225 byte identical source can
         $row225(1, 'plugin_cache', 'UTF-16LE'),
         $row225(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Plan::wordpressOptionNameSourceBytePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceBytePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source next225 byte identical source can
 
 $tests['utf16 nocase like rtrim current source next225 rejects unsupported raw encoding'] = static function (TestRunner $t) use ($bad225): void {
     $rows = [$bad225(1, "p\0", 4)];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext225Plan::wordpressOptionNameSourceBytePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceBytePlan($rows, $rows));
 };
 
 return $tests;

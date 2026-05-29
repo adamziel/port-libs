@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -45,7 +45,7 @@ $next210 = [
     $bad210(11, "\x00\xd8", 2),
 ];
 
-$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Plan::wordpressOptionNameEmbeddedNulPlan(
+$plan210 = static fn (?array $current = null, ?array $next = null, string $pattern = "plugin\0cache%"): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
     $current ?? $current210,
     $next ?? $next210,
     $pattern,
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next210 stable embedded nul curso
         $row210(2, "plugin\0cache_more", 'UTF-16BE'),
         $row210(3, "plugin\0other", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Plan::wordpressOptionNameEmbeddedNulPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $rows,
         $rows,
         "plugin\0cache%",
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next210 stable embedded nul curso
 };
 
 $tests['utf16 nocase like rtrim current source next210 rejects pattern without nul'] = static function (TestRunner $t) use ($current210, $next210): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Plan::wordpressOptionNameEmbeddedNulPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         $current210,
         $next210,
         'plugin%',
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next210 rejects pattern without n
 };
 
 $tests['utf16 nocase like rtrim current source next210 rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext210Plan::wordpressOptionNameEmbeddedNulPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row210(1, "plugin\0cache", 'UTF-8')],
     ));

@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for UTF-16 `rtrim(option_name) COLLATE NOCAS
 
 Behavior:
 
-- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan`.
+- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`.
 - Covers SQLite's dangling-escape residual behavior: `LIKE 'plugin!' ESCAPE '!'` matches no rows, even though a NOCASE prefix cursor can still admit `plugin...` candidates.
 - Reports prefix range candidates, all-candidate residual misses, malformed UTF-16 row isolation, current/next range entry, and cursor invalidation reasons.
 
@@ -14,7 +14,7 @@ WordPress path:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next187.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Test.php`

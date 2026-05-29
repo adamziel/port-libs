@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -63,7 +63,7 @@ $plan200 = static fn (
     string $nextSource = 'main.wp_options@200',
     int $currentCookie = 199,
     int $nextCookie = 200,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
     $current ?? $rows200,
     $next ?? $nextRows200,
     $currentPattern,
@@ -174,7 +174,7 @@ $tests['utf16 nocase like rtrim current source next200 same escape stable cursor
         $row200(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row200(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -202,7 +202,7 @@ $tests['utf16 nocase like rtrim current source next200 escape rebind without pre
         $row200(2, 'plugin%cache', 'UTF-16BE'),
         $row200(3, 'plugin_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan(
         $rows,
         $rows,
         'plugin!%%',
@@ -224,15 +224,15 @@ $tests['utf16 nocase like rtrim current source next200 escape rebind without pre
 };
 
 $tests['utf16 nocase like rtrim current source next200 rejects invalid current escape length'] = static function (TestRunner $t) use ($rows200, $nextRows200): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan($rows200, $nextRows200, 'plugin!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan($rows200, $nextRows200, 'plugin!_%', '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source next200 rejects invalid next escape length'] = static function (TestRunner $t) use ($rows200, $nextRows200): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan($rows200, $nextRows200, 'plugin!_%', '!', 'plugin!_%', '~~'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan($rows200, $nextRows200, 'plugin!_%', '!', 'plugin!_%', '~~'));
 };
 
 $tests['utf16 nocase like rtrim current source next200 rejects missing option id'] = static function (TestRunner $t) use ($nextRows200): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext200Plan::wordpressOptionNameEscapeRebindPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapeRebindPlan([
         ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows200));
 };

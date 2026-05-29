@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -57,7 +57,7 @@ $plan188 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 188,
     int $nextCookie = 188,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan::wordpressOptionNameReusedRowidResumePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameReusedRowidResumePlan(
     $current ?? $current188,
     $next ?? $next188,
     'plugin!_cache%',
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source next188 stable deleted rowid rema
         $row188(6, "plugin_cache\t", 'UTF-16LE'),
         $row188(8, 'plugin_cache_delta', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache%', '!', $token188, 'stable', 'stable', 188, 188);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache%', '!', $token188, 'stable', 'stable', 188, 188);
     $t->same(null, $result['nextRowidProbe']);
     $t->same(false, $result['rowidReuseDetected']);
     $t->same([], $result['resumeUnsafeReasons']);
@@ -159,7 +159,7 @@ $tests['utf16 nocase like rtrim current source next188 stable deleted rowid rema
 $tests['utf16 nocase like rtrim current source next188 rowid reused inside range but residual false reparses'] = static function (TestRunner $t) use ($current188, $next188, $row188, $token188): void {
     $next = $next188;
     $next[1] = $row188(2, "plugin_cache\tmiss", 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache', '!', $token188, 'stable', 'stable', 188, 188);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache', '!', $token188, 'stable', 'stable', 188, 188);
     $t->same(true, $result['nextRowidProbe']['insideRange']);
     $t->same(false, $result['nextRowidProbe']['matchesResidual']);
     $t->same(['yield-token-rowid-reused', 'yield-token-rowid-reused-outside-like-residual'], $result['resumeUnsafeReasons']);
@@ -169,7 +169,7 @@ $tests['utf16 nocase like rtrim current source next188 rowid reused inside range
 $tests['utf16 nocase like rtrim current source next188 malformed reused rowid reparses'] = static function (TestRunner $t) use ($current188, $next188, $bad188, $token188): void {
     $next = $next188;
     $next[1] = $bad188(2, "\x00\xd8", 2);
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache%', '!', $token188, 'stable', 'stable', 188, 188);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameReusedRowidResumePlan($current188, $next, 'plugin!_cache%', '!', $token188, 'stable', 'stable', 188, 188);
     $t->same(false, $result['nextRowidProbe']['insideRange']);
     $t->same(false, $result['nextRowidProbe']['matchesResidual']);
     $t->same('SQLite encoding source UTF-16 text payload ends with a high surrogate', $result['nextRowidProbe']['decodeError']);
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next188 source change reason is p
 $tests['utf16 nocase like rtrim current source next188 rejects bad row shape'] = static function (TestRunner $t) use ($current188, $next188, $token188): void {
     $bad = $next188;
     $bad[] = ['option_id' => '20', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext188Plan::wordpressOptionNameReusedRowidResumePlan($current188, $bad, 'plugin%', null, $token188));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameReusedRowidResumePlan($current188, $bad, 'plugin%', null, $token188));
 };
 
 return $tests;

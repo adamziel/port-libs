@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` scans where rows end in non-ASCII Unicode whitespace.
 
-Behavior: `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext229Plan` reuses the accepted UTF-16 NOCASE/RTRIM LIKE keyset path and adds diagnostics proving SQLite `RTRIM` trims only ASCII space. UTF-16 NBSP, narrow NBSP, thin space, and ideographic space remain part of the comparison key and residual LIKE text, while visually similar current/next rowsets invalidate a resumed WordPress option-name cursor.
+Behavior: `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` reuses the accepted UTF-16 NOCASE/RTRIM LIKE keyset path and adds diagnostics proving SQLite `RTRIM` trims only ASCII space. UTF-16 NBSP, narrow NBSP, thin space, and ideographic space remain part of the comparison key and residual LIKE text, while visually similar current/next rowsets invalidate a resumed WordPress option-name cursor.
 
 WordPress smoke: `examples/wordpress-utf16-nocase-like-rtrim-current-source-next229.php`.
 

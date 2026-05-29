@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
@@ -31,7 +31,7 @@ $next = [
     $row(4, 'PLUGIN_CACHE', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan::wordpressOptionNameDuplicateKeyReplayPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDuplicateKeyReplayPlan(
     $current,
     $next,
     'plugin!_cache%',

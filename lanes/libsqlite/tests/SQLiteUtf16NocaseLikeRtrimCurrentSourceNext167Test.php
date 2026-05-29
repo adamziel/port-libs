@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -33,7 +33,7 @@ $next167 = [
     ['option_id' => 10, 'option_name_bytes' => "x\0y", 'text_encoding' => 2],
 ];
 
-$plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan::wordpressOptionNameFallbackPlan(
+$plan167 = static fn (?array $current = null, ?array $next = null, string $pattern = 'éclair%', ?string $escape = null): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
     $current ?? $current167,
     $next ?? $next167,
     $pattern,
@@ -139,7 +139,7 @@ $tests['utf16 nocase like rtrim current source next167 escaped wildcard keeps re
         $row167(2, 'éclair_admin_cache', 2),
         $row167(3, 'éclair_%cache  ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan::wordpressOptionNameFallbackPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
         $rows,
         $rows,
         'éclair!_!%cache',
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim current source next167 ascii prefix still uses n
         $row167(2, 'Plugin_Cache', 3),
         $row167(3, 'theme_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan::wordpressOptionNameFallbackPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan(
         $rows,
         $rows,
         'plugin%',
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source next167 ascii prefix still uses n
 };
 
 $tests['utf16 nocase like rtrim current source next167 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan::wordpressOptionNameFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFallbackPlan([['option_id' => 1, 'text_encoding' => 2]], [], 'éclair%'));
 };
 
 return $tests;

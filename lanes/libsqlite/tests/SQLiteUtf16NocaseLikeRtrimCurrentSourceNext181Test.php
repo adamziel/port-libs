@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $plan181 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 181,
     int $nextCookie = 181,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan(
     $current ?? $rows181,
     $next ?? $rows181,
     'plugin!_cache%',
@@ -157,7 +157,7 @@ $tests['utf16 nocase like rtrim current source next181 peer insertion before tok
         $row181(4, 'plugin_cache_alpha', 'UTF-16BE'),
         $row181(0, 'plugin_cache', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($current, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($current, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
     $t->same(['peer-rowset-changed'], $result['peerReplayUnsafeReasons']);
     $t->same([0, 1, 2, 3], $result['nextPeerRowids']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -168,14 +168,14 @@ $tests['utf16 nocase like rtrim current source next181 canonical token mismatch 
     $badToken = $token181;
     $badToken['key'] = 'Plugin_Cache  ';
     $badToken['keyBytes'] = $enc181('plugin_cache', 'UTF-16BE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', $badToken, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', $badToken, 'stable', 'stable', 181, 181);
     $t->same(['yield-token-not-stable'], $result['peerReplayUnsafeReasons']);
     $t->same(['token-key-not-canonical'], $result['tokenNormalizationReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
 };
 
 $tests['utf16 nocase like rtrim current source next181 no token cannot continue within peer group'] = static function (TestRunner $t) use ($rows181): void {
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', null, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows181, $rows181, 'plugin!_cache%', '!', null, 'stable', 'stable', 181, 181);
     $t->same(null, $result['peerKey']);
     $t->same(['yield-token-not-stable'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
@@ -185,7 +185,7 @@ $tests['utf16 nocase like rtrim current source next181 no token cannot continue 
 $tests['utf16 nocase like rtrim current source next181 malformed peer source reparses'] = static function (TestRunner $t) use ($rows181, $bad181, $token181): void {
     $next = $rows181;
     $next[] = $bad181(9, "\x00\xd8", 2);
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows181, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows181, $next, 'plugin!_cache%', '!', $token181, 'stable', 'stable', 181, 181);
     $t->same(['malformed-text'], $result['peerReplayUnsafeReasons']);
     $t->same(true, $result['mustReprepareBeforePeerReplay']);
     $t->same([1, 2, 3, 4, 5, 6], $result['replayPlanRowids']);
@@ -198,7 +198,7 @@ $tests['utf16 nocase like rtrim current source next181 non ascii nocase remains 
         $row181(3, 'plugin_cachex', 'UTF-8'),
     ];
     $tokenBytes = $enc181('plugin_cacheé', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan(
         $rows,
         $rows,
         'plugin!_cache_',
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source next181 rejects row without encod
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'option_name_bytes' => 'plugin_cache'],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 $tests['utf16 nocase like rtrim current source next181 rejects row without bytes'] = static function (TestRunner $t) use ($row181, $token181): void {
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source next181 rejects row without bytes
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => 2, 'text_encoding' => 2],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 $tests['utf16 nocase like rtrim current source next181 rejects row without integer rowid'] = static function (TestRunner $t) use ($row181, $token181): void {
@@ -236,7 +236,7 @@ $tests['utf16 nocase like rtrim current source next181 rejects row without integ
         $row181(1, 'plugin_cache', 'UTF-16LE'),
         ['option_id' => '2', 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext181Plan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePeerReplayPlan($rows, $rows, 'plugin%', null, $token181));
 };
 
 return $tests;

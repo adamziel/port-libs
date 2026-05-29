@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext161Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -42,7 +42,7 @@ $plan = static fn (
     string $nextCollation = 'NOCASE/RTRIM@161',
     string $currentLike = 'like@160',
     string $nextLike = 'like@161',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext161Plan::wordpressOptionNamePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     'plugin!_cache%',
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim current source next161 stable same generation re
         $row(1, 'plugin_cache  ', 2),
         $row(2, 'plugin_cache_shadow', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext161Plan::wordpressOptionNamePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -167,7 +167,7 @@ $tests['utf16 nocase like rtrim current source next161 stable same generation re
 
 $tests['utf16 nocase like rtrim current source next161 same rows collation generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext161Plan::wordpressOptionNamePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next161 same rows collation gener
 
 $tests['utf16 nocase like rtrim current source next161 same rows like generation invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext161Plan::wordpressOptionNamePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameGenerationPlan(
         $rows,
         $rows,
         'plugin!_cache%',

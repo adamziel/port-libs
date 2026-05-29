@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for UTF-16 `rtrim(option_name) COLLATE NOCASE LIKE` current-source scans when the LIKE prefix cannot use the NOCASE index range.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan`. It preserves SQLite behavior for non-ASCII and leading-wildcard LIKE prefixes by falling back to a decoded full residual scan instead of returning an empty candidate set when the NOCASE prefix range is not usable. The residual matcher still applies ASCII-only NOCASE and RTRIM semantics, so `éclair%` matches lowercase `éclair_*` rows but does not equate uppercase `É`.
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It preserves SQLite behavior for non-ASCII and leading-wildcard LIKE prefixes by falling back to a decoded full residual scan instead of returning an empty candidate set when the NOCASE prefix range is not usable. The residual matcher still applies ASCII-only NOCASE and RTRIM semantics, so `éclair%` matches lowercase `éclair_*` rows but does not equate uppercase `É`.
 
 WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next167.php` models copied `wp_options` rows whose localized option names are stored across UTF-8/UTF-16LE/UTF-16BE sources. Plugin scans over localized prefixes must remain visible even when the planner cannot derive a safe NOCASE range.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next167.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext167Test.php`

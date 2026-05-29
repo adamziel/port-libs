@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -49,7 +49,7 @@ $plan173 = static fn (
     string $nextSource = 'stable',
     int $currentCookie = 173,
     int $nextCookie = 173,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan::wordpressOptionNameSourcePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan(
     $current ?? $current173,
     $next ?? $next173,
     $pattern,
@@ -147,7 +147,7 @@ $tests['utf16 nocase like rtrim current source next173 byte only trailing spaces
         $row173(1, 'Plugin_Cache', 3),
         $row173(2, 'plugin_cache   ', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan::wordpressOptionNameSourcePlan($current, $next, 'plugin!_cache', '!', 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan($current, $next, 'plugin!_cache', '!', 'stable', 'stable', 5, 5);
     $t->same(['decoded-text', 'trailing-space-bytes', 'text-encoding', 'encoded-bytes'], $result['byteReprepareReasons']);
     $t->same([], $result['semanticInvalidationReasons']);
     $t->same(true, $result['byteOnlyReprepare']);
@@ -159,7 +159,7 @@ $tests['utf16 nocase like rtrim current source next173 byte only trailing spaces
 $tests['utf16 nocase like rtrim current source next173 source change remains semantic even when bytes only'] = static function (TestRunner $t) use ($row173): void {
     $current = [$row173(1, 'Plugin_Cache  ', 2)];
     $next = [$row173(1, 'Plugin_Cache', 3)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan::wordpressOptionNameSourcePlan($current, $next, 'plugin!_cache', '!', 'main.wp_options@172', 'main.wp_options@173', 172, 173);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan($current, $next, 'plugin!_cache', '!', 'main.wp_options@172', 'main.wp_options@173', 172, 173);
     $t->same(['decoded-text', 'trailing-space-bytes', 'text-encoding', 'encoded-bytes'], $result['byteReprepareReasons']);
     $t->same(['source-name', 'schema-cookie'], $result['semanticInvalidationReasons']);
     $t->same(false, $result['byteOnlyReprepare']);
@@ -172,7 +172,7 @@ $tests['utf16 nocase like rtrim current source next173 unicode prefix falls back
         $row173(2, 'Éclair_Cache', 3),
         $row173(3, 'plugin_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan::wordpressOptionNameSourcePlan($rows, $rows, 'éclair%', null, 'stable', 'stable', 9, 9);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan($rows, $rows, 'éclair%', null, 'stable', 'stable', 9, 9);
     $t->same(false, $result['indexUsable']);
     $t->same('full-residual-scan', $result['scanMode']);
     $t->same([1], $result['currentMatchedRowids']);
@@ -181,7 +181,7 @@ $tests['utf16 nocase like rtrim current source next173 unicode prefix falls back
 };
 
 $tests['utf16 nocase like rtrim current source next173 rejects missing option bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext173Plan::wordpressOptionNameSourcePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
         'plugin%',

@@ -3,15 +3,15 @@
 Status: focused PHP behavior growth for UTF-16 NOCASE LIKE over RTRIM expression keys when the fixed LIKE prefix contains non-ASCII text.
 
 Behavior:
-- `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan` keeps accepted ASCII NOCASE prefix range behavior, but falls back to decoded full-scan residual matching when `SQLiteLikeCollationPlan` rejects a non-ASCII fixed prefix such as `éclair_`.
+- `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` keeps accepted ASCII NOCASE prefix range behavior, but falls back to decoded full-scan residual matching when `SQLiteLikeCollationPlan` rejects a non-ASCII fixed prefix such as `éclair_`.
 - The residual matcher still uses SQLite ASCII-only NOCASE behavior: `éCLAIR_cache` matches `éclair_%`, while `Éclair_cache` does not.
 - The scan decodes mixed UTF-16LE/UTF-16BE current and next rows, trims only ASCII spaces for the RTRIM expression key, preserves tabs, isolates malformed UTF-16 rows, and reports current-source invalidation reasons.
 
 WordPress path: `wordpress-utf16-nocase-like-rtrim-current-source-next180.php` models copied `wp_options.option_name` plugin keys with localized non-ASCII prefixes during a current/next source transition.
 
 Verification:
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Test.php`
   - `No syntax errors detected in lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next180.php`

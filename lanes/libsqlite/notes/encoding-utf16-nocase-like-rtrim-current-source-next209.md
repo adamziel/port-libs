@@ -1,6 +1,6 @@
 # encoding-utf16-nocase-like-rtrim-current-source-next209
 
-Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan` for UTF-16
+Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for UTF-16
 `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` current-source cursor
 reuse where SQLite must trim only ASCII space before NOCASE LIKE range checks.
 Tabs and NBSP suffixes remain part of the expression key, and Unicode case
@@ -14,7 +14,7 @@ or fold Unicode case while replaying a prepared prefix scan.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next209.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Test.php`

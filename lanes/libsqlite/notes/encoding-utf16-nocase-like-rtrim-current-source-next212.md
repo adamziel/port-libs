@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for UTF-16 prepared `LIKE` patterns that use
 
 Behavior:
 
-- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan`.
+- Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`.
 - Decodes UTF-16LE/UTF-16BE prepared pattern and escape bytes before LIKE prefix planning.
 - Proves a fullwidth exclamation escape protects literal `_` and `%` characters while preserving the same candidate/matched rowsets as an ASCII-equivalent escape.
 - Keeps ASCII-only NOCASE and ASCII-space-only RTRIM diagnostics from accepted current-source behavior.
@@ -18,7 +18,7 @@ Verification:
   - `70` PASS lines.
 - `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next212.php --self-test`
   - `wordpress-utf16-nocase-like-rtrim-current-source-next212 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next212.php`
 - `git diff --check -- lanes/libsqlite`

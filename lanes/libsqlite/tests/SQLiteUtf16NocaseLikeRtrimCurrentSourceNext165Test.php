@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -61,7 +61,7 @@ $plan = static function (
     int $currentSchemaCookie = 11,
     int $nextSchemaCookie = 11,
 ) use ($currentRows, $nextRows, $enc, $code): array {
-    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan::wordpressOptionNameResumePlan(
+    return SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
         $current ?? $currentRows,
         $next ?? $nextRows,
         $enc($currentPattern, $currentPatternEncoding),
@@ -216,7 +216,7 @@ $tests['utf16 nocase like rtrim current source next165 decoded pattern change fo
 };
 
 $tests['utf16 nocase like rtrim current source next165 invalid token shape throws'] = static function (TestRunner $t) use ($currentRows, $nextRows, $enc, $code): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan::wordpressOptionNameResumePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
         $currentRows,
         $nextRows,
         $enc('plugin\\_cache%', 'UTF-8'),

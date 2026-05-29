@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $plan231 = static fn (
     string $nextSource = 'main.wp_options@231',
     int $currentCookie = 230,
     int $nextCookie = 231,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
     $current ?? $current231,
     $next ?? $next231,
     $pattern,
@@ -161,7 +161,7 @@ $tests['utf16 nocase like rtrim current source next231 stable ascii folded curso
         $row231(1, 'PLUGIN_CAFÉ_MAIN ', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_aux', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next231 lower e acute does not ma
         $row231(1, 'plugin_café_main', 'UTF-16LE'),
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -206,7 +206,7 @@ $tests['utf16 nocase like rtrim current source next231 ascii prefix still folds 
         $row231(2, 'plugin_cafÉ_main', 'UTF-16BE'),
         $row231(3, 'Plugin_CafÉ_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan(
         $rows,
         $rows,
         'plugin_cafÉ%',
@@ -224,7 +224,7 @@ $tests['utf16 nocase like rtrim current source next231 ascii prefix still folds 
 
 $tests['utf16 nocase like rtrim current source next231 rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext231Plan::wordpressOptionNameAsciiOnlyNocasePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiOnlyNocasePlan($rows, $rows));
 };
 
 return $tests;

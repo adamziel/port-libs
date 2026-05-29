@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext184Plan`, a focused escaped
+Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a focused escaped
 LIKE residual guard for UTF-16 `rtrim(option_name) COLLATE NOCASE` current-source
 peer replay.
 

@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for UTF-16 RTRIM/NOCASE LIKE current-source yield windows.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext218Plan`. It composes the accepted UTF-16 prepared `ESCAPE` decode and RTRIM/NOCASE LIKE residual scan with `ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT/OFFSET` page-window fencing. A copied `wp_options` import can only reuse the current-source page token when source, schema cookie, pattern, escape, offset/limit, page rowids, and tail key still match.
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It composes the accepted UTF-16 prepared `ESCAPE` decode and RTRIM/NOCASE LIKE residual scan with `ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT/OFFSET` page-window fencing. A copied `wp_options` import can only reuse the current-source page token when source, schema cookie, pattern, escape, offset/limit, page rowids, and tail key still match.
 
 WordPress smoke: `wordpress-utf16-nocase-like-rtrim-current-source-next218.php` covers a copied `wp_options` UTF-16 option-name scan where a new `PLUGIN_CACHE_AARDVARK` row changes the matched rowset while the current page remains stable.
 

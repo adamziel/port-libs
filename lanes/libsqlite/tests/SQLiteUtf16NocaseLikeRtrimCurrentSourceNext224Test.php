@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext224Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -62,7 +62,7 @@ $plan224 = static fn (
     int $currentSchemaCookie = 223,
     int $nextSchemaCookie = 224,
     ?array $resumeToken = null,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext224Plan::wordpressOptionNameKeysetResumePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameKeysetResumePlan(
     $current ?? $current224,
     $next ?? $next224,
     'plugin!_cache%',
@@ -235,7 +235,7 @@ $tests['utf16 nocase like rtrim current source next224 defaults resume key to fi
         $row224(1, 'Plugin_Cache', 'UTF-16BE'),
         $row224(2, 'plugin_cache_alpha', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext224Plan::wordpressOptionNameKeysetResumePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameKeysetResumePlan(
         $rows,
         $rows,
         'plugin!_cache%',

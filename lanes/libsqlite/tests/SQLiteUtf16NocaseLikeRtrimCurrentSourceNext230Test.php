@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan230 = static fn (
     string $nextSource = 'main.wp_options@230',
     int $currentCookie = 229,
     int $nextCookie = 230,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Plan::wordpressOptionNameLineBreakBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan(
     $current ?? $current230,
     $next ?? $next230,
     $pattern,
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source next230 stable line break false p
         $row230(2, "plugin_cache\n", 'UTF-16BE'),
         $row230(3, 'PLUGIN_CACHE ', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Plan::wordpressOptionNameLineBreakBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan(
         $rows,
         $rows,
         'plugin_cache',
@@ -196,7 +196,7 @@ $tests['utf16 nocase like rtrim current source next230 escaped underscore still 
         $row230(2, "plugin_cache\r", 'UTF-16LE'),
         $row230(3, 'pluginXcache', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Plan::wordpressOptionNameLineBreakBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -214,7 +214,7 @@ $tests['utf16 nocase like rtrim current source next230 escaped underscore still 
 
 $tests['utf16 nocase like rtrim current source next230 rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext230Plan::wordpressOptionNameLineBreakBoundaryPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameLineBreakBoundaryPlan($rows, $rows));
 };
 
 return $tests;

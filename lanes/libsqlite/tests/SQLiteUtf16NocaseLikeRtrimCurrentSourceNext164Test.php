@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -46,7 +46,7 @@ $plan = static fn (
     string $nextLike = 'like@164',
     string $currentStatement = 'select-rtrim-nocase-like@163',
     string $nextStatement = 'select-rtrim-nocase-like@164',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     'plugin!_cache%',
@@ -162,7 +162,7 @@ $tests['utf16 nocase like rtrim current source next164 stable same statement can
         $row(1, 'plugin_cache  ', 2),
         $row(2, 'plugin_cache_shadow', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next164 stable same statement can
 
 $tests['utf16 nocase like rtrim current source next164 same rows statement token invalidates'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -209,7 +209,7 @@ $tests['utf16 nocase like rtrim current source next164 same rows statement token
 
 $tests['utf16 nocase like rtrim current source next164 same rows like generation invalidates only generation and fingerprint'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_cache  ', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -232,7 +232,7 @@ $tests['utf16 nocase like rtrim current source next164 same rows like generation
 $tests['utf16 nocase like rtrim current source next164 malformed retained rows never resume safe'] = static function (TestRunner $t) use ($row): void {
     $current = [$row(1, 'plugin_cache', 2), ['option_id' => 2, 'option_name_bytes' => "p\0x", 'text_encoding' => 2]];
     $next = [$row(1, 'plugin_cache', 2), ['option_id' => 3, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2]];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
         $current,
         $next,
         'plugin%',
@@ -256,7 +256,7 @@ $tests['utf16 nocase like rtrim current source next164 malformed retained rows n
 };
 
 $tests['utf16 nocase like rtrim current source next164 rejects invalid escape'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan([], [], 'plugin%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan([], [], 'plugin%', '!!'));
 };
 
 return $tests;

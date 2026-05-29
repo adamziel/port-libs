@@ -36,7 +36,7 @@ final class SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan
         $currentToken = self::decodeToken($currentTokenKeyBytes, $currentTokenKeyEncoding, $currentTokenRowid, 'current');
         $nextToken = self::decodeToken($nextTokenKeyBytes, $nextTokenKeyEncoding, $nextTokenRowid, 'next');
 
-        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan::wordpressOptionNameResumePlan(
+        $base = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameResumePlan(
             $currentRows,
             $nextRows,
             $currentPatternBytes,

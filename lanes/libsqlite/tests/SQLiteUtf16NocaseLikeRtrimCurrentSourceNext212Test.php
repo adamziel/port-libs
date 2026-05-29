@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -58,7 +58,7 @@ $plan212 = static fn (
     ?string $nextEscape = null,
     int|string $currentEscapeEncoding = 'UTF-16LE',
     int|string $nextEscapeEncoding = 'UTF-16BE',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan::wordpressOptionNameUnicodeEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeEscapePlan(
     $current ?? $currentRows212,
     $next ?? $nextRows212,
     $enc212($currentPattern ?? $currentPattern212, $currentPatternEncoding),
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source next212 stable unicode escape can
         $row212(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row212(3, 'plugin%cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan::wordpressOptionNameUnicodeEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeEscapePlan(
         $rows,
         $rows,
         $enc212("plugin{$fullwidthBang212}_%", 'UTF-16LE'),
@@ -218,7 +218,7 @@ $tests['utf16 nocase like rtrim current source next212 unicode escape protects l
 };
 
 $tests['utf16 nocase like rtrim current source next212 rejects malformed unicode escape bytes'] = static function (TestRunner $t) use ($currentRows212, $nextRows212, $enc212, $currentPattern212, $nextPattern212, $fullwidthBang212): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan::wordpressOptionNameUnicodeEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeEscapePlan(
         $currentRows212,
         $nextRows212,
         $enc212($currentPattern212, 'UTF-16LE'),
@@ -233,7 +233,7 @@ $tests['utf16 nocase like rtrim current source next212 rejects malformed unicode
 };
 
 $tests['utf16 nocase like rtrim current source next212 rejects two character escape'] = static function (TestRunner $t) use ($currentRows212, $nextRows212, $enc212, $currentPattern212, $nextPattern212, $fullwidthBang212): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext212Plan::wordpressOptionNameUnicodeEscapePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameUnicodeEscapePlan(
         $currentRows212,
         $nextRows212,
         $enc212($currentPattern212, 'UTF-16LE'),

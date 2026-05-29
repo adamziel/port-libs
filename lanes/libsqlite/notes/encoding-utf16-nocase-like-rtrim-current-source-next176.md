@@ -2,13 +2,13 @@
 
 Status: focused PHP behavior growth for duplicate UTF-16 `rtrim(option_name) COLLATE NOCASE LIKE` keys at a current-source yield boundary.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Plan`. It extends the accepted next165/168/169/173 UTF-16 NOCASE LIKE/RTRIM current-source chain without repeating their pattern normalization, case-sensitive LIKE, byte-only reprepare, or high-water page behavior. The new surface is rowid-tied peer ordering when case and trailing-space variants collapse to the same NOCASE/RTRIM key, including duplicate peer groups that straddle the resume token or a bounded yield page.
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`. It extends the accepted next165/168/169/173 UTF-16 NOCASE LIKE/RTRIM current-source chain without repeating their pattern normalization, case-sensitive LIKE, byte-only reprepare, or high-water page behavior. The new surface is rowid-tied peer ordering when case and trailing-space variants collapse to the same NOCASE/RTRIM key, including duplicate peer groups that straddle the resume token or a bounded yield page.
 
 WordPress smoke: `wordpress-utf16-nocase-like-rtrim-current-source-next176.php` models copied `wp_options` rows where `Plugin_Cache`, `plugin_cache  `, and `PLUGIN_CACHE   ` share the same index key but must resume in rowid order without duplicating or skipping the next peer.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next176.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext176Test.php`

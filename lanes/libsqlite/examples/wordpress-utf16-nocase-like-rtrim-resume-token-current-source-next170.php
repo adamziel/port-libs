@@ -11,7 +11,7 @@ require_once dirname(__DIR__) . '/src/SQLiteLikeCollationPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext156Plan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNext160Plan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNext162Plan.php';
-require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan.php';
+require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once dirname(__DIR__) . '/src/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNext170Plan.php';
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);

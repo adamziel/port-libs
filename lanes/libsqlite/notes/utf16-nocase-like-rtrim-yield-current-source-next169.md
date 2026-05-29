@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext169Plan`, a bounded yield-page plan for copied `wp_options` scans over:
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded yield-page plan for copied `wp_options` scans over:
 
 ```sql
 rtrim(option_name) COLLATE NOCASE LIKE ?

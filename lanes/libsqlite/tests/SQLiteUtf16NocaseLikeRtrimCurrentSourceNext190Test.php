@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan190 = static fn (
     string $nextSource = 'main.wp_options@190',
     int $currentCookie = 189,
     int $nextCookie = 190,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
     $current ?? $current190,
     $next ?? $next190,
     $pattern,
@@ -166,7 +166,7 @@ $tests['utf16 nocase like rtrim current source next190 stable source reusable wh
         $row190(2, "Plugin_Cache\t", 'UTF-16BE'),
         $row190(3, "plugin_cache\u{00a0}", 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
         $rows,
         $rows,
         'plugin%',
@@ -190,7 +190,7 @@ $tests['utf16 nocase like rtrim current source next190 non-breaking space remain
     $next = [
         $row190(1, 'plugin_cache  ', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan(
         $current,
         $next,
         'plugin_cache%',
@@ -208,7 +208,7 @@ $tests['utf16 nocase like rtrim current source next190 non-breaking space remain
 };
 
 $tests['utf16 nocase like rtrim current source next190 invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current190, $next190): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext190Plan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan($current190, $next190, 'plugin!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceTrimBoundaryPlan($current190, $next190, 'plugin!!', '!!'));
 };
 
 return $tests;

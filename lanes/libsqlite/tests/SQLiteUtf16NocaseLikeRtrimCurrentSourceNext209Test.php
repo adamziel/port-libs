@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -42,7 +42,7 @@ $next209 = [
     $bad209(9, "\x00\xd8", 2),
 ];
 
-$plan209 = static fn (?array $current = null, ?array $next = null, string $pattern = 'plugin%'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan::wordpressOptionNameAsciiSpaceRtrimPlan(
+$plan209 = static fn (?array $current = null, ?array $next = null, string $pattern = 'plugin%'): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
     $current ?? $current209,
     $next ?? $next209,
     $pattern,
@@ -144,7 +144,7 @@ $tests['utf16 nocase like rtrim current source next209 stable ascii space trim c
         $row209(3, "plugin_cache\xc2\xa0", 'UTF-8'),
         $row209(4, 'theme_plugin', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan::wordpressOptionNameAsciiSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
         $rows,
         $rows,
         'plugin%',
@@ -169,7 +169,7 @@ $tests['utf16 nocase like rtrim current source next209 unicode case variants are
         $row209(11, 'INSERT_plugin', 'UTF-16BE'),
         $row209(12, 'insert_plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan::wordpressOptionNameAsciiSpaceRtrimPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
         $rows,
         $rows,
         'insert%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next209 unicode case variants are
 };
 
 $tests['utf16 nocase like rtrim current source next209 rejects invalid row shape'] = static function (TestRunner $t) use ($row209): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext209Plan::wordpressOptionNameAsciiSpaceRtrimPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceRtrimPlan(
         [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row209(1, 'plugin', 'UTF-8')],
     ));

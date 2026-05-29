@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
@@ -14,7 +14,7 @@ $row = static fn (int $id, string $name, int $encoding): array => [
     'text_encoding' => $encoding,
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext164Plan::wordpressOptionNameYieldPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPlan(
     [
         $row(1, 'Plugin_Cache  ', 2),
         $row(2, 'plugin_cache_shadow', 3),

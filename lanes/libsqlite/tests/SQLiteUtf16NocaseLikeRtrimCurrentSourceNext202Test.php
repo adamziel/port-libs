@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -62,7 +62,7 @@ $plan202 = static fn (
     string $nextSource = 'main.wp_options@202',
     int $currentCookie = 201,
     int $nextCookie = 202,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
     $current ?? $current202,
     $next ?? $next202,
     $currentPattern ?? $currentPattern202,
@@ -165,7 +165,7 @@ $tests['utf16 nocase like rtrim current source next202 stable utf16 byte order p
         $row202(2, 'plugin_cache  ', 'UTF-16BE'),
         $row202(3, 'plugin_cache_alpha', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source next202 same decoded pattern but 
         $row202(1, 'plugin_cache', 'UTF-16LE'),
         $row202(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source next202 source rowid replacement 
     $currentPattern = $pattern202(91, 'plugin!_cache%', 'UTF-16LE');
     $nextPattern = $currentPattern;
     $nextPattern['option_id'] = 99;
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
         $rows,
         $rows,
         $currentPattern,
@@ -240,7 +240,7 @@ $tests['utf16 nocase like rtrim current source next202 source rowid replacement 
 
 $tests['utf16 nocase like rtrim current source next202 malformed source pattern is rejected'] = static function (TestRunner $t) use ($row202, $pattern202): void {
     $rows = [$row202(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),
@@ -250,7 +250,7 @@ $tests['utf16 nocase like rtrim current source next202 malformed source pattern 
 
 $tests['utf16 nocase like rtrim current source next202 rejects malformed pattern row shape'] = static function (TestRunner $t) use ($row202, $pattern202): void {
     $rows = [$row202(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext202Plan::wordpressOptionNameSourcePatternPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourcePatternPlan(
         $rows,
         $rows,
         $pattern202(91, 'plugin!_cache%', 'UTF-16LE'),

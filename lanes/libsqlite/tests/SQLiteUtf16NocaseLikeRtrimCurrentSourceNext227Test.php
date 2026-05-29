@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $plan227 = static fn (
     string $nextSource = 'main.wp_options@227',
     int $currentCookie = 226,
     int $nextCookie = 227,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan::wordpressOptionNameAsciiSpaceBoundaryPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan(
     $current ?? $current227,
     $next ?? $next227,
     $pattern,
@@ -163,7 +163,7 @@ $tests['utf16 nocase like rtrim current source next227 stable ascii space cursor
         $row227(1, 'plugin_cache', 'UTF-16LE'),
         $row227(2, 'PLUGIN_CACHE ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan::wordpressOptionNameAsciiSpaceBoundaryPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan(
         $rows,
         $rows,
         'plugin_cache',
@@ -184,7 +184,7 @@ $tests['utf16 nocase like rtrim current source next227 nbsp alone prevents equal
         $row227(1, 'plugin_cache' . $nbsp227, 'UTF-16LE'),
         $row227(2, 'plugin_cache ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows);
 
     $t->same([2], $result['currentMatchedRowids']);
     $t->same([1], $result['currentFalsePositiveRowids']);
@@ -193,7 +193,7 @@ $tests['utf16 nocase like rtrim current source next227 nbsp alone prevents equal
 
 $tests['utf16 nocase like rtrim current source next227 rejects malformed row shape'] = static function (TestRunner $t) use ($enc227): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc227('plugin_cache', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiSpaceBoundaryPlan($rows, $rows));
 };
 
 return $tests;

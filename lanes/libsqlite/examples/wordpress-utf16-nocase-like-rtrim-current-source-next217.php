@@ -8,7 +8,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
 }
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
@@ -35,7 +35,7 @@ $nextRows = [
     $row(10, 'plugin_cache later', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext217Plan::wordpressOptionNamePreparedPatternSpacePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePreparedPatternSpacePlan(
     $currentRows,
     $nextRows,
     $enc('plugin!_cache %', 'UTF-16LE'),

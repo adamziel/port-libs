@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $plan211 = static fn (
     string $nextSource = 'main.wp_options@211',
     int $currentCookie = 210,
     int $nextCookie = 211,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan::wordpressOptionNameSourceRefreshPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
     $current ?? $current211,
     $next ?? $next211,
     $pattern,
@@ -161,7 +161,7 @@ $tests['utf16 nocase like rtrim current source next211 byte order only refresh s
         $row211(1, 'plugin_cache', 'UTF-16BE'),
         $row211(2, 'Plugin_Cache  ', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan::wordpressOptionNameSourceRefreshPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next211 decoded text change inval
         $row211(1, 'plugin_cache', 'UTF-16BE'),
         $row211(2, 'plugin_option_old', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan::wordpressOptionNameSourceRefreshPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
         $current,
         $next,
         'plugin!_cache%',
@@ -211,7 +211,7 @@ $tests['utf16 nocase like rtrim current source next211 range false positives ret
         $row211(2, 'plugin_cache' . "\t", 'UTF-16BE'),
         $row211(3, 'plugin_cache_old', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan::wordpressOptionNameSourceRefreshPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source next211 range false positives ret
 };
 
 $tests['utf16 nocase like rtrim current source next211 rejects malformed row shape'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext211Plan::wordpressOptionNameSourceRefreshPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceRefreshPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ], []));
 };

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -51,7 +51,7 @@ $plan183 = static fn (
     string $nextSource = 'main.wp_options@183',
     int $currentCookie = 182,
     int $nextCookie = 183,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan::wordpressOptionNameAsciiPrefixRangePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
     $current ?? $current183,
     $next ?? $next183,
     $pattern,
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source next183 stable cursor remains reu
         $row183(2, 'plugin_cache', 3),
         $row183(3, 'plugin_cache' . "\t", 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         'plugin!_cache',
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source next183 wildcard prefix keeps res
         $row183(2, 'plugin_caches', 2),
         $row183(3, 'plugin_cache_new', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source next183 wildcard prefix keeps res
 
 $tests['utf16 nocase like rtrim current source next183 no prefix rejects range'] = static function (TestRunner $t) use ($row183): void {
     $rows = [$row183(1, 'plugin_cache', 2)];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan::wordpressOptionNameAsciiPrefixRangePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         $rows,
         $rows,
         '%cache',
@@ -227,7 +227,7 @@ $tests['utf16 nocase like rtrim current source next183 no prefix rejects range']
 };
 
 $tests['utf16 nocase like rtrim current source next183 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext183Plan::wordpressOptionNameAsciiPrefixRangePlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameAsciiPrefixRangePlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
     ));

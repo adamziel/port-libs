@@ -2,7 +2,7 @@
 
 Timestamp: 2026-05-28T11:40:49Z
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext165Plan`, a bounded
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded
 current-source/next-source cursor resume plan for WordPress `wp_options`
 `option_name` scans using:
 

@@ -1,6 +1,6 @@
 # Encoding UTF-16 NOCASE LIKE RTRIM current-source next158
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Plan` for
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for
 WordPress `wp_options` option-name scans that use
 `rtrim(option_name) COLLATE NOCASE LIKE ...` over mixed UTF-8, UTF-16LE, and
 UTF-16BE text sources.
@@ -15,7 +15,7 @@ changes.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next158.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Test.php`

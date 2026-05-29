@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -47,7 +47,7 @@ $plan180 = static fn (
     string $nextSource = 'main.wp_options@180',
     int $currentCookie = 179,
     int $nextCookie = 180,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan::wordpressOptionNameNonAsciiPrefixPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
     $current ?? $current180,
     $next ?? $next180,
     $pattern,
@@ -148,7 +148,7 @@ $tests['utf16 nocase like rtrim current source next180 stable full scan remains 
         $row180(2, 'éCLAIR_cache ', 3),
         $row180(3, 'Éclair_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan::wordpressOptionNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
         $rows,
         $rows,
         'éclair!_%',
@@ -170,7 +170,7 @@ $tests['utf16 nocase like rtrim current source next180 ascii prefix still uses r
         $row180(2, 'plugin_cache ', 3),
         $row180(3, 'theme_cache', 2),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan::wordpressOptionNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -193,7 +193,7 @@ $tests['utf16 nocase like rtrim current source next180 no fixed prefix stays emp
         $row180(1, 'éclair_cache', 2),
         $row180(2, 'plugin_cache', 3),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan::wordpressOptionNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
         $rows,
         $rows,
         '%cache',
@@ -210,7 +210,7 @@ $tests['utf16 nocase like rtrim current source next180 no fixed prefix stays emp
 };
 
 $tests['utf16 nocase like rtrim current source next180 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext180Plan::wordpressOptionNameNonAsciiPrefixPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixPlan(
         [['option_id' => 1, 'text_encoding' => 2]],
         [],
         'éclair%',

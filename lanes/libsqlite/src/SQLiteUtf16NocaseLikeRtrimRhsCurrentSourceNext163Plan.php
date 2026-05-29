@@ -31,7 +31,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan
         $currentTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($currentTrimmedPattern, $currentPatternEncoding);
         $nextTrimmedBytes = SQLiteEncodingCollationSourceCursor::encodeText($nextTrimmedPattern, $nextPatternEncoding);
 
-        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Plan::wordpressOptionNamePlan(
+        $currentPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceDeltaPlan(
             $currentRows,
             $currentRows,
             $currentTrimmedPattern,
@@ -41,7 +41,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNext163Plan
             $currentSchemaCookie,
             $currentSchemaCookie,
         );
-        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext158Plan::wordpressOptionNamePlan(
+        $nextPlan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameSourceDeltaPlan(
             $nextRows,
             $nextRows,
             $nextTrimmedPattern,

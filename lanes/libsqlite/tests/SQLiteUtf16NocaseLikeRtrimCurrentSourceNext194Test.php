@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan194 = static fn (
     string $nextSource = 'main.wp_options@194',
     int $currentCookie = 193,
     int $nextCookie = 194,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
     $current ?? $current194,
     $next ?? $next194,
     $pattern,
@@ -158,7 +158,7 @@ $tests['utf16 nocase like rtrim current source next194 stable source can reuse l
         $row194(2, 'Plugin%Cache  ', 'UTF-16BE'),
         $row194(3, 'plugin%cache_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!%%',
@@ -182,7 +182,7 @@ $tests['utf16 nocase like rtrim current source next194 escaped underscore become
         $row194(2, 'PLUGIN_CACHE_A', 'UTF-16BE'),
         $row194(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!_%',
@@ -207,7 +207,7 @@ $tests['utf16 nocase like rtrim current source next194 unescaped percent keeps s
         $row194(2, 'plugin_cache', 'UTF-16BE'),
         $row194(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin%',
@@ -230,7 +230,7 @@ $tests['utf16 nocase like rtrim current source next194 escaped literal exact mat
         $row194(2, 'plugin%cache_extra', 'UTF-16BE'),
         $row194(3, 'plugin&cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan(
         $rows,
         $rows,
         'plugin!%cache',
@@ -249,11 +249,11 @@ $tests['utf16 nocase like rtrim current source next194 escaped literal exact mat
 };
 
 $tests['utf16 nocase like rtrim current source next194 rejects invalid escape length via base planner'] = static function (TestRunner $t) use ($current194, $next194): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan($current194, $next194, 'plugin!!%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan($current194, $next194, 'plugin!!%', '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source next194 rejects missing option id'] = static function (TestRunner $t) use ($next194): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan::wordpressOptionNameEscapedWildcardPrefixPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEscapedWildcardPrefixPlan([
         ['option_name_bytes' => 'plugin%cache', 'text_encoding' => 1],
     ], $next194));
 };

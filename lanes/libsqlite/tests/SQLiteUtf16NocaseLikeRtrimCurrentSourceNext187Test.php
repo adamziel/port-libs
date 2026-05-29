@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -52,7 +52,7 @@ $plan187 = static fn (
     string $nextSource = 'main.wp_options@187',
     int $currentCookie = 186,
     int $nextCookie = 187,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan::wordpressOptionNameDanglingEscapePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan(
     $current ?? $current187,
     $next ?? $next187,
     $pattern,
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source next187 stable source still requi
         $row187(2, 'Plugin  ', 'UTF-16BE'),
         $row187(3, 'plugin_extra', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan::wordpressOptionNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!',
@@ -173,7 +173,7 @@ $tests['utf16 nocase like rtrim current source next187 escaped bang before wildc
         $row187(2, 'plugin!alpha', 'UTF-16BE'),
         $row187(3, 'plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan::wordpressOptionNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!!%',
@@ -197,7 +197,7 @@ $tests['utf16 nocase like rtrim current source next187 no escape treats bang lit
         $row187(2, 'Plugin!  ', 'UTF-16BE'),
         $row187(3, 'plugin', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan::wordpressOptionNameDanglingEscapePlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan(
         $rows,
         $rows,
         'plugin!',
@@ -215,7 +215,7 @@ $tests['utf16 nocase like rtrim current source next187 no escape treats bang lit
 };
 
 $tests['utf16 nocase like rtrim current source next187 invalid escape length rejected by base planner'] = static function (TestRunner $t) use ($current187, $next187): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext187Plan::wordpressOptionNameDanglingEscapePlan($current187, $next187, 'plugin!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameDanglingEscapePlan($current187, $next187, 'plugin!!', '!!'));
 };
 
 return $tests;

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $plan178 = static fn (
     string $nextSource = 'main.wp_options@178',
     int $currentCookie = 177,
     int $nextCookie = 178,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
     $current ?? $current178,
     $next ?? $next178,
     'plugin!_cache%',
@@ -150,7 +150,7 @@ $tests['utf16 nocase like rtrim current source next178 canonical token can conti
         $row178(3, 'plugin_cache_beta', 'UTF-8'),
     ];
     $bytes = $enc178('Plugin_Cache  ', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -183,7 +183,7 @@ $tests['utf16 nocase like rtrim current source next178 canonicalizes stale raw k
         $row178(3, 'plugin_cache_beta', 'UTF-8'),
     ];
     $bytes = $enc178('Plugin_Cache  ', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source next178 raw byte mismatch is expl
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
     $rawBytes = $enc178('plugin_cache', 'UTF-16BE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -242,7 +242,7 @@ $tests['utf16 nocase like rtrim current source next178 raw encoding mismatch is 
         $row178(2, 'plugin_cache_alpha', 'UTF-16LE'),
     ];
     $rawBytes = $enc178('plugin_cache', 'UTF-16LE');
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -270,7 +270,7 @@ $tests['utf16 nocase like rtrim current source next178 missing token still repar
         $row178(1, 'plugin_cache', 'UTF-16LE'),
         $row178(2, 'plugin_cache_alpha', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -291,7 +291,7 @@ $tests['utf16 nocase like rtrim current source next178 rejects malformed raw tok
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin%',
@@ -309,7 +309,7 @@ $tests['utf16 nocase like rtrim current source next178 rejects partial raw token
     $rows = [
         $row178(1, 'plugin_cache', 'UTF-16LE'),
     ];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan::wordpressOptionNameCanonicalTokenPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalTokenPlan(
         $rows,
         $rows,
         'plugin%',

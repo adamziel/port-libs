@@ -10,7 +10,7 @@ Focused verification:
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `77` PASS lines
   - `1 test files, 85 assertions, 0 failures`
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-canonical-like-current-source-next233.php`
 - `php lanes/libsqlite/examples/wordpress-utf16-canonical-like-current-source-next233.php --self-test`

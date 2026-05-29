@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext218Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -65,7 +65,7 @@ $plan218 = static fn (
     int $currentSchemaCookie = 217,
     int $nextSchemaCookie = 218,
     ?array $cursor = null,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext218Plan::wordpressOptionNameYieldPagePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameYieldPagePlan(
     $current ?? $current218,
     $next ?? $next218,
     'plugin!_cache%',

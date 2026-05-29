@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -50,7 +50,7 @@ $plan175 = static fn (
     int $nextCookie = 175,
     string $pattern = 'plugin!_cache%',
     ?string $escape = '!',
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
     $current ?? $current175,
     $next ?? $next175,
     $pattern,
@@ -126,7 +126,7 @@ $tests['utf16 nocase like rtrim current source next175 clean byte token can cont
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
     $t->same([], $result['tokenFingerprintReasons']);
     $t->same([], $result['replayInvalidationReasons']);
     $t->same(false, $result['mustReprepareBeforeReplay']);
@@ -152,7 +152,7 @@ $tests['utf16 nocase like rtrim current source next175 token byte mismatch repar
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
     $t->same(['yielded-token-bytes-changed', 'current-next-token-bytes-changed'], $result['tokenFingerprintReasons']);
     $t->same(['bytes-changed', 'yielded-token-bytes-changed', 'current-next-token-bytes-changed'], $result['replayInvalidationReasons']);
     $t->same(true, $result['mustReprepareBeforeReplay']);
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source next175 token encoding mismatch r
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
     $t->same(['yielded-token-bytes-changed', 'yielded-token-encoding-changed', 'current-next-token-bytes-changed', 'current-next-token-encoding-changed'], $result['tokenFingerprintReasons']);
     $t->same('UTF-16LE', $result['nextTokenFingerprint']['encoding']);
     $t->same(true, $result['mustReprepareBeforeReplay']);
@@ -199,7 +199,7 @@ $tests['utf16 nocase like rtrim current source next175 token row exit reparses']
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
     $t->same(['yielded-token-row-exited'], $result['tokenFingerprintReasons']);
     $t->same(null, $result['nextTokenFingerprint']);
     $t->same([1, 3], $result['replayPlanRowids']);
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source next175 source cookie invalidatio
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token);
     $t->same(['source-name', 'schema-cookie', 'bytes-changed'], $result['baseReplayInvalidationReasons']);
     $t->same(['yielded-token-bytes-changed', 'current-next-token-bytes-changed'], $result['tokenFingerprintReasons']);
     $t->same(['source-name', 'schema-cookie', 'bytes-changed', 'yielded-token-bytes-changed', 'current-next-token-bytes-changed'], $result['replayInvalidationReasons']);
@@ -242,7 +242,7 @@ $tests['utf16 nocase like rtrim current source next175 malformed row is still is
         'bytesHex' => bin2hex($enc175('plugin_cache_alpha', 3)),
         'encoding' => 'UTF-16BE',
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan($current, $next, 'plugin!_cache%', '!', $token, 'stable', 'stable', 5, 5);
     $t->same([7], $result['nextMalformedRowids']);
     $t->same(['malformed-text'], $result['baseReplayInvalidationReasons']);
     $t->same([], $result['tokenFingerprintReasons']);
@@ -250,7 +250,7 @@ $tests['utf16 nocase like rtrim current source next175 malformed row is still is
 };
 
 $tests['utf16 nocase like rtrim current source next175 rejects bad token'] = static function (TestRunner $t) use ($current175, $next175): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan::wordpressOptionNameTokenFingerprintPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameTokenFingerprintPlan(
         $current175,
         $next175,
         'plugin%',

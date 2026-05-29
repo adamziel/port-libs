@@ -1,7 +1,7 @@
 # UTF-16 NOCASE LIKE RTRIM current-source next194
 
 - Slice: `encoding-utf16-nocase-like-rtrim-current-source-next194`.
-- Behavior: adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext194Plan` for UTF-16 `wp_options` option-name scans using `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` where escaped `%` / `_` characters are literal bytes inside the fixed LIKE prefix.
+- Behavior: adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for UTF-16 `wp_options` option-name scans using `rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?` where escaped `%` / `_` characters are literal bytes inside the fixed LIKE prefix.
 - Focus: `LIKE 'plugin!%%' ESCAPE '!'` range-scans on the literal `plugin%` prefix under ASCII NOCASE, applies the residual after RTRIM, preserves UTF-16LE/BE decoding behavior, and reports current-source invalidation when literal-prefix matched rows change.
 - WordPress smoke: `examples/wordpress-utf16-nocase-like-rtrim-current-source-next194.php`.
 - Non-overlap: avoids accepted dangling ESCAPE next187, peer-window next189, Unicode GLOB ranges, malformed UTF-16 insert guards, JSON/VFS/WAL/B-tree/planner clusters, and status-only evidence.

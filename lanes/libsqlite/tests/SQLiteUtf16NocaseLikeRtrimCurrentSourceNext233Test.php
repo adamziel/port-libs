@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -60,7 +60,7 @@ $plan233 = static fn (
     string $nextSource = 'main.wp_options@233',
     int $currentCookie = 232,
     int $nextCookie = 233,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan(
     $current ?? $current233,
     $next ?? $next233,
     $pattern,
@@ -191,7 +191,7 @@ $tests['utf16 nocase like rtrim current source next233 upper accented precompose
         $row233(1, 'plugin_caf' . $upperPre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf' . "\u{00e9}");
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf' . "\u{00e9}");
 
     $t->same([], $result['currentMatchedRowids']);
     $t->same([], $result['currentCandidateRowids']);
@@ -203,8 +203,8 @@ $tests['utf16 nocase like rtrim current source next233 decomposed accent needs t
         $row233(1, 'plugin_caf' . $comb233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $one = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
-    $two = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf__');
+    $one = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
+    $two = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf__');
 
     $t->same([2], $one['currentMatchedRowids']);
     $t->same([1], $one['currentSingleWildcardFalsePositiveRowids']);
@@ -216,7 +216,7 @@ $tests['utf16 nocase like rtrim current source next233 ascii rtrim does not remo
         $row233(1, 'plugin_caf' . $comb233 . '  ', 'UTF-16LE'),
         $row233(2, 'plugin_cafe  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_');
 
     $t->same('plugin_caf' . $comb233, $result['currentRtrimTexts'][1]);
     $t->same('plugin_cafe', $result['currentRtrimTexts'][2]);
@@ -228,7 +228,7 @@ $tests['utf16 nocase like rtrim current source next233 stable precomposed cursor
         $row233(1, 'plugin_caf' . $pre233, 'UTF-16LE'),
         $row233(2, 'plugin_cafe', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_', '!', 'stable', 'stable', 233, 233);
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows, 'plugin!_caf_', '!', 'stable', 'stable', 233, 233);
 
     $t->same([2, 1], $result['currentMatchedRowids']);
     $t->same(false, $result['cursorInvalidated']);
@@ -237,7 +237,7 @@ $tests['utf16 nocase like rtrim current source next233 stable precomposed cursor
 
 $tests['utf16 nocase like rtrim current source next233 rejects malformed row shape'] = static function (TestRunner $t) use ($enc233): void {
     $rows = [['option_id' => 1, 'option_name_bytes' => $enc233('plugin_cafe', 'UTF-16LE')]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext233Plan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameCanonicalUnicodePlan($rows, $rows));
 };
 
 return $tests;

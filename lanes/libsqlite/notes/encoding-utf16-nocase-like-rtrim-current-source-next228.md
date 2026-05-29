@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext228Plan`, a bounded current-source diagnostic for prepared WordPress `wp_options` scans shaped like:
+Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a bounded current-source diagnostic for prepared WordPress `wp_options` scans shaped like:
 
 ```sql
 rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ?

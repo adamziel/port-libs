@@ -5,8 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext171Plan.php';
-require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext175Plan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNext182Plan.php';
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;

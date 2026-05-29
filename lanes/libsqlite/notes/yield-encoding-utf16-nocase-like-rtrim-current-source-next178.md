@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext178Plan`, a current-source
+Adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan`, a current-source
 replay diagnostic for yielded WordPress `wp_options.option_name` cursors using:
 
 - UTF-8 / UTF-16LE / UTF-16BE option-name bytes.

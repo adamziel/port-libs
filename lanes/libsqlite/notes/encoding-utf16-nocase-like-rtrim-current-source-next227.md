@@ -2,7 +2,7 @@
 
 Status: focused PHP behavior growth for `encoding-utf16-nocase-like-rtrim-current-source-next227`.
 
-This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan` for the current-source boundary where `rtrim(option_name) COLLATE NOCASE LIKE ?` is planned over UTF-16 `wp_options` option-name bytes. It specifically proves that RTRIM trims trailing ASCII space only: UTF-16 NBSP and tab suffixes stay in the residual LIKE text and do not match an equality-style pattern after trimming.
+This slice adds `SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan` for the current-source boundary where `rtrim(option_name) COLLATE NOCASE LIKE ?` is planned over UTF-16 `wp_options` option-name bytes. It specifically proves that RTRIM trims trailing ASCII space only: UTF-16 NBSP and tab suffixes stay in the residual LIKE text and do not match an equality-style pattern after trimming.
 
 WordPress smoke: `wordpress-utf16-nocase-like-rtrim-current-source-next227.php` models a copied plugin cache option scan where a row moves from NBSP-suffixed to ASCII-space-suffixed text across the current/next source boundary, invalidating the old cursor.
 
@@ -11,7 +11,7 @@ Verification:
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Test.php`
   - `1 test files, 66 assertions, 0 failures`
   - `62` focused PASS lines
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext227Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next227.php`
 - `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next227.php --self-test`

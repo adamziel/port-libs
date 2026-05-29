@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -54,7 +54,7 @@ $plan203 = static fn (
     string $nextSource = 'main.wp_options@203',
     int $currentCookie = 202,
     int $nextCookie = 203,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan(
     $current ?? $current203,
     $next ?? $next203,
     $pattern,
@@ -164,7 +164,7 @@ $tests['utf16 nocase like rtrim current source next203 stable source still canno
         $row203(2, 'theme cache  ', 'UTF-16BE'),
         $row203(3, 'plugin-cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan(
         $rows,
         $rows,
         '%cache',
@@ -188,7 +188,7 @@ $tests['utf16 nocase like rtrim current source next203 escaped leading percent i
         $row203(2, 'plugin%cache', 'UTF-16BE'),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan(
         $rows,
         $rows,
         '!%cache',
@@ -202,7 +202,7 @@ $tests['utf16 nocase like rtrim current source next203 accepts underscore wildca
         $row203(2, 'cache', 'UTF-16BE'),
         $row203(3, 'xxcache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan(
         $rows,
         $rows,
         '_cache',
@@ -220,19 +220,19 @@ $tests['utf16 nocase like rtrim current source next203 accepts underscore wildca
 };
 
 $tests['utf16 nocase like rtrim current source next203 rejects missing option id'] = static function (TestRunner $t) use ($next203): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_name_bytes' => 'cache', 'text_encoding' => 1],
     ], $next203));
 };
 
 $tests['utf16 nocase like rtrim current source next203 rejects missing bytes'] = static function (TestRunner $t) use ($next203): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_id' => 1, 'text_encoding' => 1],
     ], $next203));
 };
 
 $tests['utf16 nocase like rtrim current source next203 rejects missing encoding'] = static function (TestRunner $t) use ($next203): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext203Plan::wordpressOptionNameFullScanPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'cache'],
     ], $next203));
 };
