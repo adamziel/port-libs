@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record253 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -41,7 +41,7 @@ $page253 = static fn (
     int $limit = 360,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page253(
     $currentRecords253,
     $nextRecords ?? $nextRecords253,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_terms_1)',
@@ -65,8 +65,8 @@ $valueAt253 = static function (mixed $value, string $path): mixed {
 
 $default253 = static fn (): array => $page253();
 $blocked253 = static fn (): array => $page253(nextRecords: $blockedNextRecords253);
-$currentRows253 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::generatedChildActionRows($currentRecords253);
-$nextRows253 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::generatedChildActionRows($nextRecords253, 'next');
+$currentRows253 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::generatedChildActionRows253($currentRecords253);
+$nextRows253 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::generatedChildActionRows253($nextRecords253, 'next');
 $currentPageRows253 = static fn (): array => array_values(array_filter(
     $page253()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_generated_child_action'
@@ -149,7 +149,7 @@ $tests['pragma index xinfo foreignkey generated child action current source next
         $record253('table', 'child', 'child', 4, 'CREATE TABLE child(slug TEXT NOT NULL REFERENCES parent(slug) ON DELETE SET NULL)', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::generatedChildActionRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::generatedChildActionRows253($records));
 };
 
 $tests['pragma index xinfo foreignkey generated child action current source next253 ignores generated child without set action'] = static function (TestRunner $t) use ($record253): void {
@@ -159,7 +159,7 @@ $tests['pragma index xinfo foreignkey generated child action current source next
         $record253('table', 'child', 'child', 4, 'CREATE TABLE child(raw_slug TEXT, slug_ref TEXT AS (lower(raw_slug)) STORED REFERENCES parent(slug) ON DELETE CASCADE)', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::generatedChildActionRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::generatedChildActionRows253($records));
 };
 
 $tests['pragma index xinfo foreignkey generated child action current source next253 rejects stale cursor'] = static function (TestRunner $t) use ($page253, $blockedNextRecords253): void {
@@ -177,7 +177,7 @@ $tests['pragma index xinfo foreignkey generated child action current source next
 };
 
 $tests['pragma index xinfo foreignkey generated child action current source next253 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::generatedChildActionRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::generatedChildActionRows253([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey generated child action current source next253 rejects invalid bounds'] = static function (TestRunner $t) use ($page253): void {

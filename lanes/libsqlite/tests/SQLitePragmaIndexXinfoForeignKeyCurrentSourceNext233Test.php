@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record233 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -59,7 +59,7 @@ $page233 = static fn (
     int $limit = 140,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page233(
     $currentRecords233,
     $nextRecords ?? $nextRecords233,
     'PRAGMA main.index_xinfo(wp_postmeta_expr_post)',
@@ -83,9 +83,9 @@ $valueAt233 = static function (mixed $value, string $path): mixed {
 
 $default233 = static fn (): array => $page233();
 $blocked233 = static fn (): array => $page233(nextRecords: $blockedNextRecords233);
-$currentExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($currentRecords233);
-$nextExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($nextRecords233, 'next');
-$blockedExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($blockedNextRecords233, 'next');
+$currentExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($currentRecords233);
+$nextExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($nextRecords233, 'next');
+$blockedExpression233 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($blockedNextRecords233, 'next');
 
 $cases233 = [
     'status ok' => [$default233, 'status', 'ok'],
@@ -157,11 +157,11 @@ $tests['pragma index xinfo foreignkey child expression prefix current source nex
 };
 
 $tests['pragma index xinfo foreignkey child expression prefix current source next233 ignores partial expression indexes'] = static function (TestRunner $t) use ($partialOnlyRecords233): void {
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($partialOnlyRecords233));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($partialOnlyRecords233));
 };
 
 $tests['pragma index xinfo foreignkey child expression prefix current source next233 ignores plain leading columns'] = static function (TestRunner $t) use ($currentRecords233): void {
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($currentRecords233);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($currentRecords233);
 
     $t->same(['wp_postmeta_expr_post', 'wp_postmeta_expr_blog_name', 'wp_postmeta_expr_blog_name'], array_column($rows, 'expression_prefix_index'));
 };
@@ -174,7 +174,7 @@ $tests['pragma index xinfo foreignkey child expression prefix current source nex
         $record233('index', 'child_expr_ab', 'child', 5, 'CREATE INDEX child_expr_ab ON child(lower(meta_key), coalesce(status, ""), a, b)', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233($records);
     $t->same(2, count($rows));
     $t->same(['lower(meta_key)', 'coalesce(status, "")'], $rows[0]['expression_terms']);
     $t->same(2, $rows[0]['expression_term_count']);
@@ -194,7 +194,7 @@ $tests['pragma index xinfo foreignkey child expression prefix current source nex
 };
 
 $tests['pragma index xinfo foreignkey child expression prefix current source next233 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233::childExpressionPrefixRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childExpressionPrefixRows233([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child expression prefix current source next233 rejects invalid bounds'] = static function (TestRunner $t) use ($page233): void {

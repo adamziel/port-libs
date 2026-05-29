@@ -14,10 +14,10 @@ and sort diagnostics.
 
 ## Evidence
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next206.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 67 assertions, 0 failures`
   - `59` focused `PASS` lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next206.php --self-test`

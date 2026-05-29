@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next177
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177`, an additive
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, an additive
 current-source PRAGMA helper over the accepted `index_xinfo` plus
 catalog-derived foreign-key path.
 
@@ -23,7 +23,7 @@ clause origins when schema DDL changes between current and next sources.
 Verification:
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 81 assertions, 0 failures

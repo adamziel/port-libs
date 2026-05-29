@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext171;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record171 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -65,7 +65,7 @@ $page171 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(WpOptionNamesLookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext171::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog171(
     $currentRecords171,
     $currentTables171,
     $nextRecords ?? $nextRecords171,
@@ -92,7 +92,7 @@ $valueAt171 = static function (mixed $value, string $path): mixed {
 $default171 = static fn (): array => $page171();
 $blocked171 = static fn (): array => $page171(nextTables: $currentTables171);
 $sameSchema171 = static fn (): array => $page171(nextRecords: $currentRecords171);
-$foreignKeys171 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext171::foreignKeysFromCatalog($currentRecords171);
+$foreignKeys171 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog171($currentRecords171);
 $tableValued171 = static fn (): array => $page171(indexSql: "pragma_index_xinfo('WpOptionNamesLookup')", tableValued: true);
 
 $cases171 = [
@@ -204,7 +204,7 @@ $tests['pragma index xinfo foreignkey current source next171 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next171 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext171::foreignKeysFromCatalog([['not' => 'a record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog171([['not' => 'a record']]));
 };
 
 return $tests;

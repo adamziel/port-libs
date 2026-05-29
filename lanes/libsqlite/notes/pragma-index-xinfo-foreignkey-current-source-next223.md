@@ -8,7 +8,7 @@ them as alternate FK enforcement.
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223` composes the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` composes the accepted
   next218 `index_xinfo` / `foreign_key_list` current-source page.
 - Adds deterministic `foreign_key_match_clause` rows grouped by FK id and
   sequence, marking `NONE` and `SIMPLE` as default semantics and other match
@@ -20,10 +20,10 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next223.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next223.php`
 - `git diff --check -- lanes/libsqlite`
 

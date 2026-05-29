@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -21,7 +21,7 @@ $next = [
     $record('table', 'wp_import_meta', 'wp_import_meta', 4, 'CREATE TABLE wp_import_meta(meta_id INTEGER PRIMARY KEY, parent_row INTEGER NOT NULL, FOREIGN KEY(parent_row) REFERENCES wp_import_parent(term_id))', 3),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page242(
     $current,
     $next,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_import_parent_1)',

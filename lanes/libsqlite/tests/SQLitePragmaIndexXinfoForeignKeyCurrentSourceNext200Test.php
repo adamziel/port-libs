@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record200 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -54,7 +54,7 @@ $page200 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_locale_slug_fk_wrong)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog200(
     $currentRecords200,
     $currentTables200,
     $nextRecords ?? $nextRecords200,
@@ -76,8 +76,8 @@ $valueAt200 = static function (mixed $value, string $path): mixed {
 
 $default200 = static fn (): array => $page200();
 $blocked200 = static fn (): array => $page200(nextRecords: $currentRecords200, nextTables: $currentTables200);
-$wrongOrderRows200 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200::wrongOrderChildIndexRows($currentRecords200);
-$nextWrongOrderRows200 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200::wrongOrderChildIndexRows($nextRecords200, 'next');
+$wrongOrderRows200 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::wrongOrderChildIndexRows200($currentRecords200);
+$nextWrongOrderRows200 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::wrongOrderChildIndexRows200($nextRecords200, 'next');
 $tableValued200 = static fn (): array => $page200(indexSql: "pragma_index_xinfo('wp_options_locale_slug_fk_wrong')", tableValued: true);
 
 $cases200 = [
@@ -188,7 +188,7 @@ $tests['pragma index xinfo foreignkey wrong order child current source next200 r
 };
 
 $tests['pragma index xinfo foreignkey wrong order child current source next200 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200::wrongOrderChildIndexRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::wrongOrderChildIndexRows200([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey wrong order child current source next200 rejects negative offset'] = static function (TestRunner $t) use ($page200): void {

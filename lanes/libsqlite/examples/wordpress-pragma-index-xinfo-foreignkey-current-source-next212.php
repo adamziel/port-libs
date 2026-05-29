@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -38,7 +38,7 @@ $nextRecords = [
     $record('index', 'wp_postmeta_option_action', 'wp_postmeta_import', 9, 'CREATE INDEX wp_postmeta_option_action ON wp_postmeta_import(blog_id, option_name)', 8),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page212(
     $currentRecords,
     $nextRecords,
     'PRAGMA main.index_xinfo(wp_postmeta_option_partial)',

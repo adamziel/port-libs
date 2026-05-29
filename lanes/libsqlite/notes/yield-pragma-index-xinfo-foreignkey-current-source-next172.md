@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext172`, a current/next
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next
   yield helper for `PRAGMA index_xinfo` combined with target-scoped
   `PRAGMA foreign_key_check(table)`.
 - The source cursor now includes normalized `foreign_key_check` SQL and the
@@ -13,7 +13,7 @@
 
 ## Evidence
 
-- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext172Test.php`
+- Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next172.php --self-test`
 - PHP lint and `git diff --check -- lanes/libsqlite` were run before handoff.
 

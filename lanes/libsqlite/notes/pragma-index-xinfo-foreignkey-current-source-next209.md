@@ -19,10 +19,10 @@ Focused behavior:
 
 Verification evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next209.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next209.php`
 - `git diff --check -- lanes/libsqlite`
 

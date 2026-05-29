@@ -7,11 +7,9 @@ require_once __DIR__ . '/../src/SQLiteCreateTable.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLitePragmaSchemaCatalog.php';
 require_once __DIR__ . '/../src/SQLitePragmaForeignKeyCheck.php';
-foreach ([156, 157, 159, 161, 163, 164, 165, 167, 169, 171, 173, 175, 177, 178, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 200, 202, 203, 205, 206, 207, 208, 209, 211, 212, 217, 219, 220, 223, 224, 227, 228, 229, 230, 231, 233, 236, 239, 242, 245, 248, 251, 254] as $slice) {
-    require_once __DIR__ . "/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext{$slice}.php";
-}
+require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext254;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -28,7 +26,7 @@ $next = [
     $current[2],
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext254::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page254(
     $current,
     $next,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_terms_stage_1)',

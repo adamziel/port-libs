@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240`, a lane-local catalog page that identifies `PRAGMA foreign_key_list` rows whose raw schema used shorthand `REFERENCES parent` with omitted parent columns. The helper joins that raw SQL signal back to the already resolved foreign-key rows and parent `table_info` primary-key metadata so schema comparisons can distinguish:
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a lane-local catalog page that identifies `PRAGMA foreign_key_list` rows whose raw schema used shorthand `REFERENCES parent` with omitted parent columns. The helper joins that raw SQL signal back to the already resolved foreign-key rows and parent `table_info` primary-key metadata so schema comparisons can distinguish:
 
 - shorthand single-column parent primary-key mappings;
 - shorthand composite parent primary-key mappings;
@@ -11,13 +11,13 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240`, a lane-local catalo
 
 ## Verification
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 56 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next240.php`
   - self-test passed
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
   - no syntax errors
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240Test.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - no syntax errors
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next240.php`
   - no syntax errors
@@ -28,4 +28,4 @@ This avoids accepted/current PRAGMA surfaces for exact parent UNIQUE arity and p
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses existing `SQLiteSchemaRecord`, `SQLitePragmaSchemaCatalog`, and `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175` parsing. Existing base parsing still rejects unresolvable parent tables with no primary key before next240 can page them; this handoff covers the resolvable SQLite shorthand-primary-key behavior.
+No new support component is needed. The slice reuses existing `SQLiteSchemaRecord`, `SQLitePragmaSchemaCatalog`, and `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` parsing. Existing base parsing still rejects unresolvable parent tables with no primary key before next240 can page them; this handoff covers the resolvable SQLite shorthand-primary-key behavior.

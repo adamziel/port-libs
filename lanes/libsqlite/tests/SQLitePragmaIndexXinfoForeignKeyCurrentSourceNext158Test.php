@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -122,7 +122,7 @@ $page158 = static fn (
     ?array $nextSchemas = null,
     ?SQLiteAttachedSchemaCatalog $nextCatalog = null,
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158::currentNextPage(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage158(
     $currentCatalog ?? $catalog158(),
     $currentDatabase ?? $dirtyDatabase158,
     $currentSchemas ?? $schemas158(),
@@ -267,7 +267,7 @@ $tests['pragma index xinfo foreignkey current source next158 reports missing ind
 };
 
 $tests['pragma index xinfo foreignkey current source next158 rejects negative offset'] = static function (TestRunner $t) use ($catalog158, $dirtyDatabase158, $cleanDatabase158, $schemas158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158::currentNextPage(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage158(
         $catalog158(),
         $dirtyDatabase158,
         $schemas158(),
@@ -281,7 +281,7 @@ $tests['pragma index xinfo foreignkey current source next158 rejects negative of
 };
 
 $tests['pragma index xinfo foreignkey current source next158 rejects zero limit'] = static function (TestRunner $t) use ($catalog158, $dirtyDatabase158, $cleanDatabase158, $schemas158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158::currentNextPage(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage158(
         $catalog158(),
         $dirtyDatabase158,
         $schemas158(),

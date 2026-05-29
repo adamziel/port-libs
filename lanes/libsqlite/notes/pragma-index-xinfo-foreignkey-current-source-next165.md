@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165`, a current/next PRAGMA helper that keeps `PRAGMA foreign_key_list` action metadata attached to combined `index_xinfo`, parent-index admission, and `foreign_key_check` rows.
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next PRAGMA helper that keeps `PRAGMA foreign_key_list` action metadata attached to combined `index_xinfo`, parent-index admission, and `foreign_key_check` rows.
 
 - Preserves `on_update`, `on_delete`, and `match` values from catalog-derived `pragma_foreign_key_list` rows.
 - Adds per-row `action_summary` for FK parent-index admission and violation rows.
@@ -12,7 +12,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165`, a current/next PRAG
 ## Evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 71 PASS lines
 1 test files, 78 assertions, 0 failures
@@ -31,4 +31,4 @@ It also avoids accepted quickcheck/rootpage, PRAGMA optimize/index_xinfo analysi
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog::foreignKeyList`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161`, and the accepted next156 FK/index current-source cursor.
+No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog::foreignKeyList`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, and the accepted next156 FK/index current-source cursor.

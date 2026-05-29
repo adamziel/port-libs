@@ -9,15 +9,15 @@ from expression, partial, non-unique, or missing parent-key cases.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 61 assertions, 0 failures`
   - 48 focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next235 self-test passed`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next235.php`
 - `git diff --check -- lanes/libsqlite`

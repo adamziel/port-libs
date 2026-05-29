@@ -4,7 +4,7 @@ Status: focused PRAGMA/FK behavior growth for current-source next189.
 
 Behavior:
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189`.
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`.
 - Extends the accepted PRAGMA `index_xinfo` plus foreign-key current/next chain with parent UNIQUE-index rejection rows for two SQLite parent-key blockers:
   - partial UNIQUE indexes surfaced by `PRAGMA index_list(...).partial = 1`;
   - expression UNIQUE indexes surfaced by `PRAGMA index_xinfo(...)` key rows with expression columns.
@@ -14,7 +14,7 @@ Behavior:
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 55 PASS lines
 1 test files, 61 assertions, 0 failures

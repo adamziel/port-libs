@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -102,7 +102,7 @@ $schemas = static function (int $missing): array {
     ];
 };
 
-$result = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157::currentNextPage(
+$result = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage157(
     $catalog,
     $currentDatabase,
     $schemas(3),

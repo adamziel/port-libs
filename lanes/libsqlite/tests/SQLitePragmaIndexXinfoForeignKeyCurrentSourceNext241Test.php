@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record241 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -40,7 +40,7 @@ $page241 = static fn (
     int $limit = 220,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page241(
     $currentRecords241,
     $nextRecords ?? $nextRecords241,
     'PRAGMA main.index_xinfo(wp_posts_guid_unique)',
@@ -63,8 +63,8 @@ $valueAt241 = static function (mixed $value, string $path): mixed {
 };
 
 $default241 = static fn (): array => $page241();
-$currentImplicit241 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows($currentRecords241);
-$nextImplicit241 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows($nextRecords241, 'next');
+$currentImplicit241 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241($currentRecords241);
+$nextImplicit241 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241($nextRecords241, 'next');
 
 $cases241 = [
     'status ok' => [$default241, 'status', 'ok'],
@@ -149,7 +149,7 @@ $tests['pragma index xinfo foreignkey implicit parent reference current source n
         $record241('table', 'child', 'child', 3, 'CREATE TABLE child(code TEXT REFERENCES parent)', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241($records);
     $t->same(1, count($rows));
     $t->same('missing_implicit_parent_primary_key', $rows[0]['status']);
     $t->same(null, $rows[0]['resolved_to']);
@@ -162,7 +162,7 @@ $tests['pragma index xinfo foreignkey implicit parent reference current source n
         $record241('table', 'child', 'child', 3, 'CREATE TABLE child(x INTEGER, y INTEGER, FOREIGN KEY(x, y) REFERENCES parent)', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241($records);
     $t->same(2, count($rows));
     $t->same('b', $rows[0]['resolved_to']);
     $t->same('a', $rows[1]['resolved_to']);
@@ -175,7 +175,7 @@ $tests['pragma index xinfo foreignkey implicit parent reference current source n
         $record241('table', 'child', 'child', 3, 'CREATE TABLE child(code TEXT REFERENCES parent(code))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241($records);
     $t->same(1, count($rows));
     $t->same('explicit_parent_column', $rows[0]['status']);
     $t->same(false, $rows[0]['implicit_parent_reference']);
@@ -195,7 +195,7 @@ $tests['pragma index xinfo foreignkey implicit parent reference current source n
 };
 
 $tests['pragma index xinfo foreignkey implicit parent reference current source next241 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241::implicitParentReferenceRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentReferenceRows241([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey implicit parent reference current source next241 rejects invalid bounds'] = static function (TestRunner $t) use ($page241): void {

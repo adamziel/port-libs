@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188`, a current/next
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next
 diagnostic layer for `PRAGMA index_xinfo` plus foreign-key catalog checks. The
 slice identifies FK parent keys whose column list is backed only by a partial
 UNIQUE index. SQLite does not admit partial UNIQUE indexes as parent-key
@@ -15,7 +15,7 @@ next schema adds a full UNIQUE index and clears the partial-parent blocker.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 62 assertions, 0 failures`
   - 54 focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next188.php --self-test`

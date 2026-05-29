@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242`, a current-source
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current-source
 PRAGMA/FK diagnostic for explicit parent rowid aliases. SQLite exposes rowid
 table payload entries through `PRAGMA index_xinfo` with `key = 0` and `cid =
 -1`, but those auxiliary rows are not named parent-key columns. A foreign key
@@ -17,15 +17,15 @@ primary key clears the blockers.
 
 ## Focused Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `47 PASS lines`
   - `1 test files, 60 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next242.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next242 self-test passed`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next242.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next242.php`
 - `git diff --check -- lanes/libsqlite`

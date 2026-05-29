@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record228 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -43,7 +43,7 @@ $page228 = static fn (
     int $limit = 120,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page228(
     $currentRecords228,
     $nextRecords ?? $nextRecords228,
     'PRAGMA main.index_xinfo(wp_posts_parent_site_name_desc_unique)',
@@ -67,8 +67,8 @@ $valueAt228 = static function (mixed $value, string $path): mixed {
 
 $default228 = static fn (): array => $page228();
 $blocked228 = static fn (): array => $page228(nextRecords: $missingNextRecords228);
-$currentSort228 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::parentKeySortOrderRows($currentRecords228);
-$nextSort228 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::parentKeySortOrderRows($nextRecords228, 'next');
+$currentSort228 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortOrderRows228($currentRecords228);
+$nextSort228 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortOrderRows228($nextRecords228, 'next');
 
 $cases228 = [
     'status ok' => [$default228, 'status', 'ok'],
@@ -155,7 +155,7 @@ $tests['pragma index xinfo foreignkey parent sort order current source next228 r
         $record228('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::parentKeySortOrderRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortOrderRows228($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['parent_unique_index']);
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey parent sort order current source next228 a
         $record228('table', 'child', 'child', 4, 'CREATE TABLE child(site_id INTEGER, slug TEXT, FOREIGN KEY(site_id, slug) REFERENCES parent(site_id, slug))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::parentKeySortOrderRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortOrderRows228($records);
     $t->same(2, count($rows));
     $t->same(false, $rows[0]['index_column_desc']);
     $t->same(true, $rows[1]['index_column_desc']);
@@ -190,7 +190,7 @@ $tests['pragma index xinfo foreignkey parent sort order current source next228 r
 };
 
 $tests['pragma index xinfo foreignkey parent sort order current source next228 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228::parentKeySortOrderRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortOrderRows228([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent sort order current source next228 rejects invalid bounds'] = static function (TestRunner $t) use ($page228): void {

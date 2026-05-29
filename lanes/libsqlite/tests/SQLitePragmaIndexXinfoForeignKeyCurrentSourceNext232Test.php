@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record232 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -46,7 +46,7 @@ $page232 = static fn (
     int $limit = 140,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page232(
     $currentRecords232,
     $nextRecords ?? $nextRecords232,
     'PRAGMA main.index_xinfo(wp_termmeta_import_post_reversed)',
@@ -70,8 +70,8 @@ $valueAt232 = static function (mixed $value, string $path): mixed {
 
 $default232 = static fn (): array => $page232();
 $blocked232 = static fn (): array => $page232(nextRecords: $missingNextRecords232);
-$currentPrefix232 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::childActionPrefixRows($currentRecords232);
-$nextPrefix232 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::childActionPrefixRows($nextRecords232, 'next');
+$currentPrefix232 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionPrefixRows232($currentRecords232);
+$nextPrefix232 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionPrefixRows232($nextRecords232, 'next');
 
 $cases232 = [
     'status ok' => [$default232, 'status', 'ok'],
@@ -158,7 +158,7 @@ $tests['pragma index xinfo foreignkey child action prefix current source next232
         $record232('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(id) ON DELETE CASCADE)', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::childActionPrefixRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionPrefixRows232($records);
     $t->same(1, count($rows));
     $t->same('missing_child_action_index', $rows[0]['status']);
     $t->same(null, $rows[0]['misordered_child_index']);
@@ -172,7 +172,7 @@ $tests['pragma index xinfo foreignkey child action prefix current source next232
         $record232('index', 'child_ba_partial', 'child', 5, 'CREATE INDEX child_ba_partial ON child(b,a) WHERE active = 1', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::childActionPrefixRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionPrefixRows232($records);
     $t->same(2, count($rows));
     $t->same('missing_child_action_index', $rows[0]['status']);
     $t->same(null, $rows[0]['misordered_child_index']);
@@ -191,7 +191,7 @@ $tests['pragma index xinfo foreignkey child action prefix current source next232
 };
 
 $tests['pragma index xinfo foreignkey child action prefix current source next232 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232::childActionPrefixRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionPrefixRows232([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child action prefix current source next232 rejects invalid bounds'] = static function (TestRunner $t) use ($page232): void {

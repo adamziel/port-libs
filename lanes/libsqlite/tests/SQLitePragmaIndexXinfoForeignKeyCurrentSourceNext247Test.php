@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record247 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -63,7 +63,7 @@ $page247 = static fn (
     int $limit = 260,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page247(
     $currentRecords247,
     $nextRecords ?? $nextRecords247,
     'PRAGMA main.index_xinfo(wp_option_defaults_name_unique)',
@@ -87,8 +87,8 @@ $valueAt247 = static function (mixed $value, string $path): mixed {
 
 $default247 = static fn (): array => $page247();
 $blocked247 = static fn (): array => $page247(nextRecords: $stillBlockedRecords247);
-$currentSetDefault247 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows($currentRecords247);
-$nextSetDefault247 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows($nextRecords247, 'next');
+$currentSetDefault247 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247($currentRecords247);
+$nextSetDefault247 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247($nextRecords247, 'next');
 
 $cases247 = [
     'status ok' => [$default247, 'status', 'ok'],
@@ -181,7 +181,7 @@ $tests['pragma index xinfo foreignkey set default current source next247 reports
         $record247('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER NOT NULL DEFAULT NULL REFERENCES parent(id) ON DELETE SET DEFAULT)', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247($records);
     $t->same(1, count($rows));
     $t->same('notnull_default_null', $rows[0]['status']);
     $t->same('NULL', $rows[0]['default']);
@@ -195,7 +195,7 @@ $tests['pragma index xinfo foreignkey set default current source next247 allows 
         $record247('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent(id) ON UPDATE SET DEFAULT)', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247($records);
     $t->same(1, count($rows));
     $t->same('ok', $rows[0]['status']);
     $t->same('', $rows[0]['default']);
@@ -209,7 +209,7 @@ $tests['pragma index xinfo foreignkey set default current source next247 ignores
         $record247('table', 'child', 'child', 3, 'CREATE TABLE child(a INTEGER REFERENCES parent(id) ON DELETE CASCADE, b INTEGER REFERENCES parent(id))', 2),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247($records));
 };
 
 $tests['pragma index xinfo foreignkey set default current source next247 rejects stale cursor'] = static function (TestRunner $t) use ($page247, $stillBlockedRecords247): void {
@@ -227,7 +227,7 @@ $tests['pragma index xinfo foreignkey set default current source next247 rejects
 };
 
 $tests['pragma index xinfo foreignkey set default current source next247 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext247::setDefaultActionRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultActionRows247([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey set default current source next247 rejects invalid bounds'] = static function (TestRunner $t) use ($page247): void {

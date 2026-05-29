@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234` for the upstream SQLite parent-key rule that a UNIQUE expression index does not satisfy `REFERENCES parent(column)` parent-key uniqueness.
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` for the upstream SQLite parent-key rule that a UNIQUE expression index does not satisfy `REFERENCES parent(column)` parent-key uniqueness.
 - Uses `PRAGMA index_xinfo` expression metadata (`cid=-2`, `name=NULL`) alongside `PRAGMA foreign_key_list` parent columns to distinguish:
   - valid column UNIQUE parent keys,
   - expression-backed UNIQUE indexes that must stay blockers,
@@ -16,7 +16,7 @@
 
 ## Verification
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 78 assertions, 0 failures`
   - `62` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next234.php`

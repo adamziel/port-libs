@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record226 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -34,7 +34,7 @@ $page226 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page226(
     $currentRecords226,
     $nextRecords ?? $nextRecords226,
     'PRAGMA main.index_xinfo(wp_term_relationships_stage_fk)',
@@ -58,8 +58,8 @@ $valueAt226 = static function (mixed $value, string $path): mixed {
 
 $default226 = static fn (): array => $page226();
 $unrepaired226 = static fn (): array => $page226(nextRecords: $unrepairedRecords226);
-$currentMissing226 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::missingParentTableRows($currentRecords226);
-$nextMissing226 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::missingParentTableRows($nextRecords226, 'next');
+$currentMissing226 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::missingParentTableRows226($currentRecords226);
+$nextMissing226 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::missingParentTableRows226($nextRecords226, 'next');
 
 $cases226 = [
     'status ok' => [$default226, 'status', 'ok'],
@@ -130,7 +130,7 @@ $tests['pragma index xinfo foreignkey missing parent table current source next22
         $record226('table', 'child', 'child', 2, 'CREATE TABLE child(parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES missing_parent(id))', 1),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::missingParentTableRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::missingParentTableRows226($records);
     $t->same(1, count($rows));
     $t->same('id', $rows[0]['to']);
     $t->same('parent_id', $rows[0]['from']);
@@ -143,7 +143,7 @@ $tests['pragma index xinfo foreignkey missing parent table current source next22
         $record226('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES wp_parents(id))', 2),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::missingParentTableRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::missingParentTableRows226($records));
 };
 
 $tests['pragma index xinfo foreignkey missing parent table current source next226 rejects stale cursor'] = static function (TestRunner $t) use ($page226, $unrepairedRecords226): void {
@@ -159,7 +159,7 @@ $tests['pragma index xinfo foreignkey missing parent table current source next22
 };
 
 $tests['pragma index xinfo foreignkey missing parent table current source next226 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::missingParentTableRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::missingParentTableRows226([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey missing parent table current source next226 rejects invalid bounds'] = static function (TestRunner $t) use ($page226): void {

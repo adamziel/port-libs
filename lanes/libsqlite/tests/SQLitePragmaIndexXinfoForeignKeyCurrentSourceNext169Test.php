@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record169 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -57,7 +57,7 @@ $page169 = static fn (
     ?array $records = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog169(
     $records ?? $currentRecords169,
     $currentTables169,
     $records ?? $nextRecords169,
@@ -83,7 +83,7 @@ $valueAt169 = static function (mixed $value, string $path): mixed {
 
 $default169 = static fn (): array => $page169();
 $blocked169 = static fn (): array => $page169(nextTables: $currentTables169);
-$deferrals169 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169::deferralMap($currentRecords169);
+$deferrals169 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::deferralMap169($currentRecords169);
 
 $cases169 = [
     'status ok after deferrable repair' => [$default169, 'status', 'ok'],
@@ -178,14 +178,14 @@ $tests['pragma index xinfo foreignkey deferral current source next169 parses unq
         $record169('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent DEFERRABLE)', 2),
     ];
 
-    $map = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169::deferralMap($records);
+    $map = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::deferralMap169($records);
 
     $t->same(true, $map['child#0']['deferrable']);
     $t->same(false, $map['child#0']['initially_deferred']);
 };
 
 $tests['pragma index xinfo foreignkey deferral current source next169 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169::deferralMap([['not' => 'a record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::deferralMap169([['not' => 'a record']]));
 };
 
 return $tests;

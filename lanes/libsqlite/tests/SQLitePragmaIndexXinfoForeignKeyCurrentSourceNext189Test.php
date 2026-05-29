@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record189 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -38,7 +38,7 @@ $page189 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_terms_slug_unique)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog189(
     $currentRecords189,
     $currentTables189,
     $nextRecords ?? $nextRecords189,
@@ -64,8 +64,8 @@ $valueAt189 = static function (mixed $value, string $path): mixed {
 
 $default189 = static fn (): array => $page189();
 $blocked189 = static fn (): array => $page189(nextRecords: $currentRecords189);
-$rejected189 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189::rejectedParentUniqueIndexRows($currentRecords189);
-$nextRejected189 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189::rejectedParentUniqueIndexRows($nextRecords189, 'next');
+$rejected189 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentUniqueIndexRows189($currentRecords189);
+$nextRejected189 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentUniqueIndexRows189($nextRecords189, 'next');
 $tableValued189 = static fn (): array => $page189(indexSql: "pragma_index_xinfo('wp_terms_slug_unique')", tableValued: true);
 
 $cases189 = [
@@ -163,7 +163,7 @@ $tests['pragma index xinfo foreignkey rejected parent unique current source next
 };
 
 $tests['pragma index xinfo foreignkey rejected parent unique current source next189 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189::rejectedParentUniqueIndexRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentUniqueIndexRows189([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey rejected parent unique current source next189 rejects negative offset'] = static function (TestRunner $t) use ($page189): void {

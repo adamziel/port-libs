@@ -7,62 +7,9 @@ require_once __DIR__ . '/../src/SQLiteCreateTable.php';
 require_once __DIR__ . '/../src/SQLiteIndexColumn.php';
 require_once __DIR__ . '/../src/SQLitePragmaSchemaCatalog.php';
 require_once __DIR__ . '/../src/SQLitePragmaForeignKeyCheck.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext156.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext169.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext171.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext178.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext181.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext182.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext183.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext186.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext189.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext190.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext194.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext208.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext217.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext220.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext228.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext233.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext239.php';
-require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242.php';
+require_once __DIR__ . '/../src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record242 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -99,7 +46,7 @@ $page242 = static fn (
     int $limit = 220,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page242(
     $currentRecords242,
     $nextRecords ?? $nextRecords242,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_import_parent_1)',
@@ -123,9 +70,9 @@ $valueAt242 = static function (mixed $value, string $path): mixed {
 
 $default242 = static fn (): array => $page242();
 $blocked242 = static fn (): array => $page242(nextRecords: $blockedNextRecords242);
-$currentRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows($currentRecords242);
-$nextRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows($nextRecords242, 'next');
-$shadowRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows($shadowRecords242);
+$currentRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242($currentRecords242);
+$nextRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242($nextRecords242, 'next');
+$shadowRowid242 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242($shadowRecords242);
 $currentPageRowid242 = static fn (): array => array_values(array_filter(
     $page242()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_parent_rowid_alias'
@@ -206,7 +153,7 @@ $tests['pragma index xinfo foreignkey rowid parent alias current source next242 
         $record242('table', 'child', 'child', 3, 'CREATE TABLE child(parent_row INTEGER REFERENCES parent(rowid))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242($records);
     $t->same(1, count($rows));
     $t->same('rowid_alias_parent_key', $rows[0]['status']);
     $t->same(null, $rows[0]['rowid_auxiliary_index']);
@@ -220,7 +167,7 @@ $tests['pragma index xinfo foreignkey rowid parent alias current source next242 
         $record242('table', 'child', 'child', 4, 'CREATE TABLE child(parent_oid INTEGER, FOREIGN KEY(parent_oid) REFERENCES parent("oid"))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242($records);
     $t->same(1, count($rows));
     $t->same('ok_declared_parent_column', $rows[0]['status']);
     $t->same(true, $rows[0]['parent_declares_column']);
@@ -241,7 +188,7 @@ $tests['pragma index xinfo foreignkey rowid parent alias current source next242 
 };
 
 $tests['pragma index xinfo foreignkey rowid parent alias current source next242 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext242::rowidParentKeyRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidParentKeyRows242([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey rowid parent alias current source next242 rejects invalid bounds'] = static function (TestRunner $t) use ($page242): void {

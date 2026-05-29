@@ -13,7 +13,7 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -34,7 +34,7 @@ $next = [
     $record('index', 'wp_termmeta_site_lookup', 'wp_termmeta_import', 7, 'CREATE INDEX wp_termmeta_site_lookup ON wp_termmeta_import(site_id)', 6),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page205(
     $current,
     $next,
     'PRAGMA main.index_xinfo(wp_termmeta_lookup_bad)',

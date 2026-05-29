@@ -14,7 +14,7 @@ the mismatch clearing before an import/resume gate proceeds.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next205.php --self-test`
 
 Dependency closure: no new support component is needed; this reuses

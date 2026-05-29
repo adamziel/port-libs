@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record229 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -42,7 +42,7 @@ $page229 = static fn (
     int $limit = 120,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page229(
     $currentRecords229,
     $nextRecords ?? $nextRecords229,
     'PRAGMA main.index_xinfo(wp_terms_slug_taxonomy_unique)',
@@ -66,8 +66,8 @@ $valueAt229 = static function (mixed $value, string $path): mixed {
 
 $default229 = static fn (): array => $page229();
 $blocked229 = static fn (): array => $page229(nextRecords: $missingNextRecords229);
-$currentArity229 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::parentKeyExactArityRows($currentRecords229);
-$nextArity229 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::parentKeyExactArityRows($nextRecords229, 'next');
+$currentArity229 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyExactArityRows229($currentRecords229);
+$nextArity229 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyExactArityRows229($nextRecords229, 'next');
 
 $cases229 = [
     'status ok' => [$default229, 'status', 'ok'],
@@ -157,7 +157,7 @@ $tests['pragma index xinfo foreignkey exact parent arity current source next229 
         $record229('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::parentKeyExactArityRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyExactArityRows229($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(0, $rows[0]['index_key_count']);
@@ -170,7 +170,7 @@ $tests['pragma index xinfo foreignkey exact parent arity current source next229 
         $record229('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::parentKeyExactArityRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyExactArityRows229($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['parent_unique_index']);
@@ -189,7 +189,7 @@ $tests['pragma index xinfo foreignkey exact parent arity current source next229 
 };
 
 $tests['pragma index xinfo foreignkey exact parent arity current source next229 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext229::parentKeyExactArityRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyExactArityRows229([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey exact parent arity current source next229 rejects invalid bounds'] = static function (TestRunner $t) use ($page229): void {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record191 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -54,7 +54,7 @@ $page191 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog191(
     $currentRecords191,
     $currentTables191,
     $nextRecords ?? $nextRecords191,
@@ -80,8 +80,8 @@ $valueAt191 = static function (mixed $value, string $path): mixed {
 
 $default191 = static fn (): array => $page191();
 $blocked191 = static fn (): array => $page191(nextRecords: $currentRecords191);
-$supersetRows191 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::supersetParentKeyRows($currentRecords191);
-$nextSupersetRows191 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::supersetParentKeyRows($nextRecords191, 'next');
+$supersetRows191 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::supersetParentKeyRows191($currentRecords191);
+$nextSupersetRows191 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::supersetParentKeyRows191($nextRecords191, 'next');
 $tableValued191 = static fn (): array => $page191(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases191 = [
@@ -162,7 +162,7 @@ $tests['pragma index xinfo foreignkey parent superset current source next191 sou
 $tests['pragma index xinfo foreignkey parent superset current source next191 ignores non prefix unique indexes'] = static function (TestRunner $t) use ($currentRecords191, $record191): void {
     $records = $currentRecords191;
     $records[5] = $record191('index', 'wp_option_names_wrong_order_unique', 'wp_option_names', 9, 'CREATE UNIQUE INDEX wp_option_names_wrong_order_unique ON wp_option_names(blog_id, name, network_id)', 6);
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::supersetParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::supersetParentKeyRows191($records);
 
     $t->same(2, count($rows));
     $t->same('wp_plugin_defaults_option_unique', $rows[0]['index']);
@@ -181,7 +181,7 @@ $tests['pragma index xinfo foreignkey parent superset current source next191 rej
 };
 
 $tests['pragma index xinfo foreignkey parent superset current source next191 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::supersetParentKeyRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::supersetParentKeyRows191([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent superset current source next191 rejects negative offset'] = static function (TestRunner $t) use ($page191): void {

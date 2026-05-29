@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record237 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -42,7 +42,7 @@ $page237 = static fn (
     int $limit = 180,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page237(
     $currentRecords237,
     $nextRecords ?? $nextRecords237,
     'PRAGMA main.index_xinfo(wp_parent_options_blog_name_autoload_unique)',
@@ -66,8 +66,8 @@ $valueAt237 = static function (mixed $value, string $path): mixed {
 
 $default237 = static fn (): array => $page237();
 $blocked237 = static fn (): array => $page237(nextRecords: $missingNextRecords237);
-$currentPrefix237 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows($currentRecords237);
-$nextPrefix237 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows($nextRecords237, 'next');
+$currentPrefix237 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237($currentRecords237);
+$nextPrefix237 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237($nextRecords237, 'next');
 
 $cases237 = [
     'status ok' => [$default237, 'status', 'ok'],
@@ -154,7 +154,7 @@ $tests['pragma index xinfo foreignkey parent prefix unique current source next23
         $record237('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['prefix_unique_index']);
@@ -167,7 +167,7 @@ $tests['pragma index xinfo foreignkey parent prefix unique current source next23
         $record237('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['prefix_unique_index']);
@@ -181,7 +181,7 @@ $tests['pragma index xinfo foreignkey parent prefix unique current source next23
         $record237('table', 'child', 'child', 5, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237($records);
     $t->same(1, count($rows));
     $t->same('ok', $rows[0]['status']);
     $t->same('parent_code_unique', $rows[0]['parent_unique_index']);
@@ -201,7 +201,7 @@ $tests['pragma index xinfo foreignkey parent prefix unique current source next23
 };
 
 $tests['pragma index xinfo foreignkey parent prefix unique current source next237 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237::parentPrefixUniqueRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentPrefixUniqueRows237([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent prefix unique current source next237 rejects invalid bounds'] = static function (TestRunner $t) use ($page237): void {

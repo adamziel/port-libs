@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record161 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -50,7 +50,7 @@ $page161 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_option_names_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog161(
     $currentRecords161,
     $currentTables161,
     $nextRecords ?? $nextRecords161,
@@ -76,7 +76,7 @@ $valueAt161 = static function (mixed $value, string $path): mixed {
 
 $default161 = static fn (): array => $page161();
 $blocked161 = static fn (): array => $page161(nextTables: $currentTables161);
-$foreignKeys161 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161::foreignKeysFromCatalog($currentRecords161);
+$foreignKeys161 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog161($currentRecords161);
 
 $cases161 = [
     'status ok after implicit primary key repair' => [$default161, 'status', 'ok'],
@@ -190,7 +190,7 @@ $tests['pragma index xinfo foreignkey current source next161 rejects implicit pa
         $record161('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent)', 2),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161::foreignKeysFromCatalog($records));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog161($records));
 };
 
 $tests['pragma index xinfo foreignkey current source next161 rejects negative offset'] = static function (TestRunner $t) use ($page161): void {

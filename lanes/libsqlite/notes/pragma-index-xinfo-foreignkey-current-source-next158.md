@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next158
 
-Behavior slice: adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158`,
+Behavior slice: adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`,
 a current/next source comparator that combines `PRAGMA index_xinfo(...)`
 metadata, rootpage integrity rows, and `PRAGMA foreign_key_check(...)` rows
 under one stable cursor.
@@ -8,7 +8,7 @@ under one stable cursor.
 Verification:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 # Focused test run: 1 selected test files (root lock skipped)
 # 1 test files, 69 assertions, 0 failures
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record167 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -54,7 +54,7 @@ $page167 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(WpOptionNamesLookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog167(
     $currentRecords167,
     $currentTables167,
     $nextRecords ?? $nextRecords167,
@@ -81,7 +81,7 @@ $valueAt167 = static function (mixed $value, string $path): mixed {
 $default167 = static fn (): array => $page167();
 $blocked167 = static fn (): array => $page167(nextTables: $currentTables167);
 $sameSchema167 = static fn (): array => $page167(nextRecords: $currentRecords167);
-$foreignKeys167 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167::foreignKeysFromCatalog($currentRecords167);
+$foreignKeys167 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog167($currentRecords167);
 $tableValued167 = static fn (): array => $page167(indexSql: "pragma_index_xinfo('WpOptionNamesLookup')", tableValued: true);
 
 $cases167 = [

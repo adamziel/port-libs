@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record173 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -67,7 +67,7 @@ $page173 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog173(
     $currentRecords173,
     $currentTables173,
     $nextRecords ?? $nextRecords173,
@@ -94,7 +94,7 @@ $valueAt173 = static function (mixed $value, string $path): mixed {
 $default173 = static fn (): array => $page173();
 $sameDeferral173 = static fn (): array => $page173(nextRecords: $currentRecords173);
 $blocked173 = static fn (): array => $page173(nextTables: $currentTables173);
-$deferrals173 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173::deferralRows($currentRecords173);
+$deferrals173 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::deferralRows173($currentRecords173);
 $tableValued173 = static fn (): array => $page173(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases173 = [
@@ -198,7 +198,7 @@ $tests['pragma index xinfo foreignkey current source next173 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next173 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173::deferralRows([['not' => 'schema']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::deferralRows173([['not' => 'schema']]));
 };
 
 return $tests;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record234 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -43,7 +43,7 @@ $page234 = static fn (
     int $limit = 160,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page234(
     $currentRecords234,
     $nextRecords ?? $nextRecords234,
     'PRAGMA main.index_xinfo(wp_slug_parent_site_lower_slug_unique)',
@@ -67,8 +67,8 @@ $valueAt234 = static function (mixed $value, string $path): mixed {
 
 $default234 = static fn (): array => $page234();
 $blocked234 = static fn (): array => $page234(nextRecords: $missingNextRecords234);
-$currentExpression234 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows($currentRecords234);
-$nextExpression234 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows($nextRecords234, 'next');
+$currentExpression234 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234($currentRecords234);
+$nextExpression234 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234($nextRecords234, 'next');
 
 $cases234 = [
     'status ok' => [$default234, 'status', 'ok'],
@@ -157,7 +157,7 @@ $tests['pragma index xinfo foreignkey expression parent key current source next2
         $record234('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['expression_unique_index']);
@@ -170,7 +170,7 @@ $tests['pragma index xinfo foreignkey expression parent key current source next2
         $record234('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['expression_unique_index']);
@@ -184,7 +184,7 @@ $tests['pragma index xinfo foreignkey expression parent key current source next2
         $record234('table', 'child', 'child', 5, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234($records);
     $t->same(1, count($rows));
     $t->same('ok', $rows[0]['status']);
     $t->same('parent_code_unique', $rows[0]['parent_unique_index']);
@@ -204,7 +204,7 @@ $tests['pragma index xinfo foreignkey expression parent key current source next2
 };
 
 $tests['pragma index xinfo foreignkey expression parent key current source next234 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext234::expressionParentKeyRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::expressionParentKeyRows234([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey expression parent key current source next234 rejects invalid bounds'] = static function (TestRunner $t) use ($page234): void {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record223 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -54,7 +54,7 @@ $page223 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page223(
     $currentRecords223,
     $nextRecords ?? $nextRecords223,
     'PRAGMA main.index_xinfo(wp_postmeta_import_term_locale)',
@@ -78,8 +78,8 @@ $valueAt223 = static function (mixed $value, string $path): mixed {
 
 $default223 = static fn (): array => $page223();
 $blocked223 = static fn (): array => $page223(nextRecords: $blockedNextRecords223);
-$currentMatch223 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223::matchRows($currentRecords223);
-$nextMatch223 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223::matchRows($nextRecords223, 'next');
+$currentMatch223 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::matchRows223($currentRecords223);
+$nextMatch223 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::matchRows223($nextRecords223, 'next');
 
 $cases223 = [
     'status ok' => [$default223, 'status', 'ok'],
@@ -170,7 +170,7 @@ $tests['pragma index xinfo foreignkey match current source next223 rejects stale
 };
 
 $tests['pragma index xinfo foreignkey match current source next223 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext223::matchRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::matchRows223([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey match current source next223 rejects invalid bounds'] = static function (TestRunner $t) use ($page223): void {

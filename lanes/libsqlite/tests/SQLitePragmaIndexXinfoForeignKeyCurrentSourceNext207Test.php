@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record207 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -44,7 +44,7 @@ $page207 = static fn (
     int $limit = 50,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page207(
     $currentRecords207,
     $nextRecords ?? $nextRecords207,
     'PRAGMA main.index_xinfo(wp_option_import_term_lookup)',
@@ -68,8 +68,8 @@ $valueAt207 = static function (mixed $value, string $path): mixed {
 
 $default207 = static fn (): array => $page207();
 $blocked207 = static fn (): array => $page207(nextRecords: $badNextRecords207);
-$childRows207 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207::childKeyIndexRows($currentRecords207);
-$nextChildRows207 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207::childKeyIndexRows($nextRecords207, 'next');
+$childRows207 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeyIndexRows207($currentRecords207);
+$nextChildRows207 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeyIndexRows207($nextRecords207, 'next');
 
 $cases207 = [
     'status ok' => [$default207, 'status', 'ok'],
@@ -175,7 +175,7 @@ $tests['pragma index xinfo foreignkey child index current source next207 rejects
 };
 
 $tests['pragma index xinfo foreignkey child index current source next207 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207::childKeyIndexRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeyIndexRows207([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child index current source next207 rejects invalid bounds'] = static function (TestRunner $t) use ($page207): void {

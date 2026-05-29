@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo/FK current-source next241
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241`, layered on the
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered on the
 accepted next238 PRAGMA/FK page. The new current-source behavior compares raw
 `PRAGMA foreign_key_list` rows whose `to` column is NULL for shorthand
 `REFERENCES parent` clauses with the derived parent primary-key resolution used
@@ -19,15 +19,15 @@ made explicit before schema repair or generated DDL emission:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 77 assertions, 0 failures`
   - 60 focused `PASS` lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next241 self-test passed`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext241Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next241.php`
 - `git diff --check -- lanes/libsqlite`

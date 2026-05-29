@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record213 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -69,7 +69,7 @@ $page213 = static fn (
     int $limit = 120,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page213(
     $currentRecords213,
     $nextRecords ?? $nextRecords213,
     'PRAGMA main.index_xinfo(wp_postmeta_option_action)',
@@ -93,8 +93,8 @@ $valueAt213 = static function (mixed $value, string $path): mixed {
 
 $default213 = static fn (): array => $page213();
 $blocked213 = static fn (): array => $page213(nextRecords: $missingNextRecords213);
-$currentActionColumns213 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213::actionColumnRows($currentRecords213);
-$nextActionColumns213 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213::actionColumnRows($nextRecords213, 'next');
+$currentActionColumns213 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::actionColumnRows213($currentRecords213);
+$nextActionColumns213 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::actionColumnRows213($nextRecords213, 'next');
 
 $cases213 = [
     'status ok' => [$default213, 'status', 'ok'],
@@ -195,7 +195,7 @@ $tests['pragma index xinfo foreignkey action column current source next213 rejec
 };
 
 $tests['pragma index xinfo foreignkey action column current source next213 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213::actionColumnRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::actionColumnRows213([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey action column current source next213 rejects invalid bounds'] = static function (TestRunner $t) use ($page213): void {

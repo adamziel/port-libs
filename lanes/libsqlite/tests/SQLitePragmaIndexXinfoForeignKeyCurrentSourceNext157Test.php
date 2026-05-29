@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -128,7 +128,7 @@ $page157 = static fn (
     string $indexSql = 'PRAGMA main.index_xinfo(wp_options_name)',
     string $foreignKeySql = 'PRAGMA main.foreign_key_check(wp_options)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157::currentNextPage(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage157(
     $catalog157(),
     $currentDatabase ?? $currentDatabase157,
     $currentSchemas ?? $schemas157(),

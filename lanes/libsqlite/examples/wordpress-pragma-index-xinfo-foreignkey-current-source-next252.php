@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext252;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -28,7 +28,7 @@ $nextRecords = [
     $record('table', 'wp_termmeta_import', 'wp_termmeta_import', 5, 'CREATE TABLE wp_termmeta_import(meta_id INTEGER PRIMARY KEY, raw_slug TEXT NOT NULL, slug_ref TEXT REFERENCES wp_terms(slug_key), taxonomy_ref TEXT REFERENCES wp_terms(taxonomy_key))', 4),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext252::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page252(
     $currentRecords,
     $nextRecords,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_terms_1)',

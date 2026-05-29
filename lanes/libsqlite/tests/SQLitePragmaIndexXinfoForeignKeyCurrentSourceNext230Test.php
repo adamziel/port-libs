@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record230 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -59,7 +59,7 @@ $page230 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page230(
     $currentRecords230,
     $nextRecords ?? $nextRecords230,
     'PRAGMA main.index_xinfo(wp_postmeta_import_post_id_idx)',
@@ -83,8 +83,8 @@ $valueAt230 = static function (mixed $value, string $path): mixed {
 
 $default230 = static fn (): array => $page230();
 $unrepaired230 = static fn (): array => $page230(nextRecords: $unrepairedRecords230);
-$currentRows230 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows($currentRecords230);
-$nextRows230 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows($nextRecords230, 'next');
+$currentRows230 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230($currentRecords230);
+$nextRows230 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230($nextRecords230, 'next');
 
 $cases230 = [
     'status ok' => [$default230, 'status', 'ok'],
@@ -157,7 +157,7 @@ $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230
         $record230('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent(id))', 2),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230($records));
 };
 
 $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230 treats declared rowid as named column'] = static function (TestRunner $t) use ($record230): void {
@@ -166,7 +166,7 @@ $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230
         $record230('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent(rowid))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230($records);
     $t->same(1, count($rows));
     $t->same('declared_parent_column', $rows[0]['status']);
     $t->same(true, $rows[0]['declared_parent_column']);
@@ -178,7 +178,7 @@ $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230
         $record230('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent(oid))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230($records);
     $t->same(1, count($rows));
     $t->same('pseudo_rowid_parent_key', $rows[0]['status']);
     $t->same(['id', 'value'], $rows[0]['declared_parent_columns']);
@@ -197,7 +197,7 @@ $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230
 };
 
 $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230::pseudoRowidParentRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::pseudoRowidParentRows230([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent pseudo rowid current source next230 rejects invalid bounds'] = static function (TestRunner $t) use ($page230): void {

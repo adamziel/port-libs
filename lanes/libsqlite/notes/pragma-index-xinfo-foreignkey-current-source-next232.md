@@ -7,7 +7,7 @@ the child FK columns are the leading `PRAGMA index_xinfo` key terms.
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232` composes the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` composes the accepted
   next229 current-source page.
 - Adds deterministic `foreign_key_child_action_prefix` rows for FK constraints
   with `ON DELETE` / `ON UPDATE` actions.
@@ -19,10 +19,10 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next232.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext232Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next232.php`
 - `git diff --check -- lanes/libsqlite`
 

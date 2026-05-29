@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record159 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -56,7 +56,7 @@ $page159 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_option_names_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog159(
     $currentRecords159,
     $currentTables159,
     $nextRecords ?? $nextRecords159,
@@ -82,7 +82,7 @@ $valueAt159 = static function (mixed $value, string $path): mixed {
 
 $default159 = static fn (): array => $page159();
 $blockedNext159 = static fn (): array => $page159(nextRecords: $currentRecords159, nextTables: $currentTables159);
-$foreignKeys159 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159::foreignKeysFromCatalog($nextRecords159);
+$foreignKeys159 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog159($nextRecords159);
 
 $cases159 = [
     'status ok after catalog repair' => [$default159, 'status', 'ok'],
@@ -211,7 +211,7 @@ $tests['pragma index xinfo foreignkey current source next159 resolves implicit r
         $record159('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent)', 2),
     ];
 
-    $foreignKeys = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext159::foreignKeysFromCatalog($records);
+    $foreignKeys = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog159($records);
 
     $t->same('parent_id', $foreignKeys[0]['columns'][0]['child']);
     $t->same('id', $foreignKeys[0]['columns'][0]['parent']);

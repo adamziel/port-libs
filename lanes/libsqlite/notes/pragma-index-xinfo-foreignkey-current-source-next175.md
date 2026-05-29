@@ -6,7 +6,7 @@ pagination.
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175` wraps the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` wraps the accepted
   next173 current/next page and appends deterministic `foreign_key_list` rows
   for each FK column sequence.
 - Composite foreign keys preserve `id` and `seq` ordering, child column names,
@@ -20,7 +20,7 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 71 assertions, 0 failures`
   - `62` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next175.php --self-test`

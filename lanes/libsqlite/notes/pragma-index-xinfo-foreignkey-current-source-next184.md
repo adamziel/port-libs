@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next184
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184`, a
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a
 current-source PRAGMA helper layered on the accepted `index_xinfo` and
 foreign-key catalog path. It records parent-key sort order from
 `PRAGMA index_xinfo.desc` for every catalog-derived FK parent key row.
@@ -17,13 +17,13 @@ Behavior covered:
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next184.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next184.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 64 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next184.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next184 self-test passed`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record224 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -46,7 +46,7 @@ $page224 = static fn (
     int $limit = 110,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page224(
     $currentRecords224,
     $nextRecords ?? $nextRecords224,
     'PRAGMA main.index_xinfo(wp_sites_site_domain_binary_unique)',
@@ -70,8 +70,8 @@ $valueAt224 = static function (mixed $value, string $path): mixed {
 
 $default224 = static fn (): array => $page224();
 $blocked224 = static fn (): array => $page224(nextRecords: $missingNextRecords224);
-$currentCollation224 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::parentKeyCollationRows($currentRecords224);
-$nextCollation224 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::parentKeyCollationRows($nextRecords224, 'next');
+$currentCollation224 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows224($currentRecords224);
+$nextCollation224 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows224($nextRecords224, 'next');
 
 $cases224 = [
     'status ok' => [$default224, 'status', 'ok'],
@@ -159,7 +159,7 @@ $tests['pragma index xinfo foreignkey parent collation current source next224 ac
         $record224('table', 'child', 'child', 4, 'CREATE TABLE child(option_key TEXT, FOREIGN KEY(option_key) REFERENCES parent("Option Key"))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::parentKeyCollationRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows224($records);
     $t->same(1, count($rows));
     $t->same('ok', $rows[0]['status']);
     $t->same('NOCASE', $rows[0]['parent_column_collation']);
@@ -172,7 +172,7 @@ $tests['pragma index xinfo foreignkey parent collation current source next224 re
         $record224('table', 'child', 'child', 3, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::parentKeyCollationRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows224($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(['code'], $rows[0]['mismatch_columns']);
@@ -191,7 +191,7 @@ $tests['pragma index xinfo foreignkey parent collation current source next224 re
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next224 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext224::parentKeyCollationRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows224([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next224 rejects invalid bounds'] = static function (TestRunner $t) use ($page224): void {

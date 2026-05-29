@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record212 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -49,7 +49,7 @@ $page212 = static fn (
     int $limit = 90,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page212(
     $currentRecords212,
     $nextRecords ?? $nextRecords212,
     'PRAGMA main.index_xinfo(wp_postmeta_option_partial)',
@@ -73,8 +73,8 @@ $valueAt212 = static function (mixed $value, string $path): mixed {
 
 $default212 = static fn (): array => $page212();
 $blocked212 = static fn (): array => $page212(nextRecords: $missingNextRecords212);
-$currentAction212 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212::childActionLookupRows($currentRecords212);
-$nextAction212 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212::childActionLookupRows($nextRecords212, 'next');
+$currentAction212 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionLookupRows212($currentRecords212);
+$nextAction212 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionLookupRows212($nextRecords212, 'next');
 
 $cases212 = [
     'status ok' => [$default212, 'status', 'ok'],
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey child action lookup current source next212
 };
 
 $tests['pragma index xinfo foreignkey child action lookup current source next212 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext212::childActionLookupRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childActionLookupRows212([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child action lookup current source next212 rejects invalid bounds'] = static function (TestRunner $t) use ($page212): void {

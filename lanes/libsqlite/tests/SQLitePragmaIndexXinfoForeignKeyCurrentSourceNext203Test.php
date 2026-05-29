@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record203 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -59,7 +59,7 @@ $page203 = static fn (
     int $limit = 50,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page203(
     $currentRecords203,
     $nextRecords ?? $nextRecords203,
     'PRAGMA main.index_xinfo(wp_termmeta_lookup)',
@@ -84,8 +84,8 @@ $valueAt203 = static function (mixed $value, string $path): mixed {
 $default203 = static fn (): array => $page203();
 $explicit203 = static fn (): array => $page203(nextRecords: $explicitNextRecords203);
 $blocked203 = static fn (): array => $page203(nextRecords: $badUniqueRecords203);
-$coverageCurrent203 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203::parentCoverageRows($currentRecords203);
-$coverageNext203 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203::parentCoverageRows($nextRecords203, 'next');
+$coverageCurrent203 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentCoverageRows203($currentRecords203);
+$coverageNext203 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentCoverageRows203($nextRecords203, 'next');
 
 $cases203 = [
     'status ok' => [$default203, 'status', 'ok'],
@@ -177,7 +177,7 @@ $tests['pragma index xinfo foreignkey parent coverage current source next203 rej
 };
 
 $tests['pragma index xinfo foreignkey parent coverage current source next203 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203::parentCoverageRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentCoverageRows203([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent coverage current source next203 rejects invalid bounds'] = static function (TestRunner $t) use ($page203): void {

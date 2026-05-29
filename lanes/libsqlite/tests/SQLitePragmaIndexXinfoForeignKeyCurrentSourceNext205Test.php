@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record205 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -44,7 +44,7 @@ $page205 = static fn (
     int $limit = 50,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page205(
     $currentRecords205,
     $nextRecords ?? $nextRecords205,
     'PRAGMA main.index_xinfo(wp_termmeta_lookup_bad)',
@@ -68,8 +68,8 @@ $valueAt205 = static function (mixed $value, string $path): mixed {
 
 $default205 = static fn (): array => $page205();
 $blocked205 = static fn (): array => $page205(nextRecords: $missingNextRecords205);
-$currentQuality205 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205::childPrefixQualityRows($currentRecords205);
-$nextQuality205 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205::childPrefixQualityRows($nextRecords205, 'next');
+$currentQuality205 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childPrefixQualityRows205($currentRecords205);
+$nextQuality205 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childPrefixQualityRows205($nextRecords205, 'next');
 
 $cases205 = [
     'status ok' => [$default205, 'status', 'ok'],
@@ -182,7 +182,7 @@ $tests['pragma index xinfo foreignkey child prefix quality current source next20
 };
 
 $tests['pragma index xinfo foreignkey child prefix quality current source next205 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext205::childPrefixQualityRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childPrefixQualityRows205([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child prefix quality current source next205 rejects invalid bounds'] = static function (TestRunner $t) use ($page205): void {

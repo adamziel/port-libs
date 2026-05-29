@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record164 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -49,7 +49,7 @@ $page164 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(WpOptionNamesLookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog164(
     $currentRecords164,
     $currentTables164,
     $nextRecords ?? $nextRecords164,
@@ -75,8 +75,8 @@ $valueAt164 = static function (mixed $value, string $path): mixed {
 
 $default164 = static fn (): array => $page164();
 $blocked164 = static fn (): array => $page164(nextTables: $currentTables164);
-$canonical164 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164::canonicalTables($currentRecords164, $currentTables164);
-$canonicalNext164 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164::canonicalTables($currentRecords164, $nextTables164);
+$canonical164 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::canonicalTables164($currentRecords164, $currentTables164);
+$canonicalNext164 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::canonicalTables164($currentRecords164, $nextTables164);
 
 $cases164 = [
     'status ok after casefolded repair' => [$default164, 'status', 'ok'],

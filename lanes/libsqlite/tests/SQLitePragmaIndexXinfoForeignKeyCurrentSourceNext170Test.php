@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record170 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -57,7 +57,7 @@ $page170 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_option_names_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog170(
     $currentRecords170,
     $currentTables170,
     $nextRecords ?? $nextRecords170,
@@ -83,7 +83,7 @@ $valueAt170 = static function (mixed $value, string $path): mixed {
 
 $default170 = static fn (): array => $page170();
 $blocked170 = static fn (): array => $page170(nextRecords: $currentRecords170, nextTables: $currentTables170);
-$foreignKeys170 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170::foreignKeysFromCatalog($currentRecords170);
+$foreignKeys170 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog170($currentRecords170);
 
 $cases170 = [
     'status ok after deferred and immediate repair' => [$default170, 'status', 'ok'],
@@ -184,7 +184,7 @@ $tests['pragma index xinfo foreignkey current source next170 supports table valu
 };
 
 $tests['pragma index xinfo foreignkey current source next170 rejects invalid record'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170::foreignKeysFromCatalog([['not' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog170([['not' => 'record']]));
 };
 
 return $tests;

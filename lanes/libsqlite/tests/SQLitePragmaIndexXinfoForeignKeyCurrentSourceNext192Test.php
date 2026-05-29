@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record192 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -36,7 +36,7 @@ $page192 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_terms_slug_taxonomy_unique)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog192(
     $currentRecords192,
     $currentTables192,
     $nextRecords ?? $nextRecords192,
@@ -62,8 +62,8 @@ $valueAt192 = static function (mixed $value, string $path): mixed {
 
 $default192 = static fn (): array => $page192();
 $blocked192 = static fn (): array => $page192(nextRecords: $currentRecords192);
-$rejected192 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192::rejectedParentCollationRows($currentRecords192);
-$nextRejected192 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192::rejectedParentCollationRows($nextRecords192, 'next');
+$rejected192 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentCollationRows192($currentRecords192);
+$nextRejected192 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentCollationRows192($nextRecords192, 'next');
 $tableValued192 = static fn (): array => $page192(indexSql: "pragma_index_xinfo('wp_terms_slug_taxonomy_unique')", tableValued: true);
 
 $cases192 = [
@@ -163,7 +163,7 @@ $tests['pragma index xinfo foreignkey parent collation current source next192 re
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next192 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext192::rejectedParentCollationRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rejectedParentCollationRows192([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next192 rejects negative offset'] = static function (TestRunner $t) use ($page192): void {

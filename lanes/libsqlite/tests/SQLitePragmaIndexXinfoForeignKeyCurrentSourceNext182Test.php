@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext182;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record182 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -43,7 +43,7 @@ $page182 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext182::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog182(
     $currentRecords182,
     $currentTables182,
     $nextRecords ?? $nextRecords182,
@@ -69,7 +69,7 @@ $valueAt182 = static function (mixed $value, string $path): mixed {
 
 $default182 = static fn (): array => $page182();
 $blocked182 = static fn (): array => $page182(nextRecords: $currentRecords182);
-$collationRows182 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext182::parentKeyCollationRows($currentRecords182);
+$collationRows182 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows182($currentRecords182);
 $tableValued182 = static fn (): array => $page182(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases182 = [
@@ -170,7 +170,7 @@ $tests['pragma index xinfo foreignkey parent collation current source next182 re
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next182 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext182::parentKeyCollationRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeyCollationRows182([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent collation current source next182 rejects negative offset'] = static function (TestRunner $t) use ($page182): void {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record236 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -41,7 +41,7 @@ $page236 = static fn (
     int $limit = 160,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page236(
     $currentRecords236,
     $nextRecords ?? $nextRecords236,
     'PRAGMA main.index_xinfo("WpTermsSlugTaxUnique")',
@@ -65,8 +65,8 @@ $valueAt236 = static function (mixed $value, string $path): mixed {
 
 $default236 = static fn (): array => $page236();
 $blocked236 = static fn (): array => $page236(nextRecords: $missingNextRecords236);
-$currentQuoted236 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236::parentQuotedCaseRows($currentRecords236);
-$nextQuoted236 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236::parentQuotedCaseRows($nextRecords236, 'next');
+$currentQuoted236 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentQuotedCaseRows236($currentRecords236);
+$nextQuoted236 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentQuotedCaseRows236($nextRecords236, 'next');
 $currentPageQuoted236 = static fn (): array => array_values(array_filter(
     $page236()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_parent_quoted_case' && ($row['phase'] ?? null) === 'current',
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey quoted case current source next236 reports
         $record236('table', 'Child', 'Child', 4, 'CREATE TABLE "Child"("code" TEXT, FOREIGN KEY("code") REFERENCES "Parent"("code"))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236::parentQuotedCaseRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentQuotedCaseRows236($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['parent_unique_index']);
@@ -189,7 +189,7 @@ $tests['pragma index xinfo foreignkey quoted case current source next236 rejects
 };
 
 $tests['pragma index xinfo foreignkey quoted case current source next236 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236::parentQuotedCaseRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentQuotedCaseRows236([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey quoted case current source next236 rejects invalid bounds'] = static function (TestRunner $t) use ($page236): void {

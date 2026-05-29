@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record235 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -42,7 +42,7 @@ $page235 = static fn (
     int $limit = 160,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page235(
     $currentRecords235,
     $nextRecords ?? $nextRecords235,
     'PRAGMA main.index_xinfo(wp_taxonomy_locale_blog_desc_unique)',
@@ -66,9 +66,9 @@ $valueAt235 = static function (mixed $value, string $path): mixed {
 
 $default235 = static fn (): array => $page235();
 $blocked235 = static fn (): array => $page235(nextRecords: $blockedNextRecords235);
-$currentDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($currentRecords235);
-$nextDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($nextRecords235, 'next');
-$blockedDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($blockedNextRecords235, 'next');
+$currentDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($currentRecords235);
+$nextDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($nextRecords235, 'next');
+$blockedDesc235 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($blockedNextRecords235, 'next');
 
 $cases235 = [
     'status ok' => [$default235, 'status', 'ok'],
@@ -144,7 +144,7 @@ $tests['pragma index xinfo foreignkey desc parent unique current source next235 
         $record235('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($records));
 };
 
 $tests['pragma index xinfo foreignkey desc parent unique current source next235 ignores partial descending unique parent index'] = static function (TestRunner $t) use ($record235): void {
@@ -154,7 +154,7 @@ $tests['pragma index xinfo foreignkey desc parent unique current source next235 
         $record235('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($records));
 };
 
 $tests['pragma index xinfo foreignkey desc parent unique current source next235 ignores expression descending parent index'] = static function (TestRunner $t) use ($record235): void {
@@ -164,7 +164,7 @@ $tests['pragma index xinfo foreignkey desc parent unique current source next235 
         $record235('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($records));
 };
 
 $tests['pragma index xinfo foreignkey desc parent unique current source next235 reports mixed descending composite flags'] = static function (TestRunner $t) use ($record235): void {
@@ -174,7 +174,7 @@ $tests['pragma index xinfo foreignkey desc parent unique current source next235 
         $record235('table', 'child', 'child', 4, 'CREATE TABLE child(a TEXT, b TEXT, FOREIGN KEY(a, b) REFERENCES parent(a, b))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235($records);
     $t->same(2, count($rows));
     $t->same([0, 1], $rows[0]['index_desc_flags']);
     $t->same(['b'], $rows[0]['descending_key_columns']);
@@ -197,7 +197,7 @@ $tests['pragma index xinfo foreignkey desc parent unique current source next235 
 };
 
 $tests['pragma index xinfo foreignkey desc parent unique current source next235 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext235::parentDescendingUniqueRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentDescendingUniqueRows235([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey desc parent unique current source next235 rejects invalid bounds'] = static function (TestRunner $t) use ($page235): void {

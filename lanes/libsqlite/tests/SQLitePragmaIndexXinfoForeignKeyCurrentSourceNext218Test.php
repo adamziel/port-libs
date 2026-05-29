@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext218;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record218 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -65,7 +65,7 @@ $page218 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext218::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page218(
     $currentRecords218,
     $nextRecords ?? $nextRecords218,
     'PRAGMA main.index_xinfo(wp_import_edges_post)',
@@ -89,8 +89,8 @@ $valueAt218 = static function (mixed $value, string $path): mixed {
 
 $default218 = static fn (): array => $page218();
 $blocked218 = static fn (): array => $page218(nextRecords: $blockedNextRecords218);
-$currentRestrict218 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext218::restrictTimingRows($currentRecords218);
-$nextRestrict218 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext218::restrictTimingRows($nextRecords218, 'next');
+$currentRestrict218 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::restrictTimingRows218($currentRecords218);
+$nextRestrict218 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::restrictTimingRows218($nextRecords218, 'next');
 
 $cases218 = [
     'status ok' => [$default218, 'status', 'ok'],
@@ -172,7 +172,7 @@ $tests['pragma index xinfo foreignkey restrict timing current source next218 rej
 };
 
 $tests['pragma index xinfo foreignkey restrict timing current source next218 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext218::restrictTimingRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::restrictTimingRows218([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey restrict timing current source next218 rejects invalid bounds'] = static function (TestRunner $t) use ($page218): void {

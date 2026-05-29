@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -34,7 +34,7 @@ $next = [
     )", 3),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page253(
     $current,
     $next,
     'PRAGMA main.index_xinfo(sqlite_autoindex_wp_terms_1)',

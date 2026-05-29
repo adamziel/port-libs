@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -21,7 +21,7 @@ $nextRecords = [
     $record('index', 'wp_option_import_plugin_fk', 'wp_option_import', 7, 'CREATE INDEX wp_option_import_plugin_fk ON wp_option_import(plugin_slug, locale)', 6),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext207::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page207(
     $records,
     $nextRecords,
     'PRAGMA index_xinfo(wp_option_import_term_lookup)',

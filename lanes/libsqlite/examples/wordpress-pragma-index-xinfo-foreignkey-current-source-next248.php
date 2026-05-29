@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext248;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -21,7 +21,7 @@ $next = [
     $record('table', 'wp_term_relationships_stage', 'wp_term_relationships_stage', 4, 'CREATE TABLE wp_term_relationships_stage(object_id INTEGER NOT NULL, taxonomy TEXT NOT NULL, slug TEXT NOT NULL, FOREIGN KEY(taxonomy, slug) REFERENCES wp_term_taxonomy_stage(taxonomy, slug) ON DELETE CASCADE)', 3),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext248::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page248(
     $current,
     $next,
     'PRAGMA main.index_xinfo(wp_term_taxonomy_stage_taxonomy_slug_unique)',

@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext238` for the upstream SQLite parent-key rule that `PRAGMA index_xinfo` descending sort flags do not make an otherwise matching non-partial UNIQUE parent index invalid for `REFERENCES parent(column...)`.
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` for the upstream SQLite parent-key rule that `PRAGMA index_xinfo` descending sort flags do not make an otherwise matching non-partial UNIQUE parent index invalid for `REFERENCES parent(column...)`.
 - Uses `PRAGMA foreign_key_list` parent columns with `PRAGMA index_xinfo.desc` metadata to distinguish:
   - admissible descending UNIQUE parent indexes,
   - admissible ascending UNIQUE parent indexes,
@@ -17,7 +17,7 @@
 
 ## Verification
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext238Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 82 assertions, 0 failures`
   - `64` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next238.php`

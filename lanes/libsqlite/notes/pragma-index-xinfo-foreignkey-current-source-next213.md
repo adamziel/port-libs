@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo / foreign-key action columns current-source next213
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213`, a
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a
 current-source PRAGMA diagnostic layered on the accepted next212
 `index_xinfo` / foreign-key child-action lookup page.
 
@@ -19,10 +19,10 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next213.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext213Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next213.php`
 - `git diff --check -- lanes/libsqlite`
 

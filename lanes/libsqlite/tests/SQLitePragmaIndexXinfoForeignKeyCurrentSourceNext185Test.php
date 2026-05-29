@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record185 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -53,7 +53,7 @@ $page185 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog185(
     $records185,
     $currentTables185,
     $records185,
@@ -79,7 +79,7 @@ $valueAt185 = static function (mixed $value, string $path): mixed {
 
 $default185 = static fn (): array => $page185();
 $blocked185 = static fn (): array => $page185(nextTables: $currentTables185);
-$nullRows185 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185::nullChildKeyRows($records185, $currentTables185);
+$nullRows185 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nullChildKeyRows185($records185, $currentTables185);
 $tableValued185 = static fn (): array => $page185(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases185 = [
@@ -179,14 +179,14 @@ $tests['pragma index xinfo foreignkey null child current source next185 rejects 
 };
 
 $tests['pragma index xinfo foreignkey null child current source next185 rejects malformed records'] = static function (TestRunner $t) use ($currentTables185): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185::nullChildKeyRows([['bad' => 'record']], $currentTables185));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nullChildKeyRows185([['bad' => 'record']], $currentTables185));
 };
 
 $tests['pragma index xinfo foreignkey null child current source next185 rejects missing child column'] = static function (TestRunner $t) use ($records185, $currentTables185): void {
     $tables = $currentTables185;
     unset($tables['wp_options'][0]['site_id']);
 
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext185::nullChildKeyRows($records185, $tables));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::nullChildKeyRows185($records185, $tables));
 };
 
 $tests['pragma index xinfo foreignkey null child current source next185 rejects negative offset'] = static function (TestRunner $t) use ($page185): void {

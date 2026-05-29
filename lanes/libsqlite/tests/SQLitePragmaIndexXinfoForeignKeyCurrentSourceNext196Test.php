@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record196 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -47,7 +47,7 @@ $page196 = static function (
     string $indexSql = 'PRAGMA main.index_xinfo(wp_tr_lookup)',
     string $foreignKeySql = 'PRAGMA main.foreign_key_list(wp_term_relationships)',
 ) use ($currentRecords196, $nextRecords196): array {
-    return SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196::page(
+    return SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page196(
         $currentRecords ?? $currentRecords196,
         $nextRecords ?? $nextRecords196,
         $indexSql,

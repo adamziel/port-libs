@@ -4,7 +4,7 @@ Slice: `pragma-index-xinfo-foreignkey-current-source-next252`
 
 Behavior:
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext252`, layered on the
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered on the
   accepted next250 PRAGMA/FK page.
 - Appends current/next rows for `PRAGMA foreign_key_list.from` child columns
   that are absent even from `PRAGMA table_xinfo`.
@@ -24,7 +24,7 @@ schema repair continues.
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext252Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 54 assertions, 0 failures

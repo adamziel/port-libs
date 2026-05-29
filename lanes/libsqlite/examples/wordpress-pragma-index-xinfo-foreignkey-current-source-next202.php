@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -39,7 +39,7 @@ $next = [
     $record('index', 'wp_taxonomy_lookup', 'wp_term_taxonomy', 7, 'CREATE INDEX wp_taxonomy_lookup ON wp_term_taxonomy(lower(term_slug) COLLATE nocase, locale COLLATE rtrim, blog_id DESC)', 6),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page202(
     $current,
     $next,
     "pragma_index_xinfo('wp_taxonomy_lookup','main')",

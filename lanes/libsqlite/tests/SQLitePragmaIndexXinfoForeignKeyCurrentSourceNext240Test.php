@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record240 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -50,7 +50,7 @@ $page240 = static fn (
     int $limit = 220,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page240(
     $currentRecords240,
     $nextRecords ?? $nextRecords240,
     'PRAGMA main.index_xinfo(wp_parent_posts_name_type_unique)',
@@ -73,8 +73,8 @@ $valueAt240 = static function (mixed $value, string $path): mixed {
 };
 
 $default240 = static fn (): array => $page240();
-$currentImplicit240 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240::implicitParentPrimaryKeyRows($currentRecords240);
-$nextImplicit240 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240::implicitParentPrimaryKeyRows($nextRecords240, 'next');
+$currentImplicit240 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows240($currentRecords240);
+$nextImplicit240 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows240($nextRecords240, 'next');
 $currentPageImplicit240 = static fn (): array => array_values(array_filter(
     $page240()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_implicit_parent_primary_key'
@@ -170,7 +170,7 @@ $tests['pragma index xinfo foreignkey implicit parent primary key current source
 };
 
 $tests['pragma index xinfo foreignkey implicit parent primary key current source next240 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext240::implicitParentPrimaryKeyRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows240([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey implicit parent primary key current source next240 rejects invalid bounds'] = static function (TestRunner $t) use ($page240): void {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record193 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -38,7 +38,7 @@ $page193 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_option_groups_site_name_unique)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog193(
     $currentRecords193,
     $currentTables193,
     $nextRecords ?? $nextRecords193,
@@ -64,8 +64,8 @@ $valueAt193 = static function (mixed $value, string $path): mixed {
 
 $default193 = static fn (): array => $page193();
 $blocked193 = static fn (): array => $page193(nextRecords: $sameRecords193);
-$orderRows193 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::parentUniqueOrderRows($currentRecords193);
-$nextOrderRows193 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::parentUniqueOrderRows($nextRecords193, 'next');
+$orderRows193 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentUniqueOrderRows193($currentRecords193);
+$nextOrderRows193 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentUniqueOrderRows193($nextRecords193, 'next');
 $tableValued193 = static fn (): array => $page193(indexSql: "pragma_index_xinfo('wp_option_groups_site_name_unique')", tableValued: true);
 
 $cases193 = [
@@ -158,7 +158,7 @@ $tests['pragma index xinfo foreignkey parent unique order current source next193
         $record193('index', 'wp_option_groups_site_only_unique', 'wp_option_groups', 9, 'CREATE UNIQUE INDEX wp_option_groups_site_only_unique ON wp_option_groups(site_id)', 9),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::parentUniqueOrderRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentUniqueOrderRows193($records));
 };
 
 $tests['pragma index xinfo foreignkey parent unique order current source next193 ignores expression unique indexes'] = static function (TestRunner $t) use ($record193, $currentRecords193): void {
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey parent unique order current source next193
         $record193('index', 'wp_option_groups_expr_unique', 'wp_option_groups', 10, 'CREATE UNIQUE INDEX wp_option_groups_expr_unique ON wp_option_groups(lower(option_name), site_id)', 10),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::parentUniqueOrderRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentUniqueOrderRows193($records));
 };
 
 $tests['pragma index xinfo foreignkey parent unique order current source next193 rejects stale cursor'] = static function (TestRunner $t) use ($page193, $sameRecords193): void {
@@ -184,7 +184,7 @@ $tests['pragma index xinfo foreignkey parent unique order current source next193
 };
 
 $tests['pragma index xinfo foreignkey parent unique order current source next193 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193::parentUniqueOrderRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentUniqueOrderRows193([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent unique order current source next193 rejects negative offset'] = static function (TestRunner $t) use ($page193): void {

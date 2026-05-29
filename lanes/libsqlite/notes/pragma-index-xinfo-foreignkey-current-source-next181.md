@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo foreign-key current-source next181
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext181`, a current-source
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current-source
 wrapper over accepted next178 parent-key mapping. The new behavior keeps
 `PRAGMA index_xinfo` parent key rows tied to the parent table column
 collations, so a copied WordPress import can distinguish a valid UNIQUE parent
@@ -9,10 +9,10 @@ for SQLite foreign-key enforcement.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext181Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next181.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext181.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext181Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next181.php`
 - `git diff --check -- lanes/libsqlite`
 

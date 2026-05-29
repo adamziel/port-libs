@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLitePragmaSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
@@ -43,7 +43,7 @@ $page168 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(sqlite_autoindex_wp_option_names_1)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog164(
     $currentRecords168,
     $currentTables168,
     $nextRecords168,
@@ -56,7 +56,7 @@ $page168 = static fn (
 );
 
 $catalog168 = static fn (): SQLitePragmaSchemaCatalog => new SQLitePragmaSchemaCatalog($currentRecords168);
-$foreignKeys168 = static fn (): array => PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161::foreignKeysFromCatalog($currentRecords168);
+$foreignKeys168 = static fn (): array => PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog161($currentRecords168);
 
 $valueAt168 = static function (mixed $value, string $path): mixed {
     foreach (explode('.', $path) as $part) {

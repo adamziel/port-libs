@@ -8,7 +8,7 @@ from accepted rowid-alias coverage.
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230` composes the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` composes the accepted
   next227 current-source page.
 - Adds `foreign_key_parent_pseudo_rowid` rows from `PRAGMA foreign_key_list`
   and `PRAGMA table_info`.
@@ -19,10 +19,10 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next230.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext230Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next230.php`
 - `git diff --check -- lanes/libsqlite`
 

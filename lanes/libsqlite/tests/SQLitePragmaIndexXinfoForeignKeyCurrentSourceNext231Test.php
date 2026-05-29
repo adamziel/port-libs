@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record231 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -46,7 +46,7 @@ $page231 = static fn (
     int $limit = 140,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page231(
     $currentRecords231,
     $nextRecords ?? $nextRecords231,
     'PRAGMA main.index_xinfo(wp_parent_terms_lower_slug_tax_unique)',
@@ -70,8 +70,8 @@ $valueAt231 = static function (mixed $value, string $path): mixed {
 
 $default231 = static fn (): array => $page231();
 $blocked231 = static fn (): array => $page231(nextRecords: $missingNextRecords231);
-$currentExpression231 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::parentExpressionUniqueRows($currentRecords231);
-$nextExpression231 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::parentExpressionUniqueRows($nextRecords231, 'next');
+$currentExpression231 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentExpressionUniqueRows231($currentRecords231);
+$nextExpression231 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentExpressionUniqueRows231($nextRecords231, 'next');
 $currentPageExpression231 = static fn (): array => array_values(array_filter(
     $page231()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_parent_expression_unique' && ($row['phase'] ?? null) === 'current',
@@ -180,7 +180,7 @@ $tests['pragma index xinfo foreignkey expression unique parent current source ne
         $record231('table', 'child', 'child', 4, 'CREATE TABLE child(code TEXT, locale TEXT, FOREIGN KEY(code, locale) REFERENCES parent(code, locale))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::parentExpressionUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentExpressionUniqueRows231($records);
     $t->same(2, count($rows));
     $t->same('expression_unique_index', $rows[0]['status']);
     $t->same(null, $rows[0]['index_column']);
@@ -195,7 +195,7 @@ $tests['pragma index xinfo foreignkey expression unique parent current source ne
         $record231('table', 'child', 'child', 5, 'CREATE TABLE child(code TEXT, FOREIGN KEY(code) REFERENCES parent(code))', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::parentExpressionUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentExpressionUniqueRows231($records);
     $t->same(1, count($rows));
     $t->same('ok', $rows[0]['status']);
     $t->same('parent_code_unique', $rows[0]['parent_unique_index']);
@@ -217,7 +217,7 @@ $tests['pragma index xinfo foreignkey expression unique parent current source ne
 };
 
 $tests['pragma index xinfo foreignkey expression unique parent current source next231 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231::parentExpressionUniqueRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentExpressionUniqueRows231([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey expression unique parent current source next231 rejects invalid bounds'] = static function (TestRunner $t) use ($page231): void {

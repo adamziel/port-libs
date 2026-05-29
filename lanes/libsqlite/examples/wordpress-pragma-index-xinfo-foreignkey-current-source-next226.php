@@ -13,7 +13,7 @@ foreach ($pragmaChain as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -35,7 +35,7 @@ $next = [
     ...$current,
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page226(
     $current,
     $next,
     'PRAGMA main.index_xinfo(wp_term_relationships_stage_fk)',

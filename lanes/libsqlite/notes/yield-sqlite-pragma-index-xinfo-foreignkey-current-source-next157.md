@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Added `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157` to coordinate
+- Added `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` to coordinate
   current/next `PRAGMA index_xinfo` metadata, integrity root diagnostics, and
   `foreign_key_check` rows under one stable resume cursor.
 - The source id includes both current and next underlying source ids, so
@@ -16,7 +16,7 @@
 Focused command:
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext157Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 ```
 
 Result:

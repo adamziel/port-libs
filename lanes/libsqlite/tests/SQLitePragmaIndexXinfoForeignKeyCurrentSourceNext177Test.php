@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record177 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -67,7 +67,7 @@ $page177 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog177(
     $currentRecords177,
     $currentTables177,
     $nextRecords ?? $nextRecords177,
@@ -94,8 +94,8 @@ $valueAt177 = static function (mixed $value, string $path): mixed {
 $default177 = static fn (): array => $page177();
 $sameConstraints177 = static fn (): array => $page177(nextRecords: $currentRecords177);
 $blocked177 = static fn (): array => $page177(nextTables: $currentTables177);
-$constraints177 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177::constraintRows($currentRecords177);
-$nextConstraints177 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177::constraintRows($nextRecords177);
+$constraints177 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::constraintRows177($currentRecords177);
+$nextConstraints177 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::constraintRows177($nextRecords177);
 $tableValued177 = static fn (): array => $page177(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases177 = [
@@ -210,7 +210,7 @@ $tests['pragma index xinfo foreignkey current source next177 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next177 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext177::constraintRows([['not' => 'schema']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::constraintRows177([['not' => 'schema']]));
 };
 
 return $tests;

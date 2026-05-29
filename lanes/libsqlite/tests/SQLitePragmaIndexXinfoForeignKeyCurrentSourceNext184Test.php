@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record184 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -68,7 +68,7 @@ $page184 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog184(
     $currentRecords184,
     $currentTables184,
     $nextRecords ?? $nextRecords184,
@@ -94,7 +94,7 @@ $valueAt184 = static function (mixed $value, string $path): mixed {
 
 $default184 = static fn (): array => $page184();
 $blocked184 = static fn (): array => $page184(nextRecords: $currentRecords184, nextTables: $currentTables184);
-$sortRows184 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184::parentKeySortRows($currentRecords184);
+$sortRows184 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortRows184($currentRecords184);
 
 $cases184 = [
     'status ok after sort repair' => [$default184, 'status', 'ok'],
@@ -199,7 +199,7 @@ $tests['pragma index xinfo foreignkey parent sort current source next184 rejects
 };
 
 $tests['pragma index xinfo foreignkey parent sort current source next184 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext184::parentKeySortRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::parentKeySortRows184([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent sort current source next184 rejects negative offset'] = static function (TestRunner $t) use ($page184): void {

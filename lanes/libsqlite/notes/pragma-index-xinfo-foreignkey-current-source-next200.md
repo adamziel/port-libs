@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next200
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200`, a
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a
 current-source PRAGMA helper layered on the accepted `index_xinfo` /
 foreign-key cursor family. It reports child-side FK helper indexes whose
 `PRAGMA index_xinfo` key prefix contains the same child columns as the FK but
@@ -29,10 +29,10 @@ WordPress relevance:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next200.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext200Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 62 assertions, 0 failures`
   - `49` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next200.php --self-test`

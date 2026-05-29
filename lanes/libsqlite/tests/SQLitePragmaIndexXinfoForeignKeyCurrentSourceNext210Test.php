@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record210 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -49,7 +49,7 @@ $page210 = static fn (
     int $limit = 90,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page210(
     $currentRecords210,
     $nextRecords ?? $nextRecords210,
     'PRAGMA main.index_xinfo(wp_option_stage_lookup)',
@@ -73,8 +73,8 @@ $valueAt210 = static function (mixed $value, string $path): mixed {
 
 $default210 = static fn (): array => $page210();
 $blocked210 = static fn (): array => $page210(nextRecords: $blockedNextRecords210);
-$currentDefaults210 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210::setDefaultChildRows($currentRecords210);
-$nextDefaults210 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210::setDefaultChildRows($nextRecords210, 'next');
+$currentDefaults210 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultChildRows210($currentRecords210);
+$nextDefaults210 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultChildRows210($nextRecords210, 'next');
 
 $cases210 = [
     'status ok' => [$default210, 'status', 'ok'],
@@ -168,11 +168,11 @@ $tests['pragma index xinfo foreignkey set default child defaults current source 
         $record210('table', 'child', 'child', 3, 'CREATE TABLE child(parent_id INTEGER REFERENCES parent(id) ON DELETE CASCADE ON UPDATE RESTRICT)', 2),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210::setDefaultChildRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultChildRows210($records));
 };
 
 $tests['pragma index xinfo foreignkey set default child defaults current source next210 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext210::setDefaultChildRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::setDefaultChildRows210([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey set default child defaults current source next210 rejects invalid bounds'] = static function (TestRunner $t) use ($page210): void {

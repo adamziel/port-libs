@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -40,7 +40,7 @@ $next = [
     $record('index', 'wp_tr_lookup', 'wp_term_relationships', 7, "CREATE INDEX wp_tr_lookup ON wp_term_relationships(lower(term_slug) COLLATE nocase, locale COLLATE rtrim, object_id DESC)", 7),
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page196(
     $current,
     $next,
     'PRAGMA main.index_xinfo(wp_tr_lookup)',

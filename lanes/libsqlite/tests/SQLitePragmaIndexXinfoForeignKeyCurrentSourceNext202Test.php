@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record202 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -48,7 +48,7 @@ $page202 = static function (
     bool $tableValuedIndex = true,
     bool $tableValuedFk = true,
 ) use ($currentRecords202, $nextRecords202): array {
-    return SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202::page(
+    return SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page202(
         $currentRecords ?? $currentRecords202,
         $nextRecords ?? $nextRecords202,
         $indexSql,
@@ -209,7 +209,7 @@ $tests['pragma index xinfo foreignkey table valued current source next202 reject
 };
 
 $tests['pragma index xinfo foreignkey table valued current source next202 rejects malformed records'] = static function (TestRunner $t) use ($nextRecords202): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext202::page(
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page202(
         [['bad' => 'record']],
         $nextRecords202,
         "pragma_index_xinfo('wp_taxonomy_lookup','main')",

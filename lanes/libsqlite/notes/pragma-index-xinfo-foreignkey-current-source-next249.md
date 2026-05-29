@@ -4,7 +4,7 @@ Slice: `pragma-index-xinfo-foreignkey-current-source-next249`
 
 Behavior:
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext249`, layered on the
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered on the
   accepted next246 PRAGMA/FK page.
 - Appends current/next diagnostic rows for `PRAGMA foreign_key_list.from`
   child columns that are generated columns visible through
@@ -25,7 +25,7 @@ them. This slice keeps the FK child side countable through `table_xinfo`.
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext249Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 60 assertions, 0 failures

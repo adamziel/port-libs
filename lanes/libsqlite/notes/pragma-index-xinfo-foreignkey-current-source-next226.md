@@ -7,7 +7,7 @@ referenced parent table itself resolves.
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226` wraps the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` wraps the accepted
   next219 parent-key permutation page.
 - Appends `foreign_key_missing_parent_table` rows grouped from
   `PRAGMA foreign_key_list` output and the schema table catalog.
@@ -18,7 +18,7 @@ Behavior:
 
 Evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext226Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 57 assertions, 0 failures`
   - `47` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next226.php --self-test`

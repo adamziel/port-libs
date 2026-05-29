@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -31,7 +31,7 @@ $tables = [
     'wp_options' => [['rowid' => 1, 'option_id' => 1, 'site_id' => 1, 'option_name' => 'siteurl', 'blog_id' => 1]],
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext191::currentNextPageFromCatalog(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog191(
     $currentRecords,
     $tables,
     $nextRecords,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record243 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -44,7 +44,7 @@ $page243 = static fn (
     int $limit = 260,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page243(
     $currentRecords243,
     $nextRecords ?? $nextRecords243,
     'PRAGMA main.index_xinfo(wp_posts_guid_unique)',
@@ -67,8 +67,8 @@ $valueAt243 = static function (mixed $value, string $path): mixed {
 };
 
 $default243 = static fn (): array => $page243();
-$currentAffinity243 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::foreignKeyAffinityRows($currentRecords243);
-$nextAffinity243 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::foreignKeyAffinityRows($nextRecords243, 'next');
+$currentAffinity243 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyAffinityRows243($currentRecords243);
+$nextAffinity243 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyAffinityRows243($nextRecords243, 'next');
 $currentPageAffinity243 = static fn (): array => array_values(array_filter(
     $page243()['rows'],
     static fn (array $row): bool => ($row['kind'] ?? null) === 'foreign_key_affinity' && ($row['phase'] ?? null) === 'current',
@@ -153,7 +153,7 @@ $tests['pragma index xinfo foreignkey affinity current source next243 reports mi
         $record243('table', 'child', 'child', 3, 'CREATE TABLE child(pid TEXT REFERENCES parent(missing_id))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::foreignKeyAffinityRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyAffinityRows243($records);
     $t->same(1, count($rows));
     $t->same('missing_parent_column', $rows[0]['status']);
     $t->same('TEXT', $rows[0]['child_affinity']);
@@ -167,7 +167,7 @@ $tests['pragma index xinfo foreignkey affinity current source next243 reports mi
         $record243('table', 'child', 'child', 3, 'CREATE TABLE child(real_id INTEGER, FOREIGN KEY(missing_id) REFERENCES parent(id))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::foreignKeyAffinityRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyAffinityRows243($records);
     $t->same(1, count($rows));
     $t->same('missing_child_column', $rows[0]['status']);
     $t->same('BLOB', $rows[0]['child_affinity']);
@@ -190,7 +190,7 @@ $tests['pragma index xinfo foreignkey affinity current source next243 rejects st
 };
 
 $tests['pragma index xinfo foreignkey affinity current source next243 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext243::foreignKeyAffinityRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyAffinityRows243([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey affinity current source next243 rejects invalid bounds'] = static function (TestRunner $t) use ($page243): void {

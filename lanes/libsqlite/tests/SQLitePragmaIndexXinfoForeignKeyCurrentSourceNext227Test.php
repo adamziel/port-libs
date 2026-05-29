@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record227 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -56,7 +56,7 @@ $page227 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page227(
     $currentRecords227,
     $nextRecords ?? $nextRecords227,
     'PRAGMA main.index_xinfo(wp_postmeta_import_value_post_key)',
@@ -80,9 +80,9 @@ $valueAt227 = static function (mixed $value, string $path): mixed {
 
 $default227 = static fn (): array => $page227();
 $blocked227 = static fn (): array => $page227(nextRecords: $blockedNextRecords227);
-$currentSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($currentRecords227);
-$nextSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($nextRecords227, 'next');
-$blockedSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($blockedNextRecords227, 'next');
+$currentSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($currentRecords227);
+$nextSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($nextRecords227, 'next');
+$blockedSuffix227 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($blockedNextRecords227, 'next');
 
 $cases227 = [
     'status ok' => [$default227, 'status', 'ok'],
@@ -154,11 +154,11 @@ $tests['pragma index xinfo foreignkey child suffix current source next227 pagina
 };
 
 $tests['pragma index xinfo foreignkey child suffix current source next227 ignores partial suffix indexes'] = static function (TestRunner $t) use ($partialOnlyRecords227): void {
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($partialOnlyRecords227));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($partialOnlyRecords227));
 };
 
 $tests['pragma index xinfo foreignkey child suffix current source next227 ignores leading prefix indexes'] = static function (TestRunner $t) use ($nextRecords227): void {
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($nextRecords227));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($nextRecords227));
 };
 
 $tests['pragma index xinfo foreignkey child suffix current source next227 reports two leading terms'] = static function (TestRunner $t) use ($record227): void {
@@ -169,7 +169,7 @@ $tests['pragma index xinfo foreignkey child suffix current source next227 report
         $record227('index', 'child_region_status_ab', 'child', 5, 'CREATE INDEX child_region_status_ab ON child(region, status, a, b)', 4),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227($records);
     $t->same(2, count($rows));
     $t->same(['region', 'status'], $rows[0]['leading_columns']);
     $t->same(2, $rows[0]['leading_terms']);
@@ -189,7 +189,7 @@ $tests['pragma index xinfo foreignkey child suffix current source next227 reject
 };
 
 $tests['pragma index xinfo foreignkey child suffix current source next227 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext227::childKeySuffixRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childKeySuffixRows227([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child suffix current source next227 rejects invalid bounds'] = static function (TestRunner $t) use ($page227): void {

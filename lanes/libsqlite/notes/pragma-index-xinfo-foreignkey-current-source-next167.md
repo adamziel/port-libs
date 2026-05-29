@@ -8,13 +8,13 @@
 Focused evidence:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 77 assertions, 0 failures
 
 PASS-line delta verified with:
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext167Test.php | tee /tmp/pragma167.out >/dev/null; rg -c '^PASS ' /tmp/pragma167.out; tail -1 /tmp/pragma167.out
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php | tee /tmp/pragma167.out >/dev/null; rg -c '^PASS ' /tmp/pragma167.out; tail -1 /tmp/pragma167.out
 69
 1 test files, 77 assertions, 0 failures
 ```

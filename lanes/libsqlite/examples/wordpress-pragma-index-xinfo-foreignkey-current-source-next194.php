@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext194;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -39,7 +39,7 @@ $nextTables = [
     'wp_options' => $currentTables['wp_options'],
 ];
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext194::currentNextPageFromCatalog(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog194(
     $currentRecords,
     $currentTables,
     $nextRecords,

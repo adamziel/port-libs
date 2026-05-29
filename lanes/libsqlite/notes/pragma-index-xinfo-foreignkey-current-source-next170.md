@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170`, a current-source wrapper over the accepted `index_xinfo` plus catalog-derived `foreign_key_list` path that keeps FK timing visible:
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current-source wrapper over the accepted `index_xinfo` plus catalog-derived `foreign_key_list` path that keeps FK timing visible:
 
 - annotates `foreign_key_check` rows with immediate vs deferrable initially-deferred timing;
 - preserves `ON UPDATE`, `ON DELETE`, and `MATCH` metadata on violation rows;
@@ -15,7 +15,7 @@ The WordPress smoke models a copied multisite `wp_options` import where one miss
 ## Focused evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext170Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 53 PASS lines
 1 test files, 63 assertions, 0 failures

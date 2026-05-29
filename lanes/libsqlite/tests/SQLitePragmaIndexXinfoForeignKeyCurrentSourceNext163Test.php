@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record163 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -50,7 +50,7 @@ $page163 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_name)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog163(
     $currentRecords163,
     $currentTables163,
     $nextRecords ?? $nextRecords163,
@@ -76,7 +76,7 @@ $valueAt163 = static function (mixed $value, string $path): mixed {
 
 $default163 = static fn (): array => $page163();
 $blockedNext163 = static fn (): array => $page163(nextTables: $currentTables163);
-$foreignKeys163 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163::foreignKeysFromCatalog($currentRecords163);
+$foreignKeys163 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog163($currentRecords163);
 $tableValued163 = static fn (): array => $page163(indexSql: "pragma_index_xinfo('wp_options_name')", tableValued: true);
 
 $cases163 = [
@@ -179,7 +179,7 @@ $tests['pragma index xinfo foreignkey current source next163 source changes with
     $second = $page163(nextRecords: $changed);
 
     $t->same(true, $first['source_id'] !== $second['source_id']);
-    $t->same(['locale', 'site_key'], array_column(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163::foreignKeysFromCatalog($changed)[1]['columns'], 'parent'));
+    $t->same(['locale', 'site_key'], array_column(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog163($changed)[1]['columns'], 'parent'));
 };
 
 $tests['pragma index xinfo foreignkey current source next163 rejects stale source cursor'] = static function (TestRunner $t) use ($page163, $currentTables163): void {
@@ -198,7 +198,7 @@ $tests['pragma index xinfo foreignkey current source next163 rejects unresolved 
         $record163('table', 'child', 'child', 3, 'CREATE TABLE child(parent_value TEXT REFERENCES parent)', 2),
     ];
 
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163::foreignKeysFromCatalog($records));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog163($records));
 };
 
 $tests['pragma index xinfo foreignkey current source next163 rejects negative offset'] = static function (TestRunner $t) use ($page163): void {

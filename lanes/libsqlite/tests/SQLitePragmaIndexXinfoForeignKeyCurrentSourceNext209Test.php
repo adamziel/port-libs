@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record209 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -48,7 +48,7 @@ $page209 = static fn (
     int $limit = 80,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page209(
     $currentRecords209,
     $nextRecords ?? $nextRecords209,
     'PRAGMA main.index_xinfo(wp_option_import_lookup)',
@@ -72,8 +72,8 @@ $valueAt209 = static function (mixed $value, string $path): mixed {
 
 $default209 = static fn (): array => $page209();
 $blocked209 = static fn (): array => $page209(nextRecords: $badNextRecords209);
-$implicitCurrent209 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209::implicitParentPrimaryKeyRows($currentRecords209);
-$implicitNext209 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209::implicitParentPrimaryKeyRows($nextRecords209, 'next');
+$implicitCurrent209 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows209($currentRecords209);
+$implicitNext209 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows209($nextRecords209, 'next');
 
 $cases209 = [
     'status ok' => [$default209, 'status', 'ok'],
@@ -171,11 +171,11 @@ $tests['pragma index xinfo foreignkey implicit parent primary key current source
         $record209('table', 'child', 'child', 4, 'CREATE TABLE child(a INTEGER, b INTEGER, FOREIGN KEY(a, b) REFERENCES parent(a, b))', 3),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209::implicitParentPrimaryKeyRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows209($records));
 };
 
 $tests['pragma index xinfo foreignkey implicit parent primary key current source next209 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext209::implicitParentPrimaryKeyRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::implicitParentPrimaryKeyRows209([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey implicit parent primary key current source next209 rejects invalid bounds'] = static function (TestRunner $t) use ($page209): void {

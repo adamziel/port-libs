@@ -10,7 +10,7 @@ in the wrong order. SQLite cannot use that index to satisfy the parent key, so
 `foreign_key_check` can remain blocked even though `PRAGMA index_xinfo` shows a
 UNIQUE index over all referenced columns.
 
-The new `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193` layer builds on
+The new `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` layer builds on
 accepted next189 catalog output and adds:
 
 - `foreign_key_parent_unique_order` rows from `PRAGMA index_list` plus
@@ -24,7 +24,7 @@ accepted next189 catalog output and adds:
 ## Evidence
 
 ```sh
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext193Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 ```
 
 Result: `1 test files, 64 assertions, 0 failures`.

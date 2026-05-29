@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext156`, a bounded current/next cursor for the PRAGMA admission path that combines:
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a bounded current/next cursor for the PRAGMA admission path that combines:
 
 - `PRAGMA index_xinfo(...)` rows for the selected parent index.
 - Foreign-key parent UNIQUE-index admission rows backed by `index_xinfo` collation/key metadata.
@@ -14,7 +14,7 @@ The WordPress smoke models a copied `wp_options` import where the current parent
 ## Focused evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext156Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 61 PASS lines
 1 test files, 69 assertions, 0 failures

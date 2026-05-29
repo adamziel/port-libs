@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext251`, an additive
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, an additive
 current-source PRAGMA/FK page over accepted next248. The new rows catch
 child-side foreign-key action lookup indexes whose left prefix starts with the
 FK child column but then includes an expression key term reported by
@@ -16,7 +16,7 @@ repair is a normal child index on the exact FK child columns.
 
 ## Focused Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext251Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `51 PASS lines`
   - `1 test files, 58 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next251.php`

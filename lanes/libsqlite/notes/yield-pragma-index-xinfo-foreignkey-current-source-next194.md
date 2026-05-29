@@ -2,13 +2,13 @@
 
 ## Behavior
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext194` for child-side partial-index diagnostics.
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` for child-side partial-index diagnostics.
 - The slice reports when `PRAGMA index_xinfo` shows an FK child helper index is partial, while preserving SQLite behavior that `PRAGMA foreign_key_check` correctness does not require a child index.
 - The current WordPress-shaped case has an autoload-only `wp_options(slug, locale, blog_id, option_id)` partial index. The next-source repair replaces it with a full child index, clearing the diagnostic without adding a foreign-key blocker.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext194Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `Focused test run: 1 selected test files (root lock skipped)`
   - `1 test files, 57 assertions, 0 failures`
   - 50 PASS lines

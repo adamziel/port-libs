@@ -8,7 +8,7 @@ composite foreign-key rows, source hashes, and resume cursor validation.
 
 Focused verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext196Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - Result: `1 test files, 75 assertions, 0 failures`
 - PASS-line delta: `+62`
 

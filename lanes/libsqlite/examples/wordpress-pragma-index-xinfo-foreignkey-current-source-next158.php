@@ -7,7 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
@@ -84,7 +84,7 @@ $schemas = static function (int $missing): array {
     ];
 };
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext158::currentNextPage(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPage158(
     $catalog,
     $dirtyDatabase,
     $schemas(2),

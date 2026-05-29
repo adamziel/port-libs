@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record211 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -40,7 +40,7 @@ $page211 = static fn (
     int $limit = 90,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page211(
     $currentRecords211,
     $nextRecords ?? $nextRecords211,
     'PRAGMA main.index_xinfo(wp_option_import_lookup)',
@@ -64,8 +64,8 @@ $valueAt211 = static function (mixed $value, string $path): mixed {
 
 $default211 = static fn (): array => $page211();
 $blocked211 = static fn (): array => $page211(nextRecords: $currentRecords211);
-$rows211 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211::childNullabilityRows($currentRecords211);
-$nextRows211 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211::childNullabilityRows($nextRecords211, 'next');
+$rows211 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childNullabilityRows211($currentRecords211);
+$nextRows211 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childNullabilityRows211($nextRecords211, 'next');
 
 $cases211 = [
     'status ok' => [$default211, 'status', 'ok'],
@@ -158,13 +158,13 @@ $tests['pragma index xinfo foreignkey child nullability current source next211 t
         $record211('table', 'child', 'child', 3, 'CREATE TABLE child(id INTEGER PRIMARY KEY REFERENCES parent(id))', 2),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211::childNullabilityRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childNullabilityRows211($records);
     $t->same('all_not_null_child_key', $rows[0]['status']);
     $t->same(['id'], $rows[0]['not_null_columns']);
 };
 
 $tests['pragma index xinfo foreignkey child nullability current source next211 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext211::childNullabilityRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::childNullabilityRows211([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey child nullability current source next211 rejects invalid bounds'] = static function (TestRunner $t) use ($page211): void {

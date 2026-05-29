@@ -6,7 +6,7 @@ omit parent-column lists, such as `REFERENCES parent` and
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext208` wraps the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` wraps the accepted
   next206 `index_xinfo`/foreign-key page and appends deterministic
   `foreign_key_implicit_parent_key` rows.
 - Omitted parent columns are resolved through `PRAGMA table_info` primary-key
@@ -20,7 +20,7 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext208Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 65 assertions, 0 failures`
   - `56` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next208.php --self-test`

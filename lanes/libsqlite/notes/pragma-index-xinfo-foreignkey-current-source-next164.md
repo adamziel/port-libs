@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164`, a current/next PRAGMA helper for copied table arrays whose table or column keys differ from `sqlite_schema` only by identifier case.
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a current/next PRAGMA helper for copied table arrays whose table or column keys differ from `sqlite_schema` only by identifier case.
 
 - Reuses next161 catalog-derived `PRAGMA foreign_key_list` extraction, implicit parent primary-key resolution, parent affinity/collation enrichment, and next156 pagination/source validation.
 - Canonicalizes table row arrays to schema table names case-insensitively.
@@ -12,7 +12,7 @@ Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164`, a current/next PRAG
 ## Evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext164Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 61 PASS lines
 1 test files, 68 assertions, 0 failures
@@ -31,4 +31,4 @@ It also avoids accepted PRAGMA optimize/index_xinfo, rootpage/integrity paginati
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog`, `PRAGMA table_xinfo`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161`, and the accepted next156 FK/index current-source cursor.
+No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog`, `PRAGMA table_xinfo`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, and the accepted next156 FK/index current-source cursor.

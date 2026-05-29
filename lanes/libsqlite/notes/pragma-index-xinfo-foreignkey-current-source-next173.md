@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo foreign-key current-source next173
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173`.
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`.
 It extends the accepted action-aware `PRAGMA index_xinfo` + `foreign_key_list`
 current-source plan with CREATE TABLE foreign-key deferral metadata. The plan
 tracks `DEFERRABLE INITIALLY DEFERRED`, `DEFERRABLE INITIALLY IMMEDIATE`, and
@@ -9,10 +9,10 @@ decorates both parent-index admission rows and `foreign_key_check` rows.
 
 Focused verification:
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext173Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-deferral-current-source-next173.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 

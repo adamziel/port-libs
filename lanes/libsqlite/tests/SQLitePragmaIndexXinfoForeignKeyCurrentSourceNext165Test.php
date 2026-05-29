@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record165 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -56,7 +56,7 @@ $page165 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog165(
     $currentRecords165,
     $currentTables165,
     $nextRecords165,
@@ -82,7 +82,7 @@ $valueAt165 = static function (mixed $value, string $path): mixed {
 
 $default165 = static fn (): array => $page165();
 $blocked165 = static fn (): array => $page165(nextTables: $currentTables165);
-$foreignKeys165 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165::foreignKeysFromCatalog($currentRecords165);
+$foreignKeys165 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog165($currentRecords165);
 
 $cases165 = [
     'status ok after action aware repair' => [$default165, 'status', 'ok'],
@@ -188,7 +188,7 @@ $tests['pragma index xinfo foreignkey action current source next165 rejects stal
 };
 
 $tests['pragma index xinfo foreignkey action current source next165 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext165::foreignKeysFromCatalog([['not' => 'a record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeysFromCatalog165([['not' => 'a record']]));
 };
 
 return $tests;

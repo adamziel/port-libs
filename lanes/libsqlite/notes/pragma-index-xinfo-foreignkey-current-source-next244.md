@@ -4,7 +4,7 @@ Slice: `pragma-index-xinfo-foreignkey-current-source-next244`
 
 Behavior:
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext244`, layered on the
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered on the
   accepted next241 current-source page.
 - Appends current/next diagnostic rows for foreign keys whose parent columns
   are backed only by a UNIQUE parent index that includes expression key rows in
@@ -26,7 +26,7 @@ repair can proceed.
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext244Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 1 test files, 66 assertions, 0 failures
 ```
 

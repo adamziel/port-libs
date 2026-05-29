@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo / foreign_key current-source next239
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext239`, which reports
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, which reports
 `PRAGMA index_xinfo` `key=0` auxiliary rows on UNIQUE parent indexes used by
 foreign keys. SQLite exposes rowid-table auxiliary rowid entries and WITHOUT
 ROWID primary-key tail entries in `index_xinfo`, but those rows are storage
@@ -10,7 +10,7 @@ as a wider UNIQUE index.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext239Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next239.php --self-test`
 - PHP lint for changed PHP files
 - `git diff --check -- lanes/libsqlite`

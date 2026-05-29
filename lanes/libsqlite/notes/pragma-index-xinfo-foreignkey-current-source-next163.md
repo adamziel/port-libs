@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163`, extending the catalog-derived PRAGMA admission path so `REFERENCES parent` with omitted parent columns resolves through the current parent primary key, matching SQLite `foreign_key_list` / `foreign_key_check` behavior.
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, extending the catalog-derived PRAGMA admission path so `REFERENCES parent` with omitted parent columns resolves through the current parent primary key, matching SQLite `foreign_key_list` / `foreign_key_check` behavior.
 
 The slice covers:
 
@@ -17,7 +17,7 @@ The WordPress smoke models copied multisite `wp_options` rows that reference `wp
 ## Focused evidence
 
 ```text
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext163Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php
 Focused test run: 1 selected test files (root lock skipped)
 70 PASS lines
 1 test files, 77 assertions, 0 failures

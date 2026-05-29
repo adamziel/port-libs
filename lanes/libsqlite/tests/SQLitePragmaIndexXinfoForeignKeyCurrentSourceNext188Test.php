@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record188 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -41,7 +41,7 @@ $page188 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog188(
     $currentRecords188,
     $currentTables188,
     $nextRecords ?? $nextRecords188,
@@ -67,7 +67,7 @@ $valueAt188 = static function (mixed $value, string $path): mixed {
 
 $default188 = static fn (): array => $page188();
 $blocked188 = static fn (): array => $page188(nextRecords: $currentRecords188);
-$partialRows188 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188::partialParentKeyRows($currentRecords188);
+$partialRows188 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::partialParentKeyRows188($currentRecords188);
 $tableValued188 = static fn (): array => $page188(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases188 = [
@@ -163,7 +163,7 @@ $tests['pragma index xinfo foreignkey parent partial current source next188 reje
 };
 
 $tests['pragma index xinfo foreignkey parent partial current source next188 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext188::partialParentKeyRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::partialParentKeyRows188([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent partial current source next188 rejects negative offset'] = static function (TestRunner $t) use ($page188): void {

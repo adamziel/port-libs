@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record206 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -49,7 +49,7 @@ $page206 = static fn (
     int $limit = 50,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page206(
     $currentRecords206,
     $nextRecords ?? $nextRecords206,
     'PRAGMA main.index_xinfo(wp_option_import_lookup)',
@@ -73,8 +73,8 @@ $valueAt206 = static function (mixed $value, string $path): mixed {
 
 $default206 = static fn (): array => $page206();
 $blocked206 = static fn (): array => $page206(nextRecords: $badNextRecords206);
-$rowidRows206 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206::rowidAliasParentRows($currentRecords206);
-$rowidNextRows206 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206::rowidAliasParentRows($nextRecords206, 'next');
+$rowidRows206 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidAliasParentRows206($currentRecords206);
+$rowidNextRows206 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidAliasParentRows206($nextRecords206, 'next');
 
 $cases206 = [
     'status ok' => [$default206, 'status', 'ok'],
@@ -168,7 +168,7 @@ $tests['pragma index xinfo foreignkey rowid alias parent current source next206 
 };
 
 $tests['pragma index xinfo foreignkey rowid alias parent current source next206 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206::rowidAliasParentRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::rowidAliasParentRows206([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey rowid alias parent current source next206 rejects invalid bounds'] = static function (TestRunner $t) use ($page206): void {

@@ -2,13 +2,13 @@
 
 ## Behavior
 
-- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161`, a catalog-derived current/next PRAGMA helper that resolves implicit parent columns for `REFERENCES parent` declarations from the parent table primary key.
+- Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a catalog-derived current/next PRAGMA helper that resolves implicit parent columns for `REFERENCES parent` declarations from the parent table primary key.
 - Covers inline integer primary keys and composite table-level primary keys, including `WITHOUT ROWID` WordPress-style option-name catalogs.
 - Keeps next159 explicit-parent-column behavior intact and continues to reject implicit references when the parent table has no primary key.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext161Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - Result: `1 test files, 73 assertions, 0 failures` with 65 PASS lines.
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next161.php --self-test`
 
@@ -18,4 +18,4 @@ This avoids accepted next158/next159 surfaces for explicit FK parent columns, ro
 
 ## Dependency Closure
 
-No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext156`, and existing FK/index integrity helpers.
+No new support component is needed. The slice reuses `SQLitePragmaSchemaCatalog`, `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, and existing FK/index integrity helpers.

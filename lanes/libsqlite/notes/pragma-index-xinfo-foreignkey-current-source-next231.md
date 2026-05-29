@@ -7,7 +7,7 @@ UNIQUE parent indexes. SQLite exposes expression index terms in
 `PRAGMA index_xinfo` with `cid = -2` and `name = NULL`; those terms cannot
 satisfy a `FOREIGN KEY ... REFERENCES parent(column)` parent-key requirement.
 
-The new `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231` page composes
+The new `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` page composes
 the accepted next229 exact parent-key arity page and appends
 `foreign_key_parent_expression_unique` rows. It reports current copied
 WordPress taxonomy-import schemas where only `lower(slug)` / `lower(slug),
@@ -16,15 +16,15 @@ with plain `UNIQUE(slug)` / `UNIQUE(slug, taxonomy)` clears the blocker.
 
 ## Focused Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `62 PASS lines`
   - `1 test files, 81 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next231 self-test passed`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext231Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next231.php`
 - `git diff --check -- lanes/libsqlite`

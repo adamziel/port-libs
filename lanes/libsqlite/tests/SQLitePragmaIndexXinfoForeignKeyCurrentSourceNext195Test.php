@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record195 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -54,7 +54,7 @@ $page195 = static fn (
     ?array $nextRecords = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog195(
     $currentRecords195,
     $currentTables195,
     $nextRecords ?? $nextRecords195,
@@ -80,8 +80,8 @@ $valueAt195 = static function (mixed $value, string $path): mixed {
 
 $default195 = static fn (): array => $page195();
 $blocked195 = static fn (): array => $page195(nextRecords: $currentRecords195);
-$permutedRows195 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::permutedParentKeyRows($currentRecords195);
-$nextPermutedRows195 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::permutedParentKeyRows($nextRecords195, 'next');
+$permutedRows195 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentKeyRows195($currentRecords195);
+$nextPermutedRows195 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentKeyRows195($nextRecords195, 'next');
 $tableValued195 = static fn (): array => $page195(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases195 = [
@@ -164,7 +164,7 @@ $tests['pragma index xinfo foreignkey parent permuted current source next195 sou
 $tests['pragma index xinfo foreignkey parent permuted current source next195 ignores superset unique indexes'] = static function (TestRunner $t) use ($currentRecords195, $record195): void {
     $records = $currentRecords195;
     $records[5] = $record195('index', 'wp_option_names_superset_unique', 'wp_option_names', 9, 'CREATE UNIQUE INDEX wp_option_names_superset_unique ON wp_option_names(blog_id, name, locale)', 6);
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::permutedParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentKeyRows195($records);
 
     $t->same(2, count($rows));
     $t->same('wp_plugin_defaults_reversed_partial', $rows[0]['index']);
@@ -173,7 +173,7 @@ $tests['pragma index xinfo foreignkey parent permuted current source next195 ign
 $tests['pragma index xinfo foreignkey parent permuted current source next195 ignores expression unique indexes'] = static function (TestRunner $t) use ($currentRecords195, $record195): void {
     $records = $currentRecords195;
     $records[5] = $record195('index', 'wp_option_names_expression_unique', 'wp_option_names', 9, 'CREATE UNIQUE INDEX wp_option_names_expression_unique ON wp_option_names(blog_id, lower(name))', 6);
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::permutedParentKeyRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentKeyRows195($records);
 
     $t->same(2, count($rows));
     $t->same('wp_plugin_defaults_reversed_partial', $rows[0]['index']);
@@ -192,7 +192,7 @@ $tests['pragma index xinfo foreignkey parent permuted current source next195 rej
 };
 
 $tests['pragma index xinfo foreignkey parent permuted current source next195 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195::permutedParentKeyRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentKeyRows195([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey parent permuted current source next195 rejects negative offset'] = static function (TestRunner $t) use ($page195): void {

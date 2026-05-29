@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -24,7 +24,7 @@ $records = [
 $nextRecords = $records;
 $nextRecords[] = $record('index', 'wp_plugins_slug_locale_unique', 'wp_plugins', 6, 'CREATE UNIQUE INDEX wp_plugins_slug_locale_unique ON wp_plugins(plugin_slug, locale)', 5);
 
-$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext206::page(
+$page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page206(
     $records,
     $nextRecords,
     'PRAGMA index_xinfo(wp_option_import_lookup)',

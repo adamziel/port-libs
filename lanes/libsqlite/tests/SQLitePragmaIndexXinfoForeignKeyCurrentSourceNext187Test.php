@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record187 = static fn (string $type, string $name, string $table, int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -58,7 +58,7 @@ $page187 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog187(
     $currentRecords187,
     $currentTables187,
     $nextRecords ?? $nextRecords187,
@@ -84,8 +84,8 @@ $valueAt187 = static function (mixed $value, string $path): mixed {
 
 $default187 = static fn (): array => $page187();
 $blocked187 = static fn (): array => $page187(nextRecords: $currentRecords187, nextTables: $currentTables187);
-$partialRows187 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187::partialParentIndexRows($currentRecords187);
-$nextPartialRows187 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187::partialParentIndexRows($nextRecords187, 'next');
+$partialRows187 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::partialParentIndexRows187($currentRecords187);
+$nextPartialRows187 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::partialParentIndexRows187($nextRecords187, 'next');
 $tableValued187 = static fn (): array => $page187(indexSql: "pragma_index_xinfo('wp_options_lookup')", tableValued: true);
 
 $cases187 = [
@@ -191,7 +191,7 @@ $tests['pragma index xinfo foreignkey partial parent current source next187 reje
 };
 
 $tests['pragma index xinfo foreignkey partial parent current source next187 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext187::partialParentIndexRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::partialParentIndexRows187([['bad' => 'record']]));
 };
 
 $tests['pragma index xinfo foreignkey partial parent current source next187 rejects negative offset'] = static function (TestRunner $t) use ($page187): void {

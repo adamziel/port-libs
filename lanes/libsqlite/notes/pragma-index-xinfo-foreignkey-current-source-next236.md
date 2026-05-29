@@ -2,7 +2,7 @@
 
 Slice: `pragma-index-xinfo-foreignkey-current-source-next236`.
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236`, an
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, an
 additive current-source PRAGMA helper layered on accepted `index_xinfo`,
 `foreign_key_list`, exact-arity, collation, partial-parent, and expression
 UNIQUE parent-key diagnostics.
@@ -29,10 +29,10 @@ exposes the mixed-case names.
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next236.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext236Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 69 assertions, 0 failures`
   - `54` PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next236.php --self-test`

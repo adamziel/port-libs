@@ -1,6 +1,6 @@
 # pragma-index-xinfo-foreignkey-current-source-next195
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195`, a
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, a
 current-source PRAGMA helper layered on accepted `index_xinfo`,
 `foreign_key_list`, parent-key, partial/expression/superset parent-index, and
 child-index diagnostics. It detects parent UNIQUE indexes whose key columns are
@@ -24,7 +24,7 @@ Behavior covered:
 
 Focused evidence:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext195Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 63 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next195.php --self-test`
   - `wordpress-pragma-index-xinfo-foreignkey-current-source-next195 self-test passed`

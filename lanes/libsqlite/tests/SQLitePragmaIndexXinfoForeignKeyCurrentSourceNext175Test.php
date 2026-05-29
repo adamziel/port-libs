@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record175 = static fn (string $type, string $name, string $table, int $root, string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
@@ -59,7 +59,7 @@ $page175 = static fn (
     ?array $nextTables = null,
     string $indexSql = 'PRAGMA index_xinfo(wp_options_lookup)',
     bool $tableValued = false,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175::currentNextPageFromCatalog(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::currentNextPageFromCatalog175(
     $currentRecords175,
     $currentTables175,
     $nextRecords ?? $nextRecords175,
@@ -85,7 +85,7 @@ $valueAt175 = static function (mixed $value, string $path): mixed {
 
 $default175 = static fn (): array => $page175();
 $blocked175 = static fn (): array => $page175(nextTables: $currentTables175);
-$fkRows175 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175::foreignKeyListRows($currentRecords175);
+$fkRows175 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyListRows175($currentRecords175);
 
 $cases175 = [
     'status ok after FK repair' => [$default175, 'status', 'ok'],
@@ -201,7 +201,7 @@ $tests['pragma index xinfo foreignkey current source next175 rejects stale offse
 };
 
 $tests['pragma index xinfo foreignkey current source next175 rejects malformed records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext175::foreignKeyListRows([['bad' => 'record']]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::foreignKeyListRows175([['bad' => 'record']]));
 };
 
 return $tests;

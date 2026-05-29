@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo / foreign-key current-source next220
 
-Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext220`, layered on the
+Adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered on the
 accepted next217 parent-key prefix current-source chain.
 
 New behavior:
@@ -16,10 +16,10 @@ New behavior:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext220.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext220Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next220.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext220Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next220.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 

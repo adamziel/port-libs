@@ -8,7 +8,7 @@ right order.
 
 Implementation:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237` wraps the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` wraps the accepted
   next234 page and appends `foreign_key_parent_prefix_unique` rows.
 - Current/next source IDs now include exact-vs-prefix parent key summaries, so
   paged resumes are rejected after schema/index arity drift.
@@ -18,10 +18,10 @@ Implementation:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next237.php --self-test`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext237Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next237.php`
 - `git diff --check -- lanes/libsqlite`
 

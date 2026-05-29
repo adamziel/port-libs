@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219;
+use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
 $record219 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
@@ -44,7 +44,7 @@ $page219 = static fn (
     int $limit = 100,
     ?array $resume = null,
     ?array $nextRecords = null,
-): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::page(
+): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::page219(
     $currentRecords219,
     $nextRecords ?? $nextRecords219,
     'PRAGMA main.index_xinfo(wp_terms_slug_blog_unique)',
@@ -68,8 +68,8 @@ $valueAt219 = static function (mixed $value, string $path): mixed {
 
 $default219 = static fn (): array => $page219();
 $unrepaired219 = static fn (): array => $page219(nextRecords: $unrepairedRecords219);
-$currentPermutation219 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::permutedParentUniqueRows($currentRecords219);
-$nextPermutation219 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::permutedParentUniqueRows($nextRecords219, 'next');
+$currentPermutation219 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentUniqueRows219($currentRecords219);
+$nextPermutation219 = static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentUniqueRows219($nextRecords219, 'next');
 
 $cases219 = [
     'status ok' => [$default219, 'status', 'ok'],
@@ -145,7 +145,7 @@ $tests['pragma index xinfo foreignkey parent key permutation current source next
         $record219('table', 'child', 'child', 5, 'CREATE TABLE child(a TEXT, b TEXT, FOREIGN KEY(a, b) REFERENCES parent(a, b))', 4),
     ];
 
-    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::permutedParentUniqueRows($records));
+    $t->same([], SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentUniqueRows219($records));
 };
 
 $tests['pragma index xinfo foreignkey parent key permutation current source next219 reports all rows for a three column permutation'] = static function (TestRunner $t) use ($record219): void {
@@ -155,7 +155,7 @@ $tests['pragma index xinfo foreignkey parent key permutation current source next
         $record219('table', 'child', 'child', 4, 'CREATE TABLE child(a TEXT, b TEXT, c TEXT, FOREIGN KEY(a, b, c) REFERENCES parent(a, b, c))', 3),
     ];
 
-    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::permutedParentUniqueRows($records);
+    $rows = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentUniqueRows219($records);
     $t->same(3, count($rows));
     $t->same([2, 1, 0], array_column($rows, 'actual_position'));
     $t->same('parent_cba_unique', $rows[2]['permuted_unique_index']);
@@ -174,7 +174,7 @@ $tests['pragma index xinfo foreignkey parent key permutation current source next
 };
 
 $tests['pragma index xinfo foreignkey parent key permutation current source next219 rejects invalid records'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext219::permutedParentUniqueRows([['bad' => true]]));
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::permutedParentUniqueRows219([['bad' => true]]));
 };
 
 $tests['pragma index xinfo foreignkey parent key permutation current source next219 rejects invalid bounds'] = static function (TestRunner $t) use ($page219): void {

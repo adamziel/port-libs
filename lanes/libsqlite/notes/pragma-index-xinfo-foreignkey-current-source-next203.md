@@ -5,7 +5,7 @@ This slice adds current-source parent-key coverage auditing across
 
 Behavior:
 
-- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203` wraps the accepted
+- `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext` wraps the accepted
   next196 combined `index_xinfo` / `foreign_key_list` page and appends
   deterministic `foreign_key_parent_coverage` rows.
 - Each foreign-key group records child columns, parent columns, covering parent
@@ -22,7 +22,7 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext203Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 65 assertions, 0 failures`
   - `58` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-current-source-next203.php --self-test`

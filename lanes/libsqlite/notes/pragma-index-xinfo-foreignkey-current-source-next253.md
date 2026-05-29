@@ -1,6 +1,6 @@
 # PRAGMA index_xinfo / foreign-key current-source next253
 
-This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253`, layered
+This slice adds `SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext`, layered
 on the accepted next250 PRAGMA/FK page. It reports `SET NULL` and
 `SET DEFAULT` foreign-key actions whose child columns are generated columns
 visible through `PRAGMA table_xinfo` but hidden from `PRAGMA table_info`.
@@ -18,16 +18,16 @@ Behavior:
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
   - `1 test files, 57 assertions, 0 failures`
   - `49` focused PASS lines
 - `php lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-generated-child-action-current-source-next253.php`
   - reports `current_generated_child_action_blockers: 2`,
     `next_generated_child_action_blockers: 0`, and `repaired: true`
-- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253.php`
-  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253.php`
-- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext253Test.php`
+- `php -l lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+  - `No syntax errors detected in lanes/libsqlite/src/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext.php`
+- `php -l lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLitePragmaIndexXinfoForeignKeyCurrentSourceNextTest.php`
 - `php -l lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-generated-child-action-current-source-next253.php`
   - `No syntax errors detected in lanes/libsqlite/examples/wordpress-pragma-index-xinfo-foreignkey-generated-child-action-current-source-next253.php`
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'`
