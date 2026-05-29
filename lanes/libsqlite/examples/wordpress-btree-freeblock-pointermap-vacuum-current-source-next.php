@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNext150Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
@@ -63,13 +63,13 @@ $putPointerMapEntry($pages, 42, SQLitePointerMapEntry::BTREE_PAGE, 3);
 $putPointerMapEntry($pages, 104, SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 42);
 $putPointerMapEntry($pages, 106, SQLitePointerMapEntry::OVERFLOW_PAGE, 104);
 
-$plan = SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNext150Plan::fromDatabaseDeleteResults(
+$plan = SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNextPlan::fromDatabaseDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     [[
-        'source' => 'copied-wp-options-transient-tail-overflow-delete-next150',
+        'source' => 'copied-wp-options-transient-tail-overflow-delete',
         'obsolete_overflow_page_numbers' => [104, 106],
-        'rowids' => [15001],
+        'rowids' => [1701],
     ]],
     8,
     true,
@@ -77,27 +77,32 @@ $plan = SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNext150Plan::fromDataba
 
 if (($argv[1] ?? '') === '--self-test') {
     if (
-        $plan->basePlan->nextDatabase->pageCount() !== 103
+        $plan->nextDatabase->pageCount() !== 103
+        || $plan->survivingFreelistPageNumbers() !== []
+        || $plan->truncatedPageNumbers() !== [106, 105, 104]
         || $plan->truncatedPointerMapPages() !== [105]
         || array_column($plan->truncatedRows(), 'page_number') !== [104, 105, 106]
     ) {
-        fwrite(STDERR, "wordpress-btree-freeblock-pointermap-vacuum-current-source-next150 self-test failed\n");
+        fwrite(STDERR, "wordpress-btree-freeblock-pointermap-vacuum-current-source-next self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-btree-freeblock-pointermap-vacuum-current-source-next150 self-test passed\n");
+    fwrite(STDOUT, "wordpress-btree-freeblock-pointermap-vacuum-current-source-next self-test passed\n");
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'copied wp_options freeblock coalesce plus pointer-map boundary vacuum current source next150',
-    'wordpressUse' => 'Preview a transient option delete where the leaf freeblock remains materialized while obsolete tail overflow pages and their pointer-map boundary page are removed by incremental vacuum without ext/sqlite.',
-    'releasedOverflowPages' => $plan->toArray()['released_overflow_pages'],
-    'truncatedPages' => $plan->toArray()['truncated_page_numbers'],
+    'scenario' => 'copied wp_options freeblock coalesce followed by pointer-map boundary vacuum current source next',
+    'wordpressUse' => 'Preview a transient option delete where the leaf page keeps a coalesced reusable freeblock while obsolete tail overflow pages are removed by incremental vacuum across an auto-vacuum pointer-map boundary without ext/sqlite.',
+    'coalescedFragmentBytes' => $plan->coalescePlan->coalescedFragmentBytes,
+    'releasedOverflowPages' => $plan->vacuumPlan->releasedOverflowPages(),
+    'truncatedPages' => $plan->truncatedPageNumbers(),
+    'finalDatabasePageCount' => $plan->nextDatabase->pageCount(),
+    'survivingFreelistPages' => $plan->survivingFreelistPageNumbers(),
+    'updatedPageNumbers' => $plan->updatedPageNumbers(),
+    'pointerMapTransitions' => $plan->vacuumPlan->pointerMapVacuumTransitions(),
     'truncatedPointerMapPages' => $plan->truncatedPointerMapPages(),
     'materializedRows' => array_column($plan->materializedRows(), 'page_number'),
     'truncatedRows' => array_column($plan->truncatedRows(), 'page_number'),
-    'leafFreeblockOffsets' => $plan->rows[0]['freeblock_offsets'],
-    'finalDatabasePageCount' => $plan->toArray()['final_database_page_count'],
     'rows' => $plan->rows,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

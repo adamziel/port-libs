@@ -1,13 +1,13 @@
-# B-tree Freeblock Pointer-Map Vacuum Current Source Next93
+# B-tree Freeblock Pointer-Map Vacuum Current Source Next
 
-This slice adds `SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNext93Plan`, a bounded current-source write-apply helper that keeps the deleted leaf page materialized with its reusable coalesced freeblocks while obsolete overflow tail pages are released through the freelist and then truncated by incremental vacuum across an auto-vacuum pointer-map page boundary.
+This slice adds `SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNextPlan`, a bounded current-source write-apply helper that keeps the deleted leaf page materialized with its reusable coalesced freeblocks while obsolete overflow tail pages are released through the freelist and then truncated by incremental vacuum across an auto-vacuum pointer-map page boundary.
 
 Focused verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNext93Test.php`
-- Result: `1 test files, 202 assertions, 0 failures`, with 70 PASS lines.
-- `php lanes/libsqlite/examples/wordpress-btree-freeblock-pointermap-vacuum-current-source-next93.php --self-test`
-- Result: `wordpress-btree-freeblock-pointermap-vacuum-current-source-next93 self-test passed`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreeblockPointerMapVacuumCurrentSourceNextTest.php`
+- Result: `1 test files, 289 assertions, 0 failures`, with 92 PASS lines.
+- `php lanes/libsqlite/examples/wordpress-btree-freeblock-pointermap-vacuum-current-source-next.php --self-test`
+- Result: `wordpress-btree-freeblock-pointermap-vacuum-current-source-next self-test passed`
 
 Non-overlap:
 
