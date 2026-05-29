@@ -61,6 +61,16 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
+    public static function currentSourceNext138(array $operations, array $options = []): array
+    {
+        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-bad-source-regression-current-source-next138', true, true, true);
+    }
+
+    /**
+     * @param list<string|array<string,mixed>> $operations
+     * @param array<string,mixed> $options
+     * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
+     */
     private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false): array
     {
         if ($operations === []) {
@@ -255,13 +265,117 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         return [
             'sequence' => max(0, (int) ($current['sequence'] ?? 0)),
             'current_source' => isset($current['current_source']) ? self::sourceName((string) $current['current_source']) : null,
-            'handles' => is_array($current['handles'] ?? null) ? $current['handles'] : [],
-            'source_handles' => is_array($current['source_handles'] ?? null) ? $current['source_handles'] : [],
+            'handles' => is_array($current['handles'] ?? null) ? self::normalizeCurrentHandles($current['handles']) : [],
+            'source_handles' => is_array($current['source_handles'] ?? null) ? self::normalizeSourceHandles($current['source_handles']) : [],
             'persistent_controls' => is_array($current['persistent_controls'] ?? null) ? $current['persistent_controls'] : [],
-            'persistent_shm_locks' => is_array($current['persistent_shm_locks'] ?? null) ? $current['persistent_shm_locks'] : [],
-            'persistent_shm_lock_owners' => is_array($current['persistent_shm_lock_owners'] ?? null) ? $current['persistent_shm_lock_owners'] : [],
+            'persistent_shm_locks' => is_array($current['persistent_shm_locks'] ?? null) ? self::normalizePersistentShmLocks($current['persistent_shm_locks']) : [],
+            'persistent_shm_lock_owners' => is_array($current['persistent_shm_lock_owners'] ?? null) ? self::normalizePersistentShmLockOwners($current['persistent_shm_lock_owners']) : [],
             'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $handles
+     * @return array<string,mixed>
+     */
+    private static function normalizeCurrentHandles(array $handles): array
+    {
+        foreach ($handles as $id => $handle) {
+            if (!is_array($handle)) {
+                throw new \InvalidArgumentException('SQLite VFS current handle state must be an array');
+            }
+            $handle['source'] = self::sourceName((string) ($handle['source'] ?? 'main'));
+            if (is_array($handle['shm_locks'] ?? null)) {
+                $handle['shm_locks'] = self::normalizeShmLockModes($handle['shm_locks']);
+            }
+            if (is_array($handle['shm_lock_owners'] ?? null)) {
+                $handle['shm_lock_owners'] = self::normalizeShmLockOwners($handle['shm_lock_owners']);
+            }
+            $handles[(string) $id] = $handle;
+        }
+
+        return $handles;
+    }
+
+    /**
+     * @param array<string,mixed> $sourceHandles
+     * @return array<string,string>
+     */
+    private static function normalizeSourceHandles(array $sourceHandles): array
+    {
+        $normalized = [];
+        foreach ($sourceHandles as $source => $handleId) {
+            $normalized[self::sourceName((string) $source)] = (string) $handleId;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $persistent
+     * @return array<string,array<string,string>>
+     */
+    private static function normalizePersistentShmLocks(array $persistent): array
+    {
+        $normalized = [];
+        foreach ($persistent as $owner => $locks) {
+            if (!is_array($locks)) {
+                throw new \InvalidArgumentException('SQLite VFS persistent SHM lock state must be an array');
+            }
+            $normalized[(string) $owner] = self::normalizeShmLockModes($locks);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $persistent
+     * @return array<string,array<string,list<string>>>
+     */
+    private static function normalizePersistentShmLockOwners(array $persistent): array
+    {
+        $normalized = [];
+        foreach ($persistent as $owner => $locks) {
+            if (!is_array($locks)) {
+                throw new \InvalidArgumentException('SQLite VFS persistent SHM lock owner state must be an array');
+            }
+            $normalized[(string) $owner] = self::normalizeShmLockOwners($locks);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $locks
+     * @return array<string,string>
+     */
+    private static function normalizeShmLockModes(array $locks): array
+    {
+        $normalized = [];
+        foreach ($locks as $lock => $mode) {
+            $lockName = self::lockName((string) $lock);
+            $mode = strtolower(trim((string) $mode));
+            if (!in_array($mode, ['shared', 'exclusive'], true)) {
+                throw new \InvalidArgumentException('SQLite SHM hydrated lock mode is unsupported');
+            }
+            $normalized[$lockName] = $mode;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string,mixed> $ownersByLock
+     * @return array<string,list<string>>
+     */
+    private static function normalizeShmLockOwners(array $ownersByLock): array
+    {
+        $normalized = [];
+        foreach ($ownersByLock as $lock => $owners) {
+            $normalized[self::lockName((string) $lock)] = self::lockOwners($owners);
+        }
+
+        return $normalized;
     }
 
     /**
@@ -314,6 +428,10 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
+            if (!in_array($kind, ['open', 'source', 'close', 'filecontrol', 'xfilecontrol', 'shmlock', 'xshmlock'], true)) {
+                throw new \InvalidArgumentException('SQLite VFS SHM file-control lock operation is unsupported');
+            }
+
             return [
                 'kind' => match ($kind) {
                     'filecontrol', 'xfilecontrol' => 'filecontrol',
