@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
-$eq894909 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
-$like894909 = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
-$notNull894909 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
-$between894909 = static fn (string $expression, mixed $lower, mixed $upper): array => ['left' => ['expression' => $expression], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
+$eqLatePreparedHandoffContinuation = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
+$likeLatePreparedHandoffContinuation = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
+$notNullLatePreparedHandoffContinuation = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
+$betweenLatePreparedHandoffContinuation = static fn (string $expression, mixed $lower, mixed $upper): array => ['left' => ['expression' => $expression], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
 
-$rows894909 = static fn (): array => [
+$rowsLatePreparedHandoffContinuation = static fn (): array => [
     ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu', 'updated_at' => 60],
     ['rowid' => 30, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo', 'updated_at' => 30],
     ['rowid' => 50, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'Plugin_Mail', 'option_value' => 'mail', 'updated_at' => 50],
@@ -20,14 +20,14 @@ $rows894909 = static fn (): array => [
     ['rowid' => 80, 'blog_id' => 2, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'other-blog', 'updated_at' => 80],
 ];
 
-$samples894909 = static fn (): array => [
+$samplesLatePreparedHandoffContinuation = static fn (): array => [
     ['neq' => '3 3', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_forms', 20, 1]],
     ['neq' => '1 1', 'nlt' => '3 3', 'ndlt' => '1 1', 'sample' => ['plugin_mail', 50, 1]],
     ['neq' => '1 1', 'nlt' => '4 4', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 30, 1]],
     ['neq' => '1 1', 'nlt' => '5 5', 'ndlt' => '3 3', 'sample' => ['plugin_zulu', 60, 1]],
 ];
 
-$payload894909 = static fn (array $row): array => [
+$payloadLatePreparedHandoffContinuation = static fn (array $row): array => [
     'rowid' => $row['rowid'],
     'expressionKey' => strtolower((string) $row['option_name']),
     'coveredValues' => [
@@ -39,8 +39,8 @@ $payload894909 = static fn (array $row): array => [
     ],
 ];
 
-$prepared894909 = static fn (): array => [
-    'name' => 'prepared-wp-options-stat4-handoff-next894909',
+$preparedLatePreparedHandoffContinuation = static fn (): array => [
+    'name' => 'prepared-wp-options-stat4-handoff-late prepared handoff continuation',
     'schemaCookie' => 3884,
     'stat4Generation' => 382,
     'rows' => [
@@ -49,7 +49,7 @@ $prepared894909 = static fn (): array => [
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next894909',
+        'name' => 'idx_wp_options_lower_handoff_late prepared handoff continuation',
         'rootPage' => 38841,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -79,69 +79,69 @@ $prepared894909 = static fn (): array => [
     ]],
 ];
 
-$current894909 = static function (?array $rows = null, ?array $samples = null) use ($prepared894909, $rows894909, $samples894909, $payload894909): array {
-    $source = $prepared894909();
-    $source['name'] = 'current-wp-options-stat4-handoff-next894909';
+$currentLatePreparedHandoffContinuation = static function (?array $rows = null, ?array $samples = null) use ($preparedLatePreparedHandoffContinuation, $rowsLatePreparedHandoffContinuation, $samplesLatePreparedHandoffContinuation, $payloadLatePreparedHandoffContinuation): array {
+    $source = $preparedLatePreparedHandoffContinuation();
+    $source['name'] = 'current-wp-options-stat4-handoff-late prepared handoff continuation';
     $source['schemaCookie'] = 4034;
     $source['stat4Generation'] = 950;
-    $source['rows'] = $rows ?? $rows894909();
+    $source['rows'] = $rows ?? $rowsLatePreparedHandoffContinuation();
     $source['indexes'][0]['rootPage'] = 40348;
     $source['indexes'][0]['stat1'] = ['rows' => '6 2 1'];
-    $source['indexes'][0]['stat4Samples'] = $samples ?? $samples894909();
-    $source['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload894909, $source['rows']);
+    $source['indexes'][0]['stat4Samples'] = $samples ?? $samplesLatePreparedHandoffContinuation();
+    $source['indexes'][0]['stat4ExpressionPayloads'] = array_map($payloadLatePreparedHandoffContinuation, $source['rows']);
 
     return $source;
 };
 
-$terms894909 = static fn (): array => [
-    $between894909('LOWER(option_name)', 'plugin_forms', 'plugin_zulu'),
-    $eq894909('autoload', 'yes'),
-    $notNull894909('option_name'),
-    $eq894909('blog_id', 1),
-    $like894909('option_name', 'plugin_%'),
+$termsLatePreparedHandoffContinuation = static fn (): array => [
+    $betweenLatePreparedHandoffContinuation('LOWER(option_name)', 'plugin_forms', 'plugin_zulu'),
+    $eqLatePreparedHandoffContinuation('autoload', 'yes'),
+    $notNullLatePreparedHandoffContinuation('option_name'),
+    $eqLatePreparedHandoffContinuation('blog_id', 1),
+    $likeLatePreparedHandoffContinuation('option_name', 'plugin_%'),
 ];
 
-$plan894909 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoffContinuation(
-    $prepared894909(),
-    $current894909($rows, $samples),
-    $terms894909(),
+$planLatePreparedHandoffContinuation = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoffContinuation(
+    $preparedLatePreparedHandoffContinuation(),
+    $currentLatePreparedHandoffContinuation($rows, $samples),
+    $termsLatePreparedHandoffContinuation(),
     ['option_name', 'option_value', 'updated_at', 'blog_id'],
     6,
     0,
 );
 
 $tests = [
-    'planner stat4 expression partial current source next894909 status prepared' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next894-909-prepared', $plan894909()['status']),
-    'planner stat4 expression partial current source next894909 inherits next878893' => static fn (TestRunner $t) => $t->same(true, $plan894909()['selectedPlan']['next878893Prepared']),
-    'planner stat4 expression partial current source next894909 ready flag' => static fn (TestRunner $t) => $t->same(true, $plan894909()['selectedPlan']['next894909Prepared']),
-    'planner stat4 expression partial current source next894909 prior ready' => static fn (TestRunner $t) => $t->same(true, $plan894909()['stat4Next894909PreparationFence']['previousFenceReady']),
-    'planner stat4 expression partial current source next894909 slice range' => static fn (TestRunner $t) => $t->same([894, 909], $plan894909()['stat4Next894909PreparationFence']['sliceRange']),
-    'planner stat4 expression partial current source next894909 prior range' => static fn (TestRunner $t) => $t->same([878, 893], $plan894909()['stat4Next894909PreparationFence']['priorSliceRange']),
-    'planner stat4 expression partial current source next894909 prepared slices' => static fn (TestRunner $t) => $t->same(range(894, 909), $plan894909()['selectedPlan']['next894909PreparedSlices']),
-    'planner stat4 expression partial current source next894909 blocked slices empty' => static fn (TestRunner $t) => $t->same([], $plan894909()['selectedPlan']['next894909BlockedSlices']),
-    'planner stat4 expression partial current source next894909 first continues' => static fn (TestRunner $t) => $t->same(878, $plan894909()['stat4Next894909PreparationFence']['handoffWindows'][0]['continuesSlice']),
-    'planner stat4 expression partial current source next894909 first rowid' => static fn (TestRunner $t) => $t->same(60, $plan894909()['stat4Next894909PreparationFence']['handoffWindows'][0]['rowid']),
-    'planner stat4 expression partial current source next894909 first projection matches' => static fn (TestRunner $t) => $t->same(true, $plan894909()['stat4Next894909PreparationFence']['handoffWindows'][0]['projectionMatchesPrior']),
-    'planner stat4 expression partial current source next894909 signature length' => static fn (TestRunner $t) => $t->same(64, strlen($plan894909()['stat4Next894909PreparationFence']['handoffSignature'])),
-    'planner stat4 expression partial current source next894909 selected signature' => static fn (TestRunner $t) => $t->same($plan894909()['stat4Next894909PreparationFence']['handoffSignature'], $plan894909()['selectedPlan']['next894909HandoffSignature']),
-    'planner stat4 expression partial current source next894909 stat4 signature' => static fn (TestRunner $t) => $t->same($plan894909()['stat4Next894909PreparationFence']['handoffSignature'], $plan894909()['stat4Fence']['next894909HandoffSignature']),
-    'planner stat4 expression partial current source next894909 prior signature threaded' => static fn (TestRunner $t) => $t->same($plan894909()['stat4Next878893PreparationFence']['handoffSignature'], $plan894909()['selectedPlan']['next894909PriorHandoffSignature']),
-    'planner stat4 expression partial current source next894909 preserves next878893 fence' => static fn (TestRunner $t) => $t->same(range(878, 893), $plan894909()['stat4Next878893PreparationFence']['preparedSlices']),
-    'planner stat4 expression partial current source next894909 cursor appended' => static fn (TestRunner $t) => $t->same('PrepareStat4ExpressionPartialNext894909Handoff', $plan894909()['cursorProgram'][array_key_last($plan894909()['cursorProgram'])]['opcode']),
-    'planner stat4 expression partial current source next894909 cursor mode' => static fn (TestRunner $t) => $t->same('next894-909-current-source-stat4-expression-partial-prep', $plan894909()['cursorProgram'][array_key_last($plan894909()['cursorProgram'])]['mode']),
-    'planner stat4 expression partial current source next894909 detail' => static fn (TestRunner $t) => $t->contains('NEXT894-909 PREPARED HANDOFF', $plan894909()['detail']),
-    'planner stat4 expression partial current source next894909 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-current-source-next894-909-prep', $plan894909()['dependencies'], true)),
-    'planner stat4 expression partial current source next894909 dependency closure' => static fn (TestRunner $t) => $t->contains('next894-909 preparation extends', $plan894909()['dependency_closure']),
-    'planner stat4 expression partial current source next894909 non overlap' => static fn (TestRunner $t) => $t->contains('next878-893 handoff windows', $plan894909()['non_overlap']),
-    'planner stat4 expression partial current source next894909 malformed needed column' => static function (TestRunner $t) use ($prepared894909, $current894909, $terms894909): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoffContinuation($prepared894909(), $current894909(), $terms894909(), ['option_name', ''], 6));
+    'planner stat4 expression partial current source late prepared handoff continuation status prepared' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-late-prepared-handoff-continuation-prepared', $planLatePreparedHandoffContinuation()['status']),
+    'planner stat4 expression partial current source late prepared handoff continuation inherits prepared handoff validation continuation' => static fn (TestRunner $t) => $t->same(true, $planLatePreparedHandoffContinuation()['selectedPlan']['preparedHandoffValidationContinuationReady']),
+    'planner stat4 expression partial current source late prepared handoff continuation ready flag' => static fn (TestRunner $t) => $t->same(true, $planLatePreparedHandoffContinuation()['selectedPlan']['latePreparedHandoffContinuationReady']),
+    'planner stat4 expression partial current source late prepared handoff continuation prior ready' => static fn (TestRunner $t) => $t->same(true, $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['previousFenceReady']),
+    'planner stat4 expression partial current source late prepared handoff continuation slice range' => static fn (TestRunner $t) => $t->same([894, 909], $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['sliceRange']),
+    'planner stat4 expression partial current source late prepared handoff continuation prior range' => static fn (TestRunner $t) => $t->same([878, 893], $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['priorSliceRange']),
+    'planner stat4 expression partial current source late prepared handoff continuation prepared slices' => static fn (TestRunner $t) => $t->same(range(894, 909), $planLatePreparedHandoffContinuation()['selectedPlan']['latePreparedHandoffContinuationPreparedSlices']),
+    'planner stat4 expression partial current source late prepared handoff continuation blocked slices empty' => static fn (TestRunner $t) => $t->same([], $planLatePreparedHandoffContinuation()['selectedPlan']['latePreparedHandoffContinuationBlockedSlices']),
+    'planner stat4 expression partial current source late prepared handoff continuation first continues' => static fn (TestRunner $t) => $t->same(878, $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffWindows'][0]['continuesSlice']),
+    'planner stat4 expression partial current source late prepared handoff continuation first rowid' => static fn (TestRunner $t) => $t->same(60, $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffWindows'][0]['rowid']),
+    'planner stat4 expression partial current source late prepared handoff continuation first projection matches' => static fn (TestRunner $t) => $t->same(true, $planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffWindows'][0]['projectionMatchesPrior']),
+    'planner stat4 expression partial current source late prepared handoff continuation signature length' => static fn (TestRunner $t) => $t->same(64, strlen($planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffSignature'])),
+    'planner stat4 expression partial current source late prepared handoff continuation selected signature' => static fn (TestRunner $t) => $t->same($planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffSignature'], $planLatePreparedHandoffContinuation()['selectedPlan']['latePreparedHandoffContinuationHandoffSignature']),
+    'planner stat4 expression partial current source late prepared handoff continuation stat4 signature' => static fn (TestRunner $t) => $t->same($planLatePreparedHandoffContinuation()['stat4LatePreparedHandoffContinuationFence']['handoffSignature'], $planLatePreparedHandoffContinuation()['stat4Fence']['latePreparedHandoffContinuationHandoffSignature']),
+    'planner stat4 expression partial current source late prepared handoff continuation prior signature threaded' => static fn (TestRunner $t) => $t->same($planLatePreparedHandoffContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'], $planLatePreparedHandoffContinuation()['selectedPlan']['latePreparedHandoffContinuationPriorHandoffSignature']),
+    'planner stat4 expression partial current source late prepared handoff continuation preserves prepared handoff validation continuation fence' => static fn (TestRunner $t) => $t->same(range(878, 893), $planLatePreparedHandoffContinuation()['stat4PreparedHandoffValidationContinuationFence']['preparedSlices']),
+    'planner stat4 expression partial current source late prepared handoff continuation cursor appended' => static fn (TestRunner $t) => $t->same('PrepareStat4ExpressionPartialLatePreparedHandoffContinuation', $planLatePreparedHandoffContinuation()['cursorProgram'][array_key_last($planLatePreparedHandoffContinuation()['cursorProgram'])]['opcode']),
+    'planner stat4 expression partial current source late prepared handoff continuation cursor mode' => static fn (TestRunner $t) => $t->same('late-prepared-handoff-continuation-current-source-stat4-expression-partial-prep', $planLatePreparedHandoffContinuation()['cursorProgram'][array_key_last($planLatePreparedHandoffContinuation()['cursorProgram'])]['mode']),
+    'planner stat4 expression partial current source late prepared handoff continuation detail' => static fn (TestRunner $t) => $t->contains('LATE PREPARED HANDOFF CONTINUATION', $planLatePreparedHandoffContinuation()['detail']),
+    'planner stat4 expression partial current source late prepared handoff continuation dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-late-prepared-handoff-continuation', $planLatePreparedHandoffContinuation()['dependencies'], true)),
+    'planner stat4 expression partial current source late prepared handoff continuation dependency closure' => static fn (TestRunner $t) => $t->contains('late prepared handoff continuation preparation extends', $planLatePreparedHandoffContinuation()['dependency_closure']),
+    'planner stat4 expression partial current source late prepared handoff continuation non overlap' => static fn (TestRunner $t) => $t->contains('prepared handoff validation-continuation handoff windows', $planLatePreparedHandoffContinuation()['non_overlap']),
+    'planner stat4 expression partial current source late prepared handoff continuation malformed needed column' => static function (TestRunner $t) use ($preparedLatePreparedHandoffContinuation, $currentLatePreparedHandoffContinuation, $termsLatePreparedHandoffContinuation): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeLatePreparedHandoffContinuation($preparedLatePreparedHandoffContinuation(), $currentLatePreparedHandoffContinuation(), $termsLatePreparedHandoffContinuation(), ['option_name', ''], 6));
     },
 ];
 
 foreach (range(1, 16) as $case) {
-    $tests['planner stat4 expression partial current source next894909 repeated handoff proof ' . $case] = static function (TestRunner $t) use ($plan894909): void {
-        $plan = $plan894909();
-        $t->same($plan['stat4Next894909PreparationFence']['handoffSignature'], $plan['selectedPlan']['next894909HandoffSignature']);
+    $tests['planner stat4 expression partial current source late prepared handoff continuation repeated handoff proof ' . $case] = static function (TestRunner $t) use ($planLatePreparedHandoffContinuation): void {
+        $plan = $planLatePreparedHandoffContinuation();
+        $t->same($plan['stat4LatePreparedHandoffContinuationFence']['handoffSignature'], $plan['selectedPlan']['latePreparedHandoffContinuationHandoffSignature']);
     };
 }
 

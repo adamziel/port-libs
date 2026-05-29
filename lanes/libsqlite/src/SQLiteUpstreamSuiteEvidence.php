@@ -20790,7 +20790,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteDenominatorCurrentNext68(
+    public function suiteDenominatorArtifactAdmission(
         array $artifactRows,
         int $currentMapped,
         int $currentPhpPass,
@@ -20803,10 +20803,10 @@ final class SQLiteUpstreamSuiteEvidence
         string $processSnapshot = ''
     ): array {
         if ($artifactRows === []) {
-            throw new \InvalidArgumentException('SQLite current-next68 suite denominator admission requires at least one artifact row');
+            throw new \InvalidArgumentException('SQLite suite denominator artifact admission requires at least one artifact row');
         }
         if ($currentMapped < 0) {
-            throw new \InvalidArgumentException('SQLite current-next68 suite denominator admission needs a non-negative current mapped count');
+            throw new \InvalidArgumentException('SQLite suite denominator artifact admission needs a non-negative current mapped count');
         }
 
         $phpAdmission = $this->focusedPhpPassCurrentHeadAdmission(
@@ -20835,7 +20835,7 @@ final class SQLiteUpstreamSuiteEvidence
         $countableArtifacts = 0;
 
         foreach ($artifactRows as $label => $row) {
-            $fallbackUnit = is_string($label) ? $label : 'current-next68-artifact-' . count($entries);
+            $fallbackUnit = is_string($label) ? $label : 'suite-denominator-artifact-' . count($entries);
             if (!is_array($row)) {
                 $blocked[] = $fallbackUnit;
                 $blockers[] = [
@@ -20962,14 +20962,14 @@ final class SQLiteUpstreamSuiteEvidence
 
         $status = 'blocked';
         if ($blockers === [] && $mappedDelta > 0) {
-            $status = 'current-next68-suite-denominator-countable';
+            $status = 'suite-denominator-artifact-countable';
         } elseif ($blockers === []) {
-            $status = 'current-next68-suite-denominator-preserved';
+            $status = 'suite-denominator-artifact-preserved';
         }
 
         return [
             'status' => $status,
-            'countable' => $status === 'current-next68-suite-denominator-countable',
+            'countable' => $status === 'suite-denominator-artifact-countable',
             'accepted_repository_head' => $acceptedRepositoryHead,
             'evidence_repository_head' => $evidenceRepositoryHead,
             'current_mapped' => $currentMapped,
@@ -20999,10 +20999,10 @@ final class SQLiteUpstreamSuiteEvidence
             'blockers' => $blockers,
             'counts_release_parity' => false,
             'non_overlap_note' => trim($nonOverlapNote),
-            'next_gate' => $status === 'current-next68-suite-denominator-countable'
-                ? 'publish current-next68 accepted-HEAD artifact denominator movement with exact focused PASS-line evidence; keep release/all parity gated on a zero-error broad artifact'
-                : 'keep current-next68 denominator movement uncounted until artifact provenance, row evidence, duplicate-runner, and focused PASS-line blockers are clear',
-            'dependency_closure' => 'no new support component needed; current-next68 suite denominator admission composes lane-local artifact rows, accepted-HEAD provenance, duplicate-runner gating, and exact focused TestRunner PASS-line output only',
+            'next_gate' => $status === 'suite-denominator-artifact-countable'
+                ? 'publish accepted-HEAD artifact denominator movement with exact focused PASS-line evidence; keep release/all parity gated on a zero-error broad artifact'
+                : 'keep suite denominator artifact movement uncounted until artifact provenance, row evidence, duplicate-runner, and focused PASS-line blockers are clear',
+            'dependency_closure' => 'no new support component needed; suite denominator artifact admission composes lane-local artifact rows, accepted-HEAD provenance, duplicate-runner gating, and exact focused TestRunner PASS-line output only',
         ];
     }
 

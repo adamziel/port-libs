@@ -12181,29 +12181,29 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next228',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next228',
+        string $outerSavepoint = 'wp_options_outer_rowvalue_fail_rollback',
+        string $innerSavepoint = 'wp_options_inner_rowvalue_fail_rollback',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs outer statements');
         }
         if ($innerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 needs inner statements');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs inner statements');
         }
         if (trim($failStatement) === '') {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 needs a fail statement');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs a fail statement');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback needs unique constraints');
         }
         self::assertInnerFailRollbackIdentifier($outerSavepoint, 'outer savepoint');
         self::assertInnerFailRollbackIdentifier($innerSavepoint, 'inner savepoint');
         if ($outerSavepoint === $innerSavepoint) {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 savepoint names must differ');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback savepoint names must differ');
         }
 
         $outerImage = self::normalizeInnerFailRollbackTables($tables);
@@ -12212,7 +12212,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $outerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'outer-before-inner-savepoint-next228',
+            'outer-before-inner-fail-savepoint',
         );
 
         $innerImage = $afterOuter;
@@ -12221,7 +12221,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $innerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'inner-before-fail-next228',
+            'inner-before-fail',
         );
 
         [$afterFail, $failSummary, $failReturning] = self::runInnerFailRollbackFailStatement(
@@ -12229,7 +12229,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $failStatement,
             $uniqueConstraints,
             $rowIdColumn,
-            'inner-or-fail-before-rollback-next228',
+            'inner-or-fail-before-rollback',
         );
 
         $afterInnerRollback = $innerImage;
@@ -12238,11 +12238,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-inner-rollback-next228',
+            'retry-after-inner-fail-rollback',
         );
 
         return [
-            'status' => 'rowvalue-update-delete-returning-inner-fail-rollback-current-source-next228',
+            'status' => 'rowvalue-update-delete-returning-inner-fail-rollback-current-source',
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
             'outer_savepoint_image_tables' => $outerImage,
@@ -12253,12 +12253,12 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'after_inner_rollback_tables' => $afterInnerRollback,
             'current_source_tables' => $afterRetry,
             'next_source_tables' => $afterRetry,
-            'outer_changes_survive_inner_rollback_next228' => true,
-            'inner_changes_rolled_back_after_fail_next228' => true,
-            'fail_prior_rows_rolled_back_by_savepoint_next228' => true,
-            'inner_returning_suppressed_by_rollback_next228' => true,
-            'retry_reads_outer_current_source_next228' => true,
-            'outer_savepoint_remains_active_next228' => true,
+            'outer_changes_survive_inner_rollback' => true,
+            'inner_changes_rolled_back_after_fail' => true,
+            'fail_prior_rows_rolled_back_by_savepoint' => true,
+            'inner_returning_suppressed_by_rollback' => true,
+            'retry_reads_outer_current_source' => true,
+            'outer_savepoint_remains_active' => true,
             'outer_statements' => $outerExecuted,
             'inner_statements' => $innerExecuted,
             'fail_statement' => $failSummary,
@@ -12280,7 +12280,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'retry_change_count' => self::innerFailRollbackChangeCount($retryExecuted),
             'changed_tables_after_retry' => self::innerFailRollbackChangedTables($outerImage, $afterRetry),
             'row_counts' => self::innerFailRollbackRowCounts($afterRetry),
-            'rollback_receipt_next228' => [
+            'rollback_receipt' => [
                 'outer_savepoint' => $outerSavepoint,
                 'inner_savepoint' => $innerSavepoint,
                 'inner_statement_count' => count($innerStatements),
@@ -12288,13 +12288,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'suppressed_returning_count' => self::innerFailRollbackReturningCount($innerReturning) + self::innerFailRollbackReturningCount($failReturning) + count($failSummary['suppressed_returning_rows']),
                 'restored_tables' => array_keys($afterInnerRollback),
             ],
-            'dependency_closure_next228' => 'no new support component needed; next228 reuses native row-value UPDATE/DELETE RETURNING, OR FAIL preservation, and nested savepoint current-source row images',
+            'dependency_closure' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING, OR FAIL preservation, and nested savepoint current-source row images',
             'dependencies' => [
-                'sqlite-rowvalue-inner-savepoint-rollback-suppresses-returning-next228',
-                'sqlite-rowvalue-update-or-fail-prior-rows-rolled-back-by-savepoint-next228',
-                'wordpress-rowvalue-savepoint-retry-reads-outer-current-source-next228',
+                'sqlite-rowvalue-inner-savepoint-rollback-suppresses-returning',
+                'sqlite-rowvalue-update-or-fail-prior-rows-rolled-back-by-savepoint',
+                'wordpress-rowvalue-savepoint-retry-reads-outer-current-source',
             ],
-            'non_overlap_next228' => 'adds inner ROLLBACK TO after UPDATE OR FAIL so preserved FAIL rows and earlier inner RETURNING are suppressed while outer savepoint changes remain current; avoids accepted fail-statement-retry preserved FAIL retry source, next224 released inner discarded by outer rollback, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap' => 'adds inner ROLLBACK TO after UPDATE OR FAIL so preserved FAIL rows and earlier inner RETURNING are suppressed while outer savepoint changes remain current; avoids accepted fail-statement-retry preserved FAIL retry source, released inner discarded by outer rollback, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -12336,7 +12336,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         $parsed = SQLiteUpdateDeleteReturningSql::parse($sql);
         if ($parsed['action'] !== 'update' || $parsed['conflict_action'] !== 'fail') {
-            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 fail statement must be UPDATE OR FAIL');
+            throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback fail statement must be UPDATE OR FAIL');
         }
 
         $probe = SQLiteUpdateDeleteReturningSql::execute($sql, $tables, $rowIdColumn, [], true);
@@ -12394,11 +12394,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback next228 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value inner FAIL rollback rows must be arrays');
                 }
             }
         }
@@ -12409,7 +12409,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertInnerFailRollbackIdentifier(string $name, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback next228 {$label} must be an identifier");
+            throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback {$label} must be an identifier");
         }
     }
 
@@ -12428,11 +12428,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback next228 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback next228 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value inner FAIL rollback rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

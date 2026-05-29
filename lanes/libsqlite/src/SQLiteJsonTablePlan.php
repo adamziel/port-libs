@@ -2374,11 +2374,11 @@ final class SQLiteJsonTablePlan
         );
 
         $currentProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
-            $plan['currentGeneratedPathRowidCurrentSourceNext170'],
+            $plan['currentGeneratedPathRowidCurrentSource'],
             $constraints,
         );
         $nextProfile = self::jsonTableGeneratedPathRowidAliasProfile174(
-            $plan['nextGeneratedPathRowidCurrentSourceNext170'],
+            $plan['nextGeneratedPathRowidCurrentSource'],
             $constraints,
         );
         $transitions = self::jsonTableGeneratedPathRowidAliasTransitions174($currentProfile, $nextProfile);
@@ -2388,7 +2388,7 @@ final class SQLiteJsonTablePlan
         $plan['nextGeneratedPathRowidAliasCurrentSourceNext174'] = $nextProfile;
         $plan['generatedPathRowidAliasCurrentSourceNext174Transitions'] = $transitions;
         $plan['next174ReplanReasons'] = array_values(array_unique(array_merge(
-            $plan['next170ReplanReasons'],
+            $plan['generatedPathRowidCurrentSourceReplanReasons'],
             $reasons,
         )));
         $plan['replanRequired'] = $plan['next174ReplanReasons'] !== [];
@@ -2435,12 +2435,12 @@ final class SQLiteJsonTablePlan
         $currentProfile = self::jsonTableGeneratedPathRowidXFilterProgram177(
             $function,
             $plan['currentGeneratedPathRowidAliasCurrentSourceNext174'],
-            $plan['currentGeneratedPathRowidCurrentSourceNext170'],
+            $plan['currentGeneratedPathRowidCurrentSource'],
         );
         $nextProfile = self::jsonTableGeneratedPathRowidXFilterProgram177(
             $function,
             $plan['nextGeneratedPathRowidAliasCurrentSourceNext174'],
-            $plan['nextGeneratedPathRowidCurrentSourceNext170'],
+            $plan['nextGeneratedPathRowidCurrentSource'],
         );
         $transitions = self::jsonTableGeneratedPathRowidXFilterTransitions177($currentProfile, $nextProfile);
         $reasons = self::jsonTableGeneratedPathRowidXFilterReplanReasons177($transitions);
@@ -2702,21 +2702,21 @@ final class SQLiteJsonTablePlan
         $transitions = self::jsonTableGeneratedPathRowidTransitions($currentProfile, $nextProfile);
         $reasons = self::jsonTableGeneratedPathRowidReplanReasons($transitions);
 
-        $plan['currentGeneratedPathRowidCurrentSourceNext170'] = $currentProfile;
-        $plan['nextGeneratedPathRowidCurrentSourceNext170'] = $nextProfile;
-        $plan['generatedPathRowidCurrentSourceNext170Transitions'] = $transitions;
-        $plan['next170ReplanReasons'] = array_values(array_unique(array_merge(
+        $plan['currentGeneratedPathRowidCurrentSource'] = $currentProfile;
+        $plan['nextGeneratedPathRowidCurrentSource'] = $nextProfile;
+        $plan['generatedPathRowidCurrentSourceTransitions'] = $transitions;
+        $plan['generatedPathRowidCurrentSourceReplanReasons'] = array_values(array_unique(array_merge(
             $plan['next166ReplanReasons'],
             $reasons,
         )));
-        $plan['replanRequired'] = $plan['next170ReplanReasons'] !== [];
-        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-cost-current-source-next170-until-xfilter-reset';
-        $plan['nextReaderPolicy'] = $plan['next170ReplanReasons'] === []
-            ? 'reuse-current-json-table-generated-path-rowid-current-source-next170-plan'
-            : 'prepare-next-json-table-generated-path-rowid-current-source-next170-plan';
+        $plan['replanRequired'] = $plan['generatedPathRowidCurrentSourceReplanReasons'] !== [];
+        $plan['currentReaderPolicy'] = 'pin-current-json-table-generated-path-rowid-current-source-cost-until-xfilter-reset';
+        $plan['nextReaderPolicy'] = $plan['generatedPathRowidCurrentSourceReplanReasons'] === []
+            ? 'reuse-current-json-table-generated-path-rowid-current-source-cost-plan'
+            : 'prepare-next-json-table-generated-path-rowid-current-source-cost-plan';
         $plan['dependencies'] = array_values(array_unique(array_merge(
             $plan['dependencies'],
-            ['sqlite-json-table-generated-path-rowid-cost-current-source-next170'],
+            ['sqlite-json-table-generated-path-rowid-current-source-cost'],
         )));
 
         return $plan;
@@ -12898,13 +12898,13 @@ final class SQLiteJsonTablePlan
             }
 
             $reasons[] = match ($transition['field']) {
-                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-current-source-next170-source-changed',
-                'idxNum', 'idxStr', 'argvValues' => 'json-table-generated-path-rowid-current-source-next170-xfilter-changed',
-                'residualColumns', 'cursorMode' => 'json-table-generated-path-rowid-current-source-next170-admission-changed',
-                'cursorRows', 'rowidTape', 'pathTape' => 'json-table-generated-path-rowid-current-source-next170-rowset-changed',
-                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-next170-cost-changed',
-                'planFingerprint' => 'json-table-generated-path-rowid-current-source-next170-fingerprint-changed',
-                default => 'json-table-generated-path-rowid-current-source-next170-state-changed',
+                'sourceOptionId', 'sourceRoot', 'generatedPath' => 'json-table-generated-path-rowid-current-source-source-changed',
+                'idxNum', 'idxStr', 'argvValues' => 'json-table-generated-path-rowid-current-source-xfilter-changed',
+                'residualColumns', 'cursorMode' => 'json-table-generated-path-rowid-current-source-admission-changed',
+                'cursorRows', 'rowidTape', 'pathTape' => 'json-table-generated-path-rowid-current-source-rowset-changed',
+                'estimatedRows', 'estimatedCost', 'costClass' => 'json-table-generated-path-rowid-current-source-cost-changed',
+                'planFingerprint' => 'json-table-generated-path-rowid-current-source-fingerprint-changed',
+                default => 'json-table-generated-path-rowid-current-source-state-changed',
             };
         }
 

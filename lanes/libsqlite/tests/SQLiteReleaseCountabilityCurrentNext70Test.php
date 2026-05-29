@@ -37,12 +37,12 @@ function libsqlite_current_next70_rows(int $case = 1): array
             'errors' => 0,
         ],
         [
-            'unit' => 'accepted-current-next68-suite-denominator',
+            'unit' => 'accepted-suite-denominator-artifact',
             'suite' => 'release',
             'repository_head' => '103fc00c42f1ff0580cae8a7768e4a3da0979c2d',
             'current_countable' => true,
             'next_countable' => true,
-            'artifact_path' => 'lanes/libsqlite/notes/suite-denominator-current-next68.md',
+            'artifact_path' => 'lanes/libsqlite/notes/suite-denominator-artifact-admission.md',
             'command' => './testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error release veryquick.test',
             'scripts' => ['veryquick.test'],
             'current_tests' => 329670,
@@ -83,7 +83,7 @@ $tests = [
         $t->same(26084, $record['next_php_pass']);
         $t->same(false, $record['counts_release_parity']);
         $t->same(['current-next70-release-shard-1'], $record['advanced_units']);
-        $t->same(['accepted-current-next68-suite-denominator'], $record['preserved_units']);
+        $t->same(['accepted-suite-denominator-artifact'], $record['preserved_units']);
         $t->contains('complete broad artifact', $record['next_gate']);
     },
     'current next70 preserves existing shards without new movement' => static function (TestRunner $t): void {
@@ -168,7 +168,7 @@ $tests = [
         $record = libsqlite_current_next70_record($rows, libsqlite_current_next70_output(2, 8), 2);
 
         $t->same('blocked', $record['status']);
-        $t->same(['accepted-current-next68-suite-denominator'], $record['regressed_units']);
+        $t->same(['accepted-suite-denominator-artifact'], $record['regressed_units']);
         $t->contains('release-shard-countability-regressed', $record['blockers'][0]['evidence']);
     },
     'current next70 blocks active broad runner snapshots' => static function (TestRunner $t): void {

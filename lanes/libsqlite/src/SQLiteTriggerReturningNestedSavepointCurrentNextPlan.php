@@ -131,7 +131,7 @@ final class SQLiteTriggerReturningNestedSavepointCurrentNextPlan
             'release_preserved_in_outer' => array_slice($nextRows, 0, count($releaseRows)) == $releaseRows,
             'rollback_preserved_released_rows' => $rolledBack && $nextRows === $releaseRows,
             'dependencies' => [
-                'sqlite-trigger-returning-current-next68',
+                'sqlite-trigger-returning-nested-savepoint',
                 'sqlite-nested-savepoint-release-propagates',
                 'sqlite-nested-savepoint-rollback-suppresses-current-returning',
             ],

@@ -43,13 +43,13 @@ $plan = SQLiteTriggerReturningNestedSavepointCurrentNextPlan::apply(
 );
 
 if ($plan['status'] !== 'child-rolled-back' || count($plan['next_rows']) !== 2 || $plan['next_rows'][1]['option_value'] !== 'inserted:plugin_abort') {
-    fwrite(STDERR, "wordpress-trigger-returning-nested-savepoint-current-next68 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-returning-nested-savepoint self-test failed\n");
     exit(1);
 }
 
-fwrite(STDOUT, "wordpress-trigger-returning-nested-savepoint-current-next68 self-test passed\n");
+fwrite(STDOUT, "wordpress-trigger-returning-nested-savepoint self-test passed\n");
 fwrite(STDOUT, json_encode([
-    'scenario' => 'wordpress-trigger-returning-nested-savepoint-current-next68',
+    'scenario' => 'wordpress-trigger-returning-nested-savepoint',
     'status' => $plan['status'],
     'released_returning' => $plan['released_returning_rows'],
     'rolled_back_current_returning' => $plan['rollback_current_returning_rows'],

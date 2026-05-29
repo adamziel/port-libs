@@ -83,17 +83,17 @@ $tests['compound select window recursive limit current source next241 row counts
     $receipt = $plan['resumeAdmissionReceiptNext241'];
     $t->same(3, $receipt['currentRowCount']);
     $t->same(3, $receipt['nextRowCount']);
-    $t->same($plan['sourceGenerationSealNext238']['sourceGenerationToken'], $receipt['sourceGenerationToken']);
-    $t->same($plan['sourceGenerationSealNext238']['finalBoundaryToken'], $receipt['finalBoundaryToken']);
-    $t->same($plan['sourceGenerationSealNext238']['nextSourceCursor'], $receipt['nextSourceCursor']);
+    $t->same($plan['sourceGenerationSeal']['sourceGenerationToken'], $receipt['sourceGenerationToken']);
+    $t->same($plan['sourceGenerationSeal']['finalBoundaryToken'], $receipt['finalBoundaryToken']);
+    $t->same($plan['sourceGenerationSeal']['nextSourceCursor'], $receipt['nextSourceCursor']);
 };
 
 $tests['compound select window recursive limit current source next241 resume after all acknowledgements'] = static function (TestRunner $t) use ($summary241): void {
     $first = $summary241();
     $cursor = $first['cursor'];
-    $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-    $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
-    $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
+    $cursor['acknowledgedCurrentAcksCurrentPageHandoff'] = $cursor['requiredCurrentAcksCurrentPageHandoff'];
+    $cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier'] = $cursor['requiredPromotionAcksRecursiveWindowPromotionBarrier'];
+    $cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal'] = $cursor['requiredSourceGenerationAcksSourceGenerationSeal'];
     $cursor['acknowledgedResumeAdmissionAcksNext241'] = $cursor['requiredResumeAdmissionAcksNext241'];
     $again = $summary241($cursor);
     $t->same($first['resumeAdmissionReceiptNext241']['resumeAdmissionToken'], $again['resumeAdmissionReceiptNext241']['resumeAdmissionToken']);
@@ -142,7 +142,7 @@ $tests['compound select window recursive limit current source next241 executor p
 
 $tests['compound select window recursive limit current source next241 non overlap'] = static function (TestRunner $t) use ($summary241): void {
     $plan = $summary241();
-    $t->contains('extends accepted next238', $plan['non_overlap']);
+    $t->contains('extends accepted source-generation-seal', $plan['non_overlap']);
     $t->true(in_array('compound-recursive-window-resume-admission-next241', $plan['replanReasons'], true));
     $t->true(in_array('compound-final-row-token-next241', $plan['replanReasons'], true));
 };
@@ -162,9 +162,9 @@ foreach (range(1, 64) as $case) {
         $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (140 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 10 FROM q WHERE id < 8 LIMIT 5 OFFSET 2) SELECT id, label, dense_rank() OVER (ORDER BY score DESC) AS rn FROM q UNION SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE autoload = 'yes' EXCEPT SELECT option_id AS id, option_name AS label, dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC) AS rn FROM wp_options WHERE option_name IN ('siteurl_{$case}') ORDER BY rn, label LIMIT 3 OFFSET 1";
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $tables, $nextTables);
         $cursor = $plan['cursor'];
-        $cursor['acknowledgedCurrentAcksNext232'] = $cursor['requiredCurrentAcksNext232'];
-        $cursor['acknowledgedPromotionAcksNext235'] = $cursor['requiredPromotionAcksNext235'];
-        $cursor['acknowledgedSourceGenerationAcksNext238'] = $cursor['requiredSourceGenerationAcksNext238'];
+        $cursor['acknowledgedCurrentAcksCurrentPageHandoff'] = $cursor['requiredCurrentAcksCurrentPageHandoff'];
+        $cursor['acknowledgedPromotionAcksRecursiveWindowPromotionBarrier'] = $cursor['requiredPromotionAcksRecursiveWindowPromotionBarrier'];
+        $cursor['acknowledgedSourceGenerationAcksSourceGenerationSeal'] = $cursor['requiredSourceGenerationAcksSourceGenerationSeal'];
         $cursor['acknowledgedResumeAdmissionAcksNext241'] = $cursor['requiredResumeAdmissionAcksNext241'];
         $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareResumeAdmissionReceipt($sql, $tables, $nextTables, $cursor);
         $receipt = $plan['resumeAdmissionReceiptNext241'];

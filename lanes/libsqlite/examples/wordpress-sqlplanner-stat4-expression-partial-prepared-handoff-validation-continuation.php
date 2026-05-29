@@ -23,7 +23,7 @@ $payload = static fn (array $row): array => [
 ];
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-handoff-next878893',
+    'name' => 'prepared-wp-options-stat4-handoff-prepared handoff validation continuation',
     'schemaCookie' => 3868,
     'stat4Generation' => 382,
     'rows' => [
@@ -32,7 +32,7 @@ $prepared = [
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next878893',
+        'name' => 'idx_wp_options_lower_handoff_prepared handoff validation continuation',
         'rootPage' => 38681,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -63,7 +63,7 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-handoff-next878893';
+$current['name'] = 'current-wp-options-stat4-handoff-prepared handoff validation continuation';
 $current['schemaCookie'] = 4018;
 $current['stat4Generation'] = 950;
 $current['indexes'][0]['rootPage'] = 40188;
@@ -99,18 +99,18 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePre
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next878-893-prepared');
-    assert($plan['stat4Next878893PreparationFence']['preparedSlices'] === range(878, 893));
-    assert($plan['stat4Next878893PreparationFence']['handoffWindows'][0]['continuesSlice'] === 862);
+    assert($plan['status'] === 'stat4-expression-partial-prepared-handoff-validation-continuation-prepared');
+    assert($plan['stat4PreparedHandoffValidationContinuationFence']['preparedSlices'] === range(878, 893));
+    assert($plan['stat4PreparedHandoffValidationContinuationFence']['handoffWindows'][0]['continuesSlice'] === 862);
     echo "wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-validation-continuation self-test passed\n";
     return;
 }
 
 echo json_encode([
     'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-validation-continuation',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the prepared handoff resume-window current-source STAT4 handoff into next878-893 only when projected current rows still match.',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the prepared handoff resume-window current-source STAT4 handoff into prepared handoff validation-continuation only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
-    'preparedSlices' => $plan['stat4Next878893PreparationFence']['preparedSlices'],
-    'handoffSignature' => $plan['stat4Next878893PreparationFence']['handoffSignature'],
+    'preparedSlices' => $plan['stat4PreparedHandoffValidationContinuationFence']['preparedSlices'],
+    'handoffSignature' => $plan['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

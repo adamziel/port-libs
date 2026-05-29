@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
-$eq878893 = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
-$like878893 = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
-$notNull878893 = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
-$between878893 = static fn (string $expression, mixed $lower, mixed $upper): array => ['left' => ['expression' => $expression], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
+$eqPreparedHandoffValidationContinuation = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
+$likePreparedHandoffValidationContinuation = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
+$notNullPreparedHandoffValidationContinuation = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
+$betweenPreparedHandoffValidationContinuation = static fn (string $expression, mixed $lower, mixed $upper): array => ['left' => ['expression' => $expression], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
 
-$rows878893 = static fn (): array => [
+$rowsPreparedHandoffValidationContinuation = static fn (): array => [
     ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu', 'updated_at' => 60],
     ['rowid' => 30, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo', 'updated_at' => 30],
     ['rowid' => 50, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'Plugin_Mail', 'option_value' => 'mail', 'updated_at' => 50],
@@ -20,14 +20,14 @@ $rows878893 = static fn (): array => [
     ['rowid' => 80, 'blog_id' => 2, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'other-blog', 'updated_at' => 80],
 ];
 
-$samples878893 = static fn (): array => [
+$samplesPreparedHandoffValidationContinuation = static fn (): array => [
     ['neq' => '3 3', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_forms', 20, 1]],
     ['neq' => '1 1', 'nlt' => '3 3', 'ndlt' => '1 1', 'sample' => ['plugin_mail', 50, 1]],
     ['neq' => '1 1', 'nlt' => '4 4', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 30, 1]],
     ['neq' => '1 1', 'nlt' => '5 5', 'ndlt' => '3 3', 'sample' => ['plugin_zulu', 60, 1]],
 ];
 
-$payload878893 = static fn (array $row): array => [
+$payloadPreparedHandoffValidationContinuation = static fn (array $row): array => [
     'rowid' => $row['rowid'],
     'expressionKey' => strtolower((string) $row['option_name']),
     'coveredValues' => [
@@ -39,8 +39,8 @@ $payload878893 = static fn (array $row): array => [
     ],
 ];
 
-$prepared878893 = static fn (): array => [
-    'name' => 'prepared-wp-options-stat4-handoff-next878893',
+$preparedPreparedHandoffValidationContinuation = static fn (): array => [
+    'name' => 'prepared-wp-options-stat4-handoff-prepared handoff validation continuation',
     'schemaCookie' => 3868,
     'stat4Generation' => 382,
     'rows' => [
@@ -49,7 +49,7 @@ $prepared878893 = static fn (): array => [
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next878893',
+        'name' => 'idx_wp_options_lower_handoff_prepared handoff validation continuation',
         'rootPage' => 38681,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -79,69 +79,69 @@ $prepared878893 = static fn (): array => [
     ]],
 ];
 
-$current878893 = static function (?array $rows = null, ?array $samples = null) use ($prepared878893, $rows878893, $samples878893, $payload878893): array {
-    $source = $prepared878893();
-    $source['name'] = 'current-wp-options-stat4-handoff-next878893';
+$currentPreparedHandoffValidationContinuation = static function (?array $rows = null, ?array $samples = null) use ($preparedPreparedHandoffValidationContinuation, $rowsPreparedHandoffValidationContinuation, $samplesPreparedHandoffValidationContinuation, $payloadPreparedHandoffValidationContinuation): array {
+    $source = $preparedPreparedHandoffValidationContinuation();
+    $source['name'] = 'current-wp-options-stat4-handoff-prepared handoff validation continuation';
     $source['schemaCookie'] = 4018;
     $source['stat4Generation'] = 950;
-    $source['rows'] = $rows ?? $rows878893();
+    $source['rows'] = $rows ?? $rowsPreparedHandoffValidationContinuation();
     $source['indexes'][0]['rootPage'] = 40188;
     $source['indexes'][0]['stat1'] = ['rows' => '6 2 1'];
-    $source['indexes'][0]['stat4Samples'] = $samples ?? $samples878893();
-    $source['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload878893, $source['rows']);
+    $source['indexes'][0]['stat4Samples'] = $samples ?? $samplesPreparedHandoffValidationContinuation();
+    $source['indexes'][0]['stat4ExpressionPayloads'] = array_map($payloadPreparedHandoffValidationContinuation, $source['rows']);
 
     return $source;
 };
 
-$terms878893 = static fn (): array => [
-    $between878893('LOWER(option_name)', 'plugin_forms', 'plugin_zulu'),
-    $eq878893('autoload', 'yes'),
-    $notNull878893('option_name'),
-    $eq878893('blog_id', 1),
-    $like878893('option_name', 'plugin_%'),
+$termsPreparedHandoffValidationContinuation = static fn (): array => [
+    $betweenPreparedHandoffValidationContinuation('LOWER(option_name)', 'plugin_forms', 'plugin_zulu'),
+    $eqPreparedHandoffValidationContinuation('autoload', 'yes'),
+    $notNullPreparedHandoffValidationContinuation('option_name'),
+    $eqPreparedHandoffValidationContinuation('blog_id', 1),
+    $likePreparedHandoffValidationContinuation('option_name', 'plugin_%'),
 ];
 
-$plan878893 = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffValidationContinuation(
-    $prepared878893(),
-    $current878893($rows, $samples),
-    $terms878893(),
+$planPreparedHandoffValidationContinuation = static fn (?array $rows = null, ?array $samples = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffValidationContinuation(
+    $preparedPreparedHandoffValidationContinuation(),
+    $currentPreparedHandoffValidationContinuation($rows, $samples),
+    $termsPreparedHandoffValidationContinuation(),
     ['option_name', 'option_value', 'updated_at', 'blog_id'],
     6,
     0,
 );
 
 $tests = [
-    'planner stat4 expression partial current source next878893 status prepared' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-current-source-next878-893-prepared', $plan878893()['status']),
-    'planner stat4 expression partial current source next878893 inherits prepared handoff resume window' => static fn (TestRunner $t) => $t->same(true, $plan878893()['selectedPlan']['preparedHandoffResumeWindowReady']),
-    'planner stat4 expression partial current source next878893 ready flag' => static fn (TestRunner $t) => $t->same(true, $plan878893()['selectedPlan']['next878893Prepared']),
-    'planner stat4 expression partial current source next878893 prior ready' => static fn (TestRunner $t) => $t->same(true, $plan878893()['stat4Next878893PreparationFence']['previousFenceReady']),
-    'planner stat4 expression partial current source next878893 slice range' => static fn (TestRunner $t) => $t->same([878, 893], $plan878893()['stat4Next878893PreparationFence']['sliceRange']),
-    'planner stat4 expression partial current source next878893 prior range' => static fn (TestRunner $t) => $t->same([862, 877], $plan878893()['stat4Next878893PreparationFence']['priorSliceRange']),
-    'planner stat4 expression partial current source next878893 prepared slices' => static fn (TestRunner $t) => $t->same(range(878, 893), $plan878893()['selectedPlan']['next878893PreparedSlices']),
-    'planner stat4 expression partial current source next878893 blocked slices empty' => static fn (TestRunner $t) => $t->same([], $plan878893()['selectedPlan']['next878893BlockedSlices']),
-    'planner stat4 expression partial current source next878893 first continues' => static fn (TestRunner $t) => $t->same(862, $plan878893()['stat4Next878893PreparationFence']['handoffWindows'][0]['continuesSlice']),
-    'planner stat4 expression partial current source next878893 first rowid' => static fn (TestRunner $t) => $t->same(60, $plan878893()['stat4Next878893PreparationFence']['handoffWindows'][0]['rowid']),
-    'planner stat4 expression partial current source next878893 first projection matches' => static fn (TestRunner $t) => $t->same(true, $plan878893()['stat4Next878893PreparationFence']['handoffWindows'][0]['projectionMatchesPrior']),
-    'planner stat4 expression partial current source next878893 signature length' => static fn (TestRunner $t) => $t->same(64, strlen($plan878893()['stat4Next878893PreparationFence']['handoffSignature'])),
-    'planner stat4 expression partial current source next878893 selected signature' => static fn (TestRunner $t) => $t->same($plan878893()['stat4Next878893PreparationFence']['handoffSignature'], $plan878893()['selectedPlan']['next878893HandoffSignature']),
-    'planner stat4 expression partial current source next878893 stat4 signature' => static fn (TestRunner $t) => $t->same($plan878893()['stat4Next878893PreparationFence']['handoffSignature'], $plan878893()['stat4Fence']['next878893HandoffSignature']),
-    'planner stat4 expression partial current source next878893 prior signature threaded' => static fn (TestRunner $t) => $t->same($plan878893()['stat4PreparedHandoffResumeWindowFence']['handoffSignature'], $plan878893()['selectedPlan']['next878893PriorHandoffSignature']),
-    'planner stat4 expression partial current source next878893 preserves prepared handoff resume window fence' => static fn (TestRunner $t) => $t->same(range(862, 877), $plan878893()['stat4PreparedHandoffResumeWindowFence']['preparedSlices']),
-    'planner stat4 expression partial current source next878893 cursor appended' => static fn (TestRunner $t) => $t->same('PrepareStat4ExpressionPartialNext878893Handoff', $plan878893()['cursorProgram'][array_key_last($plan878893()['cursorProgram'])]['opcode']),
-    'planner stat4 expression partial current source next878893 cursor mode' => static fn (TestRunner $t) => $t->same('next878-893-current-source-stat4-expression-partial-prep', $plan878893()['cursorProgram'][array_key_last($plan878893()['cursorProgram'])]['mode']),
-    'planner stat4 expression partial current source next878893 detail' => static fn (TestRunner $t) => $t->contains('NEXT878-893 PREPARED HANDOFF', $plan878893()['detail']),
-    'planner stat4 expression partial current source next878893 dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-current-source-next878-893-prep', $plan878893()['dependencies'], true)),
-    'planner stat4 expression partial current source next878893 dependency closure' => static fn (TestRunner $t) => $t->contains('next878-893 preparation extends', $plan878893()['dependency_closure']),
-    'planner stat4 expression partial current source next878893 non overlap' => static fn (TestRunner $t) => $t->contains('prepared handoff resume-window handoff windows', $plan878893()['non_overlap']),
-    'planner stat4 expression partial current source next878893 malformed needed column' => static function (TestRunner $t) use ($prepared878893, $current878893, $terms878893): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffValidationContinuation($prepared878893(), $current878893(), $terms878893(), ['option_name', ''], 6));
+    'planner stat4 expression partial current source prepared handoff validation continuation status prepared' => static fn (TestRunner $t) => $t->same('stat4-expression-partial-prepared-handoff-validation-continuation-prepared', $planPreparedHandoffValidationContinuation()['status']),
+    'planner stat4 expression partial current source prepared handoff validation continuation inherits prepared handoff resume window' => static fn (TestRunner $t) => $t->same(true, $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffResumeWindowReady']),
+    'planner stat4 expression partial current source prepared handoff validation continuation ready flag' => static fn (TestRunner $t) => $t->same(true, $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffValidationContinuationReady']),
+    'planner stat4 expression partial current source prepared handoff validation continuation prior ready' => static fn (TestRunner $t) => $t->same(true, $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['previousFenceReady']),
+    'planner stat4 expression partial current source prepared handoff validation continuation slice range' => static fn (TestRunner $t) => $t->same([878, 893], $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['sliceRange']),
+    'planner stat4 expression partial current source prepared handoff validation continuation prior range' => static fn (TestRunner $t) => $t->same([862, 877], $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['priorSliceRange']),
+    'planner stat4 expression partial current source prepared handoff validation continuation prepared slices' => static fn (TestRunner $t) => $t->same(range(878, 893), $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffValidationContinuationPreparedSlices']),
+    'planner stat4 expression partial current source prepared handoff validation continuation blocked slices empty' => static fn (TestRunner $t) => $t->same([], $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffValidationContinuationBlockedSlices']),
+    'planner stat4 expression partial current source prepared handoff validation continuation first continues' => static fn (TestRunner $t) => $t->same(862, $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffWindows'][0]['continuesSlice']),
+    'planner stat4 expression partial current source prepared handoff validation continuation first rowid' => static fn (TestRunner $t) => $t->same(60, $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffWindows'][0]['rowid']),
+    'planner stat4 expression partial current source prepared handoff validation continuation first projection matches' => static fn (TestRunner $t) => $t->same(true, $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffWindows'][0]['projectionMatchesPrior']),
+    'planner stat4 expression partial current source prepared handoff validation continuation signature length' => static fn (TestRunner $t) => $t->same(64, strlen($planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'])),
+    'planner stat4 expression partial current source prepared handoff validation continuation selected signature' => static fn (TestRunner $t) => $t->same($planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'], $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffValidationContinuationHandoffSignature']),
+    'planner stat4 expression partial current source prepared handoff validation continuation stat4 signature' => static fn (TestRunner $t) => $t->same($planPreparedHandoffValidationContinuation()['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'], $planPreparedHandoffValidationContinuation()['stat4Fence']['preparedHandoffValidationContinuationHandoffSignature']),
+    'planner stat4 expression partial current source prepared handoff validation continuation prior signature threaded' => static fn (TestRunner $t) => $t->same($planPreparedHandoffValidationContinuation()['stat4PreparedHandoffResumeWindowFence']['handoffSignature'], $planPreparedHandoffValidationContinuation()['selectedPlan']['preparedHandoffValidationContinuationPriorHandoffSignature']),
+    'planner stat4 expression partial current source prepared handoff validation continuation preserves prepared handoff resume window fence' => static fn (TestRunner $t) => $t->same(range(862, 877), $planPreparedHandoffValidationContinuation()['stat4PreparedHandoffResumeWindowFence']['preparedSlices']),
+    'planner stat4 expression partial current source prepared handoff validation continuation cursor appended' => static fn (TestRunner $t) => $t->same('PrepareStat4ExpressionPartialPreparedHandoffValidationContinuation', $planPreparedHandoffValidationContinuation()['cursorProgram'][array_key_last($planPreparedHandoffValidationContinuation()['cursorProgram'])]['opcode']),
+    'planner stat4 expression partial current source prepared handoff validation continuation cursor mode' => static fn (TestRunner $t) => $t->same('prepared-handoff-validation-continuation-current-source-stat4-expression-partial-prep', $planPreparedHandoffValidationContinuation()['cursorProgram'][array_key_last($planPreparedHandoffValidationContinuation()['cursorProgram'])]['mode']),
+    'planner stat4 expression partial current source prepared handoff validation continuation detail' => static fn (TestRunner $t) => $t->contains('PREPARED HANDOFF VALIDATION CONTINUATION', $planPreparedHandoffValidationContinuation()['detail']),
+    'planner stat4 expression partial current source prepared handoff validation continuation dependency marker' => static fn (TestRunner $t) => $t->true(in_array('sqlite-sqlplanner-stat4-expression-partial-prepared-handoff-validation-continuation', $planPreparedHandoffValidationContinuation()['dependencies'], true)),
+    'planner stat4 expression partial current source prepared handoff validation continuation dependency closure' => static fn (TestRunner $t) => $t->contains('prepared handoff validation-continuation preparation extends', $planPreparedHandoffValidationContinuation()['dependency_closure']),
+    'planner stat4 expression partial current source prepared handoff validation continuation non overlap' => static fn (TestRunner $t) => $t->contains('prepared handoff resume-window handoff windows', $planPreparedHandoffValidationContinuation()['non_overlap']),
+    'planner stat4 expression partial current source prepared handoff validation continuation malformed needed column' => static function (TestRunner $t) use ($preparedPreparedHandoffValidationContinuation, $currentPreparedHandoffValidationContinuation, $termsPreparedHandoffValidationContinuation): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffValidationContinuation($preparedPreparedHandoffValidationContinuation(), $currentPreparedHandoffValidationContinuation(), $termsPreparedHandoffValidationContinuation(), ['option_name', ''], 6));
     },
 ];
 
 foreach (range(1, 16) as $case) {
-    $tests['planner stat4 expression partial current source next878893 repeated handoff proof ' . $case] = static function (TestRunner $t) use ($plan878893): void {
-        $plan = $plan878893();
-        $t->same($plan['stat4Next878893PreparationFence']['handoffSignature'], $plan['selectedPlan']['next878893HandoffSignature']);
+    $tests['planner stat4 expression partial current source prepared handoff validation continuation repeated handoff proof ' . $case] = static function (TestRunner $t) use ($planPreparedHandoffValidationContinuation): void {
+        $plan = $planPreparedHandoffValidationContinuation();
+        $t->same($plan['stat4PreparedHandoffValidationContinuationFence']['handoffSignature'], $plan['selectedPlan']['preparedHandoffValidationContinuationHandoffSignature']);
     };
 }
 

@@ -67,7 +67,7 @@ $unusable174 = static fn (): array => $plan174(
 
 $tests = [
     'records next174 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next174', $plan174()['dependencies'], true)),
-    'preserves next170 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next170', $plan174()['dependencies'], true)),
+    'preserves current-source dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-current-source-cost', $plan174()['dependencies'], true)),
     'pins current next174 policy' => static fn (TestRunner $t) => $t->same('pin-current-json-table-generated-path-rowid-alias-next174-until-xfilter-reset', $plan174()['currentReaderPolicy']),
     'prepares changed next174 policy' => static fn (TestRunner $t) => $t->same('prepare-next-json-table-generated-path-rowid-alias-next174-plan', $plan174()['nextReaderPolicy']),
     'stable next174 policy reuses current' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-alias-next174-plan', $stable174()['nextReaderPolicy']),

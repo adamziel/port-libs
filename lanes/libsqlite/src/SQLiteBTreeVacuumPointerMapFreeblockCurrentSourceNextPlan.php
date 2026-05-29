@@ -19328,7 +19328,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
         $rows = self::buildCursorRows($basePlan);
         $errors = self::cursorErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next203 cursor failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source writer-cursor cursor failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -19411,7 +19411,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
         $sourceNextSummary = $this->basePlan->sourceNextSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next203-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-writer-cursor-ready',
             'cursor_row_count' => count($this->cursorRows),
             'current_source_pages' => $this->currentSourcePages(),
             'next_writable_pages' => $sourceNextSummary['next_writable_pages'],
@@ -19420,7 +19420,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
             'cursor_tokens' => $this->cursorTokens(),
             'cursor_signature' => self::signature($this->cursorTokens()),
             'next_writer_cursor_token' => self::signature(array_merge(
-                ['next203', $sourceNextSummary['next_writer_source_token']],
+                ['writer-cursor', $sourceNextSummary['next_writer_source_token']],
                 $this->currentSourcePages(),
                 $this->cursorTokens(),
             )),
@@ -19432,9 +19432,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
             'cursor_errors' => $this->cursorErrors(),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next196',
-                'sqlite-current-source-next203',
+                'sqlite-current-source-writer-cursor',
             ],
-            'dependency_closure' => 'no new support component needed; next203 reuses next196 source-next handoff tokens, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
+            'dependency_closure' => 'no new support component needed; writer-cursor reuses next196 source-next handoff tokens, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
             'non_overlap' => 'adds current-source next-writer cursor admission after next196 source-next handoff; does not repeat next196 token handoff, next192 validation, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
@@ -19445,7 +19445,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next203',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
             'current_source_cursor_summary' => $this->currentSourceCursorSummary(),
             'cursor_errors' => $this->cursorErrors(),
             'cursor_rows' => $this->cursorRows,
@@ -19471,7 +19471,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterCursorVariant
             $sourceNextToken = (string) $row['source_next_token'];
             $expectedSourceNextToken = $sourceNextTokens[$index] ?? null;
             $token = self::signature(array_merge(
-                ['next203', (int) $row['batch_index'], $previousCursorToken ?? 'initial', $sourceNextToken],
+                ['writer-cursor', (int) $row['batch_index'], $previousCursorToken ?? 'initial', $sourceNextToken],
                 $currentSourcePages,
                 $pointerMapPages,
                 $payloadPages,
@@ -19687,11 +19687,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockHandoffVar
             'all_cursor_tokens_chained' => !in_array(false, array_column($this->freeblockRows, 'cursor_token_chained'), true),
             'freeblock_errors' => $this->freeblockErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next203',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
                 'sqlite-current-source-next205',
             ],
-            'dependency_closure' => 'no new support component needed; next205 reuses next203 cursor admission, pointer-map dependency pages, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds the next-writer freeblock handoff after next203 cursor admission; does not repeat next203 cursor admission, next196 source-next tokens, next172 materialized images, overflow freelist release, page relocation, root collapse, or bulk overflow freeblocks',
+            'dependency_closure' => 'no new support component needed; next205 reuses writer-cursor cursor admission, pointer-map dependency pages, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds the next-writer freeblock handoff after writer-cursor cursor admission; does not repeat writer-cursor cursor admission, next196 source-next tokens, next172 materialized images, overflow freelist release, page relocation, root collapse, or bulk overflow freeblocks',
         ];
     }
 
@@ -19906,7 +19906,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
         $rows = self::buildSealRows($basePlan);
         $errors = self::sealErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next206 seal failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source sealed-writer-admission seal failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -19975,7 +19975,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
         $cursorSummary = $this->basePlan->currentSourceCursorSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next206-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission-ready',
             'seal_row_count' => count($this->sealRows),
             'sealed_pages' => $this->sealedPages(),
             'sealed_pointer_map_pages' => $this->sealedPointerMapPages(),
@@ -19986,7 +19986,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
             'seal_tokens' => $this->sealTokens(),
             'seal_signature' => self::signature($this->sealTokens()),
             'next_writer_freeblock_source_token' => self::signature(array_merge(
-                ['next206', $cursorSummary['next_writer_cursor_token']],
+                ['sealed-writer-admission', $cursorSummary['next_writer_cursor_token']],
                 $this->sealedPages(),
                 $this->sealTokens(),
             )),
@@ -19997,11 +19997,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
             'all_seal_chains_valid' => !in_array(false, array_column($this->sealRows, 'seal_chain_valid'), true),
             'seal_errors' => $this->sealErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next203',
-                'sqlite-current-source-next206',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
+                'sqlite-current-source-sealed-writer-admission',
             ],
-            'dependency_closure' => 'no new support component needed; next206 reuses next203 current-source cursor batches, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds sealed freeblock current-source writer admission after next203 cursor admission; does not repeat next203 cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; sealed-writer-admission reuses writer-cursor current-source cursor batches, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds sealed freeblock current-source writer admission after writer-cursor cursor admission; does not repeat writer-cursor cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -20011,7 +20011,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next206',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
             'sealed_current_source_summary' => $this->sealedCurrentSourceSummary(),
             'seal_errors' => $this->sealErrors(),
             'seal_rows' => $this->sealRows,
@@ -20095,7 +20095,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockSealVarian
                 ++$ordinal;
                 $cursorToken = (string) $cursorRow['cursor_token'];
                 $token = self::signature(array_merge(
-                    ['next206', $ordinal, $channel, $previousSealToken ?? 'initial', $cursorToken],
+                    ['sealed-writer-admission', $ordinal, $channel, $previousSealToken ?? 'initial', $cursorToken],
                     $pages,
                     [(int) $cursorRow['high_water_page']],
                 ));
@@ -20326,11 +20326,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealVariant
             'all_window_chains_valid' => !in_array(false, array_column($this->windowRows, 'writer_chain_valid'), true),
             'writer_window_errors' => $this->writerWindowErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next206',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
                 'sqlite-current-source-next207',
             ],
-            'dependency_closure' => 'no new support component needed; next207 reuses next206 sealed pointer-map and payload/freeblock rows to admit a deterministic writer window',
-            'non_overlap' => 'adds final current-source writer-window admission after next206 sealing; does not repeat next206 seal rows, next203 cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; next207 reuses sealed-writer-admission sealed pointer-map and payload/freeblock rows to admit a deterministic writer window',
+            'non_overlap' => 'adds final current-source writer-window admission after sealed-writer-admission sealing; does not repeat sealed-writer-admission seal rows, writer-cursor cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -20656,11 +20656,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReuseCursorVariant
             'all_source_next_chains_valid' => !in_array(false, array_column($this->sourceNextRows, 'source_next_chain_valid'), true),
             'source_next_errors' => $this->sourceNextErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next206',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
                 'sqlite-current-source-next208',
             ],
-            'dependency_closure' => 'no new support component needed; next208 reuses next206 sealed pointer-map/payload rows, freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds source-next reader handoff after next206 sealed writer admission; does not repeat next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; next208 reuses sealed-writer-admission sealed pointer-map/payload rows, freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds source-next reader handoff after sealed-writer-admission sealed writer admission; does not repeat sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -20894,7 +20894,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
         $rows = self::buildSourceRows($basePlan);
         $errors = self::sourceErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next209 writer source failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source writer-source-latch writer source failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -20963,7 +20963,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
         $sealedSummary = $this->basePlan->sealedCurrentSourceSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next209-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-writer-source-latch-ready',
             'source_row_count' => count($this->sourceRows),
             'writer_source_pages' => $this->writerSourcePages(),
             'writer_pointer_map_pages' => $this->writerPointerMapPages(),
@@ -20973,7 +20973,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
             'source_tokens' => $this->sourceTokens(),
             'source_signature' => self::signature($this->sourceTokens()),
             'next_writer_current_source_token' => self::signature(array_merge(
-                ['next209', $sealedSummary['next_writer_freeblock_source_token']],
+                ['writer-source-latch', $sealedSummary['next_writer_freeblock_source_token']],
                 $this->writerSourcePages(),
                 $this->sourceTokens(),
             )),
@@ -20984,11 +20984,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
             'all_writer_source_chains_valid' => !in_array(false, array_column($this->sourceRows, 'writer_source_chain_valid'), true),
             'source_errors' => $this->sourceErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next206',
-                'sqlite-current-source-next209',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
+                'sqlite-current-source-writer-source-latch',
             ],
-            'dependency_closure' => 'no new support component needed; next209 reuses next206 sealed current-source rows, leaf freeblock receipts, pointer-map pages, and fenced-tail metadata',
-            'non_overlap' => 'adds writer-source latch admission after next206 sealed current-source rows; does not repeat next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; writer-source-latch reuses sealed-writer-admission sealed current-source rows, leaf freeblock receipts, pointer-map pages, and fenced-tail metadata',
+            'non_overlap' => 'adds writer-source latch admission after sealed-writer-admission sealed current-source rows; does not repeat sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -20998,7 +20998,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next209',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
             'writer_source_summary' => $this->writerSourceSummary(),
             'source_errors' => $this->sourceErrors(),
             'source_rows' => $this->sourceRows,
@@ -21067,7 +21067,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriterSourceLatchVa
 
             $sealToken = (string) $row['seal_token'];
             $token = self::signature(array_merge(
-                ['next209', (int) $row['seal_ordinal'], $previousToken ?? 'initial', $sealToken],
+                ['writer-source-latch', (int) $row['seal_ordinal'], $previousToken ?? 'initial', $sealToken],
                 $pages,
                 self::sortedIntKeys($visiblePages),
                 [(int) $row['high_water_page']],
@@ -21302,11 +21302,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyPageVariant
             'all_current_source_epochs_ready' => !in_array(false, array_column($this->applyRows, 'current_source_epoch_ready'), true),
             'apply_errors' => $this->applyErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next209',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
                 'sqlite-current-source-next210',
             ],
-            'dependency_closure' => 'no new support component needed; next210 reuses next209 writer-source rows, pointer-map ordering, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds current-source writer apply ordering after next209 writer-source latch admission; does not repeat next209 source latching, next206 sealing, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; next210 reuses writer-source-latch writer-source rows, pointer-map ordering, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds current-source writer apply ordering after writer-source-latch writer-source latch admission; does not repeat writer-source-latch source latching, sealed-writer-admission sealing, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -21628,11 +21628,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptVariant
             'all_apply_chains_valid' => !in_array(false, array_column($this->applyRows, 'apply_chain_valid'), true),
             'apply_errors' => $this->applyErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next209',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
                 'sqlite-current-source-next211',
             ],
-            'dependency_closure' => 'no new support component needed; next211 reuses next209 latched current-source writer rows, pointer-map pages, payload/freeblock pages, and fenced-tail metadata',
-            'non_overlap' => 'adds replay-apply receipts after next209 source latching; does not repeat next209 latching, next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; next211 reuses writer-source-latch latched current-source writer rows, pointer-map pages, payload/freeblock pages, and fenced-tail metadata',
+            'non_overlap' => 'adds replay-apply receipts after writer-source-latch source latching; does not repeat writer-source-latch latching, sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -21874,7 +21874,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
         $rows = self::buildApplyRows($basePlan);
         $errors = self::applyErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next212 apply failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source page-apply apply failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -21943,7 +21943,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
         $sourceSummary = $this->basePlan->writerSourceSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next212-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply-ready',
             'apply_row_count' => count($this->applyRows),
             'apply_pages' => $this->applyPages(),
             'pointer_map_apply_pages' => $this->pointerMapApplyPages(),
@@ -21953,7 +21953,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
             'apply_tokens' => $this->applyTokens(),
             'apply_signature' => self::signature($this->applyTokens()),
             'next_writer_apply_token' => self::signature(array_merge(
-                ['next212', $sourceSummary['next_writer_current_source_token']],
+                ['page-apply', $sourceSummary['next_writer_current_source_token']],
                 $this->applyPages(),
                 $this->applyTokens(),
             )),
@@ -21964,11 +21964,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
             'all_apply_chains_valid' => !in_array(false, array_column($this->applyRows, 'apply_chain_valid'), true),
             'apply_errors' => $this->applyErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next209',
-                'sqlite-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
+                'sqlite-current-source-page-apply',
             ],
-            'dependency_closure' => 'no new support component needed; next212 reuses next209 writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds current-source page apply ordering after next209 writer-source latch admission; does not repeat next209 source latching, next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; page-apply reuses writer-source-latch writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds current-source page apply ordering after writer-source-latch writer-source latch admission; does not repeat writer-source-latch source latching, sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -21978,7 +21978,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next212',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply',
             'apply_summary' => $this->applySummary(),
             'apply_errors' => $this->applyErrors(),
             'apply_rows' => $this->applyRows,
@@ -22047,7 +22047,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageApplyOrderVaria
 
             $sourceToken = (string) $row['writer_source_token'];
             $token = self::signature(array_merge(
-                ['next212', (int) $row['source_ordinal'], $previousApplyToken ?? 'initial', $sourceToken],
+                ['page-apply', (int) $row['source_ordinal'], $previousApplyToken ?? 'initial', $sourceToken],
                 $pages,
                 self::sortedIntKeys($appliedPages),
                 [(int) $row['high_water_page']],
@@ -22283,11 +22283,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageReceiptPublicat
             'receipt_page_classes' => array_values(array_unique(array_column($this->receiptRows, 'receipt_page_class'))),
             'receipt_errors' => $this->receiptErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
                 'sqlite-current-source-next213',
             ],
-            'dependency_closure' => 'no new support component needed; next213 reuses next212 current-source apply rows, pointer-map/payload page classes, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds post-apply current-source receipt publication after next212 apply ordering; does not repeat next212 page apply ordering, next209 writer-source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; next213 reuses page-apply current-source apply rows, pointer-map/payload page classes, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds post-apply current-source receipt publication after page-apply apply ordering; does not repeat page-apply page apply ordering, writer-source-latch writer-source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -22641,11 +22641,11 @@ class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializationVaria
             )),
             'write_errors' => $this->writeErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
                 'sqlite-current-source-write-materialization',
             ],
-            'dependency_closure' => 'no new support component needed; write-materialization reuses next212 current-source apply rows, pointer-map apply pages, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds page-write materialization for current-source write-materialization after next212 apply ordering; does not repeat next212 writer apply ordering, next209 source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; write-materialization reuses page-apply current-source apply rows, pointer-map apply pages, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds page-write materialization for current-source write-materialization after page-apply apply ordering; does not repeat page-apply writer apply ordering, writer-source-latch source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -22960,11 +22960,11 @@ class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteReceiptVariant
             'all_write_chains_valid' => !in_array(false, array_column($this->writeRows, 'write_chain_valid'), true),
             'write_errors' => $this->writeErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
                 'sqlite-current-source-write-receipts',
             ],
-            'dependency_closure' => 'no new support component needed; write-receipts reuses next212 current-source apply rows and adds per-page write receipts only',
-            'non_overlap' => 'adds per-page current-source write receipts after next212 apply ordering; does not repeat next212 page apply ordering, next209 source latching, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+            'dependency_closure' => 'no new support component needed; write-receipts reuses page-apply current-source apply rows and adds per-page write receipts only',
+            'non_overlap' => 'adds per-page current-source write receipts after page-apply apply ordering; does not repeat page-apply page apply ordering, writer-source-latch source latching, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
         ];
     }
 
@@ -23288,7 +23288,7 @@ class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackVariant
                 'sqlite-current-source-readback',
             ],
             'dependency_closure' => 'no new support component needed; readback reuses write-materialization current-source write rows, write tokens, pointer-map-before-payload ordering, and fenced-tail guards',
-            'non_overlap' => 'adds post-write current-source readback verification after write-materialization page writes; does not repeat write-materialization page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds post-write current-source readback verification after write-materialization page writes; does not repeat write-materialization page-write materialization, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -23643,7 +23643,7 @@ class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitVariant
                 'sqlite-current-source-publication-audit',
             ],
             'dependency_closure' => 'no new support component needed; publication-audit reuses write-materialization page-write rows, pointer-map-first ordering, duplicate pointer-map rewrite receipts, and fenced-tail guards',
-            'non_overlap' => 'adds commit-fenced current-source publication for publication-audit after write-materialization write materialization; does not repeat write-materialization write-row construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds commit-fenced current-source publication for publication-audit after write-materialization write materialization; does not repeat write-materialization write-row construction, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -23960,7 +23960,7 @@ class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSourcePublicationVariant
                 'sqlite-current-source-checkpoint-audit',
             ],
             'dependency_closure' => 'no new support component needed; checkpoint-audit reuses write-receipts per-page write receipts and publishes a current-source source fence only',
-            'non_overlap' => 'adds current-source publication receipts after write-receipts per-page writes; does not repeat write-receipts write receipts, next212 apply ordering, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source publication receipts after write-receipts per-page writes; does not repeat write-receipts write receipts, page-apply apply ordering, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
         ];
     }
 
@@ -24275,7 +24275,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceVariant
                 'sqlite-current-source-checkpoint-validation',
             ],
             'dependency_closure' => 'no new support component needed; checkpoint-validation reuses write-receipts write receipts and adds current-source next-page cursor sequencing only',
-            'non_overlap' => 'adds current-source next-page cursor sequencing after write-receipts write receipts; does not repeat write-receipts write receipt construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source next-page cursor sequencing after write-receipts write receipts; does not repeat write-receipts write receipt construction, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
         ];
     }
 
@@ -25307,7 +25307,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealVariant
                 'sqlite-current-source-publication-seal',
             ],
             'dependency_closure' => 'no new support component needed; publication-seal reuses readback readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds durable publication sealing after readback readback; does not repeat readback readback, write-materialization page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds durable publication sealing after readback readback; does not repeat readback readback, write-materialization page-write materialization, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -25627,7 +25627,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceDrainVariant
                 'sqlite-current-source-next228',
             ],
             'dependency_closure' => 'no new support component needed; next228 reuses checkpoint-validation current-source next-page cursor receipts and adds drain/finalization metadata only',
-            'non_overlap' => 'adds current-source drain finalization after checkpoint-validation cursor sequencing; does not repeat checkpoint-validation next-page links, write-receipts write receipt construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source drain finalization after checkpoint-validation cursor sequencing; does not repeat checkpoint-validation next-page links, write-receipts write receipt construction, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
         ];
     }
 
@@ -25910,7 +25910,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceResumeVariant
                 'sqlite-current-source-publication-resume-window',
             ],
             'dependency_closure' => 'no new support component needed; publication-resume-window reuses checkpoint-validation current-source cursor rows and adds resume-window admission receipts only',
-            'non_overlap' => 'adds current-source resume-window admission after checkpoint-validation next-page cursor sequencing; does not repeat checkpoint-validation cursor construction, write-receipts write receipts, next212 apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source resume-window admission after checkpoint-validation next-page cursor sequencing; does not repeat checkpoint-validation cursor construction, write-receipts write receipts, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
         ];
     }
 
@@ -33535,7 +33535,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
         $rows = self::buildCursorRows($basePlan);
         $errors = self::cursorErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next203 cursor failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source writer-cursor cursor failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -33618,7 +33618,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
         $sourceNextSummary = $this->basePlan->sourceNextSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next203-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-writer-cursor-ready',
             'cursor_row_count' => count($this->cursorRows),
             'current_source_pages' => $this->currentSourcePages(),
             'next_writable_pages' => $sourceNextSummary['next_writable_pages'],
@@ -33627,7 +33627,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
             'cursor_tokens' => $this->cursorTokens(),
             'cursor_signature' => self::signature($this->cursorTokens()),
             'next_writer_cursor_token' => self::signature(array_merge(
-                ['next203', $sourceNextSummary['next_writer_source_token']],
+                ['writer-cursor', $sourceNextSummary['next_writer_source_token']],
                 $this->currentSourcePages(),
                 $this->cursorTokens(),
             )),
@@ -33639,9 +33639,9 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
             'cursor_errors' => $this->cursorErrors(),
             'dependencies' => [
                 'sqlite-btree-vacuum-pointermap-freeblock-current-source-next196',
-                'sqlite-current-source-next203',
+                'sqlite-current-source-writer-cursor',
             ],
-            'dependency_closure' => 'no new support component needed; next203 reuses next196 source-next handoff tokens, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
+            'dependency_closure' => 'no new support component needed; writer-cursor reuses next196 source-next handoff tokens, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
             'non_overlap' => 'adds current-source next-writer cursor admission after next196 source-next handoff; does not repeat next196 token handoff, next192 validation, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
@@ -33652,7 +33652,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next203',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
             'current_source_cursor_summary' => $this->currentSourceCursorSummary(),
             'cursor_errors' => $this->cursorErrors(),
             'cursor_rows' => $this->cursorRows,
@@ -33678,7 +33678,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreeblockCursorVari
             $sourceNextToken = (string) $row['source_next_token'];
             $expectedSourceNextToken = $sourceNextTokens[$index] ?? null;
             $token = self::signature(array_merge(
-                ['next203', (int) $row['batch_index'], $previousCursorToken ?? 'initial', $sourceNextToken],
+                ['writer-cursor', (int) $row['batch_index'], $previousCursorToken ?? 'initial', $sourceNextToken],
                 $currentSourcePages,
                 $pointerMapPages,
                 $payloadPages,
@@ -33820,7 +33820,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
         $rows = self::buildSealRows($basePlan);
         $errors = self::sealErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next206 seal failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source sealed-writer-admission seal failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -33889,7 +33889,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
         $cursorSummary = $this->basePlan->currentSourceCursorSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next206-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission-ready',
             'seal_row_count' => count($this->sealRows),
             'sealed_pages' => $this->sealedPages(),
             'sealed_pointer_map_pages' => $this->sealedPointerMapPages(),
@@ -33900,7 +33900,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
             'seal_tokens' => $this->sealTokens(),
             'seal_signature' => self::signature($this->sealTokens()),
             'next_writer_freeblock_source_token' => self::signature(array_merge(
-                ['next206', $cursorSummary['next_writer_cursor_token']],
+                ['sealed-writer-admission', $cursorSummary['next_writer_cursor_token']],
                 $this->sealedPages(),
                 $this->sealTokens(),
             )),
@@ -33911,11 +33911,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
             'all_seal_chains_valid' => !in_array(false, array_column($this->sealRows, 'seal_chain_valid'), true),
             'seal_errors' => $this->sealErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next203',
-                'sqlite-current-source-next206',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-cursor',
+                'sqlite-current-source-sealed-writer-admission',
             ],
-            'dependency_closure' => 'no new support component needed; next206 reuses next203 current-source cursor batches, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds sealed freeblock current-source writer admission after next203 cursor admission; does not repeat next203 cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; sealed-writer-admission reuses writer-cursor current-source cursor batches, pointer-map pages, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds sealed freeblock current-source writer admission after writer-cursor cursor admission; does not repeat writer-cursor cursor batching, next196 source-next handoff, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -33925,7 +33925,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next206',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
             'sealed_current_source_summary' => $this->sealedCurrentSourceSummary(),
             'seal_errors' => $this->sealErrors(),
             'seal_rows' => $this->sealRows,
@@ -34009,7 +34009,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePageSealAuditVarian
                 ++$ordinal;
                 $cursorToken = (string) $cursorRow['cursor_token'];
                 $token = self::signature(array_merge(
-                    ['next206', $ordinal, $channel, $previousSealToken ?? 'initial', $cursorToken],
+                    ['sealed-writer-admission', $ordinal, $channel, $previousSealToken ?? 'initial', $cursorToken],
                     $pages,
                     [(int) $cursorRow['high_water_page']],
                 ));
@@ -34150,7 +34150,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
         $rows = self::buildSourceRows($basePlan);
         $errors = self::sourceErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next209 writer source failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source writer-source-latch writer source failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -34219,7 +34219,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
         $sealedSummary = $this->basePlan->sealedCurrentSourceSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next209-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-writer-source-latch-ready',
             'source_row_count' => count($this->sourceRows),
             'writer_source_pages' => $this->writerSourcePages(),
             'writer_pointer_map_pages' => $this->writerPointerMapPages(),
@@ -34229,7 +34229,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
             'source_tokens' => $this->sourceTokens(),
             'source_signature' => self::signature($this->sourceTokens()),
             'next_writer_current_source_token' => self::signature(array_merge(
-                ['next209', $sealedSummary['next_writer_freeblock_source_token']],
+                ['writer-source-latch', $sealedSummary['next_writer_freeblock_source_token']],
                 $this->writerSourcePages(),
                 $this->sourceTokens(),
             )),
@@ -34240,11 +34240,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
             'all_writer_source_chains_valid' => !in_array(false, array_column($this->sourceRows, 'writer_source_chain_valid'), true),
             'source_errors' => $this->sourceErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next206',
-                'sqlite-current-source-next209',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
+                'sqlite-current-source-writer-source-latch',
             ],
-            'dependency_closure' => 'no new support component needed; next209 reuses next206 sealed current-source rows, leaf freeblock receipts, pointer-map pages, and fenced-tail metadata',
-            'non_overlap' => 'adds writer-source latch admission after next206 sealed current-source rows; does not repeat next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; writer-source-latch reuses sealed-writer-admission sealed current-source rows, leaf freeblock receipts, pointer-map pages, and fenced-tail metadata',
+            'non_overlap' => 'adds writer-source latch admission after sealed-writer-admission sealed current-source rows; does not repeat sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, bulk overflow freeblocks, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -34254,7 +34254,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next209',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
             'writer_source_summary' => $this->writerSourceSummary(),
             'source_errors' => $this->sourceErrors(),
             'source_rows' => $this->sourceRows,
@@ -34323,7 +34323,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceApplyReceiptAuditVa
 
             $sealToken = (string) $row['seal_token'];
             $token = self::signature(array_merge(
-                ['next209', (int) $row['seal_ordinal'], $previousToken ?? 'initial', $sealToken],
+                ['writer-source-latch', (int) $row['seal_ordinal'], $previousToken ?? 'initial', $sealToken],
                 $pages,
                 self::sortedIntKeys($visiblePages),
                 [(int) $row['high_water_page']],
@@ -34468,7 +34468,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
         $rows = self::buildApplyRows($basePlan);
         $errors = self::applyErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next212 apply failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source page-apply apply failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -34537,7 +34537,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
         $sourceSummary = $this->basePlan->writerSourceSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next212-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply-ready',
             'apply_row_count' => count($this->applyRows),
             'apply_pages' => $this->applyPages(),
             'pointer_map_apply_pages' => $this->pointerMapApplyPages(),
@@ -34547,7 +34547,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
             'apply_tokens' => $this->applyTokens(),
             'apply_signature' => self::signature($this->applyTokens()),
             'next_writer_apply_token' => self::signature(array_merge(
-                ['next212', $sourceSummary['next_writer_current_source_token']],
+                ['page-apply', $sourceSummary['next_writer_current_source_token']],
                 $this->applyPages(),
                 $this->applyTokens(),
             )),
@@ -34558,11 +34558,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
             'all_apply_chains_valid' => !in_array(false, array_column($this->applyRows, 'apply_chain_valid'), true),
             'apply_errors' => $this->applyErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next209',
-                'sqlite-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
+                'sqlite-current-source-page-apply',
             ],
-            'dependency_closure' => 'no new support component needed; next212 reuses next209 writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds current-source page apply ordering after next209 writer-source latch admission; does not repeat next209 source latching, next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; page-apply reuses writer-source-latch writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds current-source page apply ordering after writer-source-latch writer-source latch admission; does not repeat writer-source-latch source latching, sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -34572,7 +34572,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next212',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply',
             'apply_summary' => $this->applySummary(),
             'apply_errors' => $this->applyErrors(),
             'apply_rows' => $this->applyRows,
@@ -34641,7 +34641,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteMaterializatio
 
             $sourceToken = (string) $row['writer_source_token'];
             $token = self::signature(array_merge(
-                ['next212', (int) $row['source_ordinal'], $previousApplyToken ?? 'initial', $sourceToken],
+                ['page-apply', (int) $row['source_ordinal'], $previousApplyToken ?? 'initial', $sourceToken],
                 $pages,
                 self::sortedIntKeys($appliedPages),
                 [(int) $row['high_water_page']],
@@ -34786,7 +34786,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
         $rows = self::buildCommitRows($basePlan);
         $errors = self::commitErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next215 commit failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source current-source-commit commit failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -34855,7 +34855,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
         $applySummary = $this->basePlan->applySummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next215-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-commit-ready',
             'commit_row_count' => count($this->commitRows),
             'committed_pages' => $this->committedPages(),
             'committed_pointer_map_pages' => $this->committedPointerMapPages(),
@@ -34865,7 +34865,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
             'commit_tokens' => $this->commitTokens(),
             'commit_signature' => self::signature($this->commitTokens()),
             'next_writer_commit_token' => self::signature(array_merge(
-                ['next215', $applySummary['next_writer_apply_token']],
+                ['current-source-commit', $applySummary['next_writer_apply_token']],
                 $this->committedPages(),
                 $this->commitTokens(),
             )),
@@ -34876,11 +34876,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
             'all_commit_chains_valid' => !in_array(false, array_column($this->commitRows, 'commit_chain_valid'), true),
             'commit_errors' => $this->commitErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
-                'sqlite-current-source-next215',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
+                'sqlite-current-source-commit',
             ],
-            'dependency_closure' => 'no new support component needed; next215 reuses next212 applied current-source page rows, pointer-map apply ordering, leaf freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds current-source commit receipts after next212 page apply; does not repeat next212 apply ordering, next209 source latching, next206 sealing, next203 cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; current-source-commit reuses page-apply applied current-source page rows, pointer-map apply ordering, leaf freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds current-source commit receipts after page-apply page apply; does not repeat page-apply apply ordering, writer-source-latch source latching, sealed-writer-admission sealing, writer-cursor cursor batching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -34890,7 +34890,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next215',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-commit',
             'commit_summary' => $this->commitSummary(),
             'commit_errors' => $this->commitErrors(),
             'commit_rows' => $this->commitRows,
@@ -34959,7 +34959,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackAuditVarian
 
             $applyToken = (string) $row['apply_token'];
             $token = self::signature(array_merge(
-                ['next215', (int) $row['apply_ordinal'], $previousCommitToken ?? 'initial', $applyToken],
+                ['current-source-commit', (int) $row['apply_ordinal'], $previousCommitToken ?? 'initial', $applyToken],
                 $pages,
                 self::sortedIntKeys($committedPages),
                 [(int) $row['high_water_page']],
@@ -35105,7 +35105,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
         $rows = self::buildReceiptRows($basePlan);
         $errors = self::receiptErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next216 receipt failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source current-source-commit-receipt receipt failed: ' . implode('; ', $errors));
         }
 
         return new self($basePlan, $rows);
@@ -35174,7 +35174,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
         $applySummary = $this->basePlan->applySummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next216-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-commit-receipt-ready',
             'receipt_row_count' => count($this->receiptRows),
             'receipt_pages' => $this->receiptPages(),
             'pointer_map_receipt_pages' => $this->pointerMapReceiptPages(),
@@ -35184,7 +35184,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
             'receipt_tokens' => $this->receiptTokens(),
             'receipt_signature' => self::signature($this->receiptTokens()),
             'next_writer_commit_token' => self::signature(array_merge(
-                ['next216', $applySummary['next_writer_apply_token']],
+                ['current-source-commit-receipt', $applySummary['next_writer_apply_token']],
                 $this->receiptPages(),
                 $this->receiptTokens(),
             )),
@@ -35195,11 +35195,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
             'all_receipt_chains_valid' => !in_array(false, array_column($this->receiptRows, 'receipt_chain_valid'), true),
             'receipt_errors' => $this->receiptErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
-                'sqlite-current-source-next216',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
+                'sqlite-current-source-commit-receipt',
             ],
-            'dependency_closure' => 'no new support component needed; next216 reuses next212 current-source apply rows, page hashes, freeblock receipts, and fenced-tail metadata',
-            'non_overlap' => 'adds commit receipts for already ordered next212 apply rows; does not repeat next212 apply ordering, next209 writer-source latching, overflow freelist release, page relocation, root collapse, bulk overflow freeblock materialization, or accepted freelist/pointer-map reuse slices',
+            'dependency_closure' => 'no new support component needed; current-source-commit-receipt reuses page-apply current-source apply rows, page hashes, freeblock receipts, and fenced-tail metadata',
+            'non_overlap' => 'adds commit receipts for already ordered page-apply apply rows; does not repeat page-apply apply ordering, writer-source-latch writer-source latching, overflow freelist release, page relocation, root collapse, bulk overflow freeblock materialization, or accepted freelist/pointer-map reuse slices',
         ];
     }
 
@@ -35209,7 +35209,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next216',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-commit-receipt',
             'receipt_summary' => $this->receiptSummary(),
             'receipt_errors' => $this->receiptErrors(),
             'receipt_rows' => $this->receiptRows,
@@ -35281,7 +35281,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
             $pageHashes = [];
             foreach ($pages as $pageNumber) {
                 $pageHashes[$pageNumber] = self::signature([
-                    'next216-page',
+                    'current-source-commit-receipt-page',
                     $pageNumber,
                     $receiptChannel,
                     $applyToken,
@@ -35290,7 +35290,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCommitReceiptAuditV
             }
 
             $receiptToken = self::signature(array_merge(
-                ['next216', (int) $row['apply_ordinal'], $receiptChannel, $previousReceiptToken ?? 'initial', $applyToken],
+                ['current-source-commit-receipt', (int) $row['apply_ordinal'], $receiptChannel, $previousReceiptToken ?? 'initial', $applyToken],
                 $pages,
                 self::sortedIntKeys($committedPages),
                 array_values($pageHashes),
@@ -35551,11 +35551,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionAudit
             )),
             'write_errors' => $this->writeErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
                 'sqlite-current-source-write-materialization',
             ],
-            'dependency_closure' => 'no new support component needed; write-materialization reuses next212 current-source apply rows, pointer-map apply pages, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds page-write materialization for current-source write-materialization after next212 apply ordering; does not repeat next212 writer apply ordering, next209 source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; write-materialization reuses page-apply current-source apply rows, pointer-map apply pages, leaf freeblock receipts, and fenced-tail guards',
+            'non_overlap' => 'adds page-write materialization for current-source write-materialization after page-apply apply ordering; does not repeat page-apply writer apply ordering, writer-source-latch source latching, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -35869,11 +35869,11 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteReceiptAuditVa
             'all_write_chains_valid' => !in_array(false, array_column($this->writeRows, 'write_chain_valid'), true),
             'write_errors' => $this->writeErrors(),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next212',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-page-apply',
                 'sqlite-current-source-write-receipts',
             ],
-            'dependency_closure' => 'no new support component needed; write-receipts reuses next212 current-source apply rows and adds per-page write receipts only',
-            'non_overlap' => 'adds per-page current-source write receipts after next212 apply ordering; does not repeat next212 page apply ordering, next209 source latching, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+            'dependency_closure' => 'no new support component needed; write-receipts reuses page-apply current-source apply rows and adds per-page write receipts only',
+            'non_overlap' => 'adds per-page current-source write receipts after page-apply apply ordering; does not repeat page-apply page apply ordering, writer-source-latch source latching, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
         ];
     }
 
@@ -36196,7 +36196,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReadbackReceiptVari
                 'sqlite-current-source-readback',
             ],
             'dependency_closure' => 'no new support component needed; readback reuses write-materialization current-source write rows, write tokens, pointer-map-before-payload ordering, and fenced-tail guards',
-            'non_overlap' => 'adds post-write current-source readback verification after write-materialization page writes; does not repeat write-materialization page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds post-write current-source readback verification after write-materialization page writes; does not repeat write-materialization page-write materialization, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -36550,7 +36550,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationAuditVar
                 'sqlite-current-source-publication-audit',
             ],
             'dependency_closure' => 'no new support component needed; publication-audit reuses write-materialization page-write rows, pointer-map-first ordering, duplicate pointer-map rewrite receipts, and fenced-tail guards',
-            'non_overlap' => 'adds commit-fenced current-source publication for publication-audit after write-materialization write materialization; does not repeat write-materialization write-row construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds commit-fenced current-source publication for publication-audit after write-materialization write materialization; does not repeat write-materialization write-row construction, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -36866,7 +36866,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCheckpointAuditVari
                 'sqlite-current-source-checkpoint-audit',
             ],
             'dependency_closure' => 'no new support component needed; checkpoint-audit reuses write-receipts per-page write receipts and publishes a current-source source fence only',
-            'non_overlap' => 'adds current-source publication receipts after write-receipts per-page writes; does not repeat write-receipts write receipts, next212 apply ordering, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source publication receipts after write-receipts per-page writes; does not repeat write-receipts write receipts, page-apply apply ordering, overflow freelist release, root collapse, page relocation, or accepted freeblock materialization',
         ];
     }
 
@@ -37181,7 +37181,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceCheckpointValidatio
                 'sqlite-current-source-checkpoint-validation',
             ],
             'dependency_closure' => 'no new support component needed; checkpoint-validation reuses write-receipts write receipts and adds current-source next-page cursor sequencing only',
-            'non_overlap' => 'adds current-source next-page cursor sequencing after write-receipts write receipts; does not repeat write-receipts write receipt construction, next212 apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source next-page cursor sequencing after write-receipts write receipts; does not repeat write-receipts write receipt construction, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
         ];
     }
 
@@ -37519,7 +37519,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSealAuditVariant
                 'sqlite-current-source-publication-seal',
             ],
             'dependency_closure' => 'no new support component needed; publication-seal reuses readback readback rows, duplicate pointer-map rewrite receipts, leaf freeblock receipts, and fenced-tail guards',
-            'non_overlap' => 'adds durable publication sealing after readback readback; does not repeat readback readback, write-materialization page-write materialization, next212 apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'non_overlap' => 'adds durable publication sealing after readback readback; does not repeat readback readback, write-materialization page-write materialization, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -37841,7 +37841,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationSealVari
                 'sqlite-current-source-publication-resume-window',
             ],
             'dependency_closure' => 'no new support component needed; publication-resume-window reuses checkpoint-validation current-source cursor rows and adds resume-window admission receipts only',
-            'non_overlap' => 'adds current-source resume-window admission after checkpoint-validation next-page cursor sequencing; does not repeat checkpoint-validation cursor construction, write-receipts write receipts, next212 apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
+            'non_overlap' => 'adds current-source resume-window admission after checkpoint-validation next-page cursor sequencing; does not repeat checkpoint-validation cursor construction, write-receipts write receipts, page-apply apply ordering, overflow freelist release, page relocation, root collapse, or accepted freeblock materialization',
         ];
     }
 

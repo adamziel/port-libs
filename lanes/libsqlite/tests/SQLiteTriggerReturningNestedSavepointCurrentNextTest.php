@@ -149,7 +149,7 @@ $cases = [
     'rollback effect discarded count' => [static fn (): mixed => $plan()['trigger_effects'][6]['discarded_count'], 2],
     'release preserved in outer' => [static fn (): mixed => $plan()['release_preserved_in_outer'], true],
     'rollback preserved released rows' => [static fn (): mixed => $plan()['rollback_preserved_released_rows'], true],
-    'dependency marker current next68' => [static fn (): mixed => in_array('sqlite-trigger-returning-current-next68', $plan()['dependencies'], true), true],
+    'dependency marker nested savepoint' => [static fn (): mixed => in_array('sqlite-trigger-returning-nested-savepoint', $plan()['dependencies'], true), true],
     'dependency marker release propagates' => [static fn (): mixed => in_array('sqlite-nested-savepoint-release-propagates', $plan()['dependencies'], true), true],
     'dependency marker rollback suppresses' => [static fn (): mixed => in_array('sqlite-nested-savepoint-rollback-suppresses-current-returning', $plan()['dependencies'], true), true],
     'star returning captures inserted row' => [static fn (): mixed => $starPlan()['released_returning_rows'][0]['*']['option_value'], 'draft'],
@@ -162,7 +162,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['trigger returning savepoint current next68 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger returning nested savepoint ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;
