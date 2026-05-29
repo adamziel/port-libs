@@ -1,6 +1,6 @@
 # attach-wal-temp-current-next65
 
-Implemented bounded ATTACH main/temp/attached transaction routing in `SQLiteAttachWalTempCurrentNext65Plan`.
+Implemented bounded ATTACH main/temp/attached transaction routing in `SQLiteAttachWalTempCurrentNextPlan`.
 
 Behavior covered:
 

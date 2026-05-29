@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Adds `SQLiteAttachWalTempCurrentNext68Plan` for aborted mixed attached transactions.
+- Adds `SQLiteAttachWalTempCurrentNextPlan` for aborted mixed attached transactions.
 - Covers temp rollback-journal restore, attached rollback-journal restore, WAL frame truncation back to the current frame count, temp-store memory discard, read-only guards, and schema-cache invalidation when page 1 or a DDL write was touched.
 - WordPress smoke: copied `wp_options` import staging across `temp`, `main`, and an attached archive database rolls back without advancing the durable page count, change counter, or WAL frame count.
 
@@ -26,7 +26,7 @@ wordpress-attach-wal-temp-current-next68 self-test passed
 Syntax:
 
 ```text
-php -l lanes/libsqlite/src/SQLiteAttachWalTempCurrentNext68Plan.php
+php -l lanes/libsqlite/src/SQLiteAttachWalTempCurrentNextPlan.php
 php -l lanes/libsqlite/tests/SQLiteAttachWalTempCurrentNext68Test.php
 php -l lanes/libsqlite/examples/wordpress-attach-wal-temp-current-next68.php
 ```

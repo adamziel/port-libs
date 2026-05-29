@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempCurrentNext68Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempCurrentNextPlan;
 
 $tests = [];
 
@@ -23,13 +23,13 @@ $writes = [
     ['schema' => 'main', 'table' => 'wp_posts', 'page' => 1, 'bytes' => 200, 'ddl' => true],
 ];
 
-$plan = static fn (): array => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, $writes, 'main');
-$memoryPlan = static fn (): array => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_options_stage', 'page' => 3, 'bytes' => 10]], 'temp', true);
-$readPlan = static fn (): array => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [], 'archive');
+$plan = static fn (): array => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, $writes, 'main');
+$memoryPlan = static fn (): array => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_options_stage', 'page' => 3, 'bytes' => 10]], 'temp', true);
+$readPlan = static fn (): array => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [], 'archive');
 
 $cases = [
     'rollback status' => [static fn (): mixed => $plan()['status'], 'rolled_back'],
-    'quoted current schema normalizes' => [static fn (): mixed => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [], '"ARCHIVE"')['current_schema'], 'archive'],
+    'quoted current schema normalizes' => [static fn (): mixed => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [], '"ARCHIVE"')['current_schema'], 'archive'],
     'search order begins temp main' => [static fn (): mixed => array_slice($plan()['search_order'], 0, 2), ['temp', 'main']],
     'attached schemas sorted' => [static fn (): mixed => array_slice($plan()['search_order'], 2), ['analytics', 'archive', 'readonly']],
     'write count preserves input' => [static fn (): mixed => $plan()['write_count'], 6],
@@ -38,7 +38,7 @@ $cases = [
     'rollback schemas list' => [static fn (): mixed => $plan()['rollback_schemas'], ['temp', 'analytics']],
     'memory schemas empty' => [static fn (): mixed => $plan()['memory_schemas'], []],
     'readonly skipped without writes' => [static fn (): mixed => $plan()['skipped_schemas'], ['readonly']],
-    'dependency attach current next68' => [static fn (): mixed => in_array('sqlite-attach-wal-temp-current-next68', $plan()['dependencies'], true), true],
+    'dependency attach current next68' => [static fn (): mixed => in_array('sqlite-attach-wal-temp-current-next', $plan()['dependencies'], true), true],
     'dependency rollback routing' => [static fn (): mixed => in_array('sqlite-attached-transaction-rollback-routing', $plan()['dependencies'], true), true],
     'temp unqualified write resolves first' => [static fn (): mixed => $plan()['current']['writes'][0]['schema'], 'temp'],
     'main unqualified write resolves after temp miss' => [static fn (): mixed => $plan()['current']['writes'][1]['schema'], 'main'],
@@ -89,25 +89,25 @@ $cases = [
     'memory temp operation' => [static fn (): mixed => $memoryPlan()['operations'][0]['op'], 'discard_temp_memory_statement_pages'],
     'memory temp page restored' => [static fn (): mixed => $memoryPlan()['next']['schemas']['temp']['page_count'], 2],
     'memory temp uncommitted page count grew' => [static fn (): mixed => $memoryPlan()['uncommitted']['schemas']['temp']['page_count'], 3],
-    'unresolved write defaults main' => [static fn (): mixed => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_missing', 'page' => 1]])['current']['writes'][0]['schema'], 'main'],
-    'duplicate pages produce one wal frame' => [static fn (): mixed => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 3], ['table' => 'wp_options', 'page' => 3]])['operations'][0]['to_frame'], 18],
-    'table names resolve case insensitive' => [static fn (): mixed => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['tables' => ['WP_OPTIONS']], 'temp' => ['tables' => []]], [['table' => 'wp_options', 'page' => 1]])['current']['writes'][0]['schema'], 'main'],
-    'quoted explicit schema resolves' => [static fn (): mixed => SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['schema' => '[Archive]', 'table' => 'wp_options_archive', 'page' => 2]])['current']['writes'][0]['schema'], 'archive'],
+    'unresolved write defaults main' => [static fn (): mixed => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_missing', 'page' => 1]])['current']['writes'][0]['schema'], 'main'],
+    'duplicate pages produce one wal frame' => [static fn (): mixed => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 3], ['table' => 'wp_options', 'page' => 3]])['operations'][0]['to_frame'], 18],
+    'table names resolve case insensitive' => [static fn (): mixed => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['tables' => ['WP_OPTIONS']], 'temp' => ['tables' => []]], [['table' => 'wp_options', 'page' => 1]])['current']['writes'][0]['schema'], 'main'],
+    'quoted explicit schema resolves' => [static fn (): mixed => SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['schema' => '[Archive]', 'table' => 'wp_options_archive', 'page' => 2]])['current']['writes'][0]['schema'], 'archive'],
     'schema files preserved' => [static fn (): mixed => $plan()['next']['schemas']['main']['file'], '/srv/wp/main.sqlite'],
-    'bad empty schemas rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan([], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad missing temp rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad missing main rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad current schema rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [], 'missing'); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad journal mode rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['journal_mode' => 'bad'], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad page count rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['page_count' => 0], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad change counter rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['change_counter' => -1], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad wal frame count rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['wal_frame_count' => -1], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad table name rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan(['main' => ['tables' => ['']], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad write table rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => '', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad write page rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 0]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad write bytes rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 1, 'bytes' => -1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'bad explicit schema rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['schema' => 'missing', 'table' => 'wp_options', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
-    'read only write rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [['table' => 'wp_locked', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad empty schemas rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan([], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad missing temp rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad missing main rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad current schema rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [], 'missing'); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad journal mode rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['journal_mode' => 'bad'], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad page count rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['page_count' => 0], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad change counter rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['change_counter' => -1], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad wal frame count rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['wal_frame_count' => -1], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad table name rejected' => [static function (): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan(['main' => ['tables' => ['']], 'temp' => []], []); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad write table rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => '', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad write page rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 0]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad write bytes rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_options', 'page' => 1, 'bytes' => -1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'bad explicit schema rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['schema' => 'missing', 'table' => 'wp_options', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
+    'read only write rejected' => [static function () use ($schemas): mixed { try { SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [['table' => 'wp_locked', 'page' => 1]]); } catch (InvalidArgumentException) { return 'rejected'; } return 'accepted'; }, 'rejected'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

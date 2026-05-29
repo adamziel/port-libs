@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempCurrentNext68Plan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempCurrentNextPlan;
 
 $schemas = [
     'main' => ['journal_mode' => 'wal', 'page_count' => 5, 'change_counter' => 77, 'wal_frame_count' => 20, 'tables' => ['wp_options', 'wp_posts']],
@@ -12,7 +12,7 @@ $schemas = [
     'archive' => ['journal_mode' => 'wal', 'page_count' => 3, 'change_counter' => 8, 'wal_frame_count' => 40, 'tables' => ['wp_options_archive']],
 ];
 
-$plan = SQLiteAttachWalTempCurrentNext68Plan::rollbackPlan($schemas, [
+$plan = SQLiteAttachWalTempCurrentNextPlan::rollbackPlan($schemas, [
     ['table' => 'wp_options_stage', 'page' => 2, 'bytes' => 128],
     ['table' => 'wp_options', 'page' => 6, 'bytes' => 512],
     ['schema' => 'archive', 'table' => 'wp_options_archive', 'page' => 4, 'bytes' => 256],
