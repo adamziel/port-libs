@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext218()`.
+- Adds `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext218Plan`.
 - Builds on next212 current-source apply rows and emits per-page write receipts.
 - Confirms pointer-map write receipts precede payload write receipts for each vacuum cursor.
 - Carries leaf freeblock receipts and keeps fenced tail pages out of the write sequence.
