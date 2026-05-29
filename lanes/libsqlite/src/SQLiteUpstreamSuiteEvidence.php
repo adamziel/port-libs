@@ -27240,289 +27240,6 @@ final class SQLiteUpstreamSuiteEvidence
      * @param array<int|string, array<string, mixed>> $artifactRows
      * @return array<string, mixed>
      */
-    public function suiteUpstreamRunnerPrerequisiteReadyCurrentSourceNext105(
-        array $artifactRows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->suiteUpstreamRunnerGapBurnupCurrentSourceNext104(
-            $artifactRows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $readyRows = [];
-        $readyPrerequisites = [];
-        $preservedPrerequisites = [];
-        $blockedPrerequisites = [];
-        $prerequisiteBlockers = [];
-
-        foreach (is_array($record['gap_rows'] ?? null) ? $record['gap_rows'] : [] as $gapRow) {
-            if (!is_array($gapRow)) {
-                continue;
-            }
-
-            $unit = is_string($gapRow['unit'] ?? null) ? $gapRow['unit'] : '';
-            $source = null;
-            foreach ($artifactRows as $candidate) {
-                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
-                    $source = $candidate;
-                    break;
-                }
-            }
-
-            $prerequisiteRange = is_array($source) && is_string($source['prerequisite_range'] ?? null)
-                ? trim($source['prerequisite_range'])
-                : '';
-            $prerequisiteStatus = is_array($source) && is_string($source['prerequisite_status'] ?? null)
-                ? trim($source['prerequisite_status'])
-                : '';
-            $readinessEvidence = is_array($source) && is_string($source['readiness_evidence'] ?? null)
-                ? trim($source['readiness_evidence'])
-                : '';
-            $gapId = is_string($gapRow['gap_id'] ?? null) ? $gapRow['gap_id'] : $unit;
-            $movement = is_string($gapRow['movement'] ?? null) ? $gapRow['movement'] : 'open';
-            $rowBlockers = is_array($gapRow['blocker_ids'] ?? null) ? $gapRow['blocker_ids'] : [];
-
-            if ($movement === 'next-source-admitted') {
-                if ($prerequisiteRange !== 'current-source-next101-103') {
-                    $rowBlockers[] = 'prerequisite-range-not-next101-103';
-                }
-                if ($prerequisiteStatus !== 'ready') {
-                    $rowBlockers[] = 'prerequisite-status-not-ready';
-                }
-                if ($readinessEvidence === '') {
-                    $rowBlockers[] = 'readiness-evidence-missing';
-                }
-            }
-
-            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
-            if ($rowBlockers !== []) {
-                $blockedPrerequisites[] = $gapId;
-                $prerequisiteBlockers[] = [
-                    'id' => 'current-source-next105-prerequisite-row-blocked',
-                    'unit' => $unit,
-                    'gap_id' => $gapId,
-                    'evidence' => implode('; ', $rowBlockers),
-                ];
-            } elseif ($movement === 'next-source-admitted') {
-                $readyPrerequisites[] = $gapId;
-            } elseif ($movement === 'current-source-preserved') {
-                $preservedPrerequisites[] = $gapId;
-            }
-
-            $gapRow['prerequisite_range'] = $prerequisiteRange;
-            $gapRow['prerequisite_status'] = $prerequisiteStatus;
-            $gapRow['readiness_evidence'] = $readinessEvidence;
-            $gapRow['blocker_ids'] = $rowBlockers;
-            $readyRows[] = $gapRow;
-        }
-
-        sort($readyPrerequisites, SORT_STRING);
-        sort($preservedPrerequisites, SORT_STRING);
-        sort($blockedPrerequisites, SORT_STRING);
-
-        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $prerequisiteBlockers);
-        $blocked = $blockers !== [];
-        $mappedDelta = !$blocked && $readyPrerequisites !== [] ? 1 : 0;
-        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
-        $status = 'blocked';
-        if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-source-next105-prerequisite-ready-countable';
-        } elseif (!$blocked) {
-            $status = 'current-source-next105-prerequisite-ready-preserved';
-        }
-
-        $record['status'] = $status;
-        $record['countable'] = $status === 'current-source-next105-prerequisite-ready-countable';
-        $record['blocker_count'] = count($blockers);
-        $record['blockers'] = $blockers;
-        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
-        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
-        $record['php_pass_delta'] = $phpPassDelta;
-        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
-        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
-        $record['prerequisite_rows'] = $readyRows;
-        $record['ready_prerequisite_gap_ids'] = $readyPrerequisites;
-        $record['preserved_prerequisite_gap_ids'] = $preservedPrerequisites;
-        $record['blocked_prerequisite_gap_ids'] = $blockedPrerequisites;
-        $record['counts_upstream_runner_gap_burnup_current_source_next104'] = false;
-        $record['counts_upstream_runner_prerequisite_ready_current_source_next105'] = $status === 'current-source-next105-prerequisite-ready-countable';
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = $status === 'current-source-next105-prerequisite-ready-countable'
-            ? 'publish only the current-source next105 prerequisite-ready row after current-source next101-103 are ready; release/all parity remains gated on separate zero-error broad artifacts'
-            : 'keep current-source next105 prerequisite readiness uncounted until next101-103 readiness, lane-local zero-error artifacts, duplicate-runner state, and focused PASS-line gates are clear';
-        $record['dependency_closure'] = 'no new support component needed; current-source next105 prerequisite readiness composes the current-source next104 gap-burnup validator with explicit next101-103 readiness evidence only';
-
-        return $record;
-    }
-
-    /**
-     * @param array<int|string, array<string, mixed>> $artifactRows
-     * @return array<string, mixed>
-     */
-    public function suiteUpstreamRunnerFinalCurrentSourceNext106(
-        array $artifactRows,
-        int $currentMapped,
-        int $currentPhpPass,
-        string $launcherBaseHead,
-        string $dashboardSourceHead,
-        string $statusSourceHead,
-        string $implementationSourceHead,
-        string $nextSourceHead,
-        string $focusedPath,
-        string $focusedTestOutput,
-        string $nonOverlapNote,
-        ?int $expectedPassDelta = null,
-        string $processSnapshot = ''
-    ): array {
-        $record = $this->suiteUpstreamRunnerPrerequisiteReadyCurrentSourceNext105(
-            $artifactRows,
-            $currentMapped,
-            $currentPhpPass,
-            $launcherBaseHead,
-            $dashboardSourceHead,
-            $statusSourceHead,
-            $implementationSourceHead,
-            $nextSourceHead,
-            $focusedPath,
-            $focusedTestOutput,
-            $nonOverlapNote,
-            $expectedPassDelta,
-            $processSnapshot
-        );
-
-        $finalRows = [];
-        $isolatedGapIds = [];
-        $preservedGapIds = [];
-        $blockedGapIds = [];
-        $finalBlockers = [];
-
-        foreach (is_array($record['prerequisite_rows'] ?? null) ? $record['prerequisite_rows'] : [] as $readyRow) {
-            if (!is_array($readyRow)) {
-                continue;
-            }
-
-            $unit = is_string($readyRow['unit'] ?? null) ? $readyRow['unit'] : '';
-            $source = null;
-            foreach ($artifactRows as $candidate) {
-                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
-                    $source = $candidate;
-                    break;
-                }
-            }
-
-            $finalRange = is_array($source) && is_string($source['final_range'] ?? null)
-                ? trim($source['final_range'])
-                : '';
-            $finalStatus = is_array($source) && is_string($source['final_range_status'] ?? null)
-                ? trim($source['final_range_status'])
-                : '';
-            $finalEvidence = is_array($source) && is_string($source['final_range_evidence'] ?? null)
-                ? trim($source['final_range_evidence'])
-                : '';
-            $gapId = is_string($readyRow['gap_id'] ?? null) ? $readyRow['gap_id'] : $unit;
-            $movement = is_string($readyRow['movement'] ?? null) ? $readyRow['movement'] : 'open';
-            $rowBlockers = is_array($readyRow['blocker_ids'] ?? null) ? $readyRow['blocker_ids'] : [];
-
-            if ($movement === 'next-source-admitted') {
-                if ($finalRange !== 'current-source-next104-106') {
-                    $rowBlockers[] = 'final-range-not-next104-106';
-                }
-                if ($finalStatus !== 'isolated') {
-                    $rowBlockers[] = 'final-range-not-isolated';
-                }
-                if ($finalEvidence === '') {
-                    $rowBlockers[] = 'final-range-evidence-missing';
-                }
-            }
-
-            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
-            if ($rowBlockers !== []) {
-                $blockedGapIds[] = $gapId;
-                $finalBlockers[] = [
-                    'id' => 'current-source-next106-final-row-blocked',
-                    'unit' => $unit,
-                    'gap_id' => $gapId,
-                    'evidence' => implode('; ', $rowBlockers),
-                ];
-            } elseif ($movement === 'next-source-admitted') {
-                $isolatedGapIds[] = $gapId;
-            } elseif ($movement === 'current-source-preserved') {
-                $preservedGapIds[] = $gapId;
-            }
-
-            $readyRow['final_range'] = $finalRange;
-            $readyRow['final_range_status'] = $finalStatus;
-            $readyRow['final_range_evidence'] = $finalEvidence;
-            $readyRow['blocker_ids'] = $rowBlockers;
-            $finalRows[] = $readyRow;
-        }
-
-        sort($isolatedGapIds, SORT_STRING);
-        sort($preservedGapIds, SORT_STRING);
-        sort($blockedGapIds, SORT_STRING);
-
-        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $finalBlockers);
-        $blocked = $blockers !== [];
-        $mappedDelta = !$blocked && $isolatedGapIds !== [] ? 1 : 0;
-        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
-        $status = 'blocked';
-        if (!$blocked && $mappedDelta > 0) {
-            $status = 'current-source-next106-final-suite-evidence-countable';
-        } elseif (!$blocked) {
-            $status = 'current-source-next106-final-suite-evidence-preserved';
-        }
-
-        $record['status'] = $status;
-        $record['countable'] = $status === 'current-source-next106-final-suite-evidence-countable';
-        $record['blocker_count'] = count($blockers);
-        $record['blockers'] = $blockers;
-        $record['mapped_delta'] = $blocked ? 0 : $mappedDelta;
-        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
-        $record['php_pass_delta'] = $phpPassDelta;
-        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
-        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
-        $record['final_range_rows'] = $finalRows;
-        $record['isolated_final_gap_ids'] = $isolatedGapIds;
-        $record['preserved_final_gap_ids'] = $preservedGapIds;
-        $record['blocked_final_gap_ids'] = $blockedGapIds;
-        $record['counts_upstream_runner_gap_burnup_current_source_next104'] = false;
-        $record['counts_upstream_runner_prerequisite_ready_current_source_next105'] = false;
-        $record['counts_upstream_runner_final_current_source_next106'] = $status === 'current-source-next106-final-suite-evidence-countable';
-        $record['counts_release_parity'] = false;
-        $record['next_gate'] = $status === 'current-source-next106-final-suite-evidence-countable'
-            ? 'publish only the isolated current-source next104-106 final suite-evidence row after current-source next101-103 readiness; release/all parity remains gated on separate zero-error broad artifacts'
-            : 'keep current-source next104-106 final suite evidence uncounted until prerequisites are ready and the final range is isolated from stale baselines, duplicate runners, and release/all parity claims';
-        $record['dependency_closure'] = 'no new support component needed; current-source next106 final suite evidence composes current-source next104 gap burnup with next105 next101-103 readiness and final next104-106 isolation metadata only';
-
-        return $record;
-    }
-
-    /**
-     * @param array<int|string, array<string, mixed>> $artifactRows
-     * @return array<string, mixed>
-     */
     public function upstreamRunnerSuiteEvidenceRebaseCurrentSourceNext108(
         array $artifactRows,
         int $currentMapped,
@@ -27798,6 +27515,190 @@ final class SQLiteUpstreamSuiteEvidence
             ? 'publish only the current-source next109 final upstream-runner evidence row and exact focused PASS-line movement; duplicate stale baselines and release/all parity remain blocked'
             : 'keep current-source next109 final upstream-runner evidence uncounted until rebase provenance, finalized evidence status, unique stale-baseline IDs, duplicate-runner state, and focused PASS-line gates are clear';
         $record['dependency_closure'] = 'no new support component needed; current-source next109 final evidence composes next108 rebase rows, unique stale-baseline IDs, source-head provenance gates, active-runner gates, and focused TestRunner PASS-line output only';
+
+        return $record;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $artifactRows
+     * @return array<string, mixed>
+     */
+    public function upstreamRunnerSuiteEvidenceCurrentSourceNext110112(
+        array $artifactRows,
+        int $currentMapped,
+        int $currentPhpPass,
+        string $launcherBaseHead,
+        string $dashboardSourceHead,
+        string $statusSourceHead,
+        string $implementationSourceHead,
+        string $nextSourceHead,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?int $expectedPassDelta = null,
+        string $processSnapshot = ''
+    ): array {
+        $record = $this->upstreamRunnerFinalCurrentSourceNext109(
+            $artifactRows,
+            $currentMapped,
+            $currentPhpPass,
+            $launcherBaseHead,
+            $dashboardSourceHead,
+            $statusSourceHead,
+            $implementationSourceHead,
+            $nextSourceHead,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote,
+            $expectedPassDelta,
+            $processSnapshot
+        );
+
+        $expectedPhases = ['next110', 'next111', 'next112'];
+        $phaseRows = [];
+        $preparedPhases = [];
+        $preservedPhases = [];
+        $blockedPhases = [];
+        $seenPhaseIds = [];
+        $duplicatePhaseIds = [];
+        $phaseBlockers = [];
+
+        foreach (is_array($record['final_evidence_rows'] ?? null) ? $record['final_evidence_rows'] : [] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $unit = is_string($row['unit'] ?? null) ? $row['unit'] : '';
+            $source = null;
+            foreach ($artifactRows as $candidate) {
+                if (is_array($candidate) && ($candidate['unit'] ?? null) === $unit) {
+                    $source = $candidate;
+                    break;
+                }
+            }
+
+            $phase = is_array($source) && is_string($source['suite_phase'] ?? null)
+                ? trim($source['suite_phase'])
+                : '';
+            $phaseStatus = is_array($source) && is_string($source['suite_phase_status'] ?? null)
+                ? trim($source['suite_phase_status'])
+                : '';
+            $phaseId = is_array($source) && is_string($source['suite_phase_id'] ?? null) && $source['suite_phase_id'] !== ''
+                ? $source['suite_phase_id']
+                : ($phase !== '' ? $phase : $unit);
+            $phaseEvidence = is_array($source) && is_string($source['suite_phase_evidence'] ?? null)
+                ? trim($source['suite_phase_evidence'])
+                : '';
+            $artifactPath = is_array($source) && is_string($source['artifact_path'] ?? null)
+                ? $source['artifact_path']
+                : (is_string($row['artifact_path'] ?? null) ? $row['artifact_path'] : '');
+            $movement = is_string($row['movement'] ?? null) ? $row['movement'] : 'open';
+            $rowBlockers = is_array($row['blocker_ids'] ?? null) ? $row['blocker_ids'] : [];
+
+            if ($phase !== '' && !in_array($phase, $expectedPhases, true)) {
+                $rowBlockers[] = 'suite-phase-outside-next110-112';
+            }
+            if ($phase !== '' && isset($seenPhaseIds[$phase])) {
+                $duplicatePhaseIds[$phase] = true;
+                $rowBlockers[] = 'duplicate-suite-phase';
+            }
+            if ($phase !== '') {
+                $seenPhaseIds[$phase] = true;
+            }
+            if ($phase !== '' && !str_starts_with($artifactPath, 'lanes/libsqlite/notes/')) {
+                $rowBlockers[] = 'suite-phase-artifact-not-lane-note';
+            }
+            if ($movement === 'next-source-admitted') {
+                if ($phase === '') {
+                    $rowBlockers[] = 'suite-phase-missing';
+                }
+                if ($phaseStatus !== 'prepared') {
+                    $rowBlockers[] = 'suite-phase-status-not-prepared';
+                }
+                if ($phaseEvidence === '') {
+                    $rowBlockers[] = 'suite-phase-evidence-missing';
+                }
+                if (is_array($source) && ($source['current_source_only'] ?? false) !== true) {
+                    $rowBlockers[] = 'current-source-only-flag-missing';
+                }
+            }
+            if (is_array($source) && ($source['counts_release_parity'] ?? false) === true) {
+                $rowBlockers[] = 'release-parity-claim-not-allowed';
+            }
+
+            $rowBlockers = array_values(array_unique(array_filter($rowBlockers, 'is_string')));
+            if ($rowBlockers !== []) {
+                $blockedPhases[] = $phaseId;
+                $phaseBlockers[] = [
+                    'id' => 'current-source-next110-112-suite-phase-row-blocked',
+                    'unit' => $unit,
+                    'suite_phase_id' => $phaseId,
+                    'evidence' => implode('; ', $rowBlockers),
+                ];
+            } elseif ($movement === 'next-source-admitted') {
+                $preparedPhases[] = $phase;
+            } elseif ($movement === 'current-source-preserved' && $phase !== '') {
+                $preservedPhases[] = $phase;
+            }
+
+            $row['suite_phase'] = $phase;
+            $row['suite_phase_id'] = $phaseId;
+            $row['suite_phase_status'] = $phaseStatus;
+            $row['suite_phase_evidence'] = $phaseEvidence;
+            $row['blocker_ids'] = $rowBlockers;
+            $phaseRows[] = $row;
+        }
+
+        sort($preparedPhases, SORT_STRING);
+        sort($preservedPhases, SORT_STRING);
+        sort($blockedPhases, SORT_STRING);
+        $coveredPhases = array_values(array_unique(array_merge($preparedPhases, $preservedPhases)));
+        $missingPhases = array_values(array_diff($expectedPhases, $coveredPhases));
+        $duplicatePhases = array_keys($duplicatePhaseIds);
+        sort($duplicatePhases, SORT_STRING);
+
+        if ($missingPhases !== []) {
+            $phaseBlockers[] = [
+                'id' => 'current-source-next110-112-suite-phases-incomplete',
+                'unit' => 'upstream-runner-suite-evidence-current-source-next110-112',
+                'suite_phase_id' => implode(',', $missingPhases),
+                'evidence' => 'missing prepared suite phases: ' . implode(', ', $missingPhases),
+            ];
+        }
+
+        $blockers = array_merge(is_array($record['blockers'] ?? null) ? $record['blockers'] : [], $phaseBlockers);
+        $blocked = $blockers !== [];
+        $mappedDelta = !$blocked && $missingPhases === [] && $preparedPhases !== [] ? count($preparedPhases) : 0;
+        $phpPassDelta = !$blocked ? (int) ($record['php_pass_delta'] ?? 0) : 0;
+        $status = 'blocked';
+        if (!$blocked && $mappedDelta > 0) {
+            $status = 'current-source-next110-112-upstream-suite-evidence-prepared';
+        } elseif (!$blocked) {
+            $status = 'current-source-next110-112-upstream-suite-evidence-preserved';
+        }
+
+        $record['status'] = $status;
+        $record['countable'] = $status === 'current-source-next110-112-upstream-suite-evidence-prepared';
+        $record['blockers'] = $blockers;
+        $record['blocker_count'] = count($blockers);
+        $record['mapped_delta'] = $mappedDelta;
+        $record['next_mapped'] = $blocked ? $currentMapped : $currentMapped + $mappedDelta;
+        $record['php_pass_delta'] = $phpPassDelta;
+        $record['next_php_pass'] = $blocked ? $currentPhpPass : $currentPhpPass + $phpPassDelta;
+        $record['tests_total_delta'] = $blocked ? 0 : (int) ($record['tests_total_delta'] ?? 0);
+        $record['suite_phase_rows'] = $phaseRows;
+        $record['prepared_suite_phases'] = $preparedPhases;
+        $record['preserved_suite_phases'] = $preservedPhases;
+        $record['blocked_suite_phase_ids'] = $blockedPhases;
+        $record['missing_suite_phases'] = $missingPhases;
+        $record['duplicate_suite_phases'] = $duplicatePhases;
+        $record['counts_upstream_runner_final_current_source_next109'] = false;
+        $record['counts_upstream_suite_evidence_current_source_next110_112'] = $status === 'current-source-next110-112-upstream-suite-evidence-prepared';
+        $record['counts_release_parity'] = false;
+        $record['next_gate'] = $status === 'current-source-next110-112-upstream-suite-evidence-prepared'
+            ? 'publish only the isolated current-source next110-112 upstream-suite evidence triplet and exact focused PASS-line movement; release/all parity remains blocked'
+            : 'keep current-source next110-112 suite evidence uncounted until all three prepared phases, current-source-only flags, lane-local notes, duplicate-runner state, and focused PASS-line gates are clear';
+        $record['dependency_closure'] = 'no new support component needed; current-source next110-112 suite evidence composes next109 final rows with three prepared current-source-only suite phases and focused TestRunner PASS-line output only';
 
         return $record;
     }
