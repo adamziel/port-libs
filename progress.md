@@ -48,6 +48,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 19:50 UTC):
+  Seventy-fifth safe consolidation follow-up is integrated and pushed as
+  `407606d03`. The batch accepts 5 clean replay handoffs on top of
+  `f878b316` while excluding stale worker lane-status edits: trigger
+  recursive-view RETURNING helper aliases, JSON table generated-path/rowid
+  cost helper cleanup, upstream-suite admission helper/test rename, planner
+  STAT4 expression-partial helper cleanup, and WAL hot-journal savepoint
+  checkpoint VFS helper cleanup. Validation passed PHP lint for 11 changed PHP
+  files, `git diff --check`, direct combined tests `11 files / 4235 assertions
+  / 0 failures`, trigger RETURNING family `60 files / 4554 assertions / 0
+  failures`, JSON table family `305 files / 20187 assertions / 0 failures`,
+  STAT4 expression-partial family `133 files / 7537 assertions / 0 failures`,
+  WAL hot-journal checkpoint family `2 files / 11757 assertions / 0 failures`,
+  changed WAL WordPress self-tests, exact user-named 150 suffix scan clean in
+  `src`/`tests`/`examples`, production numbered file/class audits at `0`,
+  numbered production helper-method audit down to `1731`, and unique numbered
+  production symbol audit down to `1963`. Public pass/mapped counters remain
+  `154019 pass / 0 fail` and `830 / 1589` because this is consolidation-only.
+  B-tree handoffs remain deferred until their own broad-family failures are
+  resolved or isolated by baseline comparison; the visible pool remains at 11
+  libsqlite Codex workers with no long sleepers.
+
 - 2026-05-29 supervisor continuation (shell samples 19:43 UTC):
   Seventy-fourth safe consolidation follow-up is integrated and pushed as
   `588eb53ee`. The batch accepts 1 stale-base trigger RETURNING handoff
