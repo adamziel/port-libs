@@ -4028,18 +4028,18 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile210(
+        $currentProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile(
             $plan['currentGeneratedPathRowidRangeConstraint209'],
             $limit,
             $offset,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile210(
+        $nextProfile = self::jsonTableGeneratedPathRowidOffsetCostProfile(
             $plan['nextGeneratedPathRowidRangeConstraint209'],
             $limit,
             $offset,
         );
-        $transitions = self::jsonTableGeneratedPathRowidOffsetCostTransitions210($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidOffsetCostReasons210($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidOffsetCostTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidOffsetCostReasons($transitions);
 
         $plan['currentGeneratedPathRowidOffsetCost210'] = $currentProfile;
         $plan['nextGeneratedPathRowidOffsetCost210'] = $nextProfile;
@@ -4763,16 +4763,16 @@ final class SQLiteJsonTablePlan
             $projection,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile209(
+        $currentProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile(
             $plan['currentGeneratedPathRowidAliasOrder206'],
             $constraints,
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile209(
+        $nextProfile = self::jsonTableGeneratedPathRowidRangeConstraintProfile(
             $plan['nextGeneratedPathRowidAliasOrder206'],
             $constraints,
         );
-        $transitions = self::jsonTableGeneratedPathRowidRangeConstraintTransitions209($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidRangeConstraintReasons209($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidRangeConstraintTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidRangeConstraintReasons($transitions);
 
         $plan['currentGeneratedPathRowidRangeConstraint209'] = $currentProfile;
         $plan['nextGeneratedPathRowidRangeConstraint209'] = $nextProfile;
@@ -17181,13 +17181,13 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidRangeConstraintProfile209(array $aliasOrder206, array $constraints): array
+    private static function jsonTableGeneratedPathRowidRangeConstraintProfile(array $aliasOrder206, array $constraints): array
     {
-        $rangeConstraints = self::jsonTableGeneratedPathRowidRangeConstraints209($constraints);
+        $rangeConstraints = self::jsonTableGeneratedPathRowidRangeConstraints($constraints);
         $orderedRowids = array_values(array_map('intval', $aliasOrder206['orderedRowids'] ?? []));
         $acceptedRowids = array_values(array_filter(
             $orderedRowids,
-            static fn (int $rowid): bool => self::jsonTableGeneratedPathRowidMatchesRanges209($rowid, $rangeConstraints),
+            static fn (int $rowid): bool => self::jsonTableGeneratedPathRowidMatchesRanges($rowid, $rangeConstraints),
         ));
         $rejectedRowids = array_values(array_diff($orderedRowids, $acceptedRowids));
         $orderConsumed = (bool) ($aliasOrder206['orderByConsumed'] ?? false);
@@ -17199,7 +17199,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $rangeReusable
             ? max(1, min($baseCost, max(1, $estimatedRows + count($rangeConstraints))))
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidRangeConstraintOpcode209(
+        $opcode = self::jsonTableGeneratedPathRowidRangeConstraintOpcode(
             $baseReusable,
             $orderConsumed,
             $rangeUsable,
@@ -17224,7 +17224,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'rangeOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidRangeConstraintCostClass209($opcode, count($acceptedRowids)),
+            'costClass' => self::jsonTableGeneratedPathRowidRangeConstraintCostClass($opcode, count($acceptedRowids)),
             'rangeFingerprint' => hash('sha256', json_encode([
                 $aliasOrder206['aliasOrderFingerprint'] ?? null,
                 $rangeConstraints,
@@ -17241,7 +17241,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array{column:string,operator:string,value:mixed,lower:int|null,upper:int|null,lowerInclusive:bool,upperInclusive:bool}>
      */
-    private static function jsonTableGeneratedPathRowidRangeConstraints209(array $constraints): array
+    private static function jsonTableGeneratedPathRowidRangeConstraints(array $constraints): array
     {
         $ranges = [];
         foreach ($constraints as $constraint) {
@@ -17283,7 +17283,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{lower:int|null,upper:int|null,lowerInclusive:bool,upperInclusive:bool}> $ranges
      */
-    private static function jsonTableGeneratedPathRowidMatchesRanges209(int $rowid, array $ranges): bool
+    private static function jsonTableGeneratedPathRowidMatchesRanges(int $rowid, array $ranges): bool
     {
         foreach ($ranges as $range) {
             $lower = $range['lower'];
@@ -17302,7 +17302,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<int> $acceptedRowids
      */
-    private static function jsonTableGeneratedPathRowidRangeConstraintOpcode209(
+    private static function jsonTableGeneratedPathRowidRangeConstraintOpcode(
         bool $baseReusable,
         bool $orderConsumed,
         bool $rangeUsable,
@@ -17324,7 +17324,7 @@ final class SQLiteJsonTablePlan
         return 'OP_JsonTableRowidRangeSeekNext209';
     }
 
-    private static function jsonTableGeneratedPathRowidRangeConstraintCostClass209(string $opcode, int $rowCount): string
+    private static function jsonTableGeneratedPathRowidRangeConstraintCostClass(string $opcode, int $rowCount): string
     {
         return match ($opcode) {
             'OP_JsonTableRowidRangeSeekNext209' => $rowCount <= 1
@@ -17342,7 +17342,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidRangeConstraintTransitions209(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidRangeConstraintTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -17380,7 +17380,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidRangeConstraintReasons209(array $transitions): array
+    private static function jsonTableGeneratedPathRowidRangeConstraintReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {
@@ -17405,7 +17405,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $rangeProfile209
      * @return array<string,mixed>
      */
-    private static function jsonTableGeneratedPathRowidOffsetCostProfile210(
+    private static function jsonTableGeneratedPathRowidOffsetCostProfile(
         array $rangeProfile209,
         ?int $limit,
         int $offset,
@@ -17424,7 +17424,7 @@ final class SQLiteJsonTablePlan
         $estimatedCost = $offsetReusable
             ? max(1, $baseCost + $skipCost)
             : 1000000;
-        $opcode = self::jsonTableGeneratedPathRowidOffsetCostOpcode210(
+        $opcode = self::jsonTableGeneratedPathRowidOffsetCostOpcode(
             $rangeReusable,
             $offset,
             $skippedRowids,
@@ -17452,7 +17452,7 @@ final class SQLiteJsonTablePlan
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
             'offsetOpcode' => $opcode,
-            'costClass' => self::jsonTableGeneratedPathRowidOffsetCostClass210($opcode, count($yieldRowids), $offset),
+            'costClass' => self::jsonTableGeneratedPathRowidOffsetCostClass($opcode, count($yieldRowids), $offset),
             'offsetFingerprint' => hash('sha256', json_encode([
                 $rangeProfile209['rangeFingerprint'] ?? null,
                 $offset,
@@ -17471,7 +17471,7 @@ final class SQLiteJsonTablePlan
      * @param list<int> $skippedRowids
      * @param list<int> $yieldRowids
      */
-    private static function jsonTableGeneratedPathRowidOffsetCostOpcode210(
+    private static function jsonTableGeneratedPathRowidOffsetCostOpcode(
         bool $rangeReusable,
         int $offset,
         array $skippedRowids,
@@ -17493,7 +17493,7 @@ final class SQLiteJsonTablePlan
         return 'OP_JsonTableRowidOffsetSkipSeekNext210';
     }
 
-    private static function jsonTableGeneratedPathRowidOffsetCostClass210(string $opcode, int $rowCount, int $offset): string
+    private static function jsonTableGeneratedPathRowidOffsetCostClass(string $opcode, int $rowCount, int $offset): string
     {
         return match ($opcode) {
             'OP_JsonTableRowidOffsetSkipSeekNext210' => $rowCount <= 1
@@ -17512,7 +17512,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidOffsetCostTransitions210(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidOffsetCostTransitions(array $current, array $next): array
     {
         $fields = [
             'root',
@@ -17553,7 +17553,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidOffsetCostReasons210(array $transitions): array
+    private static function jsonTableGeneratedPathRowidOffsetCostReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

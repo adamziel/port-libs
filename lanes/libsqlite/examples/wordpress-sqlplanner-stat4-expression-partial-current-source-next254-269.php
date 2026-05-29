@@ -69,7 +69,7 @@ $current['indexes'][0]['rootPage'] = 26988;
 $current['rows'] = $rows;
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $rows);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext254269(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PayloadHandoffSeed(
     $prepared,
     $current,
     [

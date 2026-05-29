@@ -97,7 +97,7 @@ $terms254269 = static fn (): array => [
     $like254269('option_name', 'plugin_%'),
 ];
 
-$plan254269 = static fn (string $variant = 'ready', array $needed = ['option_name', 'option_value', 'updated_at', 'blog_id']): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext254269(
+$plan254269 = static fn (string $variant = 'ready', array $needed = ['option_name', 'option_value', 'updated_at', 'blog_id']): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PayloadHandoffSeed(
     $prepared254269(),
     $current254269($variant),
     $terms254269(),

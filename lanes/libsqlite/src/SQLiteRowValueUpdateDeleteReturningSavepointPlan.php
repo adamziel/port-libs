@@ -199,6 +199,15 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
      */
     private static function rollbackReturningRowCounts(array $tables): array
     {
+        return self::savepointRowCounts($tables);
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,int>
+     */
+    private static function savepointRowCounts(array $tables): array
+    {
         $counts = [];
         foreach ($tables as $name => $rows) {
             $counts[$name] = count($rows);
@@ -1298,7 +1307,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'changes' => 0,
             'partial_fail' => $failed,
             'savepoint_changed_tables' => [],
-            'row_counts' => self::rowCountsFailConflictRollbackSavepoint($savepointImage),
+            'row_counts' => self::savepointRowCounts($savepointImage),
             'dependencies' => self::dependenciesFailConflictRollbackSavepoint(),
         ];
     }
@@ -1411,20 +1420,6 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
     }
 
     /**
-     * @param array<string,list<array<string,mixed>>> $tables
-     * @return array<string,int>
-     */
-    private static function rowCountsFailConflictRollbackSavepoint(array $tables): array
-    {
-        $counts = [];
-        foreach ($tables as $name => $rows) {
-            $counts[$name] = count($rows);
-        }
-
-        return $counts;
-    }
-
-    /**
      * @return list<string>
      */
     private static function dependenciesFailConflictRollbackSavepoint(): array
@@ -1504,7 +1499,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
             'yielded_returning_count' => self::returningCountBetweenRollbackRetrySavepoint($yieldedReturning),
             'discarded_changes_before_rollback_to' => self::changeCountBetweenRollbackRetrySavepoint($attemptedStatements),
             'changes_after_release' => self::changeCountBetweenRollbackRetrySavepoint($retryExecuted),
-            'row_counts' => self::rowCountsBetweenRollbackRetrySavepoint($currentTables),
+            'row_counts' => self::savepointRowCounts($currentTables),
             'dependencies' => [
                 'sqlite-row-value-between-returning-expression',
                 'sqlite-update-delete-returning-rollback-to-discards-current-stream',
@@ -1644,20 +1639,6 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointPlan
         }
 
         return $changes;
-    }
-
-    /**
-     * @param array<string,list<array<string,mixed>>> $tables
-     * @return array<string,int>
-     */
-    private static function rowCountsBetweenRollbackRetrySavepoint(array $tables): array
-    {
-        $counts = [];
-        foreach ($tables as $name => $rows) {
-            $counts[$name] = count($rows);
-        }
-
-        return $counts;
     }
 
 

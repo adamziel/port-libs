@@ -53,6 +53,43 @@ $tests['trigger recursive view returning production files have no numbered varia
     $t->same([], $numberedClasses);
 };
 
+$tests['trigger returning production files have no numbered method declarations'] = static function (TestRunner $t): void {
+    $root = dirname(__DIR__) . '/src';
+    $bannedCurrentSourceSuffix = 'CurrentSourceNext' . '150';
+    $bannedCurrentSuffix = 'CurrentNext' . '150';
+    $files = array_merge(
+        glob($root . '/SQLiteTrigger*Returning*.php') ?: [],
+        glob($root . '/SQLiteTrigger*CurrentSourceNext*Plan.php') ?: [],
+    );
+    $files = array_values(array_unique($files));
+    sort($files);
+
+    $numberedMethods = [];
+    $bannedSuffixFiles = [];
+    foreach ($files as $file) {
+        $source = file_get_contents($file);
+        if (!is_string($source)) {
+            continue;
+        }
+
+        if (str_contains($source, $bannedCurrentSourceSuffix) || str_contains($source, $bannedCurrentSuffix)) {
+            $bannedSuffixFiles[] = basename($file);
+        }
+
+        if (preg_match_all('/\bfunction\s+([A-Za-z_][A-Za-z0-9_]*(?:Next|next)[0-9]+[A-Za-z0-9_]*)\s*\(/', $source, $matches) > 0) {
+            foreach ($matches[1] as $method) {
+                $numberedMethods[] = basename($file) . '::' . $method;
+            }
+        }
+    }
+
+    sort($numberedMethods);
+    sort($bannedSuffixFiles);
+
+    $t->same([], $numberedMethods);
+    $t->same([], $bannedSuffixFiles);
+};
+
 $tests['trigger recursive view returning canonical final methods are stable entry points'] = static function (TestRunner $t): void {
     $class = new ReflectionClass(SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::class);
     $methods = [
