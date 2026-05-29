@@ -27146,6 +27146,78 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
     }
 
     /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page315(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 315, 'update_set_default_null_notnull_child_default', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page316(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 316, 'delete_set_default_null_notnull_child_default', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page317(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 317, 'update_cascade_without_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
+     * @param list<SQLiteSchemaRecord> $currentRecords
+     * @param list<SQLiteSchemaRecord> $nextRecords
+     * @param array{source_id:string,offset:int}|null $resume
+     * @return array<string,mixed>
+     */
+    public static function page318(
+        array $currentRecords,
+        array $nextRecords,
+        string $indexXinfoSql,
+        string $foreignKeySql,
+        int $offset = 0,
+        int $limit = 50,
+        ?array $resume = null,
+    ): array {
+        return self::actionRelationshipDiagnosticPage311($currentRecords, $nextRecords, $indexXinfoSql, $foreignKeySql, 318, 'delete_cascade_without_child_lookup_index', $offset, $limit, $resume);
+    }
+
+    /**
      * @param list<SQLiteSchemaRecord> $records
      * @return list<array<string,mixed>>
      */
@@ -27393,10 +27465,22 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
                 }
                 if ($action === 'SET DEFAULT') {
                     foreach ($childColumns as $column) {
-                        if (($childInfo[strtolower($column)]['dflt_value'] ?? null) === null) {
+                        $columnInfo = $childInfo[strtolower($column)] ?? [];
+                        $default = $columnInfo['dflt_value'] ?? null;
+                        if ($default === null) {
                             $status = "{$actionPrefix}_set_default_missing_child_default";
                             break;
                         }
+                        if ((int) ($columnInfo['notnull'] ?? 0) === 1 && self::defaultIsNull247($default)) {
+                            $status = "{$actionPrefix}_set_default_null_notnull_child_default";
+                            break;
+                        }
+                    }
+                }
+                if ($action === 'CASCADE') {
+                    $lookupStatus = self::childLookupDiagnosticStatus287($catalog, $table, $childColumns);
+                    if ($lookupStatus === 'child_lookup_missing_index') {
+                        $status = "{$actionPrefix}_cascade_without_child_lookup_index";
                     }
                 }
                 if ($status === null || ($statusFilter !== null && $status !== $statusFilter)) {
@@ -28257,7 +28341,7 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array{rows:int,blocked:int,update_set_null_notnull_child_column:int,delete_set_null_notnull_child_column:int,update_set_default_missing_child_default:int,delete_set_default_missing_child_default:int}
+     * @return array{rows:int,blocked:int,update_set_null_notnull_child_column:int,delete_set_null_notnull_child_column:int,update_set_default_missing_child_default:int,delete_set_default_missing_child_default:int,update_set_default_null_notnull_child_default:int,delete_set_default_null_notnull_child_default:int,update_cascade_without_child_lookup_index:int,delete_cascade_without_child_lookup_index:int}
      */
     private static function actionRelationshipDiagnosticCounts311(array $rows): array
     {
@@ -28268,6 +28352,10 @@ final class SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext
             'delete_set_null_notnull_child_column' => 0,
             'update_set_default_missing_child_default' => 0,
             'delete_set_default_missing_child_default' => 0,
+            'update_set_default_null_notnull_child_default' => 0,
+            'delete_set_default_null_notnull_child_default' => 0,
+            'update_cascade_without_child_lookup_index' => 0,
+            'delete_cascade_without_child_lookup_index' => 0,
         ];
         foreach ($rows as $row) {
             if (($row['blocked'] ?? false) === true) {
