@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext250Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -21,7 +21,7 @@ $next = [
     ['option_id' => 3, 'option_name_bytes' => $enc('Plugin_Cache', 'UTF-16BE'), 'text_encoding' => 3],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext250Plan::wordpressRtrimLikeResidualPlan($current, $next, 'plugin!_cache', '!');
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualSourcePlan($current, $next, 'plugin!_cache', '!');
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'encoding-collation-affinity-like-current-source-next250');

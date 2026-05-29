@@ -1,0 +1,7634 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan
+{
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionValueMalformedByteLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@231',
+        string $nextSource = 'main.wp_options@232',
+        int $currentSchemaCookie = 231,
+        int $nextSchemaCookie = 232,
+    ): array {
+        if ($escape !== null && self::next232_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite malformed-byte LIKE next232 ESCAPE must be one SQLite pattern character');
+        }
+
+        $prefixPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next232_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next232_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentByRowid = self::next232_rowsByRowid($current);
+        $nextByRowid = self::next232_rowsByRowid($next);
+        $currentRowids = array_column($current, 'rowid');
+        $nextRowids = array_column($next, 'rowid');
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $changedBytes = [];
+        $changedStorage = [];
+        foreach ($retained as $rowid) {
+            if ($currentByRowid[$rowid]['bytesHex'] !== $nextByRowid[$rowid]['bytesHex']) {
+                $changedBytes[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storage'] !== $nextByRowid[$rowid]['storage']) {
+                $changedStorage[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'malformed-byte-text';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next232',
+            'operator' => 'LIKE',
+            'expression' => 'CAST(option_value AS TEXT) COLLATE NOCASE LIKE ? ESCAPE ? /* malformed-byte current-source fence */',
+            'pattern' => $pattern,
+            'patternBytesHex' => bin2hex($pattern),
+            'patternCharacterCount' => self::next232_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'escapeBytesHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $prefixPlan['prefix'],
+            'prefixBytesHex' => bin2hex($prefixPlan['prefix']),
+            'prefixCharacters' => $prefixPlan['prefixCharacters'],
+            'prefixIsAscii' => $prefixPlan['prefixIsAscii'],
+            'rangeLowerInclusive' => $prefixPlan['noCaseRange']['lowerInclusive'],
+            'rangeUpperBound' => $prefixPlan['noCaseRange']['upperBound'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentRowids' => $currentRowids,
+            'nextRowids' => $nextRowids,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedBytesRowids' => $changedBytes,
+            'changedStorageRowids' => $changedStorage,
+            'currentMalformedRowids' => self::next232_rowidsWithField($current, 'malformed', true),
+            'nextMalformedRowids' => self::next232_rowidsWithField($next, 'malformed', true),
+            'currentTextsHex' => self::next232_fieldByRowid($currentByRowid, 'bytesHex'),
+            'nextTextsHex' => self::next232_fieldByRowid($nextByRowid, 'bytesHex'),
+            'currentPatternTokens' => self::next232_fieldByRowid($currentByRowid, 'patternTokens'),
+            'nextPatternTokens' => self::next232_fieldByRowid($nextByRowid, 'patternTokens'),
+            'currentTokenCounts' => self::next232_fieldByRowid($currentByRowid, 'tokenCount'),
+            'nextTokenCounts' => self::next232_fieldByRowid($nextByRowid, 'tokenCount'),
+            'currentStorage' => self::next232_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next232_fieldByRowid($nextByRowid, 'storage'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'malformedBytesAreSingleCharacters' => true,
+            'validUtf8CodepointsStayIntact' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'dependencies' => [
+                'sqlite-like-malformed-utf8-byte-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-current-source-next232',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE pattern tokenization, text affinity, ASCII NOCASE folding, and current-source cursor invalidation diagnostics',
+            'non_overlap' => 'next232 covers malformed UTF-8 byte LIKE comparison after text affinity; avoids accepted UTF-16 malformed insert guards, Unicode GLOB ranges, UTF-16 NOCASE/RTRIM LIKE cursor fences, dynamic LIKE affinity next99, and VFS/WAL/B-tree/JSON/SQL executor clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next232_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $matched = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite malformed-byte LIKE next232 row requires option_value');
+            }
+            $text = self::next232_coerceText($row['option_value']);
+            if ($text === null) {
+                continue;
+            }
+            if (!SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike)) {
+                continue;
+            }
+            $matched[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'bytesHex' => bin2hex($text),
+                'tokenCount' => self::next232_sqlitePatternLength($text),
+                'patternTokens' => self::next232_tokenHexList($text),
+                'malformed' => preg_match('//u', $text) !== 1,
+                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'payload' => $row,
+            ];
+        }
+
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['bytesHex'], $right['bytesHex']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $matched;
+    }
+
+    private static function next232_coerceText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        throw new \InvalidArgumentException('SQLite malformed-byte LIKE next232 option_value must be scalar text-affinity input');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next232_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next232_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next232_rowidsWithField(array $rows, string $field, mixed $expected): array
+    {
+        $rowids = [];
+        foreach ($rows as $row) {
+            if (($row[$field] ?? null) === $expected) {
+                $rowids[] = $row['rowid'];
+            }
+        }
+
+        return $rowids;
+    }
+
+    private static function next232_sqlitePatternLength(string $text): int
+    {
+        return count(self::next232_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next232_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next232_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next232_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionValueNotLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        bool $negate = true,
+        string $currentSource = 'main.wp_options@234',
+        string $nextSource = 'main.wp_options@235',
+        int $currentSchemaCookie = 234,
+        int $nextSchemaCookie = 235,
+    ): array {
+        if ($escape !== null && self::next235_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite malformed-byte NOT LIKE next235 ESCAPE must be one SQLite pattern character');
+        }
+
+        $prefixPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next235_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike, $negate);
+        $next = self::next235_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike, $negate);
+        $currentByRowid = self::next235_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next235_rowsByRowid($next['decisions']);
+        $currentResultRowids = array_column($current['resultRows'], 'rowid');
+        $nextResultRowids = array_column($next['resultRows'], 'rowid');
+        $currentLikeRowids = array_column($current['likeRows'], 'rowid');
+        $nextLikeRowids = array_column($next['likeRows'], 'rowid');
+        $retained = array_values(array_intersect($currentResultRowids, $nextResultRowids));
+        $exited = array_values(array_diff($currentResultRowids, $nextResultRowids));
+        $entered = array_values(array_diff($nextResultRowids, $currentResultRowids));
+        $changedBytes = [];
+        $changedStorage = [];
+        $changedTruth = [];
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['bytesHex'] !== $nextByRowid[$rowid]['bytesHex']) {
+                $changedBytes[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storage'] !== $nextByRowid[$rowid]['storage']) {
+                $changedStorage[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['predicateResult'] !== $nextByRowid[$rowid]['predicateResult']) {
+                $changedTruth[] = $rowid;
+            }
+        }
+
+        sort($changedBytes);
+        sort($changedStorage);
+        sort($changedTruth);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'result-rowset';
+        }
+        if ($changedTruth !== []) {
+            $reasons[] = 'predicate-truth';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'malformed-byte-text';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next235',
+            'operator' => $negate ? 'NOT LIKE' : 'LIKE',
+            'expression' => 'CAST(option_value AS TEXT) COLLATE NOCASE ' . ($negate ? 'NOT LIKE' : 'LIKE') . ' ? ESCAPE ? /* malformed-byte complement current-source fence */',
+            'pattern' => $pattern,
+            'patternBytesHex' => bin2hex($pattern),
+            'patternCharacterCount' => self::next235_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'escapeBytesHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'negate' => $negate,
+            'prefix' => $prefixPlan['prefix'],
+            'prefixBytesHex' => bin2hex($prefixPlan['prefix']),
+            'prefixCharacters' => $prefixPlan['prefixCharacters'],
+            'prefixIsAscii' => $prefixPlan['prefixIsAscii'],
+            'rangeLowerInclusive' => $caseSensitiveLike ? $prefixPlan['binaryRange']['lowerInclusive'] : $prefixPlan['noCaseRange']['lowerInclusive'],
+            'rangeUpperBound' => $caseSensitiveLike ? $prefixPlan['binaryRange']['upperBound'] : $prefixPlan['noCaseRange']['upperBound'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentResultRowids' => $currentResultRowids,
+            'nextResultRowids' => $nextResultRowids,
+            'currentLikeRowids' => $currentLikeRowids,
+            'nextLikeRowids' => $nextLikeRowids,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'retainedResultRowids' => $retained,
+            'exitedResultRowids' => $exited,
+            'enteredResultRowids' => $entered,
+            'changedBytesRowids' => $changedBytes,
+            'changedStorageRowids' => $changedStorage,
+            'changedPredicateTruthRowids' => $changedTruth,
+            'currentMalformedRowids' => self::next235_rowidsWithField($current['decisions'], 'malformed', true),
+            'nextMalformedRowids' => self::next235_rowidsWithField($next['decisions'], 'malformed', true),
+            'currentTextsHex' => self::next235_fieldByRowid($currentByRowid, 'bytesHex'),
+            'nextTextsHex' => self::next235_fieldByRowid($nextByRowid, 'bytesHex'),
+            'currentPatternTokens' => self::next235_fieldByRowid($currentByRowid, 'patternTokens'),
+            'nextPatternTokens' => self::next235_fieldByRowid($nextByRowid, 'patternTokens'),
+            'currentPredicateResults' => self::next235_fieldByRowid($currentByRowid, 'predicateResult'),
+            'nextPredicateResults' => self::next235_fieldByRowid($nextByRowid, 'predicateResult'),
+            'currentStorage' => self::next235_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next235_fieldByRowid($nextByRowid, 'storage'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'notLikeUsesLikeTruthComplement' => true,
+            'unknownValuesDoNotEnterComplement' => true,
+            'malformedBytesAreSingleCharacters' => true,
+            'validUtf8CodepointsStayIntact' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'dependencies' => [
+                'sqlite-like-malformed-utf8-byte-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-not-like-truth-complement',
+                'sqlite-current-source-next235',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, text affinity, ASCII NOCASE folding, three-valued predicate handling, and current-source cursor invalidation diagnostics',
+            'non_overlap' => 'next235 covers NOT LIKE complement semantics over malformed-byte text-affinity rows; avoids accepted next232 positive LIKE malformed-byte matching, UTF-16 malformed insert guards, Unicode GLOB ranges, UTF-16 NOCASE/RTRIM LIKE cursor fences, and VFS/WAL/B-tree/JSON/SQL executor clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>, resultRows:list<array<string,mixed>>, likeRows:list<array<string,mixed>>, unknownRowids:list<int>}
+     */
+    private static function next235_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, bool $negate): array
+    {
+        $decisions = [];
+        $resultRows = [];
+        $likeRows = [];
+        $unknownRowids = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite malformed-byte NOT LIKE next235 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $text = self::next235_coerceText($row['option_value']);
+            if ($text === null) {
+                $unknownRowids[] = $rowid;
+                continue;
+            }
+            $like = SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike);
+            $predicateResult = $negate ? !$like : $like;
+            $decision = [
+                'rowid' => $rowid,
+                'bytesHex' => bin2hex($text),
+                'patternTokens' => self::next235_tokenHexList($text),
+                'malformed' => preg_match('//u', $text) !== 1,
+                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'likeResult' => $like,
+                'predicateResult' => $predicateResult,
+                'payload' => $row,
+            ];
+            $decisions[] = $decision;
+            if ($like) {
+                $likeRows[] = $decision;
+            }
+            if ($predicateResult) {
+                $resultRows[] = $decision;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['bytesHex'], $right['bytesHex']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($decisions, $sort);
+        usort($resultRows, $sort);
+        usort($likeRows, $sort);
+        sort($unknownRowids);
+
+        return [
+            'decisions' => $decisions,
+            'resultRows' => $resultRows,
+            'likeRows' => $likeRows,
+            'unknownRowids' => $unknownRowids,
+        ];
+    }
+
+    private static function next235_coerceText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        throw new \InvalidArgumentException('SQLite malformed-byte NOT LIKE next235 option_value must be scalar text-affinity input');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next235_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next235_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next235_rowidsWithField(array $rows, string $field, mixed $expected): array
+    {
+        $rowids = [];
+        foreach ($rows as $row) {
+            if (($row[$field] ?? null) === $expected) {
+                $rowids[] = $row['rowid'];
+            }
+        }
+
+        return $rowids;
+    }
+
+    private static function next235_sqlitePatternLength(string $text): int
+    {
+        return count(self::next235_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next235_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next235_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next235_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameEscapedLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@235',
+        string $nextSource = 'main.wp_options@236',
+        int $currentSchemaCookie = 235,
+        int $nextSchemaCookie = 236,
+    ): array {
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next236_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next236_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentRowids = array_column($current, 'rowid');
+        $nextRowids = array_column($next, 'rowid');
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+
+        $currentByRowid = self::next236_rowsByRowid($current);
+        $nextByRowid = self::next236_rowsByRowid($next);
+        $changedNameBytes = [];
+        foreach ($retained as $rowid) {
+            if ($currentByRowid[$rowid]['nameHex'] !== $nextByRowid[$rowid]['nameHex']) {
+                $changedNameBytes[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedNameBytes !== []) {
+            $reasons[] = 'option-name-bytes';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next236',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* escaped wildcard current-source fence */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'patternCharacters' => $patternPlan['prefixCharacters'] + ($patternPlan['hasWildcard'] ? 1 : 0),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentRowids' => $currentRowids,
+            'nextRowids' => $nextRowids,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedNameBytesRowids' => $changedNameBytes,
+            'currentNames' => self::next236_fieldByRowid($currentByRowid, 'name'),
+            'nextNames' => self::next236_fieldByRowid($nextByRowid, 'name'),
+            'currentNameHex' => self::next236_fieldByRowid($currentByRowid, 'nameHex'),
+            'nextNameHex' => self::next236_fieldByRowid($nextByRowid, 'nameHex'),
+            'currentTokenHex' => self::next236_fieldByRowid($currentByRowid, 'tokenHex'),
+            'nextTokenHex' => self::next236_fieldByRowid($nextByRowid, 'tokenHex'),
+            'currentTokenCounts' => self::next236_fieldByRowid($currentByRowid, 'tokenCount'),
+            'nextTokenCounts' => self::next236_fieldByRowid($nextByRowid, 'tokenCount'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'literalPercentAndUnderscoreRequireEscape' => true,
+            'trailingEscapeDoesNotMatchLiteralEscape' => true,
+            'multibyteEscapeIsOneSQLiteCharacter' => true,
+            'likeNocaseFoldsAsciiOnly' => true,
+            'collationDoesNotMakeLikeUnicodeCaseFold' => true,
+            'dependencies' => [
+                'sqlite-like-escape-tokenizer',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next236',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, SQLite text affinity coercion, ASCII-only NOCASE folding, and current-source invalidation diagnostics',
+            'non_overlap' => 'next236 covers escaped LIKE wildcard semantics over option_name current-source scans; avoids accepted Unicode GLOB range next113/next218, malformed-byte option_value LIKE next232, UTF-16 malformed guards, UTF-16 NOCASE/RTRIM LIKE cursor fences, and SQL executor/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next236_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $matched = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite escaped LIKE next236 row requires option_name');
+            }
+            $name = self::next236_coerceText($row['option_name']);
+            if ($name === null) {
+                continue;
+            }
+            if (!SQLiteDatabase::likeMatches($name, $pattern, $escape, $caseSensitiveLike)) {
+                continue;
+            }
+            $matched[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'name' => $name,
+                'nameHex' => bin2hex($name),
+                'tokenHex' => self::next236_tokenHexList($name),
+                'tokenCount' => self::next236_sqlitePatternLength($name),
+            ];
+        }
+
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['name'], $right['name']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $matched;
+    }
+
+    private static function next236_coerceText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        throw new \InvalidArgumentException('SQLite escaped LIKE next236 option_name must be scalar text-affinity input');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next236_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next236_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next236_sqlitePatternLength(string $text): int
+    {
+        return count(self::next236_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next236_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next236_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next236_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionValueEscapePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_%!%%',
+        ?string $escape = '!',
+        string $collation = 'NOCASE',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@236',
+        string $nextSource = 'main.wp_options@237',
+        int $currentSchemaCookie = 236,
+        int $nextSchemaCookie = 237,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException('SQLite encoding collation affinity LIKE next237 collation must be BINARY, NOCASE, or RTRIM');
+        }
+
+        $like = SQLiteLikeCollationPlan::plan($pattern, $collation, $escape, $caseSensitiveLike);
+        $current = self::next237_scan($currentRows, $pattern, $escape, $collation, $caseSensitiveLike, $like['range']);
+        $next = self::next237_scan($nextRows, $pattern, $escape, $collation, $caseSensitiveLike, $like['range']);
+        $currentMatched = self::next237_rowids($current['matched']);
+        $nextMatched = self::next237_rowids($next['matched']);
+        $currentCandidates = self::next237_rowids($current['candidates']);
+        $nextCandidates = self::next237_rowids($next['candidates']);
+        $changes = self::next237_changes($current['trace'], $next['trace']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'storage-class' => $changes['storageRowids'],
+            'affinity-text' => $changes['likeTextRowids'],
+            'collation-key' => $changes['collationKeyRowids'],
+            'range-membership' => $currentCandidates === $nextCandidates ? [] : self::next237_uniqueSortedInts(array_merge($currentCandidates, $nextCandidates)),
+            'residual-result' => $changes['residualRowids'],
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : self::next237_uniqueSortedInts(array_merge($currentMatched, $nextMatched)),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next237',
+            'operator' => 'LIKE',
+            'expression' => 'option_value LIKE ? ESCAPE ? COLLATE ' . $collation . ' /* text affinity before residual */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => $collation,
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'prefix' => $like['prefix'],
+            'prefixCharacters' => $like['prefixCharacters'],
+            'prefixIsAscii' => $like['prefixIsAscii'],
+            'indexUsable' => $like['indexUsable'],
+            'rangeRejectedReason' => $like['rejectedReason'],
+            'rangeLowerInclusive' => $like['range']['lowerInclusive'] ?? null,
+            'rangeUpperBound' => $like['range']['upperBound'] ?? null,
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedRowids' => array_values(array_intersect($currentMatched, $nextMatched)),
+            'enteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
+            'exitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
+            'currentFalsePositiveRowids' => self::next237_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::next237_rowids($next['falsePositive']),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'changedStorageRowids' => $changes['storageRowids'],
+            'changedLikeTextRowids' => $changes['likeTextRowids'],
+            'changedCollationKeyRowids' => $changes['collationKeyRowids'],
+            'changedResidualRowids' => $changes['residualRowids'],
+            'escapeTreatsUnderscoreAsLiteral' => true,
+            'escapeTreatsPercentAsLiteralUntilTrailingWildcard' => true,
+            'textAffinityBeforeLike' => true,
+            'nullLikeResultIsUnknown' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-escape-prefix-range',
+                'sqlite-text-affinity-like',
+                'sqlite-like-nocase-collation',
+                'sqlite-current-source-next237',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses LIKE ESCAPE prefix planning, scalar text-affinity conversion, ASCII NOCASE collation keys, and current-source invalidation diagnostics',
+            'non_overlap' => 'next237 covers escaped wildcard literals after text affinity under LIKE/NOCASE current-source scans; avoids accepted Unicode GLOB ranges, UTF-16 malformed record guards, UTF-16 NOCASE/RTRIM canonical-equivalent scans, blob LIKE/GLOB affinity next234, SQL expression ORDER BY, and JSON/WAL/B-tree clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param ?array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{trace:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next237_scan(array $rows, string $pattern, ?string $escape, string $collation, bool $caseSensitiveLike, ?array $range): array
+    {
+        $trace = [];
+        $candidates = [];
+        $matched = [];
+        $falsePositive = [];
+        $malformed = [];
+        $errors = [];
+
+        foreach ($rows as $row) {
+            self::next237_assertRow($row);
+            $rowid = $row['option_id'];
+            try {
+                $likeText = self::next237_likeText($row['option_value']);
+                $collationKey = $likeText === null ? null : self::next237_collationKey($likeText, $collation);
+                $inRange = $collationKey !== null && self::next237_inRange($collationKey, $range);
+                $residual = $likeText === null ? null : SQLiteDatabase::likeMatches($likeText, $pattern, $escape, $caseSensitiveLike);
+                $entry = [
+                    'rowid' => $rowid,
+                    'optionName' => (string) ($row['option_name'] ?? ''),
+                    'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                    'likeText' => $likeText,
+                    'likeTextHex' => $likeText === null ? null : strtoupper(bin2hex($likeText)),
+                    'collationKey' => $collationKey,
+                    'collationKeyHex' => $collationKey === null ? null : strtoupper(bin2hex($collationKey)),
+                    'inRange' => $inRange,
+                    'residualMatch' => $residual,
+                    'matched' => $inRange && $residual === true,
+                    'autoload' => $row['autoload'] ?? null,
+                ];
+                $trace[] = $entry;
+                if ($inRange) {
+                    $candidates[] = $entry;
+                    if ($entry['matched']) {
+                        $matched[] = $entry;
+                    } else {
+                        $falsePositive[] = $entry;
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+            }
+        }
+
+        usort($trace, self::next237_sortTrace(...));
+        usort($candidates, self::next237_sortTrace(...));
+        usort($matched, self::next237_sortTrace(...));
+        usort($falsePositive, self::next237_sortTrace(...));
+        sort($malformed);
+        ksort($errors);
+
+        return [
+            'trace' => $trace,
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next237_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite encoding collation affinity LIKE next237 rows require integer option_id');
+        }
+        if (!array_key_exists('option_value', $row)) {
+            throw new \InvalidArgumentException('SQLite encoding collation affinity LIKE next237 rows require option_value');
+        }
+    }
+
+    private static function next237_likeText(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('SQLite encoding collation affinity LIKE next237 rows require scalar option_value');
+        }
+        if (preg_match('//u', $value) !== 1) {
+            throw new \InvalidArgumentException('SQLite encoding collation affinity LIKE next237 text value is malformed UTF-8');
+        }
+
+        return $value;
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next237_inRange(string $collationKey, ?array $range): bool
+    {
+        if ($range === null) {
+            return false;
+        }
+        if (strcmp($collationKey, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($collationKey, $range['upperBound']) < 0;
+    }
+
+    private static function next237_collationKey(string $text, string $collation): string
+    {
+        return match ($collation) {
+            'BINARY' => $text,
+            'NOCASE' => strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+            'RTRIM' => rtrim($text, ' '),
+        };
+    }
+
+    /** @param array<string,mixed> $left @param array<string,mixed> $right */
+    private static function next237_sortTrace(array $left, array $right): int
+    {
+        $comparison = strcmp((string) ($left['collationKey'] ?? ''), (string) ($right['collationKey'] ?? ''));
+
+        return $comparison !== 0 ? $comparison : $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next237_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array{storageRowids:list<int>,likeTextRowids:list<int>,collationKeyRowids:list<int>,residualRowids:list<int>}
+     */
+    private static function next237_changes(array $current, array $next): array
+    {
+        $currentByRowid = [];
+        foreach ($current as $row) {
+            $currentByRowid[$row['rowid']] = $row;
+        }
+
+        $storage = [];
+        $text = [];
+        $key = [];
+        $residual = [];
+        foreach ($next as $row) {
+            $rowid = $row['rowid'];
+            if (!isset($currentByRowid[$rowid])) {
+                $storage[] = $rowid;
+                $text[] = $rowid;
+                $key[] = $rowid;
+                $residual[] = $rowid;
+                continue;
+            }
+            $currentRow = $currentByRowid[$rowid];
+            if ($currentRow['storage'] !== $row['storage']) {
+                $storage[] = $rowid;
+            }
+            if ($currentRow['likeText'] !== $row['likeText']) {
+                $text[] = $rowid;
+            }
+            if ($currentRow['collationKey'] !== $row['collationKey']) {
+                $key[] = $rowid;
+            }
+            if ($currentRow['residualMatch'] !== $row['residualMatch']) {
+                $residual[] = $rowid;
+            }
+        }
+        $nextRowids = array_column($next, 'rowid');
+        foreach ($currentByRowid as $rowid => $_row) {
+            if (!in_array($rowid, $nextRowids, true)) {
+                $storage[] = $rowid;
+                $text[] = $rowid;
+                $key[] = $rowid;
+                $residual[] = $rowid;
+            }
+        }
+
+        return [
+            'storageRowids' => self::next237_uniqueSortedInts($storage),
+            'likeTextRowids' => self::next237_uniqueSortedInts($text),
+            'collationKeyRowids' => self::next237_uniqueSortedInts($key),
+            'residualRowids' => self::next237_uniqueSortedInts($residual),
+        ];
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function next237_uniqueSortedInts(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressRealTextAffinityLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = '100.%',
+        ?string $escape = null,
+        bool $caseSensitiveLike = true,
+        string $currentSource = 'main.wp_options@237',
+        string $nextSource = 'main.wp_options@238',
+        int $currentSchemaCookie = 237,
+        int $nextSchemaCookie = 238,
+    ): array {
+        if ($escape !== null && self::next238_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite real-affinity LIKE next238 ESCAPE must be one SQLite pattern character');
+        }
+
+        $prefix = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next238_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next238_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentByRowid = self::next238_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next238_rowsByRowid($next['decisions']);
+        $currentMatched = array_column($current['matchedRows'], 'rowid');
+        $nextMatched = array_column($next['matchedRows'], 'rowid');
+        $entered = array_values(array_diff($nextMatched, $currentMatched));
+        $exited = array_values(array_diff($currentMatched, $nextMatched));
+        $retained = array_values(array_intersect($currentMatched, $nextMatched));
+
+        $changedText = [];
+        $changedTruth = [];
+        $changedStorage = [];
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['text'] !== $nextByRowid[$rowid]['text']) {
+                $changedText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['likeResult'] !== $nextByRowid[$rowid]['likeResult']) {
+                $changedTruth[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storage'] !== $nextByRowid[$rowid]['storage']) {
+                $changedStorage[] = $rowid;
+            }
+        }
+        sort($changedText);
+        sort($changedTruth);
+        sort($changedStorage);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedText !== []) {
+            $reasons[] = 'real-text-affinity';
+        }
+        if ($changedTruth !== []) {
+            $reasons[] = 'like-truth';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next238',
+            'operator' => 'LIKE',
+            'expression' => 'CAST(option_value AS TEXT) COLLATE ' . ($caseSensitiveLike ? 'BINARY' : 'NOCASE') . ' LIKE ? /* REAL text-affinity decimal/exponent preservation */',
+            'pattern' => $pattern,
+            'patternBytesHex' => bin2hex($pattern),
+            'patternCharacterCount' => self::next238_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $prefix['prefix'],
+            'prefixBytesHex' => bin2hex($prefix['prefix']),
+            'prefixCharacters' => $prefix['prefixCharacters'],
+            'rangeLowerInclusive' => $caseSensitiveLike ? $prefix['binaryRange']['lowerInclusive'] : $prefix['noCaseRange']['lowerInclusive'],
+            'rangeUpperBound' => $caseSensitiveLike ? $prefix['binaryRange']['upperBound'] : $prefix['noCaseRange']['upperBound'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retained,
+            'exitedMatchedRowids' => $exited,
+            'enteredMatchedRowids' => $entered,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'changedTextRowids' => $changedText,
+            'changedLikeTruthRowids' => $changedTruth,
+            'changedStorageRowids' => $changedStorage,
+            'currentTexts' => self::next238_fieldByRowid($currentByRowid, 'text'),
+            'nextTexts' => self::next238_fieldByRowid($nextByRowid, 'text'),
+            'currentTextHex' => self::next238_fieldByRowid($currentByRowid, 'textHex'),
+            'nextTextHex' => self::next238_fieldByRowid($nextByRowid, 'textHex'),
+            'currentStorage' => self::next238_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next238_fieldByRowid($nextByRowid, 'storage'),
+            'currentLikeResults' => self::next238_fieldByRowid($currentByRowid, 'likeResult'),
+            'nextLikeResults' => self::next238_fieldByRowid($nextByRowid, 'likeResult'),
+            'currentPatternTokens' => self::next238_fieldByRowid($currentByRowid, 'patternTokens'),
+            'nextPatternTokens' => self::next238_fieldByRowid($nextByRowid, 'patternTokens'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'realIntegerValuedTextKeepsDecimal' => true,
+            'realExponentTextKeepsExponentMarker' => true,
+            'integerTextDoesNotGainDecimal' => true,
+            'nullAndBlobRemainUnknown' => true,
+            'likeResidualRunsAfterTextAffinity' => true,
+            'dependencies' => [
+                'sqlite-real-text-affinity',
+                'sqlite-like-prefix-range',
+                'sqlite-like-residual',
+                'sqlite-current-source-next238',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native scalar storage classification, SQLite REAL text-affinity formatting, LIKE prefix/range planning, and current-source cursor invalidation diagnostics',
+            'non_overlap' => 'next238 covers REAL-to-TEXT decimal/exponent preservation before LIKE; avoids accepted next235 malformed-byte NOT LIKE complement, next232 positive malformed-byte LIKE, Unicode GLOB ranges, UTF-16 NOCASE/RTRIM cursor fences, and unrelated VFS/WAL/B-tree/JSON/SQL executor clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>,matchedRows:list<array<string,mixed>>,unknownRowids:list<int>}
+     */
+    private static function next238_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $decisions = [];
+        $matched = [];
+        $unknown = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite real-affinity LIKE next238 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $text = self::next238_coerceText($row['option_value']);
+            if ($text === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            $like = SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike);
+            $decision = [
+                'rowid' => $rowid,
+                'text' => $text,
+                'textHex' => bin2hex($text),
+                'patternTokens' => self::next238_tokenHexList($text),
+                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'likeResult' => $like,
+                'payload' => $row,
+            ];
+            $decisions[] = $decision;
+            if ($like) {
+                $matched[] = $decision;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['text'], $right['text']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($decisions, $sort);
+        usort($matched, $sort);
+        sort($unknown);
+
+        return ['decisions' => $decisions, 'matchedRows' => $matched, 'unknownRowids' => $unknown];
+    }
+
+    private static function next238_coerceText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_float($value)) {
+            return self::next238_formatRealText($value);
+        }
+
+        throw new \InvalidArgumentException('SQLite real-affinity LIKE next238 option_value must be scalar text-affinity input');
+    }
+
+    private static function next238_formatRealText(float $value): string
+    {
+        if (!is_finite($value)) {
+            return (string) $value;
+        }
+        $text = sprintf('%.15g', $value);
+        $text = preg_replace_callback('/e([+-])([0-9])$/', static fn (array $match): string => 'e' . $match[1] . '0' . $match[2], $text) ?? $text;
+
+        return str_contains($text, '.') || stripos($text, 'e') !== false ? $text : $text . '.0';
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next238_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next238_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next238_sqlitePatternLength(string $text): int
+    {
+        return count(self::next238_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next238_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match_all('/./us', $text, $matches) === false || implode('', $matches[0]) !== $text) {
+            return str_split($text);
+        }
+
+        return $matches[0];
+    }
+
+    /** @return list<string> */
+    private static function next238_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next238_sqlitePatternCharacters($text));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionValueNumericLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@239',
+        string $nextSource = 'main.wp_options@240',
+        int $currentSchemaCookie = 239,
+        int $nextSchemaCookie = 240,
+    ): array {
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next240_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next240_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentRowids = array_column($current, 'rowid');
+        $nextRowids = array_column($next, 'rowid');
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $currentByRowid = self::next240_rowsByRowid($current);
+        $nextByRowid = self::next240_rowsByRowid($next);
+        $changedFormatted = [];
+        $changedStorage = [];
+        $changedBytes = [];
+
+        foreach ($retained as $rowid) {
+            if ($currentByRowid[$rowid]['formatted'] !== $nextByRowid[$rowid]['formatted']) {
+                $changedFormatted[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storageClass'] !== $nextByRowid[$rowid]['storageClass']) {
+                $changedStorage[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['formattedHex'] !== $nextByRowid[$rowid]['formattedHex']) {
+                $changedBytes[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedFormatted !== []) {
+            $reasons[] = 'numeric-affinity-format';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next240',
+            'operator' => 'LIKE',
+            'expression' => 'CAST(option_value AS NUMERIC) LIKE ? ESCAPE ? /* numeric affinity current-source fence */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentRowids' => $currentRowids,
+            'nextRowids' => $nextRowids,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedFormattedRowids' => $changedFormatted,
+            'changedStorageClassRowids' => $changedStorage,
+            'changedFormattedBytesRowids' => $changedBytes,
+            'currentFormatted' => self::next240_fieldByRowid($currentByRowid, 'formatted'),
+            'nextFormatted' => self::next240_fieldByRowid($nextByRowid, 'formatted'),
+            'currentFormattedHex' => self::next240_fieldByRowid($currentByRowid, 'formattedHex'),
+            'nextFormattedHex' => self::next240_fieldByRowid($nextByRowid, 'formattedHex'),
+            'currentStorageClasses' => self::next240_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorageClasses' => self::next240_fieldByRowid($nextByRowid, 'storageClass'),
+            'currentOptionNames' => self::next240_fieldByRowid($currentByRowid, 'optionName'),
+            'nextOptionNames' => self::next240_fieldByRowid($nextByRowid, 'optionName'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'integerRealAndBooleanUseTextAffinityForLike' => true,
+            'blobAndNullStayNonTextForNumericLike' => true,
+            'storageClassChangeInvalidatesEvenWhenLikeTextMatches' => true,
+            'sqliteRealFormattingUsesSignificantDigits' => true,
+            'dependencies' => [
+                'sqlite-numeric-affinity-format',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-current-source-next240',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization and lane-local SQLite numeric/text-affinity formatting diagnostics',
+            'non_overlap' => 'next240 covers NUMERIC-affinity LIKE current-source invalidation over option_value formatting and storage classes; avoids next236 escaped option_name LIKE, UTF-16 RTRIM/NOCASE cursors, Unicode GLOB ranges, malformed text guards, and SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next240_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $matched = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite numeric LIKE next240 row requires option_value');
+            }
+            $coerced = self::next240_coerceLikeText($row['option_value']);
+            if ($coerced === null) {
+                continue;
+            }
+            if (!SQLiteDatabase::likeMatches($coerced['formatted'], $pattern, $escape, $caseSensitiveLike)) {
+                continue;
+            }
+            $matched[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'optionName' => self::next240_optionName($row, $index),
+                'formatted' => $coerced['formatted'],
+                'formattedHex' => bin2hex($coerced['formatted']),
+                'storageClass' => $coerced['storageClass'],
+            ];
+        }
+
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['formatted'], $right['formatted']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $matched;
+    }
+
+    /** @return array{formatted:string,storageClass:string}|null */
+    private static function next240_coerceLikeText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value)) {
+            return ['formatted' => (string) $value, 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            return ['formatted' => self::next240_formatReal($value), 'storageClass' => 'real'];
+        }
+        if (is_bool($value)) {
+            return ['formatted' => $value ? '1' : '0', 'storageClass' => 'integer'];
+        }
+        if (is_string($value)) {
+            return ['formatted' => $value, 'storageClass' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite numeric LIKE next240 option_value must be scalar or SQLiteBlobValue');
+    }
+
+    private static function next240_formatReal(float $value): string
+    {
+        if (is_nan($value)) {
+            return 'NaN';
+        }
+        if ($value === INF) {
+            return 'Inf';
+        }
+        if ($value === -INF) {
+            return '-Inf';
+        }
+
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next240_optionName(array $row, int $index): string
+    {
+        $name = $row['option_name'] ?? 'option_' . ($index + 1);
+
+        return is_scalar($name) ? (string) $name : 'option_' . ($index + 1);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next240_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next240_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameByteAwareLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@240',
+        string $nextSource = 'main.wp_options@241',
+        int $currentSchemaCookie = 240,
+        int $nextSchemaCookie = 241,
+    ): array {
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $caseSensitiveLike ? $patternPlan['binaryRange'] : $patternPlan['noCaseRange'];
+        $current = self::next241_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike, $range);
+        $next = self::next241_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike, $range);
+
+        $currentRowids = self::next241_rowids($current['matched']);
+        $nextRowids = self::next241_rowids($next['matched']);
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+
+        $currentByRowid = self::next241_rowsByRowid($current['matched']);
+        $nextByRowid = self::next241_rowsByRowid($next['matched']);
+        $changedBytes = [];
+        foreach ($retained as $rowid) {
+            if (($currentByRowid[$rowid]['nameHex'] ?? null) !== ($nextByRowid[$rowid]['nameHex'] ?? null)) {
+                $changedBytes[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'option-name-bytes';
+        }
+        if (self::next241_rowids($current['candidates']) !== $currentRowids || self::next241_rowids($next['candidates']) !== $nextRowids) {
+            $reasons[] = 'range-residual';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next241',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE NOCASE LIKE ? ESCAPE ? /* byte-aware residual cursor */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'range' => $range,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next241_rowids($current['candidates']),
+            'nextCandidateRowids' => self::next241_rowids($next['candidates']),
+            'currentMatchedRowids' => $currentRowids,
+            'nextMatchedRowids' => $nextRowids,
+            'currentResidualRejectedRowids' => self::next241_rowids($current['rejected']),
+            'nextResidualRejectedRowids' => self::next241_rowids($next['rejected']),
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedNameBytesRowids' => $changedBytes,
+            'currentNames' => self::next241_fieldByRowid($currentByRowid, 'name'),
+            'nextNames' => self::next241_fieldByRowid($nextByRowid, 'name'),
+            'currentNameHex' => self::next241_fieldByRowid($currentByRowid, 'nameHex'),
+            'nextNameHex' => self::next241_fieldByRowid($nextByRowid, 'nameHex'),
+            'currentTokenHex' => self::next241_fieldByRowid($currentByRowid, 'tokenHex'),
+            'nextTokenHex' => self::next241_fieldByRowid($nextByRowid, 'tokenHex'),
+            'currentTokenCounts' => self::next241_fieldByRowid($currentByRowid, 'tokenCount'),
+            'nextTokenCounts' => self::next241_fieldByRowid($nextByRowid, 'tokenCount'),
+            'currentStorage' => self::next241_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next241_fieldByRowid($nextByRowid, 'storage'),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentMalformedHex' => $current['malformedHex'],
+            'nextMalformedHex' => $next['malformedHex'],
+            'nulByteIsNotTerminator' => true,
+            'malformedUtf8FallsBackToByteTokens' => true,
+            'blobAffinityDoesNotParticipate' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-byte-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-current-source-next241',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, text affinity coercion, byte fallback for malformed UTF-8, and current-source invalidation diagnostics',
+            'non_overlap' => 'next241 covers embedded-NUL and malformed-byte LIKE residual cursor behavior over option_name; avoids accepted escaped wildcard next236, dynamic option_value LIKE next238, Unicode GLOB ranges, UTF-16 malformed guards, UTF-16 NOCASE/RTRIM cursor fences, and SQL executor/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,rejected:list<array<string,mixed>>,malformedRowids:list<int>,malformedHex:array<int,string>}
+     */
+    private static function next241_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, array $range): array
+    {
+        $candidates = [];
+        $matched = [];
+        $rejected = [];
+        $malformedRowids = [];
+        $malformedHex = [];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite byte-aware LIKE next241 row requires option_name');
+            }
+            $coerced = self::next241_coerceText($row['option_name']);
+            if ($coerced === null) {
+                continue;
+            }
+            [$name, $storage] = $coerced;
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            if (preg_match('//u', $name) !== 1) {
+                $malformedRowids[] = $rowid;
+                $malformedHex[$rowid] = bin2hex($name);
+            }
+            if (!self::next241_withinRange($name, $range, $caseSensitiveLike)) {
+                continue;
+            }
+
+            $entry = [
+                'rowid' => $rowid,
+                'name' => $name,
+                'nameHex' => bin2hex($name),
+                'tokenHex' => self::next241_tokenHexList($name),
+                'tokenCount' => self::next241_sqlitePatternLength($name),
+                'storage' => $storage,
+            ];
+            $candidates[] = $entry;
+            if (SQLiteDatabase::likeMatches($name, $pattern, $escape, $caseSensitiveLike)) {
+                $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['name'], $right['name']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($candidates, $sort);
+        usort($matched, $sort);
+        usort($rejected, $sort);
+
+        return [
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'rejected' => $rejected,
+            'malformedRowids' => $malformedRowids,
+            'malformedHex' => $malformedHex,
+        ];
+    }
+
+    /** @return null|array{0:string,1:string} */
+    private static function next241_coerceText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return [$value, 'text'];
+        }
+        if (is_int($value)) {
+            return [(string) $value, 'integer'];
+        }
+        if (is_float($value)) {
+            return [rtrim(rtrim(sprintf('%.15G', $value), '0'), '.'), 'real'];
+        }
+        if (is_bool($value)) {
+            return [$value ? '1' : '0', 'integer'];
+        }
+
+        throw new \InvalidArgumentException('SQLite byte-aware LIKE next241 option_name must be scalar text-affinity input');
+    }
+
+    /** @param array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next241_withinRange(string $value, array $range, bool $caseSensitiveLike): bool
+    {
+        $key = $caseSensitiveLike ? $value : self::next241_asciiLower($value);
+        if (strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next241_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next241_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next241_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next241_sqlitePatternLength(string $text): int
+    {
+        return count(self::next241_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next241_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next241_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next241_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    private static function next241_asciiLower(string $value): string
+    {
+        $bytes = $value;
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($bytes[$i]);
+            if ($ord >= 0x41 && $ord <= 0x5a) {
+                $bytes[$i] = chr($ord + 0x20);
+            }
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressEmbeddedNulLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = "plugin\0cache!_%",
+        ?string $escape = '!',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@241',
+        string $nextSource = 'main.wp_options@242',
+        int $currentSchemaCookie = 241,
+        int $nextSchemaCookie = 242,
+    ): array {
+        if ($escape !== null && self::next242_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite embedded-NUL LIKE next242 ESCAPE must be one SQLite pattern character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next242_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next242_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentByRowid = self::next242_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next242_rowsByRowid($next['decisions']);
+        $currentMatched = array_column($current['matchedRows'], 'rowid');
+        $nextMatched = array_column($next['matchedRows'], 'rowid');
+        $retained = array_values(array_intersect($currentMatched, $nextMatched));
+        $exited = array_values(array_diff($currentMatched, $nextMatched));
+        $entered = array_values(array_diff($nextMatched, $currentMatched));
+        $changedBytes = [];
+        $changedTruth = [];
+        $changedStorage = [];
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['textHex'] !== $nextByRowid[$rowid]['textHex']) {
+                $changedBytes[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['likeResult'] !== $nextByRowid[$rowid]['likeResult']) {
+                $changedTruth[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storage'] !== $nextByRowid[$rowid]['storage']) {
+                $changedStorage[] = $rowid;
+            }
+        }
+        sort($changedBytes);
+        sort($changedTruth);
+        sort($changedStorage);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'embedded-nul-text-bytes';
+        }
+        if ($changedTruth !== []) {
+            $reasons[] = 'like-truth';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+
+        $range = $caseSensitiveLike ? $patternPlan['binaryRange'] : $patternPlan['noCaseRange'];
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next242',
+            'operator' => 'LIKE',
+            'expression' => 'CAST(option_value AS TEXT) COLLATE ' . ($caseSensitiveLike ? 'BINARY' : 'NOCASE') . ' LIKE ? ESCAPE ? /* embedded-NUL literal prefix */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'patternTokenHex' => self::next242_tokenHexList($pattern),
+            'patternCharacterCount' => self::next242_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixTokenHex' => self::next242_tokenHexList($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixContainsNul' => str_contains($patternPlan['prefix'], "\0"),
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'rangeLowerInclusiveHex' => bin2hex($range['lowerInclusive']),
+            'rangeUpperBoundHex' => $range['upperBound'] === null ? null : bin2hex($range['upperBound']),
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retained,
+            'exitedMatchedRowids' => $exited,
+            'enteredMatchedRowids' => $entered,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'changedBytesRowids' => $changedBytes,
+            'changedLikeTruthRowids' => $changedTruth,
+            'changedStorageRowids' => $changedStorage,
+            'currentTextsHex' => self::next242_fieldByRowid($currentByRowid, 'textHex'),
+            'nextTextsHex' => self::next242_fieldByRowid($nextByRowid, 'textHex'),
+            'currentTokenHex' => self::next242_fieldByRowid($currentByRowid, 'tokenHex'),
+            'nextTokenHex' => self::next242_fieldByRowid($nextByRowid, 'tokenHex'),
+            'currentTokenCounts' => self::next242_fieldByRowid($currentByRowid, 'tokenCount'),
+            'nextTokenCounts' => self::next242_fieldByRowid($nextByRowid, 'tokenCount'),
+            'currentStorage' => self::next242_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next242_fieldByRowid($nextByRowid, 'storage'),
+            'currentLikeResults' => self::next242_fieldByRowid($currentByRowid, 'likeResult'),
+            'nextLikeResults' => self::next242_fieldByRowid($nextByRowid, 'likeResult'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'embeddedNulIsOrdinaryLikeCharacter' => true,
+            'escapedUnderscoreIsLiteral' => true,
+            'percentWildcardRunsAfterNulPrefix' => true,
+            'nocaseFoldsAsciiOnlyAroundNul' => true,
+            'nullAndBlobRemainUnknown' => true,
+            'dependencies' => [
+                'sqlite-like-embedded-nul-tokenizer',
+                'sqlite-like-escape-prefix-range',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next242',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, embedded-NUL PHP string handling, text-affinity coercion, ASCII-only NOCASE folding, and current-source invalidation diagnostics',
+            'non_overlap' => 'next242 covers embedded-NUL TEXT LIKE prefixes with escaped literal underscore current-source fences; avoids accepted next239 Unicode/malformed GLOB ranges, next236 escaped option_name LIKE, next237 option_value escaped wildcard, next238 REAL text-affinity LIKE, next235 malformed-byte NOT LIKE, UTF-16 malformed guards, and unrelated SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>, matchedRows:list<array<string,mixed>>, unknownRowids:list<int>}
+     */
+    private static function next242_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $decisions = [];
+        $matched = [];
+        $unknown = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite embedded-NUL LIKE next242 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $text = self::next242_coerceText($row['option_value']);
+            if ($text === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            $like = SQLiteDatabase::likeMatches($text, $pattern, $escape, $caseSensitiveLike);
+            $decision = [
+                'rowid' => $rowid,
+                'textHex' => bin2hex($text),
+                'tokenHex' => self::next242_tokenHexList($text),
+                'tokenCount' => self::next242_sqlitePatternLength($text),
+                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'likeResult' => $like,
+            ];
+            $decisions[] = $decision;
+            if ($like) {
+                $matched[] = $decision;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['textHex'], $right['textHex']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($decisions, $sort);
+        usort($matched, $sort);
+        sort($unknown);
+
+        return ['decisions' => $decisions, 'matchedRows' => $matched, 'unknownRowids' => $unknown];
+    }
+
+    private static function next242_coerceText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        throw new \InvalidArgumentException('SQLite embedded-NUL LIKE next242 option_value must be scalar text-affinity input');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next242_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next242_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next242_sqlitePatternLength(string $text): int
+    {
+        return count(self::next242_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next242_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next242_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next242_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressRtrimLikeResidualPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'cache_%',
+        ?string $escape = null,
+        string $collation = 'RTRIM',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@242',
+        string $nextSource = 'main.wp_options@243',
+        int $currentSchemaCookie = 242,
+        int $nextSchemaCookie = 243,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException('SQLite LIKE current-source next243 collation must be BINARY, NOCASE, or RTRIM');
+        }
+
+        $like = SQLiteLikeCollationPlan::plan($pattern, $collation, $escape, $caseSensitiveLike);
+        $current = self::next243_scan($currentRows, $pattern, $escape, $collation, $caseSensitiveLike);
+        $next = self::next243_scan($nextRows, $pattern, $escape, $collation, $caseSensitiveLike);
+        $currentMatched = self::next243_rowids($current['matched']);
+        $nextMatched = self::next243_rowids($next['matched']);
+        $currentRtrimCandidates = self::next243_rowids($current['rtrimPrefixCandidates']);
+        $nextRtrimCandidates = self::next243_rowids($next['rtrimPrefixCandidates']);
+        $changes = self::next243_changes($current['trace'], $next['trace']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'storage-class' => $changes['storageRowids'],
+            'like-text' => $changes['likeTextRowids'],
+            'rtrim-key' => $changes['rtrimKeyRowids'],
+            'rtrim-prefix-candidates' => $currentRtrimCandidates === $nextRtrimCandidates ? [] : self::next243_uniqueSortedInts(array_merge($currentRtrimCandidates, $nextRtrimCandidates)),
+            'like-residual-result' => $changes['residualRowids'],
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : self::next243_uniqueSortedInts(array_merge($currentMatched, $nextMatched)),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next243',
+            'operator' => 'LIKE',
+            'expression' => 'option_value COLLATE ' . $collation . ' LIKE ? /* RTRIM collation does not trim LIKE residual */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => $collation,
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'prefix' => $like['prefix'],
+            'prefixCharacters' => $like['prefixCharacters'],
+            'prefixIsAscii' => $like['prefixIsAscii'],
+            'indexUsable' => $like['indexUsable'],
+            'rangeRejectedReason' => $like['rejectedReason'],
+            'rangeLowerInclusive' => $like['range']['lowerInclusive'] ?? null,
+            'rangeUpperBound' => $like['range']['upperBound'] ?? null,
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedRowids' => array_values(array_intersect($currentMatched, $nextMatched)),
+            'enteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
+            'exitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
+            'currentRtrimPrefixCandidateRowids' => $currentRtrimCandidates,
+            'nextRtrimPrefixCandidateRowids' => $nextRtrimCandidates,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'changedStorageRowids' => $changes['storageRowids'],
+            'changedLikeTextRowids' => $changes['likeTextRowids'],
+            'changedRtrimKeyRowids' => $changes['rtrimKeyRowids'],
+            'changedResidualRowids' => $changes['residualRowids'],
+            'rtrimCollationTrimsSpacesForKeyOnly' => true,
+            'likeResidualSeesTrailingSpaces' => true,
+            'likeResidualDoesNotUseRtrimEquality' => true,
+            'nocaseLikeFoldsAsciiOnly' => true,
+            'textAffinityBeforeLike' => true,
+            'nullAndBlobLikeAreUnknown' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-collation-prefix-range',
+                'sqlite-rtrim-collation-key',
+                'sqlite-text-affinity-like',
+                'sqlite-current-source-next243',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE planning, scalar text-affinity coercion, RTRIM key normalization, and current-source cursor invalidation diagnostics',
+            'non_overlap' => 'next243 covers RTRIM collation key versus LIKE residual behavior over current/next option_value scans; avoids accepted Unicode GLOB ranges, UTF-16 malformed guards, UTF-16 NOCASE/RTRIM cursor fences, REAL LIKE next238, escaped option_name LIKE next236, malformed-byte LIKE/NOT LIKE, and SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{trace:list<array<string,mixed>>,matched:list<array<string,mixed>>,rtrimPrefixCandidates:list<array<string,mixed>>,unknownRowids:list<int>}
+     */
+    private static function next243_scan(array $rows, string $pattern, ?string $escape, string $collation, bool $caseSensitiveLike): array
+    {
+        $trace = [];
+        $matched = [];
+        $rtrimPrefixCandidates = [];
+        $unknown = [];
+        $prefix = SQLiteDatabase::likePatternPlan($pattern, $escape)['prefix'];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite LIKE current-source next243 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $likeText = self::next243_likeText($row['option_value']);
+            if ($likeText === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+
+            $rtrimKey = rtrim($likeText, ' ');
+            $collationKey = self::next243_collationKey($likeText, $collation);
+            $rtrimPrefix = self::next243_startsWith($rtrimKey, $prefix, $caseSensitiveLike);
+            $residual = SQLiteDatabase::likeMatches($likeText, $pattern, $escape, $caseSensitiveLike);
+            $entry = [
+                'rowid' => $rowid,
+                'optionName' => (string) ($row['option_name'] ?? ''),
+                'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                'likeText' => $likeText,
+                'likeTextHex' => strtoupper(bin2hex($likeText)),
+                'rtrimKey' => $rtrimKey,
+                'rtrimKeyHex' => strtoupper(bin2hex($rtrimKey)),
+                'collationKey' => $collationKey,
+                'collationKeyHex' => strtoupper(bin2hex($collationKey)),
+                'rtrimPrefixCandidate' => $rtrimPrefix,
+                'residualMatch' => $residual,
+                'matched' => $residual === true,
+            ];
+            $trace[] = $entry;
+            if ($rtrimPrefix) {
+                $rtrimPrefixCandidates[] = $entry;
+            }
+            if ($entry['matched']) {
+                $matched[] = $entry;
+            }
+        }
+
+        usort($trace, self::next243_sortTrace(...));
+        usort($matched, self::next243_sortTrace(...));
+        usort($rtrimPrefixCandidates, self::next243_sortTrace(...));
+        sort($unknown);
+
+        return [
+            'trace' => $trace,
+            'matched' => $matched,
+            'rtrimPrefixCandidates' => $rtrimPrefixCandidates,
+            'unknownRowids' => $unknown,
+        ];
+    }
+
+    private static function next243_likeText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            $text = sprintf('%.15g', $value);
+            return str_contains($text, '.') || stripos($text, 'e') !== false ? $text : $text . '.0';
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite LIKE current-source next243 option_value must be scalar text-affinity input');
+    }
+
+    private static function next243_collationKey(string $text, string $collation): string
+    {
+        return match ($collation) {
+            'NOCASE' => self::next243_asciiLower($text),
+            'RTRIM' => rtrim($text, ' '),
+            default => $text,
+        };
+    }
+
+    private static function next243_startsWith(string $text, string $prefix, bool $caseInsensitiveAscii): bool
+    {
+        if ($caseInsensitiveAscii) {
+            $text = self::next243_asciiLower($text);
+            $prefix = self::next243_asciiLower($prefix);
+        }
+
+        return strncmp($text, $prefix, strlen($prefix)) === 0;
+    }
+
+    private static function next243_asciiLower(string $text): string
+    {
+        return strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    /** @param array<string,mixed> $left @param array<string,mixed> $right */
+    private static function next243_sortTrace(array $left, array $right): int
+    {
+        return strcmp((string) $left['collationKey'], (string) $right['collationKey']) ?: $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next243_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array{storageRowids:list<int>,likeTextRowids:list<int>,rtrimKeyRowids:list<int>,residualRowids:list<int>}
+     */
+    private static function next243_changes(array $current, array $next): array
+    {
+        $currentByRowid = self::next243_byRowid($current);
+        $nextByRowid = self::next243_byRowid($next);
+        $storage = [];
+        $text = [];
+        $rtrim = [];
+        $residual = [];
+
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['storage'] !== $nextByRowid[$rowid]['storage']) {
+                $storage[] = (int) $rowid;
+            }
+            if ($currentByRowid[$rowid]['likeText'] !== $nextByRowid[$rowid]['likeText']) {
+                $text[] = (int) $rowid;
+            }
+            if ($currentByRowid[$rowid]['rtrimKey'] !== $nextByRowid[$rowid]['rtrimKey']) {
+                $rtrim[] = (int) $rowid;
+            }
+            if ($currentByRowid[$rowid]['residualMatch'] !== $nextByRowid[$rowid]['residualMatch']) {
+                $residual[] = (int) $rowid;
+            }
+        }
+
+        return [
+            'storageRowids' => self::next243_uniqueSortedInts($storage),
+            'likeTextRowids' => self::next243_uniqueSortedInts($text),
+            'rtrimKeyRowids' => self::next243_uniqueSortedInts($rtrim),
+            'residualRowids' => self::next243_uniqueSortedInts($residual),
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next243_byRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function next243_uniqueSortedInts(array $values): array
+    {
+        $values = array_values(array_unique(array_map('intval', $values)));
+        sort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressUtf16OptionNameLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $collation = 'NOCASE',
+        string $currentSource = 'main.wp_options@243',
+        string $nextSource = 'main.wp_options@244',
+        int $currentSchemaCookie = 243,
+        int $nextSchemaCookie = 244,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite LIKE next244 collation: {$collation}");
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next244_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike, $collation);
+        $next = self::next244_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike, $collation);
+        $currentMatched = array_values(array_filter($current, static fn (array $row): bool => $row['residualMatch']));
+        $nextMatched = array_values(array_filter($next, static fn (array $row): bool => $row['residualMatch']));
+        $currentRowids = self::next244_rowids($currentMatched);
+        $nextRowids = self::next244_rowids($nextMatched);
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+
+        $currentByRowid = self::next244_rowsByRowid($currentMatched);
+        $nextByRowid = self::next244_rowsByRowid($nextMatched);
+        $changedBytes = [];
+        $changedEncoding = [];
+        foreach ($retained as $rowid) {
+            if (($currentByRowid[$rowid]['keyBytesHex'] ?? null) !== ($nextByRowid[$rowid]['keyBytesHex'] ?? null)) {
+                $changedBytes[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['textEncoding'] ?? null) !== ($nextByRowid[$rowid]['textEncoding'] ?? null)) {
+                $changedEncoding[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'encoded-bytes';
+        }
+        if ($changedEncoding !== []) {
+            $reasons[] = 'text-encoding';
+        }
+        $currentRejectedRowids = self::next244_rowids(array_values(array_filter($current, static fn (array $row): bool => !$row['residualMatch'])));
+        $nextRejectedRowids = self::next244_rowids(array_values(array_filter($next, static fn (array $row): bool => !$row['residualMatch'])));
+        if ($currentRejectedRowids !== $nextRejectedRowids) {
+            $reasons[] = 'range-residual';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next244',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE ' . $collation . ' LIKE ? ESCAPE ? /* mixed UTF source cursor */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $collation,
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next244_rowids($current),
+            'nextCandidateRowids' => self::next244_rowids($next),
+            'currentMatchedRowids' => $currentRowids,
+            'nextMatchedRowids' => $nextRowids,
+            'currentResidualRejectedRowids' => $currentRejectedRowids,
+            'nextResidualRejectedRowids' => $nextRejectedRowids,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedEncodedBytesRowids' => $changedBytes,
+            'changedEncodingRowids' => $changedEncoding,
+            'currentNames' => self::next244_fieldByRowid($currentByRowid, 'key'),
+            'nextNames' => self::next244_fieldByRowid($nextByRowid, 'key'),
+            'currentKeyBytesHex' => self::next244_fieldByRowid($currentByRowid, 'keyBytesHex'),
+            'nextKeyBytesHex' => self::next244_fieldByRowid($nextByRowid, 'keyBytesHex'),
+            'currentEncodings' => self::next244_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextEncodings' => self::next244_fieldByRowid($nextByRowid, 'textEncoding'),
+            'asciiNoCaseDoesNotFoldAccents' => true,
+            'utf16LeAndBeKeysCompareAfterDecode' => true,
+            'likeIgnoresRtrimCollationForResidual' => true,
+            'blobAndNullStayOutsideTextAffinityScan' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-encoding-source-cursor',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-current-source-next244',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native mixed UTF source decoding, LIKE tokenization, ASCII-only NOCASE comparison, and current-source invalidation diagnostics',
+            'non_overlap' => 'next244 covers mixed UTF-8/UTF-16 option_name LIKE current-source invalidation with ASCII-only NOCASE around accented bytes; avoids accepted next240 numeric LIKE, next241 embedded-NUL/malformed byte LIKE, Unicode GLOB ranges, UTF-16 malformed guards, UTF-16 RTRIM cursor fences, SQL executor, JSON, WAL, VFS, and B-tree clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int,residualMatch:bool}>
+     */
+    private static function next244_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, string $collation): array
+    {
+        return SQLiteEncodingCollationSourceCursor::wordpressOptionNameRangeScan(
+            self::next244_normalizeRows($rows),
+            $pattern,
+            'LIKE',
+            $collation,
+            $escape,
+            $caseSensitiveLike,
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function next244_normalizeRows(array $rows): array
+    {
+        $normalized = [];
+        foreach ($rows as $index => $row) {
+            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
+                throw new \InvalidArgumentException('SQLite LIKE next244 rows require integer option_id');
+            }
+            if (array_key_exists('option_name_bytes', $row)) {
+                if (!is_string($row['option_name_bytes'])) {
+                    throw new \InvalidArgumentException('SQLite LIKE next244 option_name_bytes must be a string');
+                }
+                if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                    throw new \InvalidArgumentException('SQLite LIKE next244 byte rows require integer text_encoding');
+                }
+                $normalized[] = $row;
+                continue;
+            }
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite LIKE next244 rows require option_name or option_name_bytes');
+            }
+            $value = $row['option_name'];
+            if ($value === null || $value instanceof SQLiteBlobValue) {
+                continue;
+            }
+            if (!is_scalar($value)) {
+                throw new \InvalidArgumentException('SQLite LIKE next244 option_name must be scalar text-affinity input');
+            }
+            $encoding = self::next244_encodingCode($row['text_encoding'] ?? 'UTF-8');
+            $row['option_name_bytes'] = SQLiteEncodingCollationSourceCursor::encodeText((string) $value, $encoding);
+            $row['text_encoding'] = $encoding;
+            $row['option_id'] = $row['option_id'] ?? $index + 1;
+            $normalized[] = $row;
+        }
+
+        return $normalized;
+    }
+
+    private static function next244_encodingCode(mixed $encoding): int
+    {
+        if (is_int($encoding)) {
+            if (in_array($encoding, [1, 2, 3], true)) {
+                return $encoding;
+            }
+            throw new \InvalidArgumentException('SQLite LIKE next244 text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+        if (!is_string($encoding)) {
+            throw new \InvalidArgumentException('SQLite LIKE next244 text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+
+        return match (strtoupper(str_replace('_', '-', $encoding))) {
+            'UTF-8', 'UTF8' => 1,
+            'UTF-16LE', 'UTF16LE' => 2,
+            'UTF-16BE', 'UTF16BE' => 3,
+            default => throw new \InvalidArgumentException('SQLite LIKE next244 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next244_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next244_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next244_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressDanglingEscapeLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_cache!',
+        ?string $escape = '!',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@244',
+        string $nextSource = 'main.wp_options@245',
+        int $currentSchemaCookie = 244,
+        int $nextSchemaCookie = 245,
+    ): array {
+        if ($escape !== null && self::next245_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite dangling-escape LIKE next245 ESCAPE must be one SQLite pattern character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $caseSensitiveLike ? $patternPlan['binaryRange'] : $patternPlan['noCaseRange'];
+        $current = self::next245_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike, $range);
+        $next = self::next245_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike, $range);
+        $currentCandidates = self::next245_rowids($current['candidates']);
+        $nextCandidates = self::next245_rowids($next['candidates']);
+        $currentMatched = self::next245_rowids($current['matched']);
+        $nextMatched = self::next245_rowids($next['matched']);
+        $currentRejected = self::next245_rowids($current['rejected']);
+        $nextRejected = self::next245_rowids($next['rejected']);
+        $retainedCandidates = array_values(array_intersect($currentCandidates, $nextCandidates));
+        $exitedCandidates = array_values(array_diff($currentCandidates, $nextCandidates));
+        $enteredCandidates = array_values(array_diff($nextCandidates, $currentCandidates));
+        $changedBytes = [];
+        $changedStorage = [];
+        $currentByRowid = self::next245_rowsByRowid($current['candidates']);
+        $nextByRowid = self::next245_rowsByRowid($next['candidates']);
+        foreach ($retainedCandidates as $rowid) {
+            if (($currentByRowid[$rowid]['nameHex'] ?? null) !== ($nextByRowid[$rowid]['nameHex'] ?? null)) {
+                $changedBytes[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['storage'] ?? null) !== ($nextByRowid[$rowid]['storage'] ?? null)) {
+                $changedStorage[] = $rowid;
+            }
+        }
+        sort($changedBytes);
+        sort($changedStorage);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($enteredCandidates !== [] || $exitedCandidates !== []) {
+            $reasons[] = 'candidate-rowset';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'option-name-bytes';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+        if ($currentRejected !== [] || $nextRejected !== []) {
+            $reasons[] = 'dangling-escape-residual';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next245',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE ' . ($caseSensitiveLike ? 'BINARY' : 'NOCASE') . ' LIKE ? ESCAPE ? /* dangling ESCAPE residual */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'patternTokenHex' => self::next245_tokenHexList($pattern),
+            'patternCharacters' => self::next245_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixTokenHex' => self::next245_tokenHexList($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'rangeLowerInclusive' => $range['lowerInclusive'],
+            'rangeUpperBound' => $range['upperBound'],
+            'rangeLowerInclusiveHex' => bin2hex($range['lowerInclusive']),
+            'rangeUpperBoundHex' => $range['upperBound'] === null ? null : bin2hex($range['upperBound']),
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'retainedCandidateRowids' => $retainedCandidates,
+            'exitedCandidateRowids' => $exitedCandidates,
+            'enteredCandidateRowids' => $enteredCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'currentResidualRejectedRowids' => $currentRejected,
+            'nextResidualRejectedRowids' => $nextRejected,
+            'changedNameBytesRowids' => $changedBytes,
+            'changedStorageRowids' => $changedStorage,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentMalformedHex' => $current['malformedHex'],
+            'nextMalformedHex' => $next['malformedHex'],
+            'currentNames' => self::next245_fieldByRowid($currentByRowid, 'name'),
+            'nextNames' => self::next245_fieldByRowid($nextByRowid, 'name'),
+            'currentNameHex' => self::next245_fieldByRowid($currentByRowid, 'nameHex'),
+            'nextNameHex' => self::next245_fieldByRowid($nextByRowid, 'nameHex'),
+            'currentTokenHex' => self::next245_fieldByRowid($currentByRowid, 'tokenHex'),
+            'nextTokenHex' => self::next245_fieldByRowid($nextByRowid, 'tokenHex'),
+            'currentTokenCounts' => self::next245_fieldByRowid($currentByRowid, 'tokenCount'),
+            'nextTokenCounts' => self::next245_fieldByRowid($nextByRowid, 'tokenCount'),
+            'currentStorage' => self::next245_fieldByRowid($currentByRowid, 'storage'),
+            'nextStorage' => self::next245_fieldByRowid($nextByRowid, 'storage'),
+            'danglingEscapeMakesResidualFalse' => true,
+            'rangeMayAdmitResidualRejectedRows' => true,
+            'escapedUnderscoreIsPrefixLiteral' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'blobAndNullRemainUnknown' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-dangling-escape-residual',
+                'sqlite-like-escape-prefix-range',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next245',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, ESCAPE prefix planning, text-affinity coercion, and current-source invalidation diagnostics',
+            'non_overlap' => 'next245 covers dangling ESCAPE LIKE residual rejection after prefix range admission; avoids accepted next242 embedded-NUL value LIKE, next241 byte-aware option_name LIKE, Unicode GLOB ranges, UTF-16 malformed guards, and SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,rejected:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,malformedHex:array<int,string>}
+     */
+    private static function next245_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, array $range): array
+    {
+        $candidates = [];
+        $matched = [];
+        $rejected = [];
+        $unknown = [];
+        $malformedRowids = [];
+        $malformedHex = [];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite dangling-escape LIKE next245 row requires option_name');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $coerced = self::next245_coerceText($row['option_name']);
+            if ($coerced === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            [$name, $storage] = $coerced;
+            if (preg_match('//u', $name) !== 1) {
+                $malformedRowids[] = $rowid;
+                $malformedHex[$rowid] = bin2hex($name);
+            }
+            if (!self::next245_withinRange($name, $range, $caseSensitiveLike)) {
+                continue;
+            }
+            $entry = [
+                'rowid' => $rowid,
+                'name' => $name,
+                'nameHex' => bin2hex($name),
+                'tokenHex' => self::next245_tokenHexList($name),
+                'tokenCount' => self::next245_sqlitePatternLength($name),
+                'storage' => $storage,
+            ];
+            $candidates[] = $entry;
+            if (SQLiteDatabase::likeMatches($name, $pattern, $escape, $caseSensitiveLike)) {
+                $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp(self::next245_asciiLower($left['name']), self::next245_asciiLower($right['name'])) ?: $left['rowid'] <=> $right['rowid'];
+        usort($candidates, $sort);
+        usort($matched, $sort);
+        usort($rejected, $sort);
+        sort($unknown);
+        sort($malformedRowids);
+        ksort($malformedHex);
+
+        return [
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'rejected' => $rejected,
+            'unknownRowids' => $unknown,
+            'malformedRowids' => $malformedRowids,
+            'malformedHex' => $malformedHex,
+        ];
+    }
+
+    /** @return null|array{0:string,1:string} */
+    private static function next245_coerceText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return [$value, 'text'];
+        }
+        if (is_int($value)) {
+            return [(string) $value, 'integer'];
+        }
+        if (is_float($value)) {
+            return [rtrim(rtrim(sprintf('%.15G', $value), '0'), '.'), 'real'];
+        }
+        if (is_bool($value)) {
+            return [$value ? '1' : '0', 'integer'];
+        }
+
+        throw new \InvalidArgumentException('SQLite dangling-escape LIKE next245 option_name must be scalar text-affinity input');
+    }
+
+    /** @param array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next245_withinRange(string $value, array $range, bool $caseSensitiveLike): bool
+    {
+        $key = $caseSensitiveLike ? $value : self::next245_asciiLower($value);
+        if (strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next245_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next245_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next245_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next245_sqlitePatternLength(string $text): int
+    {
+        return count(self::next245_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next245_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next245_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next245_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    private static function next245_asciiLower(string $value): string
+    {
+        $bytes = $value;
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $ord = ord($bytes[$i]);
+            if ($ord >= 0x41 && $ord <= 0x5a) {
+                $bytes[$i] = chr($ord + 0x20);
+            }
+        }
+
+        return $bytes;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressDynamicEscapeLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        mixed $currentEscape,
+        mixed $nextEscape,
+        string $collation = 'NOCASE',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@245',
+        string $nextSource = 'main.wp_options@246',
+        int $currentSchemaCookie = 245,
+        int $nextSchemaCookie = 246,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException('SQLite dynamic ESCAPE LIKE next246 collation must be BINARY, NOCASE, or RTRIM');
+        }
+
+        $currentEscapePlan = self::next246_escapePlan($currentEscape, 'current');
+        $nextEscapePlan = self::next246_escapePlan($nextEscape, 'next');
+        $current = self::next246_scan($currentRows, $pattern, $currentEscapePlan['escape'], $collation, $caseSensitiveLike);
+        $next = self::next246_scan($nextRows, $pattern, $nextEscapePlan['escape'], $collation, $caseSensitiveLike);
+        $currentMatched = self::next246_rowids($current['matched']);
+        $nextMatched = self::next246_rowids($next['matched']);
+        $changes = self::next246_changes($current['trace'], $next['trace']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentEscapePlan['escapeHex'] !== $nextEscapePlan['escapeHex'] || $currentEscapePlan['storage'] !== $nextEscapePlan['storage']) {
+            $reasons[] = 'escape-affinity';
+        }
+        if ($currentEscapePlan['error'] !== null || $nextEscapePlan['error'] !== null) {
+            $reasons[] = 'escape-malformed';
+        }
+        foreach ([
+            'storage-class' => $changes['storageRowids'],
+            'like-text' => $changes['likeTextRowids'],
+            'collation-key' => $changes['collationKeyRowids'],
+            'residual-result' => $changes['residualRowids'],
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : self::next246_uniqueSortedInts(array_merge($currentMatched, $nextMatched)),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next246',
+            'operator' => 'LIKE',
+            'expression' => 'option_value COLLATE ' . $collation . ' LIKE ? ESCAPE dynamic_escape /* ESCAPE text affinity current-source fence */',
+            'pattern' => $pattern,
+            'patternHex' => strtoupper(bin2hex($pattern)),
+            'collation' => $collation,
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'currentEscape' => $currentEscapePlan,
+            'nextEscape' => $nextEscapePlan,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedRowids' => array_values(array_intersect($currentMatched, $nextMatched)),
+            'enteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
+            'exitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'changedStorageRowids' => $changes['storageRowids'],
+            'changedLikeTextRowids' => $changes['likeTextRowids'],
+            'changedCollationKeyRowids' => $changes['collationKeyRowids'],
+            'changedResidualRowids' => $changes['residualRowids'],
+            'dynamicEscapeUsesTextAffinity' => true,
+            'escapeMustBeOneSqlCharacter' => true,
+            'escapeRebindInvalidatesCursor' => true,
+            'nullEscapeMakesLikeUnknown' => true,
+            'blobEscapeIsNotTextAffinityInput' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-dynamic-escape-affinity',
+                'sqlite-like-residual',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-current-source-next246',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE residual matching, scalar text-affinity conversion, ASCII NOCASE collation keys, and current-source invalidation diagnostics',
+            'non_overlap' => 'next246 covers dynamic ESCAPE operand affinity and rebind fencing; avoids fixed escaped wildcard next236/next237, malformed-byte LIKE/NOT LIKE, UTF-16 NOCASE/RTRIM cursor fences, Unicode GLOB ranges, and VFS/WAL/B-tree/JSON/SQL executor clusters',
+        ];
+    }
+
+    /** @return array{storage:string,escape:?string,escapeHex:?string,error:?string,unknown:bool} */
+    private static function next246_escapePlan(mixed $value, string $label): array
+    {
+        $storage = SQLiteAffinityComparison::storageClass($value);
+        if ($value === null) {
+            return ['storage' => $storage, 'escape' => null, 'escapeHex' => null, 'error' => null, 'unknown' => true];
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return ['storage' => $storage, 'escape' => null, 'escapeHex' => strtoupper(bin2hex($value->bytes)), 'error' => "SQLite dynamic ESCAPE LIKE next246 {$label} ESCAPE is BLOB, not text", 'unknown' => true];
+        }
+        $escape = self::next246_likeText($value);
+        if ($escape === null) {
+            return ['storage' => $storage, 'escape' => null, 'escapeHex' => null, 'error' => "SQLite dynamic ESCAPE LIKE next246 {$label} ESCAPE is not scalar text", 'unknown' => true];
+        }
+        if (self::next246_sqlitePatternLength($escape) !== 1) {
+            return ['storage' => $storage, 'escape' => null, 'escapeHex' => strtoupper(bin2hex($escape)), 'error' => "SQLite dynamic ESCAPE LIKE next246 {$label} ESCAPE must be one SQLite character after affinity", 'unknown' => true];
+        }
+
+        return ['storage' => $storage, 'escape' => $escape, 'escapeHex' => strtoupper(bin2hex($escape)), 'error' => null, 'unknown' => false];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{trace:list<array<string,mixed>>,matched:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next246_scan(array $rows, string $pattern, ?string $escape, string $collation, bool $caseSensitiveLike): array
+    {
+        $trace = [];
+        $matched = [];
+        $unknown = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite dynamic ESCAPE LIKE next246 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            try {
+                $likeText = self::next246_likeText($row['option_value']);
+                if ($likeText === null || $escape === null) {
+                    $unknown[] = $rowid;
+                    continue;
+                }
+                if (preg_match('//u', $likeText) !== 1) {
+                    throw new \InvalidArgumentException('SQLite dynamic ESCAPE LIKE next246 option_value text is malformed UTF-8');
+                }
+                $residual = SQLiteDatabase::likeMatches($likeText, $pattern, $escape, $caseSensitiveLike);
+                $entry = [
+                    'rowid' => $rowid,
+                    'optionName' => (string) ($row['option_name'] ?? ''),
+                    'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                    'likeText' => $likeText,
+                    'likeTextHex' => strtoupper(bin2hex($likeText)),
+                    'collationKey' => self::next246_collationKey($likeText, $collation),
+                    'residualMatch' => $residual,
+                    'matched' => $residual,
+                ];
+                $trace[] = $entry;
+                if ($residual) {
+                    $matched[] = $entry;
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+            }
+        }
+
+        usort($trace, self::next246_sortTrace(...));
+        usort($matched, self::next246_sortTrace(...));
+        sort($unknown);
+        sort($malformed);
+        ksort($errors);
+
+        return ['trace' => $trace, 'matched' => $matched, 'unknownRowids' => $unknown, 'malformedRowids' => $malformed, 'errors' => $errors];
+    }
+
+    private static function next246_likeText(mixed $value): ?string
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            $text = sprintf('%.15g', $value);
+            return str_contains($text, '.') || stripos($text, 'e') !== false ? $text : $text . '.0';
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite dynamic ESCAPE LIKE next246 option_value must be scalar text-affinity input');
+    }
+
+    private static function next246_collationKey(string $text, string $collation): string
+    {
+        return match ($collation) {
+            'NOCASE' => strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+            'RTRIM' => rtrim($text, ' '),
+            default => $text,
+        };
+    }
+
+    private static function next246_sortTrace(array $left, array $right): int
+    {
+        return strcmp($left['collationKey'], $right['collationKey']) ?: $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next246_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array{storageRowids:list<int>,likeTextRowids:list<int>,collationKeyRowids:list<int>,residualRowids:list<int>}
+     */
+    private static function next246_changes(array $current, array $next): array
+    {
+        $currentByRowid = self::next246_rowsByRowid($current);
+        $nextByRowid = self::next246_rowsByRowid($next);
+        $rowids = self::next246_uniqueSortedInts(array_merge(array_keys($currentByRowid), array_keys($nextByRowid)));
+        $storage = [];
+        $text = [];
+        $key = [];
+        $residual = [];
+        foreach ($rowids as $rowid) {
+            $left = $currentByRowid[$rowid] ?? null;
+            $right = $nextByRowid[$rowid] ?? null;
+            if ($left === null || $right === null) {
+                $storage[] = $rowid;
+                $text[] = $rowid;
+                $key[] = $rowid;
+                $residual[] = $rowid;
+                continue;
+            }
+            if ($left['storage'] !== $right['storage']) {
+                $storage[] = $rowid;
+            }
+            if ($left['likeText'] !== $right['likeText']) {
+                $text[] = $rowid;
+            }
+            if ($left['collationKey'] !== $right['collationKey']) {
+                $key[] = $rowid;
+            }
+            if ($left['residualMatch'] !== $right['residualMatch']) {
+                $residual[] = $rowid;
+            }
+        }
+
+        return [
+            'storageRowids' => self::next246_uniqueSortedInts($storage),
+            'likeTextRowids' => self::next246_uniqueSortedInts($text),
+            'collationKeyRowids' => self::next246_uniqueSortedInts($key),
+            'residualRowids' => self::next246_uniqueSortedInts($residual),
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next246_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function next246_uniqueSortedInts(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values);
+
+        return $values;
+    }
+
+    private static function next246_sqlitePatternLength(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+        if (preg_match_all('/./us', $text, $matches) === false || implode('', $matches[0]) !== $text) {
+            return strlen($text);
+        }
+
+        return count($matches[0]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressUnicodeNoCaseLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        string $collation = 'NOCASE',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@246',
+        string $nextSource = 'main.wp_options@247',
+        int $currentSchemaCookie = 246,
+        int $nextSchemaCookie = 247,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite LIKE next247 collation: {$collation}");
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next247_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next247_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentMatched = array_values(array_filter($current, static fn (array $row): bool => $row['residualMatch']));
+        $nextMatched = array_values(array_filter($next, static fn (array $row): bool => $row['residualMatch']));
+        $currentRowids = self::next247_rowids($currentMatched);
+        $nextRowids = self::next247_rowids($nextMatched);
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $currentByRowid = self::next247_rowsByRowid($currentMatched);
+        $nextByRowid = self::next247_rowsByRowid($nextMatched);
+        $changedText = [];
+        $changedBytes = [];
+        $changedEncoding = [];
+        $changedStorage = [];
+
+        foreach ($retained as $rowid) {
+            if (($currentByRowid[$rowid]['likeText'] ?? null) !== ($nextByRowid[$rowid]['likeText'] ?? null)) {
+                $changedText[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['likeTextHex'] ?? null) !== ($nextByRowid[$rowid]['likeTextHex'] ?? null)) {
+                $changedBytes[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['textEncoding'] ?? null) !== ($nextByRowid[$rowid]['textEncoding'] ?? null)) {
+                $changedEncoding[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['storageClass'] ?? null) !== ($nextByRowid[$rowid]['storageClass'] ?? null)) {
+                $changedStorage[] = $rowid;
+            }
+        }
+
+        $indexUsable = self::next247_likeIndexUsable($patternPlan, $collation, $caseSensitiveLike);
+        $currentRejected = self::next247_rowids(array_values(array_filter($current, static fn (array $row): bool => !$row['residualMatch'])));
+        $nextRejected = self::next247_rowids(array_values(array_filter($next, static fn (array $row): bool => !$row['residualMatch'])));
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'storage-class';
+        }
+        if ($changedText !== []) {
+            $reasons[] = 'like-text';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'encoded-bytes';
+        }
+        if ($changedEncoding !== []) {
+            $reasons[] = 'text-encoding';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($currentRejected !== $nextRejected) {
+            $reasons[] = 'residual-rejections';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next247',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE ' . $collation . ' LIKE ? ESCAPE ? /* non-ASCII prefix keeps residual authoritative */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $collation,
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'indexUsable' => $indexUsable,
+            'rangeRejectedReason' => $indexUsable ? null : self::next247_rangeRejectedReason($patternPlan, $collation, $caseSensitiveLike),
+            'rangeLowerInclusive' => $indexUsable ? $patternPlan[$caseSensitiveLike ? 'binaryRange' : 'noCaseRange']['lowerInclusive'] ?? null : null,
+            'rangeUpperBound' => $indexUsable ? $patternPlan[$caseSensitiveLike ? 'binaryRange' : 'noCaseRange']['upperBound'] ?? null : null,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next247_rowids($current),
+            'nextCandidateRowids' => self::next247_rowids($next),
+            'currentMatchedRowids' => $currentRowids,
+            'nextMatchedRowids' => $nextRowids,
+            'currentResidualRejectedRowids' => $currentRejected,
+            'nextResidualRejectedRowids' => $nextRejected,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedLikeTextRowids' => $changedText,
+            'changedEncodedBytesRowids' => $changedBytes,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedStorageClassRowids' => $changedStorage,
+            'currentNames' => self::next247_fieldByRowid($currentByRowid, 'likeText'),
+            'nextNames' => self::next247_fieldByRowid($nextByRowid, 'likeText'),
+            'currentNameHex' => self::next247_fieldByRowid($currentByRowid, 'likeTextHex'),
+            'nextNameHex' => self::next247_fieldByRowid($nextByRowid, 'likeTextHex'),
+            'currentEncodings' => self::next247_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextEncodings' => self::next247_fieldByRowid($nextByRowid, 'textEncoding'),
+            'currentStorage' => self::next247_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorage' => self::next247_fieldByRowid($nextByRowid, 'storageClass'),
+            'currentTrace' => self::next247_traceByPosition($current),
+            'nextTrace' => self::next247_traceByPosition($next),
+            'asciiNoCaseFoldsOnlyAscii' => true,
+            'nonAsciiPrefixDisablesNoCaseRange' => $collation === 'NOCASE' && !$caseSensitiveLike && !$patternPlan['prefixIsAscii'],
+            'unicodeLikeResidualRemainsCaseSensitiveForAccents' => true,
+            'utf16LeAndBeDecodeBeforeLike' => true,
+            'numericTextAffinityRunsBeforeLike' => true,
+            'blobAndNullStayOutsideLike' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-escape-tokenizer',
+                'sqlite-mixed-utf-source-decoder',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-text-affinity-like',
+                'sqlite-current-source-next247',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses lane-local LIKE tokenization, mixed UTF decoding, ASCII-only NOCASE semantics, and text-affinity diagnostics',
+            'non_overlap' => 'next247 covers non-ASCII LIKE prefixes under NOCASE with mixed UTF and scalar text affinity; avoids accepted Unicode GLOB ranges, UTF-16 malformed guards, numeric option_value LIKE next240, byte/NUL option_name LIKE next241, mixed UTF ASCII-prefix LIKE next244, SQL executor, JSON, WAL, VFS, and B-tree clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next247_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $scanned = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite LIKE next247 rows require option_name or option_name_bytes');
+            }
+            $coerced = self::next247_coerceLikeText($row, $index);
+            if ($coerced === null) {
+                continue;
+            }
+            $scanned[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'likeText' => $coerced['likeText'],
+                'likeTextHex' => bin2hex($coerced['likeText']),
+                'textEncoding' => $coerced['textEncoding'],
+                'storageClass' => $coerced['storageClass'],
+                'residualMatch' => SQLiteDatabase::likeMatches($coerced['likeText'], $pattern, $escape, $caseSensitiveLike),
+            ];
+        }
+
+        usort($scanned, static fn (array $left, array $right): int => strcmp($left['likeText'], $right['likeText']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $scanned;
+    }
+
+    /** @param array<string,mixed> $row @return array{likeText:string,textEncoding:string,storageClass:string}|null */
+    private static function next247_coerceLikeText(array $row, int $index): ?array
+    {
+        if (array_key_exists('option_name_bytes', $row)) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite LIKE next247 byte rows require option_name_bytes and integer text_encoding');
+            }
+            return [
+                'likeText' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']),
+                'textEncoding' => self::next247_encodingName($row['text_encoding']),
+                'storageClass' => 'text',
+            ];
+        }
+
+        $value = $row['option_name'];
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value)) {
+            return ['likeText' => (string) $value, 'textEncoding' => 'UTF-8', 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            return ['likeText' => self::next247_formatReal($value), 'textEncoding' => 'UTF-8', 'storageClass' => 'real'];
+        }
+        if (is_bool($value)) {
+            return ['likeText' => $value ? '1' : '0', 'textEncoding' => 'UTF-8', 'storageClass' => 'integer'];
+        }
+        if (is_string($value)) {
+            if (preg_match('//u', $value) !== 1) {
+                throw new \InvalidArgumentException('SQLite LIKE next247 string option_name must be well-formed UTF-8');
+            }
+            return ['likeText' => $value, 'textEncoding' => 'UTF-8', 'storageClass' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite LIKE next247 option_name must be scalar text-affinity input');
+    }
+
+    /** @param array<string,mixed> $patternPlan */
+    private static function next247_likeIndexUsable(array $patternPlan, string $collation, bool $caseSensitiveLike): bool
+    {
+        if ($patternPlan['prefix'] === '' || !$patternPlan['prefixIsAscii']) {
+            return false;
+        }
+        if ($caseSensitiveLike) {
+            return $collation === 'BINARY';
+        }
+
+        return $collation === 'NOCASE';
+    }
+
+    /** @param array<string,mixed> $patternPlan */
+    private static function next247_rangeRejectedReason(array $patternPlan, string $collation, bool $caseSensitiveLike): string
+    {
+        if ($patternPlan['prefix'] === '') {
+            return 'no_literal_prefix';
+        }
+        if (!$patternPlan['prefixIsAscii']) {
+            return 'non_ascii_prefix_requires_residual_scan';
+        }
+        if ($caseSensitiveLike && $collation !== 'BINARY') {
+            return 'case_sensitive_like_requires_binary_index';
+        }
+        if (!$caseSensitiveLike && $collation !== 'NOCASE') {
+            return 'default_like_requires_nocase_index';
+        }
+
+        return 'range_not_available';
+    }
+
+    private static function next247_formatReal(float $value): string
+    {
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private static function next247_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite LIKE next247 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next247_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next247_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next247_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next247_traceByPosition(array $rows): array
+    {
+        $trace = [];
+        foreach ($rows as $position => $row) {
+            $trace[$position] = $row;
+        }
+
+        return $trace;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressNonAsciiEscapeLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'pluginé_cacheé%%',
+        ?string $escape = 'é',
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@247',
+        string $nextSource = 'main.wp_options@248',
+        int $currentSchemaCookie = 247,
+        int $nextSchemaCookie = 248,
+    ): array {
+        if ($escape !== null && self::next248_sqlitePatternLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite non-ASCII ESCAPE LIKE next248 ESCAPE must be one SQLite pattern character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $caseSensitiveLike ? $patternPlan['binaryRange'] : $patternPlan['noCaseRange'];
+        $current = self::next248_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike, $range);
+        $next = self::next248_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike, $range);
+        $currentCandidates = self::next248_rowids($current['candidates']);
+        $nextCandidates = self::next248_rowids($next['candidates']);
+        $currentMatched = self::next248_rowids($current['matched']);
+        $nextMatched = self::next248_rowids($next['matched']);
+        $currentRejected = self::next248_rowids($current['rejected']);
+        $nextRejected = self::next248_rowids($next['rejected']);
+        $retainedMatched = array_values(array_intersect($currentMatched, $nextMatched));
+        $exitedMatched = array_values(array_diff($currentMatched, $nextMatched));
+        $enteredMatched = array_values(array_diff($nextMatched, $currentMatched));
+        $currentByRowid = self::next248_rowsByRowid($current['trace']);
+        $nextByRowid = self::next248_rowsByRowid($next['trace']);
+        $changedDecoded = [];
+        $changedEncoding = [];
+        $changedResidual = [];
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if (($currentByRowid[$rowid]['decodedHex'] ?? null) !== ($nextByRowid[$rowid]['decodedHex'] ?? null)) {
+                $changedDecoded[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['textEncoding'] ?? null) !== ($nextByRowid[$rowid]['textEncoding'] ?? null)) {
+                $changedEncoding[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['residualMatch'] ?? null) !== ($nextByRowid[$rowid]['residualMatch'] ?? null)) {
+                $changedResidual[] = $rowid;
+            }
+        }
+        sort($changedDecoded);
+        sort($changedEncoding);
+        sort($changedResidual);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($currentCandidates !== $nextCandidates) {
+            $reasons[] = 'candidate-rowset';
+        }
+        if ($currentMatched !== $nextMatched) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedDecoded !== []) {
+            $reasons[] = 'decoded-text';
+        }
+        if ($changedEncoding !== []) {
+            $reasons[] = 'text-encoding';
+        }
+        if ($changedResidual !== []) {
+            $reasons[] = 'like-residual-result';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next248',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE ' . ($caseSensitiveLike ? 'BINARY' : 'NOCASE') . ' LIKE ? ESCAPE ? /* non-ASCII ESCAPE */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'patternTokenHex' => self::next248_tokenHexList($pattern),
+            'patternCharacters' => self::next248_sqlitePatternLength($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'escapeTokenHex' => $escape === null ? null : self::next248_tokenHexList($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixTokenHex' => self::next248_tokenHexList($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'rangeLowerInclusive' => $range['lowerInclusive'],
+            'rangeUpperBound' => $range['upperBound'],
+            'rangeLowerInclusiveHex' => bin2hex($range['lowerInclusive']),
+            'rangeUpperBoundHex' => $range['upperBound'] === null ? null : bin2hex($range['upperBound']),
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retainedMatched,
+            'exitedMatchedRowids' => $exitedMatched,
+            'enteredMatchedRowids' => $enteredMatched,
+            'currentResidualRejectedRowids' => $currentRejected,
+            'nextResidualRejectedRowids' => $nextRejected,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentDecodedHex' => self::next248_fieldByRowid($currentByRowid, 'decodedHex'),
+            'nextDecodedHex' => self::next248_fieldByRowid($nextByRowid, 'decodedHex'),
+            'currentTokenHex' => self::next248_fieldByRowid($currentByRowid, 'tokenHex'),
+            'nextTokenHex' => self::next248_fieldByRowid($nextByRowid, 'tokenHex'),
+            'currentTextEncoding' => self::next248_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextTextEncoding' => self::next248_fieldByRowid($nextByRowid, 'textEncoding'),
+            'currentResidualMatches' => self::next248_fieldByRowid($currentByRowid, 'residualMatch'),
+            'nextResidualMatches' => self::next248_fieldByRowid($nextByRowid, 'residualMatch'),
+            'changedDecodedRowids' => $changedDecoded,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedResidualRowids' => $changedResidual,
+            'nonAsciiEscapeIsSinglePatternCharacter' => true,
+            'escapedUnderscoreAndPercentAreLiterals' => true,
+            'prefixRangeUsesDecodedTextNotEncodedBytes' => true,
+            'nocaseFoldsAsciiOnlyAfterUtf16Decode' => true,
+            'malformedUtf16RowsDoNotEnterRange' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-non-ascii-escape-tokenizer',
+                'sqlite-utf16-decode',
+                'sqlite-like-escape-prefix-range',
+                'sqlite-nocase-ascii-collation',
+                'sqlite-current-source-next248',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, UTF-16 decode guards, escaped-prefix range planning, ASCII-only NOCASE comparison, and current-source invalidation diagnostics',
+            'non_overlap' => 'next248 covers non-ASCII single-character ESCAPE handling for UTF-8/UTF-16 option_name LIKE scans; avoids accepted next245 dangling ASCII ESCAPE residuals, next242 embedded-NUL value LIKE, Unicode GLOB ranges, UTF-16 malformed insert guards, and SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{trace:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,rejected:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next248_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, array $range): array
+    {
+        $trace = [];
+        $candidates = [];
+        $matched = [];
+        $rejected = [];
+        $unknown = [];
+        $malformed = [];
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite non-ASCII ESCAPE LIKE next248 row requires option_name_bytes');
+            }
+            if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite non-ASCII ESCAPE LIKE next248 row requires integer text_encoding');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            if ($row['option_name_bytes'] === null || $row['option_name_bytes'] instanceof SQLiteBlobValue) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            if (!is_string($row['option_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite non-ASCII ESCAPE LIKE next248 option_name_bytes must be text bytes');
+            }
+
+            try {
+                $decoded = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+            } catch (\InvalidArgumentException $exception) {
+                if (str_contains($exception->getMessage(), 'SQLite text encoding must be')) {
+                    throw $exception;
+                }
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+                continue;
+            }
+
+            $residual = SQLiteDatabase::likeMatches($decoded, $pattern, $escape, $caseSensitiveLike);
+            $entry = [
+                'rowid' => $rowid,
+                'decoded' => $decoded,
+                'decodedHex' => bin2hex($decoded),
+                'tokenHex' => self::next248_tokenHexList($decoded),
+                'textEncoding' => self::next248_encodingName($row['text_encoding']),
+                'rangeCandidate' => self::next248_withinRange($decoded, $range, $caseSensitiveLike),
+                'residualMatch' => $residual,
+            ];
+            $trace[] = $entry;
+            if (!$entry['rangeCandidate']) {
+                continue;
+            }
+            $candidates[] = $entry;
+            if ($residual) {
+                $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp(self::next248_asciiLower($left['decoded']), self::next248_asciiLower($right['decoded'])) ?: $left['rowid'] <=> $right['rowid'];
+        usort($trace, $sort);
+        usort($candidates, $sort);
+        usort($matched, $sort);
+        usort($rejected, $sort);
+        sort($unknown);
+        sort($malformed);
+        ksort($errors);
+
+        return [
+            'trace' => $trace,
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'rejected' => $rejected,
+            'unknownRowids' => $unknown,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next248_withinRange(string $value, array $range, bool $caseSensitiveLike): bool
+    {
+        $key = $caseSensitiveLike ? $value : self::next248_asciiLower($value);
+        if (strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next248_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next248_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next248_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next248_sqlitePatternLength(string $text): int
+    {
+        return count(self::next248_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next248_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next248_sqlitePatternCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next248_sqlitePatternCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        $characters = [];
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length;) {
+            $byte = ord($text[$offset]);
+            $sequenceLength = match (true) {
+                $byte < 0x80 => 1,
+                $byte >= 0xc2 && $byte <= 0xdf => 2,
+                $byte >= 0xe0 && $byte <= 0xef => 3,
+                $byte >= 0xf0 && $byte <= 0xf4 => 4,
+                default => 1,
+            };
+            $sequence = substr($text, $offset, $sequenceLength);
+            if ($sequenceLength > 1 && strlen($sequence) === $sequenceLength && preg_match('//u', $sequence) === 1) {
+                $characters[] = $sequence;
+                $offset += $sequenceLength;
+                continue;
+            }
+            $characters[] = $text[$offset];
+            $offset++;
+        }
+
+        return $characters;
+    }
+
+    private static function next248_asciiLower(string $text): string
+    {
+        return strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    private static function next248_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressRtrimLikeSourcePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_cache',
+        ?string $escape = '!',
+        string $currentSource = 'main.wp_options@248',
+        string $nextSource = 'main.wp_options@249',
+        int $currentSchemaCookie = 248,
+        int $nextSchemaCookie = 249,
+    ): array {
+        if ($escape !== null && self::next249_sqliteCharacterCount($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 ESCAPE must be one SQLite pattern character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $patternPlan['binaryRange'];
+        $current = self::next249_scanRows($currentRows, $pattern, $escape, $range);
+        $next = self::next249_scanRows($nextRows, $pattern, $escape, $range);
+        $currentCandidates = self::next249_rowids($current);
+        $nextCandidates = self::next249_rowids($next);
+        $currentMatchedRows = array_values(array_filter($current, static fn (array $row): bool => $row['residualMatch']));
+        $nextMatchedRows = array_values(array_filter($next, static fn (array $row): bool => $row['residualMatch']));
+        $currentRejectedRows = array_values(array_filter($current, static fn (array $row): bool => !$row['residualMatch']));
+        $nextRejectedRows = array_values(array_filter($next, static fn (array $row): bool => !$row['residualMatch']));
+        $currentMatched = self::next249_rowids($currentMatchedRows);
+        $nextMatched = self::next249_rowids($nextMatchedRows);
+        $currentRejected = self::next249_rowids($currentRejectedRows);
+        $nextRejected = self::next249_rowids($nextRejectedRows);
+        $retainedCandidates = array_values(array_intersect($currentCandidates, $nextCandidates));
+        $exitedCandidates = array_values(array_diff($currentCandidates, $nextCandidates));
+        $enteredCandidates = array_values(array_diff($nextCandidates, $currentCandidates));
+        $retainedMatched = array_values(array_intersect($currentMatched, $nextMatched));
+        $exitedMatched = array_values(array_diff($currentMatched, $nextMatched));
+        $enteredMatched = array_values(array_diff($nextMatched, $currentMatched));
+
+        $currentByRowid = self::next249_rowsByRowid($current);
+        $nextByRowid = self::next249_rowsByRowid($next);
+        $changedBytes = [];
+        $changedEncoding = [];
+        $changedResidual = [];
+        foreach ($retainedCandidates as $rowid) {
+            if (($currentByRowid[$rowid]['keyBytesHex'] ?? null) !== ($nextByRowid[$rowid]['keyBytesHex'] ?? null)) {
+                $changedBytes[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['textEncoding'] ?? null) !== ($nextByRowid[$rowid]['textEncoding'] ?? null)) {
+                $changedEncoding[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['residualMatch'] ?? null) !== ($nextByRowid[$rowid]['residualMatch'] ?? null)) {
+                $changedResidual[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($enteredCandidates !== [] || $exitedCandidates !== []) {
+            $reasons[] = 'candidate-rowset';
+        }
+        if ($enteredMatched !== [] || $exitedMatched !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedResidual !== []) {
+            $reasons[] = 'rtrim-like-residual';
+        }
+        if ($changedBytes !== []) {
+            $reasons[] = 'encoded-bytes';
+        }
+        if ($changedEncoding !== []) {
+            $reasons[] = 'text-encoding';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next249',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM range, LIKE residual */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'patternTokenHex' => self::next249_tokenHexList($pattern),
+            'patternCharacters' => self::next249_sqliteCharacterCount($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => false,
+            'collation' => 'RTRIM',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixTokenHex' => self::next249_tokenHexList($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'hasWildcard' => $patternPlan['hasWildcard'],
+            'rtrimRangeLowerInclusive' => $range['lowerInclusive'],
+            'rtrimRangeUpperBound' => $range['upperBound'],
+            'rtrimRangeLowerHex' => bin2hex($range['lowerInclusive']),
+            'rtrimRangeUpperHex' => $range['upperBound'] === null ? null : bin2hex($range['upperBound']),
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'retainedCandidateRowids' => $retainedCandidates,
+            'exitedCandidateRowids' => $exitedCandidates,
+            'enteredCandidateRowids' => $enteredCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retainedMatched,
+            'exitedMatchedRowids' => $exitedMatched,
+            'enteredMatchedRowids' => $enteredMatched,
+            'currentRtrimResidualRejectedRowids' => $currentRejected,
+            'nextRtrimResidualRejectedRowids' => $nextRejected,
+            'changedEncodedBytesRowids' => $changedBytes,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedResidualRowids' => $changedResidual,
+            'currentNames' => self::next249_fieldByRowid($currentByRowid, 'key'),
+            'nextNames' => self::next249_fieldByRowid($nextByRowid, 'key'),
+            'currentKeyBytesHex' => self::next249_fieldByRowid($currentByRowid, 'keyBytesHex'),
+            'nextKeyBytesHex' => self::next249_fieldByRowid($nextByRowid, 'keyBytesHex'),
+            'currentEncodings' => self::next249_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextEncodings' => self::next249_fieldByRowid($nextByRowid, 'textEncoding'),
+            'currentResidualMatches' => self::next249_fieldByRowid($currentByRowid, 'residualMatch'),
+            'nextResidualMatches' => self::next249_fieldByRowid($nextByRowid, 'residualMatch'),
+            'currentPositions' => self::next249_fieldByRowid($currentByRowid, 'position'),
+            'nextPositions' => self::next249_fieldByRowid($nextByRowid, 'position'),
+            'rtrimRangeMayAdmitPaddedKeys' => true,
+            'likeResidualDoesNotUseRtrimCollation' => true,
+            'escapedUnderscoreIsLiteralPrefix' => true,
+            'utf16LeAndBeKeysCompareAfterDecode' => true,
+            'blobAndNullStayOutsideEncodedCursor' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-encoding-source-cursor',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-rtrim-collation-range',
+                'sqlite-current-source-next249',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native mixed UTF source decoding, LIKE tokenization, RTRIM collation range checks, and current-source invalidation diagnostics',
+            'non_overlap' => 'next249 covers RTRIM-collation LIKE range admission with trailing-space residual rejection across mixed UTF current/next sources; avoids accepted next245 dangling ESCAPE residuals, next244 mixed UTF NOCASE LIKE, Unicode GLOB ranges, UTF-16 malformed guards, SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array{rowid:int,key:string,keyBytesHex:string,textEncoding:string,payload:array<string,mixed>,position:int,residualMatch:bool}>
+     */
+    private static function next249_scanRows(array $rows, string $pattern, ?string $escape, array $range): array
+    {
+        $ranged = [];
+        foreach (self::next249_normalizeRows($rows) as $position => $row) {
+            $key = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+            if (!self::next249_inRtrimRange($key, $range)) {
+                continue;
+            }
+            $ranged[] = [
+                'rowid' => $row['option_id'],
+                'key' => $key,
+                'keyBytesHex' => bin2hex($row['option_name_bytes']),
+                'textEncoding' => self::next249_encodingName($row['text_encoding']),
+                'payload' => $row,
+                'position' => $position,
+                'residualMatch' => SQLiteDatabase::likeMatches($key, $pattern, $escape, false),
+            ];
+        }
+
+        usort($ranged, static fn (array $left, array $right): int => strcmp(rtrim($left['key'], ' '), rtrim($right['key'], ' ')) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $ranged;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function next249_normalizeRows(array $rows): array
+    {
+        $normalized = [];
+        foreach ($rows as $index => $row) {
+            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 rows require integer option_id');
+            }
+            if (array_key_exists('option_name_bytes', $row)) {
+                if (!is_string($row['option_name_bytes'])) {
+                    throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 option_name_bytes must be a string');
+                }
+                if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                    throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 byte rows require integer text_encoding');
+                }
+                $normalized[] = $row;
+                continue;
+            }
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 rows require option_name or option_name_bytes');
+            }
+            $value = $row['option_name'];
+            if ($value === null || $value instanceof SQLiteBlobValue) {
+                continue;
+            }
+            if (!is_scalar($value)) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 option_name must be scalar text-affinity input');
+            }
+            $encoding = self::next249_encodingCode($row['text_encoding'] ?? 'UTF-8');
+            $row['option_name_bytes'] = SQLiteEncodingCollationSourceCursor::encodeText((string) $value, $encoding);
+            $row['text_encoding'] = $encoding;
+            $row['option_id'] = $row['option_id'] ?? $index + 1;
+            $normalized[] = $row;
+        }
+
+        return $normalized;
+    }
+
+    private static function next249_encodingCode(mixed $encoding): int
+    {
+        if (is_int($encoding)) {
+            if (in_array($encoding, [1, 2, 3], true)) {
+                return $encoding;
+            }
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+        if (!is_string($encoding)) {
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+
+        return match (strtoupper(str_replace('_', '-', $encoding))) {
+            'UTF-8', 'UTF8' => 1,
+            'UTF-16LE', 'UTF16LE' => 2,
+            'UTF-16BE', 'UTF16BE' => 3,
+            default => throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    private static function next249_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite RTRIM LIKE next249 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /** @param array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next249_inRtrimRange(string $key, array $range): bool
+    {
+        $key = rtrim($key, ' ');
+        if (strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next249_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next249_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next249_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    private static function next249_sqliteCharacterCount(string $text): int
+    {
+        return count(self::next249_sqliteCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next249_tokenHexList(string $text): array
+    {
+        return array_map('bin2hex', self::next249_sqliteCharacters($text));
+    }
+
+    /** @return list<string> */
+    private static function next249_sqliteCharacters(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+        if (preg_match('//u', $text) === 1) {
+            $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            if ($characters !== false) {
+                return $characters;
+            }
+        }
+
+        return str_split($text);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressRtrimLikeResidualSourcePlan(        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@249',
+        string $nextSource = 'main.wp_options@250',
+        int $currentSchemaCookie = 249,
+        int $nextSchemaCookie = 250,
+    ): array {
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next250_scanRows($currentRows, $pattern, $escape, $caseSensitiveLike);
+        $next = self::next250_scanRows($nextRows, $pattern, $escape, $caseSensitiveLike);
+        $currentMatched = array_values(array_filter($current, static fn (array $row): bool => $row['residualMatch']));
+        $nextMatched = array_values(array_filter($next, static fn (array $row): bool => $row['residualMatch']));
+        $currentRejectedPeers = self::next250_rtrimPeerRowids($current);
+        $nextRejectedPeers = self::next250_rtrimPeerRowids($next);
+        $currentRowids = self::next250_rowids($currentMatched);
+        $nextRowids = self::next250_rowids($nextMatched);
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $currentByRowid = self::next250_rowsByRowid($current);
+        $nextByRowid = self::next250_rowsByRowid($next);
+        $changedRaw = [];
+        $changedRawBytes = [];
+        $changedRtrimKey = [];
+        $changedEncoding = [];
+        $changedStorage = [];
+        $changedResidualTruth = [];
+
+        foreach (array_values(array_intersect(array_keys($currentByRowid), array_keys($nextByRowid))) as $rowid) {
+            if ($currentByRowid[$rowid]['likeText'] !== $nextByRowid[$rowid]['likeText']) {
+                $changedRaw[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['likeTextHex'] !== $nextByRowid[$rowid]['likeTextHex']) {
+                $changedRawBytes[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['rtrimKey'] !== $nextByRowid[$rowid]['rtrimKey']) {
+                $changedRtrimKey[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['textEncoding'] !== $nextByRowid[$rowid]['textEncoding']) {
+                $changedEncoding[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storageClass'] !== $nextByRowid[$rowid]['storageClass']) {
+                $changedStorage[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['residualMatch'] !== $nextByRowid[$rowid]['residualMatch']) {
+                $changedResidualTruth[] = $rowid;
+            }
+        }
+        sort($changedRaw);
+        sort($changedRawBytes);
+        sort($changedRtrimKey);
+        sort($changedEncoding);
+        sort($changedStorage);
+        sort($changedResidualTruth);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'raw-like-text' => $changedRaw,
+            'raw-like-bytes' => $changedRawBytes,
+            'rtrim-collation-key' => $changedRtrimKey,
+            'text-encoding' => $changedEncoding,
+            'storage-class' => $changedStorage,
+            'residual-truth' => $changedResidualTruth,
+            'matched-rowset' => ($entered !== [] || $exited !== []) ? array_values(array_unique(array_merge($entered, $exited))) : [],
+            'rtrim-peer-rejections' => $currentRejectedPeers === $nextRejectedPeers ? [] : array_values(array_unique(array_merge($currentRejectedPeers, $nextRejectedPeers))),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next250',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE RTRIM LIKE ? ESCAPE ? /* RTRIM key never trims LIKE residual */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => 'RTRIM',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'rtrimIndexMayFindTrailingSpacePeers' => true,
+            'likeResidualUsesRawTextBeforeRtrimCollation' => true,
+            'tabIsNotRtrimSpace' => true,
+            'asciiNoCaseLikeStillFoldsAscii' => !$caseSensitiveLike,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next250_rowids($current),
+            'nextCandidateRowids' => self::next250_rowids($next),
+            'currentMatchedRowids' => $currentRowids,
+            'nextMatchedRowids' => $nextRowids,
+            'currentRtrimPeerRejectedRowids' => $currentRejectedPeers,
+            'nextRtrimPeerRejectedRowids' => $nextRejectedPeers,
+            'retainedRowids' => $retained,
+            'enteredRowids' => $entered,
+            'exitedRowids' => $exited,
+            'changedRawLikeTextRowids' => $changedRaw,
+            'changedRawLikeBytesRowids' => $changedRawBytes,
+            'changedRtrimKeyRowids' => $changedRtrimKey,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedStorageClassRowids' => $changedStorage,
+            'changedResidualTruthRowids' => $changedResidualTruth,
+            'currentRawText' => self::next250_fieldByRowid($currentByRowid, 'likeText'),
+            'nextRawText' => self::next250_fieldByRowid($nextByRowid, 'likeText'),
+            'currentRawHex' => self::next250_fieldByRowid($currentByRowid, 'likeTextHex'),
+            'nextRawHex' => self::next250_fieldByRowid($nextByRowid, 'likeTextHex'),
+            'currentRtrimKeys' => self::next250_fieldByRowid($currentByRowid, 'rtrimKey'),
+            'nextRtrimKeys' => self::next250_fieldByRowid($nextByRowid, 'rtrimKey'),
+            'currentEncodings' => self::next250_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextEncodings' => self::next250_fieldByRowid($nextByRowid, 'textEncoding'),
+            'currentStorage' => self::next250_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorage' => self::next250_fieldByRowid($nextByRowid, 'storageClass'),
+            'currentTrace' => self::next250_traceByPosition($current),
+            'nextTrace' => self::next250_traceByPosition($next),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-escape-tokenizer',
+                'sqlite-rtrim-collation-key',
+                'sqlite-like-residual-raw-text',
+                'sqlite-mixed-utf-source-decoder',
+                'sqlite-current-source-next250',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, RTRIM collation-key diagnostics, mixed UTF decoding, and current-source invalidation tracking',
+            'non_overlap' => 'next250 covers RTRIM collation peers that must still fail raw LIKE residuals when trailing spaces remain; avoids next247 non-ASCII NOCASE prefixes, next246 dynamic ESCAPE affinity, next241 embedded-NUL/malformed-byte LIKE, numeric option_value LIKE next240, Unicode GLOB ranges, UTF-16 malformed guards, and SQL/JSON/WAL/VFS/B-tree clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next250_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $scanned = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next250 rows require option_name or option_name_bytes');
+            }
+            $coerced = self::next250_coerceLikeText($row, $index);
+            if ($coerced === null) {
+                continue;
+            }
+            $likeText = $coerced['likeText'];
+            $scanned[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'likeText' => $likeText,
+                'likeTextHex' => bin2hex($likeText),
+                'rtrimKey' => rtrim($likeText, ' '),
+                'rtrimKeyHex' => bin2hex(rtrim($likeText, ' ')),
+                'textEncoding' => $coerced['textEncoding'],
+                'storageClass' => $coerced['storageClass'],
+                'residualMatch' => SQLiteDatabase::likeMatches($likeText, $pattern, $escape, $caseSensitiveLike),
+            ];
+        }
+
+        usort($scanned, static fn (array $left, array $right): int => strcmp($left['rtrimKey'], $right['rtrimKey']) ?: strcmp($left['likeText'], $right['likeText']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $scanned;
+    }
+
+    /** @param array<string,mixed> $row @return array{likeText:string,textEncoding:string,storageClass:string}|null */
+    private static function next250_coerceLikeText(array $row, int $index): ?array
+    {
+        if (array_key_exists('option_name_bytes', $row)) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next250 byte rows require option_name_bytes and integer text_encoding');
+            }
+
+            return [
+                'likeText' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']),
+                'textEncoding' => self::next250_encodingName($row['text_encoding']),
+                'storageClass' => 'text',
+            ];
+        }
+
+        $value = $row['option_name'];
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value)) {
+            return ['likeText' => (string) $value, 'textEncoding' => 'UTF-8', 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            return ['likeText' => self::next250_formatReal($value), 'textEncoding' => 'UTF-8', 'storageClass' => 'real'];
+        }
+        if (is_bool($value)) {
+            return ['likeText' => $value ? '1' : '0', 'textEncoding' => 'UTF-8', 'storageClass' => 'integer'];
+        }
+        if (is_string($value)) {
+            if (preg_match('//u', $value) !== 1) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next250 string option_name must be well-formed UTF-8');
+            }
+
+            return ['likeText' => $value, 'textEncoding' => 'UTF-8', 'storageClass' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite RTRIM LIKE next250 option_name must be scalar text-affinity input');
+    }
+
+    private static function next250_formatReal(float $value): string
+    {
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private static function next250_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite RTRIM LIKE next250 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next250_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next250_rtrimPeerRowids(array $rows): array
+    {
+        $matchedKeys = [];
+        foreach ($rows as $row) {
+            if ($row['residualMatch']) {
+                $matchedKeys[$row['rtrimKey']] = true;
+            }
+        }
+
+        $peers = [];
+        foreach ($rows as $row) {
+            if (!$row['residualMatch'] && isset($matchedKeys[$row['rtrimKey']])) {
+                $peers[] = $row['rowid'];
+            }
+        }
+
+        return $peers;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next250_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next250_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next250_traceByPosition(array $rows): array
+    {
+        $trace = [];
+        foreach ($rows as $position => $row) {
+            $trace[$position] = $row;
+        }
+
+        return $trace;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressPreparedPatternAffinityPlan(
+        array $currentRows,
+        array $nextRows,
+        mixed $currentPattern,
+        mixed $nextPattern,
+        mixed $currentEscape = null,
+        mixed $nextEscape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@250',
+        string $nextSource = 'main.wp_options@251',
+        int $currentSchemaCookie = 250,
+        int $nextSchemaCookie = 251,
+    ): array {
+        $currentPatternText = self::next251_coerceLikeText($currentPattern, 'pattern');
+        $nextPatternText = self::next251_coerceLikeText($nextPattern, 'pattern');
+        $currentEscapeText = self::next251_coerceEscapeText($currentEscape, 'current');
+        $nextEscapeText = self::next251_coerceEscapeText($nextEscape, 'next');
+        $patternPlan = SQLiteDatabase::likePatternPlan($currentPatternText['text'], $currentEscapeText['text']);
+        $current = self::next251_scanRows($currentRows, $currentPatternText['text'], $currentEscapeText['text'], $caseSensitiveLike);
+        $next = self::next251_scanRows($nextRows, $nextPatternText['text'], $nextEscapeText['text'], $caseSensitiveLike);
+
+        $currentRowids = array_column($current, 'rowid');
+        $nextRowids = array_column($next, 'rowid');
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $currentByRowid = self::next251_rowsByRowid($current);
+        $nextByRowid = self::next251_rowsByRowid($next);
+        $changedValueText = [];
+        $changedValueStorage = [];
+
+        foreach ($retained as $rowid) {
+            if (($currentByRowid[$rowid]['valueText'] ?? null) !== ($nextByRowid[$rowid]['valueText'] ?? null)) {
+                $changedValueText[] = $rowid;
+            }
+            if (($currentByRowid[$rowid]['valueStorage'] ?? null) !== ($nextByRowid[$rowid]['valueStorage'] ?? null)) {
+                $changedValueStorage[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentPatternText['text'] !== $nextPatternText['text']) {
+            $reasons[] = 'pattern-text';
+        }
+        if ($currentPatternText['storageClass'] !== $nextPatternText['storageClass']) {
+            $reasons[] = 'pattern-storage-class';
+        }
+        if ($currentPatternText['hex'] !== $nextPatternText['hex']) {
+            $reasons[] = 'pattern-bytes';
+        }
+        if (($currentEscapeText['text'] ?? null) !== ($nextEscapeText['text'] ?? null)) {
+            $reasons[] = 'escape-text';
+        }
+        if (($currentEscapeText['storageClass'] ?? null) !== ($nextEscapeText['storageClass'] ?? null)) {
+            $reasons[] = 'escape-storage-class';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedValueText !== []) {
+            $reasons[] = 'value-text';
+        }
+        if ($changedValueStorage !== []) {
+            $reasons[] = 'value-storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next251',
+            'operator' => 'LIKE',
+            'expression' => 'option_value LIKE ? ESCAPE ? /* prepared pattern affinity current-source fence */',
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'currentPatternText' => $currentPatternText['text'],
+            'nextPatternText' => $nextPatternText['text'],
+            'currentPatternHex' => $currentPatternText['hex'],
+            'nextPatternHex' => $nextPatternText['hex'],
+            'currentPatternStorageClass' => $currentPatternText['storageClass'],
+            'nextPatternStorageClass' => $nextPatternText['storageClass'],
+            'currentEscapeText' => $currentEscapeText['text'],
+            'nextEscapeText' => $nextEscapeText['text'],
+            'currentEscapeHex' => $currentEscapeText['hex'],
+            'nextEscapeHex' => $nextEscapeText['hex'],
+            'currentEscapeStorageClass' => $currentEscapeText['storageClass'],
+            'nextEscapeStorageClass' => $nextEscapeText['storageClass'],
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentRowids' => $currentRowids,
+            'nextRowids' => $nextRowids,
+            'retainedRowids' => $retained,
+            'exitedRowids' => $exited,
+            'enteredRowids' => $entered,
+            'changedValueTextRowids' => $changedValueText,
+            'changedValueStorageClassRowids' => $changedValueStorage,
+            'currentValueText' => self::next251_fieldByRowid($currentByRowid, 'valueText'),
+            'nextValueText' => self::next251_fieldByRowid($nextByRowid, 'valueText'),
+            'currentValueStorageClasses' => self::next251_fieldByRowid($currentByRowid, 'valueStorage'),
+            'nextValueStorageClasses' => self::next251_fieldByRowid($nextByRowid, 'valueStorage'),
+            'currentOptionNames' => self::next251_fieldByRowid($currentByRowid, 'optionName'),
+            'nextOptionNames' => self::next251_fieldByRowid($nextByRowid, 'optionName'),
+            'patternStorageClassChangeInvalidatesEvenWhenTextMatches' => true,
+            'escapeStorageClassChangeInvalidatesEvenWhenTextMatches' => true,
+            'blobPatternAndBlobEscapeDoNotEnterLikeMatcher' => true,
+            'numericAndBooleanPatternsUseTextAffinity' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-escape-tokenizer',
+                'sqlite-pattern-text-affinity',
+                'sqlite-current-source-next251',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, SQLite scalar storage classification, numeric/boolean text affinity, and current-source invalidation diagnostics',
+            'non_overlap' => 'next251 covers prepared LIKE pattern and ESCAPE affinity/storage transitions for option_value scans; avoids accepted numeric value LIKE next240, embedded-NUL option_name next241, UTF-16 mixed-source next244, escaped option_name next236, Unicode GLOB ranges, malformed UTF guards, and storage/planner clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next251_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $matched = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite LIKE next251 row requires option_value');
+            }
+            $value = self::next251_coerceLikeText($row['option_value'], 'option_value');
+            if (!SQLiteDatabase::likeMatches($value['text'], $pattern, $escape, $caseSensitiveLike)) {
+                continue;
+            }
+            $matched[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'optionName' => self::next251_optionName($row, $index),
+                'valueText' => $value['text'],
+                'valueHex' => $value['hex'],
+                'valueStorage' => $value['storageClass'],
+            ];
+        }
+
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['valueText'], $right['valueText']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $matched;
+    }
+
+    /** @return array{text:string,hex:string,storageClass:string} */
+    private static function next251_coerceLikeText(mixed $value, string $label): array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            throw new \InvalidArgumentException("SQLite LIKE next251 {$label} must not be NULL or BLOB");
+        }
+        if (is_string($value)) {
+            $text = $value;
+            $storage = 'text';
+        } elseif (is_int($value)) {
+            $text = (string) $value;
+            $storage = 'integer';
+        } elseif (is_float($value)) {
+            $text = self::next251_formatReal($value);
+            $storage = 'real';
+        } elseif (is_bool($value)) {
+            $text = $value ? '1' : '0';
+            $storage = 'integer';
+        } else {
+            throw new \InvalidArgumentException("SQLite LIKE next251 {$label} must be scalar text-affinity input");
+        }
+
+        return ['text' => $text, 'hex' => bin2hex($text), 'storageClass' => $storage];
+    }
+
+    /** @return array{text:?string,hex:?string,storageClass:?string} */
+    private static function next251_coerceEscapeText(mixed $value, string $source): array
+    {
+        if ($value === null) {
+            return ['text' => null, 'hex' => null, 'storageClass' => null];
+        }
+
+        $escape = self::next251_coerceLikeText($value, $source . ' ESCAPE');
+        if (SQLiteDatabase::likeMatches('', '', $escape['text']) !== true) {
+            throw new \LogicException('unreachable LIKE ESCAPE validation guard');
+        }
+
+        return $escape;
+    }
+
+    private static function next251_formatReal(float $value): string
+    {
+        if (is_nan($value)) {
+            return 'NaN';
+        }
+        if ($value === INF) {
+            return 'Inf';
+        }
+        if ($value === -INF) {
+            return '-Inf';
+        }
+
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next251_optionName(array $row, int $index): string
+    {
+        $name = $row['option_name'] ?? 'option_' . ($index + 1);
+
+        return is_scalar($name) ? (string) $name : 'option_' . ($index + 1);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next251_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next251_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressAutoloadValuePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'yes%',
+        ?string $escape = null,
+        string $currentSource = 'main.wp_options@252',
+        string $nextSource = 'main.wp_options@253',
+        int $currentSchemaCookie = 252,
+        int $nextSchemaCookie = 253,
+    ): array {
+        $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
+        $current = self::next253_scan($currentRows, $pattern, $escape, $like['range']);
+        $next = self::next253_scan($nextRows, $pattern, $escape, $like['range']);
+        $changes = self::next253_changes($current['decoded'], $next['decoded']);
+        $residualChanged = self::next253_residualChanges($current['decoded'], $next['decoded']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'decoded-text' => $changes['textChangedRowids'],
+            'text-affinity' => $changes['textAffinityChangedRowids'],
+            'storage-class' => $changes['storageChangedRowids'],
+            'encoded-bytes' => $changes['bytesChangedRowids'],
+            'encoding' => $changes['encodingChangedRowids'],
+            'nocase-key' => $changes['nocaseKeyChangedRowids'],
+            'residual-result' => $residualChanged,
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if (self::next253_rowids($current['matched']) !== self::next253_rowids($next['matched'])) {
+            $reasons[] = 'matched-rowset';
+        }
+        if (self::next253_rowids($current['candidate']) !== self::next253_rowids($next['candidate'])) {
+            $reasons[] = 'candidate-rowset';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next253',
+            'operator' => 'LIKE',
+            'expression' => 'option_value COLLATE NOCASE LIKE ? /* TEXT affinity cursor */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => 'NOCASE',
+            'affinity' => 'TEXT',
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'prefix' => $like['prefix'],
+            'range' => $like['range'],
+            'indexUsable' => $like['indexUsable'],
+            'rejectedReason' => $like['rejectedReason'],
+            'currentCandidateRowids' => self::next253_rowids($current['candidate']),
+            'nextCandidateRowids' => self::next253_rowids($next['candidate']),
+            'currentMatchedRowids' => self::next253_rowids($current['matched']),
+            'nextMatchedRowids' => self::next253_rowids($next['matched']),
+            'matchedRetainedRowids' => self::next253_intersectSorted(self::next253_rowids($current['matched']), self::next253_rowids($next['matched'])),
+            'matchedExitedRowids' => self::next253_diffSorted(self::next253_rowids($current['matched']), self::next253_rowids($next['matched'])),
+            'matchedEnteredRowids' => self::next253_diffSorted(self::next253_rowids($next['matched']), self::next253_rowids($current['matched'])),
+            'currentFalsePositiveRowids' => self::next253_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::next253_rowids($next['falsePositive']),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentStorageClasses' => self::next253_map($current['decoded'], 'storageClass'),
+            'nextStorageClasses' => self::next253_map($next['decoded'], 'storageClass'),
+            'currentTextValues' => self::next253_map($current['decoded'], 'textValue'),
+            'nextTextValues' => self::next253_map($next['decoded'], 'textValue'),
+            'currentNocaseKeys' => self::next253_map($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::next253_map($next['decoded'], 'nocaseKey'),
+            'currentEncodingNames' => self::next253_map($current['decoded'], 'encodingName'),
+            'nextEncodingNames' => self::next253_map($next['decoded'], 'encodingName'),
+            'currentByteHex' => self::next253_map($current['decoded'], 'byteHex'),
+            'nextByteHex' => self::next253_map($next['decoded'], 'byteHex'),
+            'currentResidualMatches' => self::next253_map($current['decoded'], 'residualMatch'),
+            'nextResidualMatches' => self::next253_map($next['decoded'], 'residualMatch'),
+            'changedTextRowids' => $changes['textChangedRowids'],
+            'changedTextAffinityRowids' => $changes['textAffinityChangedRowids'],
+            'changedStorageRowids' => $changes['storageChangedRowids'],
+            'changedBytesRowids' => $changes['bytesChangedRowids'],
+            'changedEncodingRowids' => $changes['encodingChangedRowids'],
+            'changedNocaseKeyRowids' => $changes['nocaseKeyChangedRowids'],
+            'changedResidualRowids' => $residualChanged,
+            'textAffinityAppliedBeforeLike' => true,
+            'blobValuesDoNotMatchTextLike' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-utf16-decode',
+                'sqlite-text-affinity',
+                'sqlite-like-nocase-prefix-range',
+                'sqlite-current-source-next253',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, TEXT affinity coercion, ASCII NOCASE LIKE matching, and current-source rowset diagnostics',
+            'non_overlap' => 'next253 covers option_value TEXT-affinity LIKE over mixed UTF-8/UTF-16/scalar storage; avoids accepted option_name UTF-16 RTRIM/NOCASE LIKE current-source, Unicode GLOB, malformed insert guards, VFS/WAL/B-tree/JSON/planner clusters, and suite next253 evidence',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decoded:list<array<string,mixed>>,candidate:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next253_scan(array $rows, string $pattern, ?string $escape, ?array $range): array
+    {
+        $decoded = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $row) {
+            self::next253_assertRow($row);
+            try {
+                $value = self::next253_textAffinityValue($row);
+                $decoded[] = [
+                    'rowid' => $row['option_id'],
+                    'storageClass' => self::next253_storageClass($row),
+                    'textValue' => $value,
+                    'nocaseKey' => strtolower($value),
+                    'encodingName' => self::next253_encodingName($row['value_encoding'] ?? null),
+                    'byteHex' => isset($row['option_value_bytes']) && is_string($row['option_value_bytes']) ? bin2hex($row['option_value_bytes']) : null,
+                    'residualMatch' => SQLiteDatabase::likeMatches($value, $pattern, $escape, false),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $row['option_id'];
+                $errors[$row['option_id']] = $exception->getMessage();
+            }
+        }
+
+        usort($decoded, static fn (array $left, array $right): int => strcmp($left['nocaseKey'], $right['nocaseKey']) ?: $left['rowid'] <=> $right['rowid']);
+        sort($malformed);
+        ksort($errors);
+
+        $candidate = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($decoded as $entry) {
+            if (!self::next253_inRange($entry['nocaseKey'], $range)) {
+                continue;
+            }
+            $candidate[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'decoded' => $decoded,
+            'candidate' => $candidate,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next253_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next253_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next253 rows require integer option_id');
+        }
+        if (!array_key_exists('storage', $row) || !is_string($row['storage'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next253 rows require storage');
+        }
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next253_textAffinityValue(array $row): string
+    {
+        return match (strtolower($row['storage'])) {
+            'text' => self::next253_decodeTextRow($row),
+            'integer', 'real' => (string) $row['option_value'],
+            'null' => '',
+            'blob' => throw new \InvalidArgumentException('SQLite TEXT affinity LIKE does not coerce BLOB option_value bytes'),
+            default => throw new \InvalidArgumentException('SQLite encoding affinity LIKE next253 unsupported storage class'),
+        };
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next253_decodeTextRow(array $row): string
+    {
+        if (!array_key_exists('option_value_bytes', $row) || !is_string($row['option_value_bytes'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next253 text rows require option_value_bytes');
+        }
+        if (!array_key_exists('value_encoding', $row) || !is_int($row['value_encoding'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next253 text rows require integer value_encoding');
+        }
+
+        return SQLiteEncodingCollationSourceCursor::decodeText($row['option_value_bytes'], $row['value_encoding']);
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next253_storageClass(array $row): string
+    {
+        return strtolower($row['storage']);
+    }
+
+    private static function next253_encodingName(mixed $encoding): ?string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            null => null,
+            default => 'unknown',
+        };
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next253_map(array $rows, string $key): array
+    {
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[$row['rowid']] = $row[$key];
+        }
+
+        return $mapped;
+    }
+
+    /** @param list<array{rowid:int}> $rows @return list<int> */
+    private static function next253_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $left @param list<array<string,mixed>> $right @return array<string,list<int>> */
+    private static function next253_changes(array $left, array $right): array
+    {
+        $leftById = self::next253_byRowid($left);
+        $rightById = self::next253_byRowid($right);
+        $rowids = array_values(array_unique(array_merge(array_keys($leftById), array_keys($rightById))));
+        sort($rowids);
+        $changes = [
+            'textChangedRowids' => [],
+            'textAffinityChangedRowids' => [],
+            'storageChangedRowids' => [],
+            'bytesChangedRowids' => [],
+            'encodingChangedRowids' => [],
+            'nocaseKeyChangedRowids' => [],
+        ];
+        foreach ($rowids as $rowid) {
+            $leftRow = $leftById[$rowid] ?? null;
+            $rightRow = $rightById[$rowid] ?? null;
+            foreach ([
+                'textChangedRowids' => 'textValue',
+                'textAffinityChangedRowids' => 'textValue',
+                'storageChangedRowids' => 'storageClass',
+                'bytesChangedRowids' => 'byteHex',
+                'encodingChangedRowids' => 'encodingName',
+                'nocaseKeyChangedRowids' => 'nocaseKey',
+            ] as $bucket => $key) {
+                if (($leftRow[$key] ?? null) !== ($rightRow[$key] ?? null)) {
+                    $changes[$bucket][] = (int) $rowid;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next253_byRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+        ksort($indexed);
+
+        return $indexed;
+    }
+
+    /** @param list<array<string,mixed>> $left @param list<array<string,mixed>> $right @return list<int> */
+    private static function next253_residualChanges(array $left, array $right): array
+    {
+        $leftById = self::next253_byRowid($left);
+        $rightById = self::next253_byRowid($right);
+        $rowids = array_values(array_unique(array_merge(array_keys($leftById), array_keys($rightById))));
+        sort($rowids);
+        $changed = [];
+        foreach ($rowids as $rowid) {
+            if (($leftById[$rowid]['residualMatch'] ?? null) !== ($rightById[$rowid]['residualMatch'] ?? null)) {
+                $changed[] = (int) $rowid;
+            }
+        }
+
+        return $changed;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next253_intersectSorted(array $left, array $right): array
+    {
+        $values = array_values(array_intersect($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next253_diffSorted(array $left, array $right): array
+    {
+        $values = array_values(array_diff($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressNullableEscapeLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_%',
+        mixed $currentEscape = null,
+        bool $currentEscapeIsExplicit = true,
+        mixed $nextEscape = '!',
+        bool $nextEscapeIsExplicit = true,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@253',
+        string $nextSource = 'main.wp_options@254',
+        int $currentSchemaCookie = 253,
+        int $nextSchemaCookie = 254,
+    ): array {
+        $currentEscapeValue = self::next254_coerceEscape($currentEscape, $currentEscapeIsExplicit, 'current');
+        $nextEscapeValue = self::next254_coerceEscape($nextEscape, $nextEscapeIsExplicit, 'next');
+        $prefixPlan = SQLiteDatabase::likePatternPlan($pattern, $nextEscapeValue['likeEscape']);
+        $current = self::next254_scanRows($currentRows, $pattern, $currentEscapeValue, $caseSensitiveLike);
+        $next = self::next254_scanRows($nextRows, $pattern, $nextEscapeValue, $caseSensitiveLike);
+        $currentMatched = self::next254_rowids($current['matchedRows']);
+        $nextMatched = self::next254_rowids($next['matchedRows']);
+        $retained = array_values(array_intersect($currentMatched, $nextMatched));
+        $exited = array_values(array_diff($currentMatched, $nextMatched));
+        $entered = array_values(array_diff($nextMatched, $currentMatched));
+        $currentByRowid = self::next254_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next254_rowsByRowid($next['decisions']);
+        $changedTruth = [];
+        $changedText = [];
+        $changedStorage = [];
+
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['predicateResult'] !== $nextByRowid[$rowid]['predicateResult']) {
+                $changedTruth[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['text'] !== $nextByRowid[$rowid]['text']) {
+                $changedText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storageClass'] !== $nextByRowid[$rowid]['storageClass']) {
+                $changedStorage[] = $rowid;
+            }
+        }
+        sort($changedTruth);
+        sort($changedText);
+        sort($changedStorage);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentEscapeValue['sqlNullEscape'] !== $nextEscapeValue['sqlNullEscape']) {
+            $reasons[] = 'escape-nullability';
+        }
+        if ($currentEscapeValue['text'] !== $nextEscapeValue['text']) {
+            $reasons[] = 'escape-text';
+        }
+        if ($currentEscapeValue['storageClass'] !== $nextEscapeValue['storageClass']) {
+            $reasons[] = 'escape-storage-class';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedTruth !== []) {
+            $reasons[] = 'predicate-truth';
+        }
+        if ($changedText !== []) {
+            $reasons[] = 'value-text';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'value-storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next254',
+            'operator' => 'LIKE',
+            'expression' => 'option_value LIKE ? ESCAPE ? /* explicit SQL NULL ESCAPE is UNKNOWN, not omitted ESCAPE */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'currentEscapeText' => $currentEscapeValue['text'],
+            'nextEscapeText' => $nextEscapeValue['text'],
+            'currentEscapeHex' => $currentEscapeValue['hex'],
+            'nextEscapeHex' => $nextEscapeValue['hex'],
+            'currentEscapeStorageClass' => $currentEscapeValue['storageClass'],
+            'nextEscapeStorageClass' => $nextEscapeValue['storageClass'],
+            'currentEscapeWasExplicit' => $currentEscapeValue['explicit'],
+            'nextEscapeWasExplicit' => $nextEscapeValue['explicit'],
+            'currentEscapeIsSqlNull' => $currentEscapeValue['sqlNullEscape'],
+            'nextEscapeIsSqlNull' => $nextEscapeValue['sqlNullEscape'],
+            'omittedEscapeStillUsesLikeDefault' => true,
+            'explicitNullEscapeForcesUnknownPredicate' => true,
+            'notLikeWouldAlsoRemainUnknown' => true,
+            'prefix' => $prefixPlan['prefix'],
+            'prefixHex' => bin2hex($prefixPlan['prefix']),
+            'prefixCharacters' => $prefixPlan['prefixCharacters'],
+            'binaryRange' => $prefixPlan['binaryRange'],
+            'noCaseRange' => $prefixPlan['noCaseRange'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'retainedMatchedRowids' => $retained,
+            'exitedMatchedRowids' => $exited,
+            'enteredMatchedRowids' => $entered,
+            'changedPredicateTruthRowids' => $changedTruth,
+            'changedValueTextRowids' => $changedText,
+            'changedStorageClassRowids' => $changedStorage,
+            'currentPredicateResults' => self::next254_fieldByRowid($currentByRowid, 'predicateResult'),
+            'nextPredicateResults' => self::next254_fieldByRowid($nextByRowid, 'predicateResult'),
+            'currentValueText' => self::next254_fieldByRowid($currentByRowid, 'text'),
+            'nextValueText' => self::next254_fieldByRowid($nextByRowid, 'text'),
+            'currentValueHex' => self::next254_fieldByRowid($currentByRowid, 'textHex'),
+            'nextValueHex' => self::next254_fieldByRowid($nextByRowid, 'textHex'),
+            'currentStorage' => self::next254_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorage' => self::next254_fieldByRowid($nextByRowid, 'storageClass'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-escape-nullability',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next254',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, scalar text affinity, explicit SQL NULL handling, and current-source invalidation diagnostics',
+            'non_overlap' => 'next254 covers explicit SQL NULL ESCAPE versus omitted ESCAPE for LIKE predicates; avoids next251 prepared pattern storage transitions, next250 RTRIM residual peers, next238 real text-affinity LIKE, next235 malformed-byte NOT LIKE complement, Unicode GLOB ranges, and UTF-16 NOCASE/RTRIM cursor handoffs',
+        ];
+    }
+
+    /**
+     * @param array{text:?string,hex:?string,storageClass:?string,explicit:bool,sqlNullEscape:bool,likeEscape:?string} $escape
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>,matchedRows:list<array<string,mixed>>,unknownRowids:list<int>}
+     */
+    private static function next254_scanRows(array $rows, string $pattern, array $escape, bool $caseSensitiveLike): array
+    {
+        $decisions = [];
+        $matched = [];
+        $unknown = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite nullable ESCAPE LIKE next254 rows require option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $value = self::next254_coerceText($row['option_value']);
+            if ($value === null || $escape['sqlNullEscape']) {
+                $unknown[] = $rowid;
+                if ($value !== null) {
+                    $decisions[] = [
+                        'rowid' => $rowid,
+                        'text' => $value['text'],
+                        'textHex' => $value['hex'],
+                        'storageClass' => $value['storageClass'],
+                        'predicateResult' => null,
+                    ];
+                }
+                continue;
+            }
+
+            $result = SQLiteDatabase::likeMatches($value['text'], $pattern, $escape['likeEscape'], $caseSensitiveLike);
+            $decision = [
+                'rowid' => $rowid,
+                'text' => $value['text'],
+                'textHex' => $value['hex'],
+                'storageClass' => $value['storageClass'],
+                'predicateResult' => $result,
+            ];
+            $decisions[] = $decision;
+            if ($result) {
+                $matched[] = $decision;
+            }
+        }
+
+        usort($decisions, static fn (array $left, array $right): int => strcmp($left['text'], $right['text']) ?: $left['rowid'] <=> $right['rowid']);
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['text'], $right['text']) ?: $left['rowid'] <=> $right['rowid']);
+        sort($unknown);
+
+        return ['decisions' => $decisions, 'matchedRows' => $matched, 'unknownRowids' => $unknown];
+    }
+
+    /** @return array{text:?string,hex:?string,storageClass:?string,explicit:bool,sqlNullEscape:bool,likeEscape:?string} */
+    private static function next254_coerceEscape(mixed $value, bool $explicit, string $label): array
+    {
+        if ($value === null) {
+            return [
+                'text' => null,
+                'hex' => null,
+                'storageClass' => null,
+                'explicit' => $explicit,
+                'sqlNullEscape' => $explicit,
+                'likeEscape' => null,
+            ];
+        }
+
+        $text = self::next254_coerceText($value);
+        if ($text === null) {
+            throw new \InvalidArgumentException("SQLite nullable ESCAPE LIKE next254 {$label} ESCAPE must not be BLOB");
+        }
+        SQLiteDatabase::likePatternPlan('', $text['text']);
+
+        return [
+            'text' => $text['text'],
+            'hex' => $text['hex'],
+            'storageClass' => $text['storageClass'],
+            'explicit' => $explicit,
+            'sqlNullEscape' => false,
+            'likeEscape' => $text['text'],
+        ];
+    }
+
+    /** @return null|array{text:string,hex:string,storageClass:string} */
+    private static function next254_coerceText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            $text = $value;
+            $storage = 'text';
+        } elseif (is_int($value)) {
+            $text = (string) $value;
+            $storage = 'integer';
+        } elseif (is_float($value)) {
+            $text = self::next254_formatReal($value);
+            $storage = 'real';
+        } elseif (is_bool($value)) {
+            $text = $value ? '1' : '0';
+            $storage = 'integer';
+        } else {
+            throw new \InvalidArgumentException('SQLite nullable ESCAPE LIKE next254 value must be scalar text-affinity input');
+        }
+
+        return ['text' => $text, 'hex' => bin2hex($text), 'storageClass' => $storage];
+    }
+
+    private static function next254_formatReal(float $value): string
+    {
+        if (!is_finite($value)) {
+            return (string) $value;
+        }
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next254_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next254_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next254_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressGlobClassFallbackPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern,
+        string $currentSource = 'main.wp_options@254',
+        string $nextSource = 'main.wp_options@255',
+        int $currentSchemaCookie = 254,
+        int $nextSchemaCookie = 255,
+    ): array {
+        $range = SQLiteDatabase::globPrefixRangeBounds($pattern);
+        $current = self::next255_scanRows($currentRows, $pattern);
+        $next = self::next255_scanRows($nextRows, $pattern);
+        $currentRowids = self::next255_rowids($current);
+        $nextRowids = self::next255_rowids($next);
+        $retained = array_values(array_intersect($currentRowids, $nextRowids));
+        $entered = array_values(array_diff($nextRowids, $currentRowids));
+        $exited = array_values(array_diff($currentRowids, $nextRowids));
+        $currentByRowid = self::next255_rowsByRowid($current);
+        $nextByRowid = self::next255_rowsByRowid($next);
+        $changedText = [];
+        $changedBytes = [];
+        $changedEncoding = [];
+        $changedStorage = [];
+        $changedResidual = [];
+
+        foreach (array_values(array_intersect(array_keys($currentByRowid), array_keys($nextByRowid))) as $rowid) {
+            if ($currentByRowid[$rowid]['text'] !== $nextByRowid[$rowid]['text']) {
+                $changedText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['bytesHex'] !== $nextByRowid[$rowid]['bytesHex']) {
+                $changedBytes[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['textEncoding'] !== $nextByRowid[$rowid]['textEncoding']) {
+                $changedEncoding[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storageClass'] !== $nextByRowid[$rowid]['storageClass']) {
+                $changedStorage[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['residualMatch'] !== $nextByRowid[$rowid]['residualMatch']) {
+                $changedResidual[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($range === null) {
+            $reasons[] = 'glob-class-full-scan';
+        }
+        foreach ([
+            'text-value' => $changedText,
+            'text-bytes' => $changedBytes,
+            'text-encoding' => $changedEncoding,
+            'storage-class' => $changedStorage,
+            'residual-truth' => $changedResidual,
+            'matched-rowset' => ($entered !== [] || $exited !== []) ? array_values(array_unique(array_merge($entered, $exited))) : [],
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next255',
+            'operator' => 'GLOB',
+            'expression' => 'option_name GLOB ? /* bracket class has no prefix range */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'range' => $range,
+            'rangeUsable' => $range !== null,
+            'fullScanResidualRequired' => $range === null,
+            'globCharacterClassPattern' => str_starts_with($pattern, '[') || str_starts_with($pattern, '[^'),
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentRowids' => $currentRowids,
+            'nextRowids' => $nextRowids,
+            'retainedRowids' => $retained,
+            'enteredRowids' => $entered,
+            'exitedRowids' => $exited,
+            'changedTextRowids' => $changedText,
+            'changedBytesRowids' => $changedBytes,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedStorageClassRowids' => $changedStorage,
+            'changedResidualTruthRowids' => $changedResidual,
+            'currentText' => self::next255_fieldByRowid($currentByRowid, 'text'),
+            'nextText' => self::next255_fieldByRowid($nextByRowid, 'text'),
+            'currentBytesHex' => self::next255_fieldByRowid($currentByRowid, 'bytesHex'),
+            'nextBytesHex' => self::next255_fieldByRowid($nextByRowid, 'bytesHex'),
+            'currentTextEncodings' => self::next255_fieldByRowid($currentByRowid, 'textEncoding'),
+            'nextTextEncodings' => self::next255_fieldByRowid($nextByRowid, 'textEncoding'),
+            'currentStorageClasses' => self::next255_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorageClasses' => self::next255_fieldByRowid($nextByRowid, 'storageClass'),
+            'currentOptionValues' => self::next255_fieldByRowid($currentByRowid, 'optionValue'),
+            'nextOptionValues' => self::next255_fieldByRowid($nextByRowid, 'optionValue'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-glob-character-class',
+                'sqlite-mixed-utf-source-decoder',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next255',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-8/UTF-16 decode, scalar text-affinity coercion, and GLOB bracket-class residual matching',
+            'non_overlap' => 'next255 covers GLOB bracket-class residual fallback when no fixed prefix range exists; avoids next252 numeric prefix cursor, next251 prepared LIKE pattern affinity, next250 RTRIM LIKE residual peers, accepted Unicode GLOB prefix ranges, malformed UTF guards, JSON, WAL, VFS, B-tree, and SQL planner clusters',
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
+    private static function next255_scanRows(array $rows, string $pattern): array
+    {
+        $matched = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite GLOB class next255 rows require option_name or option_name_bytes');
+            }
+            $coerced = self::next255_coerceText($row);
+            if ($coerced === null) {
+                continue;
+            }
+            $residual = SQLiteDatabase::globMatches($coerced['text'], $pattern);
+            if (!$residual) {
+                continue;
+            }
+            $matched[] = [
+                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'text' => $coerced['text'],
+                'bytesHex' => bin2hex($coerced['bytes']),
+                'textEncoding' => $coerced['textEncoding'],
+                'storageClass' => $coerced['storageClass'],
+                'optionValue' => $row['option_value'] ?? null,
+                'residualMatch' => true,
+            ];
+        }
+
+        usort($matched, static fn (array $left, array $right): int => strcmp($left['text'], $right['text']) ?: $left['rowid'] <=> $right['rowid']);
+
+        return $matched;
+    }
+
+    /** @param array<string,mixed> $row @return array{text:string,bytes:string,textEncoding:string,storageClass:string}|null */
+    private static function next255_coerceText(array $row): ?array
+    {
+        if (array_key_exists('option_name_bytes', $row)) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite GLOB class next255 byte rows require option_name_bytes and integer text_encoding');
+            }
+            $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+
+            return [
+                'text' => $text,
+                'bytes' => $row['option_name_bytes'],
+                'textEncoding' => self::next255_encodingName($row['text_encoding']),
+                'storageClass' => 'text',
+            ];
+        }
+
+        $value = $row['option_name'];
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value) || is_bool($value)) {
+            $text = (string) (int) $value;
+            return ['text' => $text, 'bytes' => $text, 'textEncoding' => 'UTF-8', 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            $text = self::next255_formatReal($value);
+            return ['text' => $text, 'bytes' => $text, 'textEncoding' => 'UTF-8', 'storageClass' => 'real'];
+        }
+        if (is_string($value)) {
+            if (preg_match('//u', $value) !== 1) {
+                throw new \InvalidArgumentException('SQLite GLOB class next255 string option_name must be well-formed UTF-8');
+            }
+
+            return ['text' => $value, 'bytes' => $value, 'textEncoding' => 'UTF-8', 'storageClass' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite GLOB class next255 option_name must be scalar text-affinity input');
+    }
+
+    private static function next255_formatReal(float $value): string
+    {
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private static function next255_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite GLOB class next255 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next255_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next255_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next255_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressPatternAffinityPlan(
+        array $currentRows,
+        array $nextRows,
+        mixed $currentPattern,
+        mixed $nextPattern,
+        ?string $escape = null,
+        string $collation = 'NOCASE',
+        string $currentSource = 'main.wp_options@255',
+        string $nextSource = 'main.wp_options@256',
+        int $currentSchemaCookie = 255,
+        int $nextSchemaCookie = 256,
+    ): array {
+        $collation = strtoupper($collation);
+        if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            throw new \InvalidArgumentException('SQLite pattern-affinity LIKE next256 collation must be BINARY, NOCASE, or RTRIM');
+        }
+        if ($escape !== null && self::next256_sqliteTextLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite pattern-affinity LIKE next256 ESCAPE must be one SQLite character');
+        }
+
+        $currentPatternPlan = self::next256_patternPlan($currentPattern, $escape, $collation, 'current');
+        $nextPatternPlan = self::next256_patternPlan($nextPattern, $escape, $collation, 'next');
+        $current = self::next256_scan($currentRows, $currentPatternPlan['patternText'], $escape, $currentPatternPlan['range'], $collation);
+        $next = self::next256_scan($nextRows, $nextPatternPlan['patternText'], $escape, $nextPatternPlan['range'], $collation);
+        $changes = self::next256_changes($current['trace'], $next['trace']);
+        $currentMatched = self::next256_rowids($current['matched']);
+        $nextMatched = self::next256_rowids($next['matched']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentPatternPlan['storage'] !== $nextPatternPlan['storage']) {
+            $reasons[] = 'pattern-storage';
+        }
+        if ($currentPatternPlan['patternText'] !== $nextPatternPlan['patternText']) {
+            $reasons[] = 'pattern-text';
+        }
+        if ($currentPatternPlan['patternKey'] !== $nextPatternPlan['patternKey']) {
+            $reasons[] = 'pattern-collation-key';
+        }
+        if ($currentPatternPlan['error'] !== null || $nextPatternPlan['error'] !== null) {
+            $reasons[] = 'pattern-malformed';
+        }
+        foreach ([
+            'storage-class' => $changes['storageRowids'],
+            'like-text' => $changes['likeTextRowids'],
+            'collation-key' => $changes['collationKeyRowids'],
+            'candidate-rowset' => self::next256_rowids($current['candidate']) === self::next256_rowids($next['candidate']) ? [] : self::next256_uniqueSortedInts(array_merge(self::next256_rowids($current['candidate']), self::next256_rowids($next['candidate']))),
+            'residual-result' => $changes['residualRowids'],
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : self::next256_uniqueSortedInts(array_merge($currentMatched, $nextMatched)),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['unknownRowids'] !== [] || $next['unknownRowids'] !== []) {
+            $reasons[] = 'unknown-like';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next256',
+            'operator' => 'LIKE',
+            'expression' => 'option_value COLLATE ' . $collation . ' LIKE dynamic_pattern /* pattern TEXT affinity current-source fence */',
+            'escape' => $escape,
+            'collation' => $collation,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentPattern' => $currentPatternPlan,
+            'nextPattern' => $nextPatternPlan,
+            'currentCandidateRowids' => self::next256_rowids($current['candidate']),
+            'nextCandidateRowids' => self::next256_rowids($next['candidate']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedRowids' => self::next256_intersectSorted($currentMatched, $nextMatched),
+            'enteredRowids' => self::next256_diffSorted($nextMatched, $currentMatched),
+            'exitedRowids' => self::next256_diffSorted($currentMatched, $nextMatched),
+            'currentFalsePositiveRowids' => self::next256_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::next256_rowids($next['falsePositive']),
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'changedStorageRowids' => $changes['storageRowids'],
+            'changedLikeTextRowids' => $changes['likeTextRowids'],
+            'changedCollationKeyRowids' => $changes['collationKeyRowids'],
+            'changedResidualRowids' => $changes['residualRowids'],
+            'patternUsesTextAffinity' => true,
+            'nullPatternMakesLikeUnknown' => true,
+            'blobPatternIsRejected' => true,
+            'blobValuesDoNotMatchTextLike' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-pattern-text-affinity',
+                'sqlite-like-prefix-range',
+                'sqlite-nocase-rtrim-collation',
+                'sqlite-current-source-next256',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE matching, SQLite scalar text-affinity conversion, ASCII NOCASE/RTRIM collation keys, and current-source diagnostics',
+            'non_overlap' => 'next256 covers the LIKE pattern operand TEXT-affinity current-source fence; avoids next253 fixed-pattern value affinity, next246 dynamic ESCAPE affinity, UTF-16 NOCASE/RTRIM cursor work, Unicode GLOB ranges, JSON/VFS/WAL/B-tree/planner clusters, and suite evidence slices',
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private static function next256_patternPlan(mixed $pattern, ?string $escape, string $collation, string $label): array
+    {
+        $storage = SQLiteAffinityComparison::storageClass($pattern);
+        if ($pattern === null) {
+            return self::next256_emptyPatternPlan($storage, null, null);
+        }
+        if ($pattern instanceof SQLiteBlobValue) {
+            return self::next256_emptyPatternPlan($storage, null, "SQLite pattern-affinity LIKE next256 {$label} pattern is BLOB, not text");
+        }
+
+        $text = self::next256_textAffinity($pattern, "SQLite pattern-affinity LIKE next256 {$label} pattern");
+        if (preg_match('//u', $text) !== 1) {
+            return self::next256_emptyPatternPlan($storage, $text, "SQLite pattern-affinity LIKE next256 {$label} pattern text is malformed UTF-8");
+        }
+
+        $like = SQLiteLikeCollationPlan::plan($text, $collation, $escape, false);
+
+        return [
+            'storage' => $storage,
+            'patternText' => $text,
+            'patternHex' => strtoupper(bin2hex($text)),
+            'patternKey' => self::next256_collationKey($text, $collation),
+            'prefix' => $like['prefix'],
+            'range' => $like['range'],
+            'indexUsable' => $like['indexUsable'],
+            'rejectedReason' => $like['rejectedReason'],
+            'error' => null,
+            'unknown' => false,
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private static function next256_emptyPatternPlan(string $storage, ?string $text, ?string $error): array
+    {
+        return [
+            'storage' => $storage,
+            'patternText' => $text,
+            'patternHex' => $text === null ? null : strtoupper(bin2hex($text)),
+            'patternKey' => null,
+            'prefix' => '',
+            'range' => null,
+            'indexUsable' => false,
+            'rejectedReason' => $error === null ? 'pattern_is_null' : 'pattern_is_not_text',
+            'error' => $error,
+            'unknown' => true,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param ?array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{trace:list<array<string,mixed>>,candidate:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next256_scan(array $rows, ?string $pattern, ?string $escape, ?array $range, string $collation): array
+    {
+        $trace = [];
+        $unknown = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_value', $row)) {
+                throw new \InvalidArgumentException('SQLite pattern-affinity LIKE next256 row requires option_value');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            if ($pattern === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            try {
+                $likeText = self::next256_textAffinity($row['option_value'], 'SQLite pattern-affinity LIKE next256 option_value');
+                if (preg_match('//u', $likeText) !== 1) {
+                    throw new \InvalidArgumentException('SQLite pattern-affinity LIKE next256 option_value text is malformed UTF-8');
+                }
+                $entry = [
+                    'rowid' => $rowid,
+                    'optionName' => (string) ($row['option_name'] ?? ''),
+                    'storage' => SQLiteAffinityComparison::storageClass($row['option_value']),
+                    'likeText' => $likeText,
+                    'likeTextHex' => strtoupper(bin2hex($likeText)),
+                    'collationKey' => self::next256_collationKey($likeText, $collation),
+                    'residualMatch' => SQLiteDatabase::likeMatches($likeText, $pattern, $escape, false),
+                ];
+                $trace[] = $entry;
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+            }
+        }
+
+        usort($trace, self::next256_sortTrace(...));
+        sort($unknown);
+        sort($malformed);
+        ksort($errors);
+
+        $candidate = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($trace as $entry) {
+            if (!self::next256_inRange($entry['collationKey'], $range)) {
+                continue;
+            }
+            $candidate[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'trace' => $trace,
+            'candidate' => $candidate,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'unknownRowids' => $unknown,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next256_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    private static function next256_textAffinity(mixed $value, string $label): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            throw new \InvalidArgumentException($label . ' is BLOB, not text');
+        }
+        if ($value === null) {
+            throw new \InvalidArgumentException($label . ' is NULL');
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value)) {
+            return (string) $value;
+        }
+        if (is_float($value)) {
+            $text = sprintf('%.15g', $value);
+            return str_contains($text, '.') || stripos($text, 'e') !== false ? $text : $text . '.0';
+        }
+        if (is_string($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException($label . ' must be scalar text-affinity input');
+    }
+
+    private static function next256_collationKey(string $text, string $collation): string
+    {
+        return match ($collation) {
+            'NOCASE' => strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+            'RTRIM' => rtrim($text, ' '),
+            default => $text,
+        };
+    }
+
+    private static function next256_sortTrace(array $left, array $right): int
+    {
+        return strcmp($left['collationKey'], $right['collationKey']) ?: $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next256_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array{storageRowids:list<int>,likeTextRowids:list<int>,collationKeyRowids:list<int>,residualRowids:list<int>}
+     */
+    private static function next256_changes(array $current, array $next): array
+    {
+        $currentByRowid = self::next256_rowsByRowid($current);
+        $nextByRowid = self::next256_rowsByRowid($next);
+        $rowids = self::next256_uniqueSortedInts(array_merge(array_keys($currentByRowid), array_keys($nextByRowid)));
+        $storage = [];
+        $text = [];
+        $key = [];
+        $residual = [];
+        foreach ($rowids as $rowid) {
+            $left = $currentByRowid[$rowid] ?? null;
+            $right = $nextByRowid[$rowid] ?? null;
+            if ($left === null || $right === null) {
+                $storage[] = $rowid;
+                $text[] = $rowid;
+                $key[] = $rowid;
+                $residual[] = $rowid;
+                continue;
+            }
+            if ($left['storage'] !== $right['storage']) {
+                $storage[] = $rowid;
+            }
+            if ($left['likeText'] !== $right['likeText']) {
+                $text[] = $rowid;
+            }
+            if ($left['collationKey'] !== $right['collationKey']) {
+                $key[] = $rowid;
+            }
+            if ($left['residualMatch'] !== $right['residualMatch']) {
+                $residual[] = $rowid;
+            }
+        }
+
+        return [
+            'storageRowids' => self::next256_uniqueSortedInts($storage),
+            'likeTextRowids' => self::next256_uniqueSortedInts($text),
+            'collationKeyRowids' => self::next256_uniqueSortedInts($key),
+            'residualRowids' => self::next256_uniqueSortedInts($residual),
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next256_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function next256_uniqueSortedInts(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next256_intersectSorted(array $left, array $right): array
+    {
+        return self::next256_uniqueSortedInts(array_values(array_intersect($left, $right)));
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next256_diffSorted(array $left, array $right): array
+    {
+        return self::next256_uniqueSortedInts(array_values(array_diff($left, $right)));
+    }
+
+    private static function next256_sqliteTextLength(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+        if (preg_match_all('/./us', $text, $matches) === false || implode('', $matches[0]) !== $text) {
+            return strlen($text);
+        }
+
+        return count($matches[0]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameNumericAffinityLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = '2024%',
+        ?string $escape = null,
+        string $currentSource = 'main.wp_options@256',
+        string $nextSource = 'main.wp_options@257',
+        int $currentSchemaCookie = 256,
+        int $nextSchemaCookie = 257,
+    ): array {
+        $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
+        $current = self::next257_scan($currentRows, $pattern, $escape, $like['range']);
+        $next = self::next257_scan($nextRows, $pattern, $escape, $like['range']);
+        $changes = self::next257_changes($current['decoded'], $next['decoded']);
+        $residualChanges = self::next257_residualChanges($current['decoded'], $next['decoded']);
+        $currentCandidates = self::next257_rowids($current['candidate']);
+        $nextCandidates = self::next257_rowids($next['candidate']);
+        $currentMatched = self::next257_rowids($current['matched']);
+        $nextMatched = self::next257_rowids($next['matched']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'name-affinity' => $changes['textChangedRowids'],
+            'storage-class' => $changes['storageChangedRowids'],
+            'encoded-bytes' => $changes['bytesChangedRowids'],
+            'encoding' => $changes['encodingChangedRowids'],
+            'nocase-key' => $changes['nocaseKeyChangedRowids'],
+            'residual-result' => $residualChanges,
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($currentCandidates !== $nextCandidates) {
+            $reasons[] = 'candidate-rowset';
+        }
+        if ($currentMatched !== $nextMatched) {
+            $reasons[] = 'matched-rowset';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next257',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE NOCASE LIKE ? /* NUMERIC storage coerced through TEXT affinity */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => 'NOCASE',
+            'affinity' => 'TEXT-for-LIKE',
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'prefix' => $like['prefix'],
+            'range' => $like['range'],
+            'indexUsable' => $like['indexUsable'],
+            'rejectedReason' => $like['rejectedReason'],
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'matchedRetainedRowids' => self::next257_intersectSorted($currentMatched, $nextMatched),
+            'matchedExitedRowids' => self::next257_diffSorted($currentMatched, $nextMatched),
+            'matchedEnteredRowids' => self::next257_diffSorted($nextMatched, $currentMatched),
+            'currentFalsePositiveRowids' => self::next257_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::next257_rowids($next['falsePositive']),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentStorageClasses' => self::next257_map($current['decoded'], 'storageClass'),
+            'nextStorageClasses' => self::next257_map($next['decoded'], 'storageClass'),
+            'currentTextValues' => self::next257_map($current['decoded'], 'textValue'),
+            'nextTextValues' => self::next257_map($next['decoded'], 'textValue'),
+            'currentNocaseKeys' => self::next257_map($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::next257_map($next['decoded'], 'nocaseKey'),
+            'currentEncodingNames' => self::next257_map($current['decoded'], 'encodingName'),
+            'nextEncodingNames' => self::next257_map($next['decoded'], 'encodingName'),
+            'currentByteHex' => self::next257_map($current['decoded'], 'byteHex'),
+            'nextByteHex' => self::next257_map($next['decoded'], 'byteHex'),
+            'currentResidualMatches' => self::next257_map($current['decoded'], 'residualMatch'),
+            'nextResidualMatches' => self::next257_map($next['decoded'], 'residualMatch'),
+            'changedTextRowids' => $changes['textChangedRowids'],
+            'changedStorageRowids' => $changes['storageChangedRowids'],
+            'changedBytesRowids' => $changes['bytesChangedRowids'],
+            'changedEncodingRowids' => $changes['encodingChangedRowids'],
+            'changedNocaseKeyRowids' => $changes['nocaseKeyChangedRowids'],
+            'changedResidualRowids' => $residualChanges,
+            'numericStorageCoercedBeforeLike' => true,
+            'blobAndNullRemainOutsideLikeCursor' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-nocase-prefix-range',
+                'sqlite-text-affinity',
+                'sqlite-utf16-decode',
+                'sqlite-current-source-next257',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE prefix planning, TEXT affinity coercion for numeric storage, UTF-16 decode, and current-source rowset invalidation diagnostics',
+            'non_overlap' => 'next257 covers option_name numeric-storage TEXT coercion entering/leaving a NOCASE LIKE cursor; avoids accepted next253 option_value TEXT-affinity LIKE, next245 dangling ESCAPE, Unicode GLOB ranges, UTF-16 malformed insert guards, and SQL/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param ?array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{decoded:list<array<string,mixed>>,candidate:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next257_scan(array $rows, string $pattern, ?string $escape, ?array $range): array
+    {
+        $decoded = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $row) {
+            self::next257_assertRow($row);
+            try {
+                $text = self::next257_textAffinityName($row);
+                $decoded[] = [
+                    'rowid' => $row['option_id'],
+                    'storageClass' => strtolower($row['storage']),
+                    'textValue' => $text,
+                    'nocaseKey' => self::next257_asciiLower($text),
+                    'encodingName' => self::next257_encodingName($row['name_encoding'] ?? null),
+                    'byteHex' => isset($row['option_name_bytes']) && is_string($row['option_name_bytes']) ? bin2hex($row['option_name_bytes']) : null,
+                    'residualMatch' => SQLiteDatabase::likeMatches($text, $pattern, $escape, false),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $row['option_id'];
+                $errors[$row['option_id']] = $exception->getMessage();
+            }
+        }
+        usort($decoded, static fn (array $left, array $right): int => strcmp($left['nocaseKey'], $right['nocaseKey']) ?: $left['rowid'] <=> $right['rowid']);
+        sort($malformed);
+        ksort($errors);
+
+        $candidate = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($decoded as $entry) {
+            if (!self::next257_inRange($entry['nocaseKey'], $range)) {
+                continue;
+            }
+            $candidate[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'decoded' => $decoded,
+            'candidate' => $candidate,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next257_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next257 rows require integer option_id');
+        }
+        if (!array_key_exists('storage', $row) || !is_string($row['storage'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next257 rows require storage');
+        }
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next257_textAffinityName(array $row): string
+    {
+        return match (strtolower($row['storage'])) {
+            'text' => self::next257_decodeTextName($row),
+            'integer', 'real' => (string) $row['option_name'],
+            'blob' => throw new \InvalidArgumentException('SQLite TEXT affinity LIKE does not coerce BLOB option_name bytes'),
+            'null' => throw new \InvalidArgumentException('SQLite LIKE over NULL option_name remains unknown'),
+            default => throw new \InvalidArgumentException('SQLite encoding affinity LIKE next257 unsupported storage class'),
+        };
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next257_decodeTextName(array $row): string
+    {
+        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next257 text rows require option_name_bytes');
+        }
+        if (!array_key_exists('name_encoding', $row) || !is_int($row['name_encoding'])) {
+            throw new \InvalidArgumentException('SQLite encoding affinity LIKE next257 text rows require integer name_encoding');
+        }
+
+        return SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['name_encoding']);
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next257_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    private static function next257_encodingName(mixed $encoding): ?string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            null => null,
+            default => 'unknown',
+        };
+    }
+
+    private static function next257_asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next257_map(array $rows, string $key): array
+    {
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[$row['rowid']] = $row[$key];
+        }
+
+        return $mapped;
+    }
+
+    /** @param list<array{rowid:int}> $rows @return list<int> */
+    private static function next257_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next257_byRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+        ksort($indexed);
+
+        return $indexed;
+    }
+
+    /** @param list<array<string,mixed>> $left @param list<array<string,mixed>> $right @return array<string,list<int>> */
+    private static function next257_changes(array $left, array $right): array
+    {
+        $leftById = self::next257_byRowid($left);
+        $rightById = self::next257_byRowid($right);
+        $rowids = array_values(array_unique(array_merge(array_keys($leftById), array_keys($rightById))));
+        sort($rowids);
+        $changes = [
+            'textChangedRowids' => [],
+            'storageChangedRowids' => [],
+            'bytesChangedRowids' => [],
+            'encodingChangedRowids' => [],
+            'nocaseKeyChangedRowids' => [],
+        ];
+        foreach ($rowids as $rowid) {
+            $leftRow = $leftById[$rowid] ?? null;
+            $rightRow = $rightById[$rowid] ?? null;
+            foreach ([
+                'textChangedRowids' => 'textValue',
+                'storageChangedRowids' => 'storageClass',
+                'bytesChangedRowids' => 'byteHex',
+                'encodingChangedRowids' => 'encodingName',
+                'nocaseKeyChangedRowids' => 'nocaseKey',
+            ] as $bucket => $key) {
+                if (($leftRow[$key] ?? null) !== ($rightRow[$key] ?? null)) {
+                    $changes[$bucket][] = (int) $rowid;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    /** @param list<array<string,mixed>> $left @param list<array<string,mixed>> $right @return list<int> */
+    private static function next257_residualChanges(array $left, array $right): array
+    {
+        $leftById = self::next257_byRowid($left);
+        $rightById = self::next257_byRowid($right);
+        $rowids = array_values(array_unique(array_merge(array_keys($leftById), array_keys($rightById))));
+        sort($rowids);
+        $changed = [];
+        foreach ($rowids as $rowid) {
+            if (($leftById[$rowid]['residualMatch'] ?? null) !== ($rightById[$rowid]['residualMatch'] ?? null)) {
+                $changed[] = (int) $rowid;
+            }
+        }
+
+        return $changed;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next257_intersectSorted(array $left, array $right): array
+    {
+        $values = array_values(array_intersect($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next257_diffSorted(array $left, array $right): array
+    {
+        $values = array_values(array_diff($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressCaseSensitiveLikeTransitionPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'PLUGIN!_%',
+        ?string $escape = '!',
+        bool $currentCaseSensitiveLike = false,
+        bool $nextCaseSensitiveLike = true,
+        string $currentSource = 'main.wp_options@257',
+        string $nextSource = 'main.wp_options@258',
+        int $currentSchemaCookie = 257,
+        int $nextSchemaCookie = 258,
+    ): array {
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $current = self::next258_scanRows($currentRows, $pattern, $escape, $currentCaseSensitiveLike);
+        $next = self::next258_scanRows($nextRows, $pattern, $escape, $nextCaseSensitiveLike);
+        $currentMatched = self::next258_rowids($current['matched']);
+        $nextMatched = self::next258_rowids($next['matched']);
+        $retained = array_values(array_intersect($currentMatched, $nextMatched));
+        $exited = array_values(array_diff($currentMatched, $nextMatched));
+        $entered = array_values(array_diff($nextMatched, $currentMatched));
+        $currentByRowid = self::next258_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next258_rowsByRowid($next['decisions']);
+        $changedTruth = [];
+        $changedText = [];
+        $changedStorage = [];
+
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['predicateResult'] !== $nextByRowid[$rowid]['predicateResult']) {
+                $changedTruth[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['text'] !== $nextByRowid[$rowid]['text']) {
+                $changedText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['storageClass'] !== $nextByRowid[$rowid]['storageClass']) {
+                $changedStorage[] = $rowid;
+            }
+        }
+        sort($changedTruth);
+        sort($changedText);
+        sort($changedStorage);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentCaseSensitiveLike !== $nextCaseSensitiveLike) {
+            $reasons[] = 'case-sensitive-like';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedTruth !== []) {
+            $reasons[] = 'predicate-truth';
+        }
+        if ($changedText !== []) {
+            $reasons[] = 'value-text';
+        }
+        if ($changedStorage !== []) {
+            $reasons[] = 'value-storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next258',
+            'operator' => 'LIKE',
+            'expression' => 'option_name LIKE ? ESCAPE ? /* case_sensitive_like current-source fence */',
+            'pattern' => $pattern,
+            'patternHex' => bin2hex($pattern),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : bin2hex($escape),
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => bin2hex($patternPlan['prefix']),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'binaryRange' => $patternPlan['binaryRange'],
+            'noCaseRange' => $patternPlan['noCaseRange'],
+            'currentCaseSensitiveLike' => $currentCaseSensitiveLike,
+            'nextCaseSensitiveLike' => $nextCaseSensitiveLike,
+            'currentCollation' => $currentCaseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'nextCollation' => $nextCaseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'caseSensitiveLikeChangesFunctionSemantics' => true,
+            'caseSensitiveLikeDoesNotChangePatternTokens' => true,
+            'caseSensitiveLikeInvalidatesPreparedLikeCursor' => true,
+            'asciiNoCaseFoldsOnlyWhenPragmaIsOff' => true,
+            'escapedUnderscoreRemainsLiteralInBothModes' => true,
+            'globSemanticsUnaffectedByCaseSensitiveLike' => true,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next258_rowids($current['decisions']),
+            'nextCandidateRowids' => self::next258_rowids($next['decisions']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retained,
+            'exitedMatchedRowids' => $exited,
+            'enteredMatchedRowids' => $entered,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'changedPredicateTruthRowids' => $changedTruth,
+            'changedValueTextRowids' => $changedText,
+            'changedStorageClassRowids' => $changedStorage,
+            'currentPredicateResults' => self::next258_fieldByRowid($currentByRowid, 'predicateResult'),
+            'nextPredicateResults' => self::next258_fieldByRowid($nextByRowid, 'predicateResult'),
+            'currentValueText' => self::next258_fieldByRowid($currentByRowid, 'text'),
+            'nextValueText' => self::next258_fieldByRowid($nextByRowid, 'text'),
+            'currentValueHex' => self::next258_fieldByRowid($currentByRowid, 'hex'),
+            'nextValueHex' => self::next258_fieldByRowid($nextByRowid, 'hex'),
+            'currentStorageClasses' => self::next258_fieldByRowid($currentByRowid, 'storageClass'),
+            'nextStorageClasses' => self::next258_fieldByRowid($nextByRowid, 'storageClass'),
+            'currentSortKeys' => self::next258_fieldByRowid($currentByRowid, 'sortKey'),
+            'nextSortKeys' => self::next258_fieldByRowid($nextByRowid, 'sortKey'),
+            'currentGlobProbeRowids' => self::next258_rowids($current['globMatched']),
+            'nextGlobProbeRowids' => self::next258_rowids($next['globMatched']),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'dependencies' => [
+                'sqlite-like-case-sensitive-pragma',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next258',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE tokenization, text-affinity coercion, ASCII NOCASE matching, BINARY matching, and current-source invalidation diagnostics',
+            'non_overlap' => 'next258 covers PRAGMA case_sensitive_like transitions for escaped WordPress option_name LIKE cursors; avoids accepted Unicode GLOB ranges, explicit SQL NULL ESCAPE next254, prepared pattern storage next251, non-ASCII NOCASE prefix next247, UTF-16 malformed guards, and SQL/JSON/WAL/VFS/B-tree clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>,matched:list<array<string,mixed>>,globMatched:list<array<string,mixed>>,unknownRowids:list<int>}
+     */
+    private static function next258_scanRows(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike): array
+    {
+        $decisions = [];
+        $matched = [];
+        $globMatched = [];
+        $unknown = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row)) {
+                throw new \InvalidArgumentException('SQLite case-sensitive LIKE next258 rows require option_name');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            $value = self::next258_coerceText($row['option_name']);
+            if ($value === null) {
+                $unknown[] = $rowid;
+                continue;
+            }
+            $like = SQLiteDatabase::likeMatches($value['text'], $pattern, $escape, $caseSensitiveLike);
+            $decision = [
+                'rowid' => $rowid,
+                'text' => $value['text'],
+                'hex' => bin2hex($value['text']),
+                'storageClass' => $value['storageClass'],
+                'predicateResult' => $like,
+                'sortKey' => $caseSensitiveLike ? $value['text'] : self::next258_asciiLower($value['text']),
+            ];
+            $decisions[] = $decision;
+            if ($like) {
+                $matched[] = $decision;
+            }
+            if (SQLiteDatabase::globMatches($value['text'], 'PLUGIN_*')) {
+                $globMatched[] = $decision;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['sortKey'], $right['sortKey']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($decisions, $sort);
+        usort($matched, $sort);
+        usort($globMatched, $sort);
+        sort($unknown);
+
+        return ['decisions' => $decisions, 'matched' => $matched, 'globMatched' => $globMatched, 'unknownRowids' => $unknown];
+    }
+
+    /** @return null|array{text:string,storageClass:string} */
+    private static function next258_coerceText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return ['text' => $value, 'storageClass' => 'text'];
+        }
+        if (is_int($value)) {
+            return ['text' => (string) $value, 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            return ['text' => self::next258_formatReal($value), 'storageClass' => 'real'];
+        }
+        if (is_bool($value)) {
+            return ['text' => $value ? '1' : '0', 'storageClass' => 'integer'];
+        }
+
+        throw new \InvalidArgumentException('SQLite case-sensitive LIKE next258 option_name must be scalar text-affinity input');
+    }
+
+    private static function next258_formatReal(float $value): string
+    {
+        if (!is_finite($value)) {
+            return (string) $value;
+        }
+
+        return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+    }
+
+    private static function next258_asciiLower(string $text): string
+    {
+        return strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next258_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next258_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next258_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        ksort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressBinaryCollationDefaultLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'Plugin%',
+        ?string $escape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@258',
+        string $nextSource = 'main.wp_options@259',
+        int $currentSchemaCookie = 258,
+        int $nextSchemaCookie = 259,
+    ): array {
+        if ($escape !== null && self::next259_sqliteTextLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite BINARY LIKE next259 ESCAPE must be one SQLite character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $patternPlan['binaryRange'];
+        $binaryRangeUsable = $caseSensitiveLike && $range['lowerInclusive'] !== '';
+        $current = self::next259_scan($currentRows, $pattern, $escape, $caseSensitiveLike, $binaryRangeUsable ? $range : null);
+        $next = self::next259_scan($nextRows, $pattern, $escape, $caseSensitiveLike, $binaryRangeUsable ? $range : null);
+        $currentMatched = self::next259_rowids($current['matched']);
+        $nextMatched = self::next259_rowids($next['matched']);
+        $changes = self::next259_changes($current['trace'], $next['trace']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if (!$binaryRangeUsable) {
+            $reasons[] = 'binary-prefix-range-unsafe';
+        }
+        foreach ([
+            'text-value' => $changes['textRowids'],
+            'text-bytes' => $changes['bytesRowids'],
+            'text-encoding' => $changes['encodingRowids'],
+            'storage-class' => $changes['storageRowids'],
+            'binary-key' => $changes['binaryKeyRowids'],
+            'residual-result' => $changes['residualRowids'],
+            'candidate-rowset' => self::next259_rowids($current['candidate']) === self::next259_rowids($next['candidate']) ? [] : self::next259_uniqueSortedInts(array_merge(self::next259_rowids($current['candidate']), self::next259_rowids($next['candidate']))),
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : self::next259_uniqueSortedInts(array_merge($currentMatched, $nextMatched)),
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next259',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE BINARY LIKE ? /* default LIKE ignores BINARY collation for ASCII folding */',
+            'pattern' => $pattern,
+            'patternHex' => strtoupper(bin2hex($pattern)),
+            'escape' => $escape,
+            'escapeHex' => $escape === null ? null : strtoupper(bin2hex($escape)),
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'collation' => 'BINARY',
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => strtoupper(bin2hex($patternPlan['prefix'])),
+            'binaryRange' => $range,
+            'binaryRangeUsable' => $binaryRangeUsable,
+            'fullScanResidualRequired' => !$binaryRangeUsable,
+            'defaultLikeIgnoresBinaryCollationForAsciiFold' => !$caseSensitiveLike,
+            'caseSensitiveLikeRestoresBinaryRangeSafety' => $caseSensitiveLike,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next259_rowids($current['candidate']),
+            'nextCandidateRowids' => self::next259_rowids($next['candidate']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedRowids' => self::next259_intersectSorted($currentMatched, $nextMatched),
+            'enteredRowids' => self::next259_diffSorted($nextMatched, $currentMatched),
+            'exitedRowids' => self::next259_diffSorted($currentMatched, $nextMatched),
+            'currentFalsePositiveRowids' => self::next259_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::next259_rowids($next['falsePositive']),
+            'changedTextRowids' => $changes['textRowids'],
+            'changedBytesRowids' => $changes['bytesRowids'],
+            'changedEncodingRowids' => $changes['encodingRowids'],
+            'changedStorageClassRowids' => $changes['storageRowids'],
+            'changedBinaryKeyRowids' => $changes['binaryKeyRowids'],
+            'changedResidualRowids' => $changes['residualRowids'],
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentText' => self::next259_fieldByRowid($current['trace'], 'text'),
+            'nextText' => self::next259_fieldByRowid($next['trace'], 'text'),
+            'currentTextHex' => self::next259_fieldByRowid($current['trace'], 'textHex'),
+            'nextTextHex' => self::next259_fieldByRowid($next['trace'], 'textHex'),
+            'currentBinaryKeys' => self::next259_fieldByRowid($current['trace'], 'binaryKey'),
+            'nextBinaryKeys' => self::next259_fieldByRowid($next['trace'], 'binaryKey'),
+            'currentEncodings' => self::next259_fieldByRowid($current['trace'], 'encoding'),
+            'nextEncodings' => self::next259_fieldByRowid($next['trace'], 'encoding'),
+            'currentStorage' => self::next259_fieldByRowid($current['trace'], 'storage'),
+            'nextStorage' => self::next259_fieldByRowid($next['trace'], 'storage'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-like-default-ascii-fold',
+                'sqlite-binary-collation-key',
+                'sqlite-mixed-utf-source-decoder',
+                'sqlite-current-source-next259',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native LIKE matching, BINARY collation byte keys, mixed UTF decoding, scalar text-affinity, and current-source diagnostics',
+            'non_overlap' => 'next259 covers default LIKE ASCII folding over a BINARY-collated option_name expression where a BINARY prefix cursor is unsafe until case_sensitive_like is enabled; avoids accepted next255 GLOB bracket-class fallback, next256 dynamic pattern affinity, Unicode GLOB ranges, UTF-16 malformed guards, JSON/VFS/WAL/B-tree/SQL planner clusters, and suite evidence slices',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param ?array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{trace:list<array<string,mixed>>,candidate:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next259_scan(array $rows, string $pattern, ?string $escape, bool $caseSensitiveLike, ?array $range): array
+    {
+        $trace = [];
+        $unknown = [];
+        $malformed = [];
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite BINARY LIKE next259 rows require option_name or option_name_bytes');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            try {
+                $coerced = self::next259_coerceText($row);
+                if ($coerced === null) {
+                    $unknown[] = $rowid;
+                    continue;
+                }
+                if (preg_match('//u', $coerced['text']) !== 1) {
+                    throw new \InvalidArgumentException('SQLite BINARY LIKE next259 option_name text is malformed UTF-8');
+                }
+                $trace[] = [
+                    'rowid' => $rowid,
+                    'text' => $coerced['text'],
+                    'textHex' => strtoupper(bin2hex($coerced['text'])),
+                    'binaryKey' => $coerced['text'],
+                    'encoding' => $coerced['encoding'],
+                    'storage' => $coerced['storage'],
+                    'residualMatch' => SQLiteDatabase::likeMatches($coerced['text'], $pattern, $escape, $caseSensitiveLike),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+            }
+        }
+
+        usort($trace, static fn (array $left, array $right): int => strcmp($left['binaryKey'], $right['binaryKey']) ?: $left['rowid'] <=> $right['rowid']);
+        sort($unknown);
+        sort($malformed);
+        ksort($errors);
+
+        $candidate = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($trace as $entry) {
+            if (!self::next259_inRange($entry['binaryKey'], $range)) {
+                continue;
+            }
+            $candidate[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'trace' => $trace,
+            'candidate' => $candidate,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'unknownRowids' => $unknown,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next259_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null) {
+            return true;
+        }
+        if (strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param array<string,mixed> $row @return ?array{text:string,encoding:string,storage:string} */
+    private static function next259_coerceText(array $row): ?array
+    {
+        if (array_key_exists('option_name_bytes', $row)) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite BINARY LIKE next259 byte rows require option_name_bytes and integer text_encoding');
+            }
+
+            return [
+                'text' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']),
+                'encoding' => self::next259_encodingName($row['text_encoding']),
+                'storage' => 'text',
+            ];
+        }
+
+        $value = $row['option_name'];
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value) || is_bool($value)) {
+            return ['text' => (string) (int) $value, 'encoding' => 'UTF-8', 'storage' => 'integer'];
+        }
+        if (is_float($value)) {
+            $text = sprintf('%.15G', $value);
+            if (str_contains($text, '.')) {
+                $text = rtrim(rtrim($text, '0'), '.');
+            }
+
+            return ['text' => $text === '-0' ? '0' : $text, 'encoding' => 'UTF-8', 'storage' => 'real'];
+        }
+        if (is_string($value)) {
+            return ['text' => $value, 'encoding' => 'UTF-8', 'storage' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite BINARY LIKE next259 option_name must be scalar text-affinity input');
+    }
+
+    private static function next259_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite BINARY LIKE next259 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    private static function next259_sqliteTextLength(string $text): int
+    {
+        preg_match_all('/./us', $text, $matches);
+
+        return count($matches[0]);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array{textRowids:list<int>,bytesRowids:list<int>,encodingRowids:list<int>,storageRowids:list<int>,binaryKeyRowids:list<int>,residualRowids:list<int>}
+     */
+    private static function next259_changes(array $current, array $next): array
+    {
+        $currentByRowid = self::next259_rowsByRowid($current);
+        $nextByRowid = self::next259_rowsByRowid($next);
+        $rowids = array_values(array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)));
+        sort($rowids);
+        $changes = [
+            'textRowids' => [],
+            'bytesRowids' => [],
+            'encodingRowids' => [],
+            'storageRowids' => [],
+            'binaryKeyRowids' => [],
+            'residualRowids' => [],
+        ];
+
+        foreach ($rowids as $rowid) {
+            foreach ([
+                'text' => 'textRowids',
+                'textHex' => 'bytesRowids',
+                'encoding' => 'encodingRowids',
+                'storage' => 'storageRowids',
+                'binaryKey' => 'binaryKeyRowids',
+                'residualMatch' => 'residualRowids',
+            ] as $field => $bucket) {
+                if ($currentByRowid[$rowid][$field] !== $nextByRowid[$rowid][$field]) {
+                    $changes[$bucket][] = $rowid;
+                }
+            }
+        }
+
+        return $changes;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next259_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next259_intersectSorted(array $left, array $right): array
+    {
+        $result = array_values(array_intersect($left, $right));
+        sort($result);
+
+        return $result;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next259_diffSorted(array $left, array $right): array
+    {
+        $result = array_values(array_diff($left, $right));
+        sort($result);
+
+        return $result;
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function next259_uniqueSortedInts(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next259_rowsByRowid(array $rows): array
+    {
+        $byRowid = [];
+        foreach ($rows as $row) {
+            $byRowid[$row['rowid']] = $row;
+        }
+        ksort($byRowid);
+
+        return $byRowid;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next259_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            $values[$row['rowid']] = $row[$field];
+        }
+        ksort($values);
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressRtrimCollationLikeResidualPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin_cache',
+        ?string $escape = null,
+        string $currentSource = 'main.wp_options@259',
+        string $nextSource = 'main.wp_options@260',
+        int $currentSchemaCookie = 259,
+        int $nextSchemaCookie = 260,
+    ): array {
+        if ($escape !== null && self::next260_sqliteTextLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 ESCAPE must be one SQLite character');
+        }
+
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $patternPlan['binaryRange'];
+        $current = self::next260_scan($currentRows, $pattern, $escape, $range);
+        $next = self::next260_scan($nextRows, $pattern, $escape, $range);
+        $currentCandidates = self::next260_rowids($current['candidates']);
+        $nextCandidates = self::next260_rowids($next['candidates']);
+        $currentMatched = self::next260_rowids($current['matched']);
+        $nextMatched = self::next260_rowids($next['matched']);
+        $currentRejected = self::next260_rowids($current['rejected']);
+        $nextRejected = self::next260_rowids($next['rejected']);
+        $currentTrace = self::next260_rowsByRowid($current['trace']);
+        $nextTrace = self::next260_rowsByRowid($next['trace']);
+        $retainedCandidates = self::next260_intersectSorted($currentCandidates, $nextCandidates);
+        $enteredCandidates = self::next260_diffSorted($nextCandidates, $currentCandidates);
+        $exitedCandidates = self::next260_diffSorted($currentCandidates, $nextCandidates);
+
+        $changedText = [];
+        $changedBytes = [];
+        $changedEncoding = [];
+        $changedRtrimKey = [];
+        $changedResidual = [];
+        foreach (self::next260_intersectSorted(array_keys($currentTrace), array_keys($nextTrace)) as $rowid) {
+            if ($currentTrace[$rowid]['text'] !== $nextTrace[$rowid]['text']) {
+                $changedText[] = $rowid;
+            }
+            if ($currentTrace[$rowid]['bytesHex'] !== $nextTrace[$rowid]['bytesHex']) {
+                $changedBytes[] = $rowid;
+            }
+            if ($currentTrace[$rowid]['encoding'] !== $nextTrace[$rowid]['encoding']) {
+                $changedEncoding[] = $rowid;
+            }
+            if ($currentTrace[$rowid]['rtrimKey'] !== $nextTrace[$rowid]['rtrimKey']) {
+                $changedRtrimKey[] = $rowid;
+            }
+            if ($currentTrace[$rowid]['residualMatch'] !== $nextTrace[$rowid]['residualMatch']) {
+                $changedResidual[] = $rowid;
+            }
+        }
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        foreach ([
+            'candidate-rowset' => array_merge($enteredCandidates, $exitedCandidates),
+            'matched-rowset' => $currentMatched === $nextMatched ? [] : array_values(array_unique(array_merge($currentMatched, $nextMatched))),
+            'residual-result' => $changedResidual,
+            'text-value' => $changedText,
+            'text-bytes' => $changedBytes,
+            'text-encoding' => $changedEncoding,
+            'rtrim-collation-key' => $changedRtrimKey,
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['unknownRowids'] !== [] || $next['unknownRowids'] !== []) {
+            $reasons[] = 'unknown-like';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next260',
+            'operator' => 'LIKE',
+            'expression' => 'option_name COLLATE RTRIM LIKE ? /* RTRIM index candidates still require raw LIKE residual */',
+            'pattern' => $pattern,
+            'patternHex' => strtoupper(bin2hex($pattern)),
+            'escape' => $escape,
+            'prefix' => $patternPlan['prefix'],
+            'prefixHex' => strtoupper(bin2hex($patternPlan['prefix'])),
+            'prefixCharacters' => $patternPlan['prefixCharacters'],
+            'rangeLowerInclusive' => $range['lowerInclusive'],
+            'rangeUpperBound' => $range['upperBound'],
+            'collation' => 'RTRIM',
+            'rtrimCollationCanShareEqualityKey' => true,
+            'likeResidualDoesNotTrimTrailingSpaces' => true,
+            'rangeMayAdmitTrailingSpaceFalsePositives' => true,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'retainedCandidateRowids' => $retainedCandidates,
+            'enteredCandidateRowids' => $enteredCandidates,
+            'exitedCandidateRowids' => $exitedCandidates,
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'currentResidualRejectedRowids' => $currentRejected,
+            'nextResidualRejectedRowids' => $nextRejected,
+            'currentUnknownRowids' => $current['unknownRowids'],
+            'nextUnknownRowids' => $next['unknownRowids'],
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentTrace' => $current['trace'],
+            'nextTrace' => $next['trace'],
+            'currentText' => self::next260_fieldByRowid($currentTrace, 'text'),
+            'nextText' => self::next260_fieldByRowid($nextTrace, 'text'),
+            'currentBytesHex' => self::next260_fieldByRowid($currentTrace, 'bytesHex'),
+            'nextBytesHex' => self::next260_fieldByRowid($nextTrace, 'bytesHex'),
+            'currentEncodings' => self::next260_fieldByRowid($currentTrace, 'encoding'),
+            'nextEncodings' => self::next260_fieldByRowid($nextTrace, 'encoding'),
+            'currentRtrimKeys' => self::next260_fieldByRowid($currentTrace, 'rtrimKey'),
+            'nextRtrimKeys' => self::next260_fieldByRowid($nextTrace, 'rtrimKey'),
+            'changedTextRowids' => $changedText,
+            'changedBytesRowids' => $changedBytes,
+            'changedEncodingRowids' => $changedEncoding,
+            'changedRtrimKeyRowids' => $changedRtrimKey,
+            'changedResidualRowids' => $changedResidual,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'dependencies' => [
+                'sqlite-rtrim-collation-key',
+                'sqlite-like-raw-residual',
+                'sqlite-mixed-utf-source-decoder',
+                'sqlite-current-source-next260',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-8/UTF-16 decode, LIKE residual matching, scalar text-affinity coercion, and RTRIM collation-key diagnostics',
+            'non_overlap' => 'next260 covers RTRIM-collated LIKE candidate false positives caused by trailing spaces; avoids accepted next255 GLOB bracket fallback, next256 dynamic pattern affinity, Unicode GLOB ranges, UTF-16 malformed guards, JSON, WAL, VFS, B-tree, and SQL planner clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{lowerInclusive:string,upperBound:?string} $range
+     * @return array{trace:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,rejected:list<array<string,mixed>>,unknownRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function next260_scan(array $rows, string $pattern, ?string $escape, array $range): array
+    {
+        $trace = [];
+        $unknown = [];
+        $malformed = [];
+        $errors = [];
+
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('option_name', $row) && !array_key_exists('option_name_bytes', $row)) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 rows require option_name or option_name_bytes');
+            }
+            $rowid = is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1;
+            try {
+                $coerced = self::next260_coerceText($row);
+                if ($coerced === null) {
+                    $unknown[] = $rowid;
+                    continue;
+                }
+                $entry = [
+                    'rowid' => $rowid,
+                    'text' => $coerced['text'],
+                    'bytesHex' => strtoupper(bin2hex($coerced['bytes'])),
+                    'encoding' => $coerced['encoding'],
+                    'storage' => $coerced['storage'],
+                    'rtrimKey' => rtrim($coerced['text'], ' '),
+                    'residualMatch' => SQLiteDatabase::likeMatches($coerced['text'], $pattern, $escape, true),
+                ];
+                $trace[] = $entry;
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $rowid;
+                $errors[$rowid] = $exception->getMessage();
+            }
+        }
+
+        usort($trace, static fn (array $left, array $right): int => strcmp($left['rtrimKey'], $right['rtrimKey']) ?: strcmp($left['text'], $right['text']) ?: $left['rowid'] <=> $right['rowid']);
+        sort($unknown);
+        sort($malformed);
+        ksort($errors);
+
+        $candidates = [];
+        $matched = [];
+        $rejected = [];
+        foreach ($trace as $entry) {
+            if (!self::next260_inRange($entry['rtrimKey'], $range)) {
+                continue;
+            }
+            $candidates[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
+            }
+        }
+
+        return [
+            'trace' => $trace,
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'rejected' => $rejected,
+            'unknownRowids' => $unknown,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row @return array{text:string,bytes:string,encoding:string,storage:string}|null */
+    private static function next260_coerceText(array $row): ?array
+    {
+        if (array_key_exists('option_name_bytes', $row)) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 byte rows require option_name_bytes and integer text_encoding');
+            }
+            $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+
+            return [
+                'text' => $text,
+                'bytes' => $row['option_name_bytes'],
+                'encoding' => self::next260_encodingName($row['text_encoding']),
+                'storage' => 'text',
+            ];
+        }
+
+        $value = $row['option_name'];
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_int($value) || is_bool($value)) {
+            $text = (string) (int) $value;
+            return ['text' => $text, 'bytes' => $text, 'encoding' => 'UTF-8', 'storage' => 'integer'];
+        }
+        if (is_float($value)) {
+            $text = self::next260_formatReal($value);
+            return ['text' => $text, 'bytes' => $text, 'encoding' => 'UTF-8', 'storage' => 'real'];
+        }
+        if (is_string($value)) {
+            if (preg_match('//u', $value) !== 1) {
+                throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 string option_name must be well-formed UTF-8');
+            }
+
+            return ['text' => $value, 'bytes' => $value, 'encoding' => 'UTF-8', 'storage' => 'text'];
+        }
+
+        throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 option_name must be scalar text-affinity input');
+    }
+
+    /** @param array{lowerInclusive:string,upperBound:?string} $range */
+    private static function next260_inRange(string $key, array $range): bool
+    {
+        return strcmp($key, $range['lowerInclusive']) >= 0 && ($range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0);
+    }
+
+    private static function next260_formatReal(float $value): string
+    {
+        $formatted = sprintf('%.15G', $value);
+        if (str_contains($formatted, '.')) {
+            $formatted = rtrim(rtrim($formatted, '0'), '.');
+        }
+
+        return $formatted === '-0' ? '0' : $formatted;
+    }
+
+    private static function next260_encodingName(int $encoding): string
+    {
+        return match ($encoding) {
+            1 => 'UTF-8',
+            2 => 'UTF-16LE',
+            3 => 'UTF-16BE',
+            default => throw new \InvalidArgumentException('SQLite RTRIM LIKE next260 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    private static function next260_sqliteTextLength(string $text): int
+    {
+        if ($text === '') {
+            return 0;
+        }
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            return strlen($text);
+        }
+
+        return count($characters);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next260_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next260_intersectSorted(array $left, array $right): array
+    {
+        $values = array_values(array_intersect($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<int> $left @param list<int> $right @return list<int> */
+    private static function next260_diffSorted(array $left, array $right): array
+    {
+        $values = array_values(array_diff($left, $right));
+        sort($values);
+
+        return $values;
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next260_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows @return array<int,mixed> */
+    private static function next260_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressUtf16NameAndValueLikePlan(
+        array $currentRows,
+        array $nextRows,
+        string $namePatternBytes,
+        int|string $namePatternEncoding,
+        string $valuePattern = 'enabled:%',
+        ?string $nameEscape = '!',
+        ?string $valueEscape = null,
+        bool $caseSensitiveLike = false,
+        string $currentSource = 'main.wp_options@260',
+        string $nextSource = 'main.wp_options@261',
+        int $currentSchemaCookie = 260,
+        int $nextSchemaCookie = 261,
+    ): array {
+        $namePattern = SQLiteEncodingCollationSourceCursor::decodeText($namePatternBytes, self::next261_encodingCode($namePatternEncoding));
+        $namePatternPlan = SQLiteDatabase::likePatternPlan($namePattern, $nameEscape);
+        $valuePatternPlan = SQLiteDatabase::likePatternPlan($valuePattern, $valueEscape);
+        $current = self::next261_scanRows($currentRows, $namePattern, $valuePattern, $nameEscape, $valueEscape, $caseSensitiveLike);
+        $next = self::next261_scanRows($nextRows, $namePattern, $valuePattern, $nameEscape, $valueEscape, $caseSensitiveLike);
+        $currentMatched = self::next261_rowids($current['matched']);
+        $nextMatched = self::next261_rowids($next['matched']);
+        $retained = array_values(array_intersect($currentMatched, $nextMatched));
+        $exited = array_values(array_diff($currentMatched, $nextMatched));
+        $entered = array_values(array_diff($nextMatched, $currentMatched));
+        $currentByRowid = self::next261_rowsByRowid($current['decisions']);
+        $nextByRowid = self::next261_rowsByRowid($next['decisions']);
+        $changedNameText = [];
+        $changedValueText = [];
+        $changedValueStorage = [];
+        $changedCompositeTruth = [];
+
+        foreach (array_intersect(array_keys($currentByRowid), array_keys($nextByRowid)) as $rowid) {
+            if ($currentByRowid[$rowid]['nameText'] !== $nextByRowid[$rowid]['nameText']) {
+                $changedNameText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['valueText'] !== $nextByRowid[$rowid]['valueText']) {
+                $changedValueText[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['valueStorageClass'] !== $nextByRowid[$rowid]['valueStorageClass']) {
+                $changedValueStorage[] = $rowid;
+            }
+            if ($currentByRowid[$rowid]['compositeMatch'] !== $nextByRowid[$rowid]['compositeMatch']) {
+                $changedCompositeTruth[] = $rowid;
+            }
+        }
+
+        sort($changedNameText);
+        sort($changedValueText);
+        sort($changedValueStorage);
+        sort($changedCompositeTruth);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($entered !== [] || $exited !== []) {
+            $reasons[] = 'matched-rowset';
+        }
+        if ($changedCompositeTruth !== []) {
+            $reasons[] = 'composite-predicate-truth';
+        }
+        if ($changedNameText !== []) {
+            $reasons[] = 'decoded-name-text';
+        }
+        if ($changedValueText !== []) {
+            $reasons[] = 'value-affinity-text';
+        }
+        if ($changedValueStorage !== []) {
+            $reasons[] = 'value-storage-class';
+        }
+
+        return [
+            'status' => 'encoding-collation-affinity-like-current-source-next261',
+            'operator' => 'LIKE',
+            'expression' => 'option_name LIKE utf16(?) ESCAPE ? AND option_value LIKE ? /* text affinity current-source fence */',
+            'namePattern' => $namePattern,
+            'namePatternHex' => bin2hex($namePattern),
+            'namePatternBytesHex' => bin2hex($namePatternBytes),
+            'namePatternEncoding' => SQLiteEncodingCollationSourceCursor::encodingNameForCode(self::next261_encodingCode($namePatternEncoding)),
+            'nameEscape' => $nameEscape,
+            'nameEscapeHex' => $nameEscape === null ? null : bin2hex($nameEscape),
+            'namePrefix' => $namePatternPlan['prefix'],
+            'namePrefixHex' => bin2hex($namePatternPlan['prefix']),
+            'nameBinaryRange' => $namePatternPlan['binaryRange'],
+            'nameNoCaseRange' => $namePatternPlan['noCaseRange'],
+            'valuePattern' => $valuePattern,
+            'valuePatternHex' => bin2hex($valuePattern),
+            'valueEscape' => $valueEscape,
+            'valuePrefix' => $valuePatternPlan['prefix'],
+            'valueBinaryRange' => $valuePatternPlan['binaryRange'],
+            'collation' => $caseSensitiveLike ? 'BINARY' : 'NOCASE',
+            'caseSensitiveLike' => $caseSensitiveLike,
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentCandidateRowids' => self::next261_rowids($current['candidates']),
+            'nextCandidateRowids' => self::next261_rowids($next['candidates']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'retainedMatchedRowids' => $retained,
+            'exitedMatchedRowids' => $exited,
+            'enteredMatchedRowids' => $entered,
+            'currentUnknownValueRowids' => $current['unknownValueRowids'],
+            'nextUnknownValueRowids' => $next['unknownValueRowids'],
+            'changedNameTextRowids' => $changedNameText,
+            'changedValueTextRowids' => $changedValueText,
+            'changedValueStorageClassRowids' => $changedValueStorage,
+            'changedCompositeTruthRowids' => $changedCompositeTruth,
+            'currentNameText' => self::next261_fieldByRowid($currentByRowid, 'nameText'),
+            'nextNameText' => self::next261_fieldByRowid($nextByRowid, 'nameText'),
+            'currentNameTextHex' => self::next261_fieldByRowid($currentByRowid, 'nameHex'),
+            'nextNameTextHex' => self::next261_fieldByRowid($nextByRowid, 'nameHex'),
+            'currentNameEncoding' => self::next261_fieldByRowid($currentByRowid, 'nameEncoding'),
+            'nextNameEncoding' => self::next261_fieldByRowid($nextByRowid, 'nameEncoding'),
+            'currentValueText' => self::next261_fieldByRowid($currentByRowid, 'valueText'),
+            'nextValueText' => self::next261_fieldByRowid($nextByRowid, 'valueText'),
+            'currentValueHex' => self::next261_fieldByRowid($currentByRowid, 'valueHex'),
+            'nextValueHex' => self::next261_fieldByRowid($nextByRowid, 'valueHex'),
+            'currentValueStorageClasses' => self::next261_fieldByRowid($currentByRowid, 'valueStorageClass'),
+            'nextValueStorageClasses' => self::next261_fieldByRowid($nextByRowid, 'valueStorageClass'),
+            'currentCompositeMatches' => self::next261_fieldByRowid($currentByRowid, 'compositeMatch'),
+            'nextCompositeMatches' => self::next261_fieldByRowid($nextByRowid, 'compositeMatch'),
+            'currentNameResidualMatches' => self::next261_fieldByRowid($currentByRowid, 'nameMatch'),
+            'currentValueResidualMatches' => self::next261_fieldByRowid($currentByRowid, 'valueMatch'),
+            'nextNameResidualMatches' => self::next261_fieldByRowid($nextByRowid, 'nameMatch'),
+            'nextValueResidualMatches' => self::next261_fieldByRowid($nextByRowid, 'valueMatch'),
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'invalidationReasons' => $reasons,
+            'utf16PatternDecodedBeforeLikeTokenization' => true,
+            'nameLikeUsesAsciiNoCaseOnly' => !$caseSensitiveLike,
+            'valueLikeAppliesTextAffinityBeforeResidual' => true,
+            'blobAndNullValuesRemainUnknownForLike' => true,
+            'escapedUnderscoreInUtf16PatternIsLiteral' => true,
+            'dependencies' => [
+                'sqlite-encoding-source-cursor',
+                'sqlite-like-escape-tokenizer',
+                'sqlite-text-affinity',
+                'sqlite-current-source-next261',
+            ],
+            'dependency_closure' => 'no new support component needed; next261 reuses native UTF-16 decode, LIKE tokenization, ASCII NOCASE matching, and scalar text-affinity coercion',
+            'non_overlap' => 'next261 covers a composite UTF-16 bound option_name LIKE plus option_value text-affinity LIKE current-source fence; it avoids accepted next240 numeric-only LIKE, next258 case_sensitive_like binary transition, Unicode GLOB range next102/next259, UTF-16 malformed guard, and storage/VFS/WAL/B-tree/JSON clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decisions:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,unknownValueRowids:list<int>}
+     */
+    private static function next261_scanRows(array $rows, string $namePattern, string $valuePattern, ?string $nameEscape, ?string $valueEscape, bool $caseSensitiveLike): array
+    {
+        $decisions = [];
+        $candidates = [];
+        $matched = [];
+        $unknown = [];
+
+        foreach ($rows as $index => $row) {
+            $rowid = self::next261_rowid($row, $index);
+            $name = self::next261_decodeOptionName($row);
+            $value = self::next261_coerceLikeText($row['option_value'] ?? null);
+            $nameMatch = SQLiteDatabase::likeMatches($name['text'], $namePattern, $nameEscape, $caseSensitiveLike);
+            $valueMatch = $value !== null && SQLiteDatabase::likeMatches($value['text'], $valuePattern, $valueEscape, $caseSensitiveLike);
+            if ($value === null) {
+                $unknown[] = $rowid;
+            }
+
+            $decision = [
+                'rowid' => $rowid,
+                'nameText' => $name['text'],
+                'nameHex' => bin2hex($name['text']),
+                'nameEncoding' => $name['encoding'],
+                'valueText' => $value['text'] ?? null,
+                'valueHex' => $value === null ? null : bin2hex($value['text']),
+                'valueStorageClass' => $value['storageClass'] ?? 'unknown',
+                'nameMatch' => $nameMatch,
+                'valueMatch' => $valueMatch,
+                'compositeMatch' => $nameMatch && $valueMatch,
+                'sortKey' => $caseSensitiveLike ? $name['text'] : self::next261_asciiLower($name['text']),
+            ];
+            $decisions[] = $decision;
+            if ($nameMatch) {
+                $candidates[] = $decision;
+            }
+            if ($decision['compositeMatch']) {
+                $matched[] = $decision;
+            }
+        }
+
+        $sort = static fn (array $left, array $right): int => strcmp($left['sortKey'], $right['sortKey']) ?: $left['rowid'] <=> $right['rowid'];
+        usort($decisions, $sort);
+        usort($candidates, $sort);
+        usort($matched, $sort);
+        sort($unknown);
+
+        return ['decisions' => $decisions, 'candidates' => $candidates, 'matched' => $matched, 'unknownValueRowids' => $unknown];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function next261_rowid(array $row, int $index): int
+    {
+        if (!isset($row['option_id']) || !is_int($row['option_id'])) {
+            return $index + 1;
+        }
+
+        return $row['option_id'];
+    }
+
+    /** @param array<string,mixed> $row @return array{text:string,encoding:string} */
+    private static function next261_decodeOptionName(array $row): array
+    {
+        if (isset($row['option_name_bytes'])) {
+            if (!is_string($row['option_name_bytes']) || !isset($row['name_text_encoding'])) {
+                throw new \InvalidArgumentException('SQLite next261 option_name_bytes rows require name_text_encoding');
+            }
+            $encoding = self::next261_encodingCode($row['name_text_encoding']);
+
+            return [
+                'text' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $encoding),
+                'encoding' => SQLiteEncodingCollationSourceCursor::encodingNameForCode($encoding),
+            ];
+        }
+        if (!array_key_exists('option_name', $row) || !is_string($row['option_name'])) {
+            throw new \InvalidArgumentException('SQLite next261 rows require option_name text or encoded option_name_bytes');
+        }
+
+        return ['text' => $row['option_name'], 'encoding' => 'UTF-8'];
+    }
+
+    /** @return null|array{text:string,storageClass:string} */
+    private static function next261_coerceLikeText(mixed $value): ?array
+    {
+        if ($value === null || $value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_string($value)) {
+            return ['text' => $value, 'storageClass' => 'text'];
+        }
+        if (is_int($value)) {
+            return ['text' => (string) $value, 'storageClass' => 'integer'];
+        }
+        if (is_float($value)) {
+            return ['text' => self::next261_formatReal($value), 'storageClass' => 'real'];
+        }
+        if (is_bool($value)) {
+            return ['text' => $value ? '1' : '0', 'storageClass' => 'integer'];
+        }
+
+        throw new \InvalidArgumentException('SQLite next261 LIKE affinity value must be scalar or SQLiteBlobValue');
+    }
+
+    private static function next261_formatReal(float $value): string
+    {
+        if (!is_finite($value)) {
+            return (string) $value;
+        }
+
+        return rtrim(rtrim(sprintf('%.15G', $value), '0'), '.');
+    }
+
+    private static function next261_encodingCode(int|string $encoding): int
+    {
+        if (is_int($encoding)) {
+            if (in_array($encoding, [1, 2, 3], true)) {
+                return $encoding;
+            }
+            throw new \InvalidArgumentException('SQLite next261 text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+
+        return match (strtoupper(str_replace('_', '-', $encoding))) {
+            'UTF-8', 'UTF8' => 1,
+            'UTF-16LE', 'UTF16LE' => 2,
+            'UTF-16BE', 'UTF16BE' => 3,
+            default => throw new \InvalidArgumentException('SQLite next261 text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
+    }
+
+    private static function next261_asciiLower(string $text): string
+    {
+        return strtr($text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+    /** @param list<array<string,mixed>> $rows @return list<int> */
+    private static function next261_rowids(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): int => $row['rowid'], $rows));
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,array<string,mixed>> */
+    private static function next261_rowsByRowid(array $rows): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[$row['rowid']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<int,array<string,mixed>> $rows */
+    private static function next261_fieldByRowid(array $rows, string $field): array
+    {
+        $values = [];
+        foreach ($rows as $rowid => $row) {
+            $values[$rowid] = $row[$field];
+        }
+        ksort($values);
+
+        return $values;
+    }
+}

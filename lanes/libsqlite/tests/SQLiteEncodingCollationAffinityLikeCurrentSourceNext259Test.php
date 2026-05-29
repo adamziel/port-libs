@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
@@ -51,7 +51,7 @@ $plan259 = static fn (
     string $nextSource = 'main.wp_options@259',
     int $currentCookie = 258,
     int $nextCookie = 259,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan::wordpressBinaryCollationDefaultLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan(
     $current ?? $current259,
     $next ?? $next259,
     $pattern,
@@ -200,11 +200,11 @@ $tests['encoding collation affinity like current source next259 rejects invalid 
 };
 
 $tests['encoding collation affinity like current source next259 rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan::wordpressBinaryCollationDefaultLikePlan([['option_id' => 1]], []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan([['option_id' => 1]], []));
 };
 
 $tests['encoding collation affinity like current source next259 reports bad byte row encoding'] = static function (TestRunner $t) use ($enc259): void {
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan::wordpressBinaryCollationDefaultLikePlan([
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan([
         ['option_id' => 1, 'option_name_bytes' => $enc259('Plugin', 1), 'text_encoding' => 9],
     ], [], currentSource: 'same', nextSource: 'same', currentSchemaCookie: 1, nextSchemaCookie: 1);
 

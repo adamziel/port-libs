@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext258Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -27,6 +27,6 @@ $next = [
 ];
 
 echo json_encode(
-    SQLiteEncodingCollationAffinityLikeCurrentSourceNext258Plan::wordpressCaseSensitiveLikeTransitionPlan($current, $next),
+    SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressCaseSensitiveLikeTransitionPlan($current, $next),
     JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
 ) . PHP_EOL;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext244Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -25,7 +25,7 @@ $next = [
     $row(5, 'plugin_café_archive', 'UTF-8'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext244Plan::wordpressUtf16OptionNameLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16OptionNameLikePlan(
     $current,
     $next,
     'plugin!_%café%',

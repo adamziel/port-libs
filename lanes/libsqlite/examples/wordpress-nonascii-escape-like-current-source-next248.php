@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -33,7 +33,7 @@ $next = [
     $row(5, 'PLUGIN_CACHE%NEW', 'UTF-8'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan($current, $next);
 
 if (
     $plan['status'] !== 'encoding-collation-affinity-like-current-source-next248'

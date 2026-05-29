@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -47,7 +47,7 @@ $plan241 = static fn (
     string $nextSource = 'main.wp_options@241',
     int $currentCookie = 240,
     int $nextCookie = 241,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan::wordpressOptionNameByteAwareLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan(
     $current ?? $current241,
     $next ?? $next241,
     $pattern,
@@ -199,15 +199,15 @@ $tests['encoding collation affinity like current source next241 direct like keep
 };
 
 $tests['encoding collation affinity like current source next241 rejects missing option name'] = static function (TestRunner $t) use ($next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1]], $next241, 'wp%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1]], $next241, 'wp%'));
 };
 
 $tests['encoding collation affinity like current source next241 rejects non scalar option name'] = static function (TestRunner $t) use ($next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next241, 'wp%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next241, 'wp%'));
 };
 
 $tests['encoding collation affinity like current source next241 rejects multi character escape'] = static function (TestRunner $t) use ($current241, $next241): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan::wordpressOptionNameByteAwareLikePlan($current241, $next241, 'wp!!_%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan($current241, $next241, 'wp!!_%', '!!'));
 };
 
 return $tests;

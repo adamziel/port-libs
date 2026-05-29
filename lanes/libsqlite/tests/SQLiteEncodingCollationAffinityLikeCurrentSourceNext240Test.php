@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -42,7 +42,7 @@ $plan240 = static fn (
     string $nextSource = 'main.wp_options@240',
     int $currentCookie = 239,
     int $nextCookie = 240,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan(
     $current ?? $current240,
     $next ?? $next240,
     $pattern,
@@ -169,7 +169,7 @@ $tests['encoding collation affinity like current source next240 escaped literal 
         ['option_id' => 1, 'option_name' => 'literal', 'option_value' => '40%'],
         ['option_id' => 2, 'option_name' => 'numeric', 'option_value' => 404],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan($rows, $rows, '40!%', '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($rows, $rows, '40!%', '!', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
     $t->same('21', $plan['escapeHex']);
 };
@@ -183,22 +183,22 @@ $tests['encoding collation affinity like current source next240 case sensitive c
 $tests['encoding collation affinity like current source next240 storage-only change invalidates'] = static function (TestRunner $t): void {
     $current = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => 404]];
     $next = [['option_id' => 1, 'option_name' => 'same_text', 'option_value' => '404']];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan($current, $next, '404', null, false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($current, $next, '404', null, false, 'same', 'same', 1, 1);
     $t->same([], $plan['changedFormattedRowids']);
     $t->same([1], $plan['changedStorageClassRowids']);
     $t->same(['storage-class'], $plan['invalidationReasons']);
 };
 
 $tests['encoding collation affinity like current source next240 rejects missing option value'] = static function (TestRunner $t) use ($next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan([['option_id' => 1]], $next240, '40%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1]], $next240, '40%'));
 };
 
 $tests['encoding collation affinity like current source next240 rejects array option value'] = static function (TestRunner $t) use ($next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan([['option_id' => 1, 'option_value' => ['404']]], $next240, '40%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan([['option_id' => 1, 'option_value' => ['404']]], $next240, '40%'));
 };
 
 $tests['encoding collation affinity like current source next240 rejects invalid escape'] = static function (TestRunner $t) use ($current240, $next240): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan($current240, $next240, '40!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan($current240, $next240, '40!!', '!!'));
 };
 
 return $tests;

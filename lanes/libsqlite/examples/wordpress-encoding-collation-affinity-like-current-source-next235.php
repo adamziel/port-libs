@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext235Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "Plugin_\xe2legacy"],
@@ -26,7 +26,7 @@ $next = [
     ['option_id' => 7, 'option_name' => 'new_numeric_retry', 'option_value' => 123],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext235Plan::wordpressOptionValueNotLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNotLikePlan(
     $current,
     $next,
     "plugin!_\xe2%",

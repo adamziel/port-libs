@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext245Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -21,7 +21,7 @@ $next = [
     ['option_id' => 5, 'option_name' => 'PLUGIN_CACHE'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext245Plan::wordpressDanglingEscapeLikePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDanglingEscapeLikePlan($current, $next);
 
 if (
     $plan['status'] !== 'encoding-collation-affinity-like-current-source-next245'

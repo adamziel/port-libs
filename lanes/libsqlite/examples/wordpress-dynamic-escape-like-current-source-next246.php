@@ -7,7 +7,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
     require_once $file;
 }
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%enabled'],
@@ -22,7 +22,7 @@ $next = [
     ['option_id' => 4, 'option_name' => 'plugin_new', 'option_value' => 'plugin_%enabled_extra'],
 ];
 
-$summary = SQLiteEncodingCollationAffinityLikeCurrentSourceNext246Plan::wordpressDynamicEscapeLikePlan(
+$summary = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressDynamicEscapeLikePlan(
     $current,
     $next,
     'plugin!_%',

@@ -6,10 +6,10 @@ require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteLikeCollationPlan.php';
-require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext237Plan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext237Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'plugin_literal', 'option_value' => 'plugin_%alpha', 'autoload' => 'yes'],
@@ -28,7 +28,7 @@ $next = [
     ['option_id' => 6, 'option_name' => 'plugin_added', 'option_value' => 'plugin_%added', 'autoload' => 'yes'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext237Plan::wordpressOptionValueEscapePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueEscapePlan($current, $next);
 
 $summary = [
     'scenario' => 'wordpress-option-value-like-escape-affinity-current-source-next237',

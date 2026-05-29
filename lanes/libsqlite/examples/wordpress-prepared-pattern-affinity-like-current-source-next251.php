@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -18,7 +18,7 @@ $next = [
     ['option_id' => 4, 'option_name' => 'plugin_cache_new', 'option_value' => 409],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan(
     $current,
     $next,
     40,

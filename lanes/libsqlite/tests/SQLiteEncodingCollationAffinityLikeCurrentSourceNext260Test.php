@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext260Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
@@ -52,7 +52,7 @@ $plan260 = static fn (
     string $nextSource = 'main.wp_options@260',
     int $currentCookie = 259,
     int $nextCookie = 260,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext260Plan::wordpressRtrimCollationLikeResidualPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan(
     $current ?? $current260,
     $next ?? $next260,
     $pattern,
@@ -221,11 +221,11 @@ $tests['encoding collation affinity like current source next260 invalid escape i
 };
 
 $tests['encoding collation affinity like current source next260 rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext260Plan::wordpressRtrimCollationLikeResidualPlan([['option_id' => 1]], []));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan([['option_id' => 1]], []));
 };
 
 $tests['encoding collation affinity like current source next260 records bad byte row as malformed'] = static function (TestRunner $t): void {
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext260Plan::wordpressRtrimCollationLikeResidualPlan([
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimCollationLikeResidualPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plugin_cache', 'text_encoding' => 'UTF-8'],
     ], []);
 

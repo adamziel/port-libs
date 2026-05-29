@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -44,7 +44,7 @@ $plan238 = static fn (
     string $nextSource = 'main.wp_options@238',
     int $currentCookie = 237,
     int $nextCookie = 238,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan(
     $current ?? $current238,
     $next ?? $next238,
     $pattern,
@@ -155,7 +155,7 @@ $tests['encoding collation affinity like current source next238 escaped decimal 
         ['option_id' => 2, 'option_value' => 100],
         ['option_id' => 3, 'option_value' => '100x0'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan($rows, $rows, '100!.%', '!', true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($rows, $rows, '100!.%', '!', true, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentMatchedRowids']);
     $t->same('100.', $plan['prefix']);
 };
@@ -168,7 +168,7 @@ $tests['encoding collation affinity like current source next238 nocase folds onl
 };
 
 $tests['encoding collation affinity like current source next238 exponent pattern matches padded exponent'] = static function (TestRunner $t) use ($current238, $next238): void {
-    $exp = SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan($current238, $next238, '1.0e-__', null, true);
+    $exp = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $next238, '1.0e-__', null, true);
     $t->same([6], $exp['currentMatchedRowids']);
     $t->same([6], $exp['nextMatchedRowids']);
     $t->same('1.0e-', $exp['prefix']);
@@ -180,21 +180,21 @@ $tests['encoding collation affinity like current source next238 null and blob st
         ['option_id' => 2, 'option_value' => null],
         ['option_id' => 3, 'option_value' => 100.0],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan($rows, $rows, '100.%', null, true, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($rows, $rows, '100.%', null, true, 'same', 'same', 1, 1);
     $t->same([3], $plan['currentMatchedRowids']);
     $t->same([1, 2], $plan['currentUnknownRowids']);
 };
 
 $tests['encoding collation affinity like current source next238 rejects multi character escape'] = static function (TestRunner $t) use ($current238, $next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan($current238, $next238, '100!.%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan($current238, $next238, '100!.%', '!!'));
 };
 
 $tests['encoding collation affinity like current source next238 rejects missing option value'] = static function (TestRunner $t) use ($next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan([['option_id' => 1]], $next238));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1]], $next238));
 };
 
 $tests['encoding collation affinity like current source next238 rejects non scalar value'] = static function (TestRunner $t) use ($next238): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan([['option_id' => 1, 'option_value' => ['100.0']]], $next238));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan([['option_id' => 1, 'option_value' => ['100.0']]], $next238));
 };
 
 return $tests;

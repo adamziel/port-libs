@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -43,7 +43,7 @@ $plan232 = static fn (
     string $nextSource = 'main.wp_options@232',
     int $currentCookie = 231,
     int $nextCookie = 232,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan(
     $current ?? $current232,
     $next ?? $next232,
     $pattern,
@@ -128,7 +128,7 @@ foreach ($cases232 as $name => [$path, $expected]) {
 }
 
 $tests['encoding collation affinity like current source next232 valid euro does not match malformed byte prefix'] = static function (TestRunner $t) use ($current232, $next232): void {
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan($current232, $next232, "plugin!_\xe2%", '!');
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan($current232, $next232, "plugin!_\xe2%", '!');
     $t->same(false, array_key_exists(4, $plan['currentTextsHex']));
 };
 
@@ -151,7 +151,7 @@ $tests['encoding collation affinity like current source next232 underscore consu
         ['option_id' => 2, 'option_value' => "legacy_\xe2\x82_tail"],
         ['option_id' => 3, 'option_value' => "legacy_\xe2\x82\xac_tail"],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, "legacy!___tail", '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, "legacy!___tail", '!', false, 'same', 'same', 1, 1);
     $t->same([1, 3], $plan['currentRowids']);
 };
 
@@ -162,7 +162,7 @@ $tests['encoding collation affinity like current source next232 numeric affinity
         ['option_id' => 3, 'option_value' => true],
         ['option_id' => 4, 'option_value' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, '12%', null, false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, '12%', null, false, 'same', 'same', 1, 1);
     $t->same([2, 1], $plan['currentRowids']);
     $t->same(['31322e35', '313233'], array_values($plan['currentTextsHex']));
 };
@@ -172,20 +172,20 @@ $tests['encoding collation affinity like current source next232 blob and null re
         ['option_id' => 1, 'option_value' => new SQLiteBlobValue("plugin_\xe2blob")],
         ['option_id' => 2, 'option_value' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, "plugin!_\xe2%", '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan($rows, $rows, "plugin!_\xe2%", '!', false, 'same', 'same', 1, 1);
     $t->same([], $plan['currentRowids']);
 };
 
 $tests['encoding collation affinity like current source next232 rejects multi character escape'] = static function (TestRunner $t) use ($current232, $next232): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan($current232, $next232, "plugin!_\xe2%", '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan($current232, $next232, "plugin!_\xe2%", '!!'));
 };
 
 $tests['encoding collation affinity like current source next232 rejects missing option value'] = static function (TestRunner $t) use ($next232): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan([['option_id' => 1]], $next232, "plugin!_\xe2%", '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan([['option_id' => 1]], $next232, "plugin!_\xe2%", '!'));
 };
 
 $tests['encoding collation affinity like current source next232 rejects non scalar value'] = static function (TestRunner $t) use ($next232): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan([['option_id' => 1, 'option_value' => ['x']]], $next232, "plugin!_\xe2%", '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan([['option_id' => 1, 'option_value' => ['x']]], $next232, "plugin!_\xe2%", '!'));
 };
 
 return $tests;

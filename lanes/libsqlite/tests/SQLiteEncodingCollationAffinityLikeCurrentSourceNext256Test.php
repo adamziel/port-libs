@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext256Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -45,7 +45,7 @@ $plan256 = static fn (
     string $nextSource = 'main.wp_options@256',
     int $currentCookie = 255,
     int $nextCookie = 256,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext256Plan::wordpressPatternAffinityPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPatternAffinityPlan(
     $current ?? $current256,
     $next ?? $next256,
     $currentPattern,

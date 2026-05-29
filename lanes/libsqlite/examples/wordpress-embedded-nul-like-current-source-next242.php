@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext242Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -18,7 +18,7 @@ $next = [
     ['option_id' => 4, 'option_name' => 'nul_cache_added', 'option_value' => "PLUGIN\0CACHE_added"],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext242Plan::wordpressEmbeddedNulLikePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressEmbeddedNulLikePlan($current, $next);
 
 if (
     $plan['status'] !== 'encoding-collation-affinity-like-current-source-next242'

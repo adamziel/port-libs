@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -39,7 +39,7 @@ $plan251 = static fn (
     string $nextSource = 'main.wp_options@251',
     int $currentCookie = 250,
     int $nextCookie = 251,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan(
     $current ?? $current251,
     $next ?? $next251,
     $currentPattern,
@@ -143,7 +143,7 @@ $tests['encoding collation affinity like current source next251 escaped numeric 
         ['option_id' => 1, 'option_name' => 'plain_40', 'option_value' => '40'],
         ['option_id' => 2, 'option_name' => 'plain_402', 'option_value' => '402'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan($rows, $rows, '40', '40', true, '1', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan($rows, $rows, '40', '40', true, '1', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
     $t->same('text', $plan['nextEscapeStorageClass']);
     $t->same(['escape-storage-class'], $plan['invalidationReasons']);
@@ -169,23 +169,23 @@ $tests['encoding collation affinity like current source next251 case sensitive e
 };
 
 $tests['encoding collation affinity like current source next251 rejects blob pattern'] = static function (TestRunner $t) use ($current251, $next251): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan($current251, $next251, new SQLiteBlobValue('40'), '40'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan($current251, $next251, new SQLiteBlobValue('40'), '40'));
 };
 
 $tests['encoding collation affinity like current source next251 rejects blob escape'] = static function (TestRunner $t) use ($current251, $next251): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan($current251, $next251, '40!%', '40!%', new SQLiteBlobValue('!')));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan($current251, $next251, '40!%', '40!%', new SQLiteBlobValue('!')));
 };
 
 $tests['encoding collation affinity like current source next251 rejects invalid escape length'] = static function (TestRunner $t) use ($current251, $next251): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan($current251, $next251, '40!!', '40!!', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan($current251, $next251, '40!!', '40!!', '!!'));
 };
 
 $tests['encoding collation affinity like current source next251 rejects missing option value'] = static function (TestRunner $t) use ($next251): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan([['option_id' => 1]], $next251, '40', '40'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan([['option_id' => 1]], $next251, '40', '40'));
 };
 
 $tests['encoding collation affinity like current source next251 rejects blob option value'] = static function (TestRunner $t) use ($next251): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext251Plan::wordpressPreparedPatternAffinityPlan([['option_id' => 1, 'option_value' => new SQLiteBlobValue('40')]], $next251, '40', '40'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPreparedPatternAffinityPlan([['option_id' => 1, 'option_value' => new SQLiteBlobValue('40')]], $next251, '40', '40'));
 };
 
 return $tests;

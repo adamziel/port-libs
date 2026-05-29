@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
@@ -31,7 +31,7 @@ $next = [
     $row(4, 'Éplugin_cache', 3, 'accented-new'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan::wordpressGlobClassFallbackPlan($current, $next, '[^A-Za-z]plugin*');
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan($current, $next, '[^A-Za-z]plugin*');
 
 $summary = [
     'scenario' => 'wordpress-encoding-glob-class-current-source-next255',

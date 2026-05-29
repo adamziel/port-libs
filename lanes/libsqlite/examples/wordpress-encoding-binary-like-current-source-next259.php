@@ -5,9 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
@@ -25,7 +25,7 @@ $next = [
     ['option_id' => 5, 'option_name' => 'plugin_new'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext259Plan::wordpressBinaryCollationDefaultLikePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressBinaryCollationDefaultLikePlan($current, $next);
 $summary = [
     'scenario' => 'wordpress-encoding-binary-like-current-source-next259',
     'status' => $plan['status'],

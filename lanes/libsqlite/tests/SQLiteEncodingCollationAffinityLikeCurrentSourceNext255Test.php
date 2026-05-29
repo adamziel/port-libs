@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
@@ -47,7 +47,7 @@ $plan255 = static fn (
     string $nextSource = 'main.wp_options@255',
     int $currentCookie = 254,
     int $nextCookie = 255,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan::wordpressGlobClassFallbackPlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan(
     $current ?? $current255,
     $next ?? $next255,
     $pattern,
@@ -170,15 +170,15 @@ $tests['encoding collation affinity like current source next255 null and blob na
 };
 
 $tests['encoding collation affinity like current source next255 rejects missing option name'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan::wordpressGlobClassFallbackPlan([['option_id' => 1]], [], '*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([['option_id' => 1]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source next255 rejects malformed utf8 scalar'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan::wordpressGlobClassFallbackPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], '*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([['option_id' => 1, 'option_name' => "plugin_\xc3"]], [], '*'));
 };
 
 $tests['encoding collation affinity like current source next255 rejects bad byte row'] = static function (TestRunner $t) use ($enc255): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext255Plan::wordpressGlobClassFallbackPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressGlobClassFallbackPlan([
         ['option_id' => 1, 'option_name_bytes' => $enc255('plugin', 1), 'text_encoding' => 4],
     ], [], '*'));
 };

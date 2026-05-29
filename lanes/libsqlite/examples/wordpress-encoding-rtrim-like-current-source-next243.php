@@ -8,7 +8,7 @@ foreach (glob(__DIR__ . '/../src/*.php') ?: [] as $file) {
 }
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext243Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'cache_plain', 'option_value' => 'cache_hit'],
@@ -24,7 +24,7 @@ $next = [
     ['option_id' => 5, 'option_name' => 'cache_new', 'option_value' => 'cache_new   '],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext243Plan::wordpressRtrimLikeResidualPlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRtrimLikeResidualPlan($current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [3, 1, 2]);

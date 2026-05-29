@@ -5,10 +5,10 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteEncodingCollationSourceCursor.php';
-require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
@@ -28,7 +28,7 @@ $next = [
     ['option_id' => 5, 'option_name_bytes' => $enc('plugin_new', 'UTF-16LE'), 'name_text_encoding' => 'UTF-16LE', 'option_value' => true],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan::wordpressUtf16NameAndValueLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan(
     $current,
     $next,
     $enc('plugin!_%', 'UTF-16LE'),

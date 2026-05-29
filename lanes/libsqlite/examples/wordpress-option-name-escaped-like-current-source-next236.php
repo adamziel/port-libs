@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -22,7 +22,7 @@ $next = [
     ['option_id' => 7, 'option_name' => 'wp_%_timeout'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan(
     $current,
     $next,
     'wp!_!%!_timeout%',

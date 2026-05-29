@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -23,7 +23,7 @@ $next = [
     ['option_id' => 5, 'storage' => 'integer', 'option_name' => 2024],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext257Plan::wordpressOptionNameNumericAffinityLikePlan($current, $next);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameNumericAffinityLikePlan($current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [2, 1, 3]);

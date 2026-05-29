@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -42,7 +42,7 @@ $plan254 = static fn (
     string $nextSource = 'main.wp_options@254',
     int $currentCookie = 253,
     int $nextCookie = 254,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan(
     $current ?? $current254,
     $next ?? $next254,
     $pattern,
@@ -165,7 +165,7 @@ $tests['encoding collation affinity like current source next254 numeric escape u
         ['option_id' => 1, 'option_value' => 'plugin_%'],
         ['option_id' => 2, 'option_value' => 'plugin_123'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan($rows, $rows, 'plugin1_%', 1, true, '1', true, false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan($rows, $rows, 'plugin1_%', 1, true, '1', true, false, 'same', 'same', 1, 1);
     $t->same('1', $plan['currentEscapeText']);
     $t->same('integer', $plan['currentEscapeStorageClass']);
     $t->same([1, 2], $plan['currentMatchedRowids']);
@@ -180,19 +180,19 @@ $tests['encoding collation affinity like current source next254 case sensitive r
 };
 
 $tests['encoding collation affinity like current source next254 rejects blob escape'] = static function (TestRunner $t) use ($current254, $next254): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan($current254, $next254, 'plugin!_%', new SQLiteBlobValue('!'), true));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan($current254, $next254, 'plugin!_%', new SQLiteBlobValue('!'), true));
 };
 
 $tests['encoding collation affinity like current source next254 rejects multi character escape'] = static function (TestRunner $t) use ($current254, $next254): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan($current254, $next254, 'plugin!!_%', '!!', true));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan($current254, $next254, 'plugin!!_%', '!!', true));
 };
 
 $tests['encoding collation affinity like current source next254 rejects missing option value'] = static function (TestRunner $t) use ($next254): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan([['option_id' => 1]], $next254));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan([['option_id' => 1]], $next254));
 };
 
 $tests['encoding collation affinity like current source next254 rejects array option value'] = static function (TestRunner $t) use ($next254): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext254Plan::wordpressNullableEscapeLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $next254));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNullableEscapeLikePlan([['option_id' => 1, 'option_value' => ['plugin']]], $next254));
 };
 
 return $tests;

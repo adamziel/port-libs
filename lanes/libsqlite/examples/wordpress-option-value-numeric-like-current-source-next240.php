@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -20,7 +20,7 @@ $next = [
     ['option_id' => 5, 'option_name' => 'rewrite_rules_new', 'option_value' => 409],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext240Plan::wordpressOptionValueNumericLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueNumericLikePlan(
     $current,
     $next,
     '40%',

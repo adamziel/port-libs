@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
@@ -43,7 +43,7 @@ $plan261 = static fn (
     string $nextSource = 'main.wp_options@261',
     int $currentCookie = 260,
     int $nextCookie = 261,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan::wordpressUtf16NameAndValueLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan(
     $current ?? $current261,
     $next ?? $next261,
     $pattern261,
@@ -168,19 +168,19 @@ $tests['encoding collation affinity like current source next261 boolean value us
 };
 
 $tests['encoding collation affinity like current source next261 rejects malformed utf16 pattern'] = static function (TestRunner $t) use ($current261, $next261): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan::wordpressUtf16NameAndValueLikePlan($current261, $next261, "\x00", 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($current261, $next261, "\x00", 'UTF-16LE'));
 };
 
 $tests['encoding collation affinity like current source next261 rejects missing encoded name metadata'] = static function (TestRunner $t) use ($current261, $next261, $pattern261): void {
     $bad = $current261;
     unset($bad[0]['name_text_encoding']);
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
 };
 
 $tests['encoding collation affinity like current source next261 rejects array value'] = static function (TestRunner $t) use ($current261, $next261, $pattern261): void {
     $bad = $current261;
     $bad[0]['option_value'] = ['enabled:core'];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext261Plan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUtf16NameAndValueLikePlan($bad, $next261, $pattern261, 'UTF-16LE'));
 };
 
 $tests['encoding collation affinity like current source next261 records dependency closure'] = static function (TestRunner $t) use ($plan261): void {

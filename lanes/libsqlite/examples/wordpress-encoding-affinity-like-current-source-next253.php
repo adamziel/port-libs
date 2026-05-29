@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext253Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
@@ -34,7 +34,7 @@ $nextRows = [
     $scalar(104, 1, 'integer'),
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext253Plan::wordpressAutoloadValuePlan($currentRows, $nextRows);
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressAutoloadValuePlan($currentRows, $nextRows);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentMatchedRowids'] === [101, 102]);

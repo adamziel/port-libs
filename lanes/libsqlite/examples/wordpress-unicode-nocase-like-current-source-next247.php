@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext247Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -23,7 +23,7 @@ $next = [
     ['option_id' => 3, 'option_name' => 'plugin_cafÉ_main'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext247Plan::wordpressUnicodeNoCaseLikePlan($current, $next, 'plugin!_café%', '!');
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressUnicodeNoCaseLikePlan($current, $next, 'plugin!_café%', '!');
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'encoding-collation-affinity-like-current-source-next247');

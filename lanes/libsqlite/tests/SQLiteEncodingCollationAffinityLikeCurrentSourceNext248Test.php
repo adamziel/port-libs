@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
@@ -61,7 +61,7 @@ $plan248 = static fn (
     string $nextSource = 'main.wp_options@248',
     int $currentCookie = 247,
     int $nextCookie = 248,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan(
     $current ?? $current248,
     $next ?? $next248,
     $pattern,
@@ -208,19 +208,19 @@ $tests['encoding collation affinity like current source next248 direct like acce
 };
 
 $tests['encoding collation affinity like current source next248 rejects multi character escape'] = static function (TestRunner $t) use ($current248, $next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan($current248, $next248, 'pluginé_cacheé%%', 'éé'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan($current248, $next248, 'pluginé_cacheé%%', 'éé'));
 };
 
 $tests['encoding collation affinity like current source next248 rejects missing option bytes'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'text_encoding' => 1]], $next248));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'text_encoding' => 1]], $next248));
 };
 
 $tests['encoding collation affinity like current source next248 rejects non string bytes'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => ['plugin'], 'text_encoding' => 1]], $next248));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => ['plugin'], 'text_encoding' => 1]], $next248));
 };
 
 $tests['encoding collation affinity like current source next248 rejects invalid encoding id'] = static function (TestRunner $t) use ($next248): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext248Plan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $next248));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressNonAsciiEscapeLikePlan([['option_id' => 1, 'option_name_bytes' => 'plugin_cache%ok', 'text_encoding' => 9]], $next248));
 };
 
 $tests['encoding collation affinity like current source next248 note fields stay explicit'] = static function (TestRunner $t) use ($plan248): void {

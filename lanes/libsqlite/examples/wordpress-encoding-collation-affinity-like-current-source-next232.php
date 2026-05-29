@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $currentRows = [
     ['option_id' => 1, 'option_name' => 'legacy_plugin_payload', 'option_value' => "Plugin_\xe2legacy"],
@@ -18,7 +18,7 @@ $nextRows = [
     ['option_id' => 4, 'option_name' => 'new_legacy_plugin', 'option_value' => "plugin_\xe2new"],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext232Plan::wordpressOptionValueMalformedByteLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionValueMalformedByteLikePlan(
     $currentRows,
     $nextRows,
     "plugin!_\xe2%",

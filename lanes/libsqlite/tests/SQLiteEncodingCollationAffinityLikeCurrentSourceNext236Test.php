@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteDatabase;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -48,7 +48,7 @@ $plan236 = static fn (
     string $nextSource = 'main.wp_options@236',
     int $currentCookie = 235,
     int $nextCookie = 236,
-): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan(
+): array => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan(
     $current ?? $current236,
     $next ?? $next236,
     $pattern,
@@ -162,7 +162,7 @@ $tests['encoding collation affinity like current source next236 multibyte escape
         ['option_id' => 1, 'option_name' => 'wp_%_timeout'],
         ['option_id' => 2, 'option_name' => 'wp_cache_timeout'],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wpé_é%é_timeout', 'é', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wpé_é%é_timeout', 'é', false, 'same', 'same', 1, 1);
     $t->same([1], $plan['currentRowids']);
     $t->same('c3a9', $plan['escapeHex']);
 };
@@ -190,7 +190,7 @@ $tests['encoding collation affinity like current source next236 numeric affinity
         ['option_id' => 2, 'option_name' => 405],
         ['option_id' => 3, 'option_name' => true],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan($rows, $rows, '40_', null, false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, '40_', null, false, 'same', 'same', 1, 1);
     $t->same([1, 2], $plan['currentRowids']);
 };
 
@@ -199,20 +199,20 @@ $tests['encoding collation affinity like current source next236 blob and null st
         ['option_id' => 1, 'option_name' => new SQLiteBlobValue('wp_%_timeout')],
         ['option_id' => 2, 'option_name' => null],
     ];
-    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wp!_!%!_timeout%', '!', false, 'same', 'same', 1, 1);
+    $plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($rows, $rows, 'wp!_!%!_timeout%', '!', false, 'same', 'same', 1, 1);
     $t->same([], $plan['currentRowids']);
 };
 
 $tests['encoding collation affinity like current source next236 rejects missing option name'] = static function (TestRunner $t) use ($next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan([['option_id' => 1]], $next236, 'wp!_!%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1]], $next236, 'wp!_!%', '!'));
 };
 
 $tests['encoding collation affinity like current source next236 rejects non scalar option name'] = static function (TestRunner $t) use ($next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next236, 'wp!_!%', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan([['option_id' => 1, 'option_name' => ['wp']]], $next236, 'wp!_!%', '!'));
 };
 
 $tests['encoding collation affinity like current source next236 rejects multi character escape'] = static function (TestRunner $t) use ($current236, $next236): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNext236Plan::wordpressOptionNameEscapedLikePlan($current236, $next236, 'wp!_!%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameEscapedLikePlan($current236, $next236, 'wp!_!%', '!!'));
 };
 
 return $tests;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext256Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'plugin_cache', 'option_value' => 'plugin_cache'],
@@ -23,7 +23,7 @@ $next = [
     ['option_id' => 6, 'option_name' => 'numeric_new', 'option_value' => '1234'],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext256Plan::wordpressPatternAffinityPlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressPatternAffinityPlan(
     $current,
     $next,
     'plugin%',

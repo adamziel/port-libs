@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_name' => 'retry_timeout_real', 'option_value' => 100.0],
@@ -24,7 +24,7 @@ $next = [
     ['option_id' => 6, 'option_name' => 'retry_timeout_new_real', 'option_value' => 100.25],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext238Plan::wordpressRealTextAffinityLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressRealTextAffinityLikePlan(
     $current,
     $next,
     '100.%'

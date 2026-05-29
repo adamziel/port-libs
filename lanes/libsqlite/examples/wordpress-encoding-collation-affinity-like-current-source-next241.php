@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
-require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan.php';
+require_once __DIR__ . '/../src/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php';
 
 $current = [
     ['option_id' => 1, 'option_name' => "wp_cache\0timeout"],
@@ -24,7 +24,7 @@ $next = [
     ['option_id' => 6, 'option_name' => "wp_cache\0timeout_new"],
 ];
 
-$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNext241Plan::wordpressOptionNameByteAwareLikePlan(
+$plan = SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan::wordpressOptionNameByteAwareLikePlan(
     $current,
     $next,
     "wp!_cache\0timeout%",
