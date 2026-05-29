@@ -10914,20 +10914,20 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_source_next290293',
+        string $savepoint = 'wp_options_rowvalue_statement_partitioned_window',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs attempt statements');
+            throw new \InvalidArgumentException('SQLite row-value statement-partitioned window needs attempt statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value statement-partitioned window needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value statement-partitioned window needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value window current-source next290293 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value statement-partitioned window savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeStatementPartitionedReturningWindowTables($tables);
@@ -10936,7 +10936,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $attemptStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'attempt-before-window-rollback-next290293',
+            'attempt-before-statement-partitioned-window-rollback',
         );
 
         $rollbackCurrent = $savepointImage;
@@ -10945,15 +10945,15 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-window-rollback-next290293',
+            'retry-after-statement-partitioned-window-rollback',
         );
 
-        $attemptWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($attemptReturning), $rowIdColumn, 'attempt-all-next290293');
-        $retryWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($retryReturning), $rowIdColumn, 'retry-all-next290293');
+        $attemptWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($attemptReturning), $rowIdColumn, 'attempt-all-statement-partitioned');
+        $retryWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($retryReturning), $rowIdColumn, 'retry-all-statement-partitioned');
         $retryStatementWindows = self::statementPartitionedReturningStatementWindowRows($retryReturning, $rowIdColumn);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-window-current-source-next290293',
+            'status' => 'rowvalue-update-delete-returning-window-statement-partitioned',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'attempt_current_source_tables' => $attemptCurrent,
@@ -10964,7 +10964,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'savepoint_preserved_after_rollback_to' => true,
             'attempt_returning_window_suppressed_by_rollback' => true,
             'retry_returning_window_yielded_from_current_source' => true,
-            'window_order_columns_next290293' => [$rowIdColumn],
+            'window_order_columns' => [$rowIdColumn],
             'attempt_statements' => $attemptSummaries,
             'retry_statements' => $retrySummaries,
             'discarded_attempt_returning' => $attemptReturning,
@@ -10979,12 +10979,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry_changes_after_rollback' => self::statementPartitionedReturningChangeCount($retrySummaries),
             'changed_tables_after_retry' => self::statementPartitionedReturningChangedTables($savepointImage, $retryCurrent),
             'row_counts' => self::statementPartitionedReturningRowCounts($retryCurrent),
-            'dependency_closure_next290293' => 'no new support component needed; next290-293 reuses native row-value UPDATE/DELETE RETURNING execution and adds statement-partitioned current-source RETURNING window receipts after savepoint retry',
-            'non_overlap_next290293' => 'adds statement-partitioned row_number/lag/lead receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next224/230 nested savepoints, next231 compound tuple sources, next289 all-stream windows, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
+            'dependency_closure' => 'no new support component needed; statement-partitioned row-value/window retry reuses native row-value UPDATE/DELETE RETURNING execution and adds statement-partitioned current-source RETURNING window receipts after savepoint retry',
+            'non_overlap' => 'adds statement-partitioned row_number/lag/lead receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted negative LIMIT/OFFSET, nested savepoints, compound tuple sources, all-stream windows, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
             'dependencies' => [
-                'sqlite-rowvalue-update-returning-window-current-source-next290293',
-                'sqlite-rowvalue-delete-returning-window-current-source-next290293',
-                'sqlite-rowvalue-returning-window-savepoint-retry-current-source-next290293',
+                'sqlite-rowvalue-update-returning-window-statement-partitioned',
+                'sqlite-rowvalue-delete-returning-window-statement-partitioned',
+                'sqlite-rowvalue-returning-window-savepoint-retry-statement-partitioned',
             ],
         ];
     }
@@ -10997,11 +10997,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value window current-source next290293 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value statement-partitioned window tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value window current-source next290293 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value statement-partitioned window rows must be arrays');
                 }
             }
         }
@@ -11078,11 +11078,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value window current-source next290293 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value statement-partitioned window rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value window current-source next290293 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value statement-partitioned window rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -11158,7 +11158,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                     'statement_peer_count' => $count,
                     'status' => $row['status'] ?? null,
                     'option_name' => $row['option_name'] ?? null,
-                    'source' => 'retry-statement-current-source-next290293',
+                    'source' => 'retry-statement-current-source',
                 ];
             }
         }

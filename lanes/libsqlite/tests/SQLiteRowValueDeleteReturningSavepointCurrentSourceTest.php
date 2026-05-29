@@ -67,8 +67,8 @@ $cases = [
     'rollback flag true' => [static fn (): mixed => $rollbackPlan()['rolled_back'], true],
     'rollback statement ordinal is malformed delete' => [static fn (): mixed => $rollbackPlan()['rollback_statement_ordinal'], 1],
     'rollback reason is row value arity mismatch' => [static fn (): mixed => $rollbackPlan()['rollback_reason'], 'SQLite UPDATE/DELETE row-value expressions need at least two values'],
-    'rollback released savepoint name' => [static fn (): mixed => $rollbackPlan()['released_savepoint'], 'wp_options_delete_released_next144'],
-    'rollback savepoint name' => [static fn (): mixed => $rollbackPlan()['rollback_savepoint'], 'wp_options_delete_rollback_next144'],
+    'rollback released savepoint name' => [static fn (): mixed => $rollbackPlan()['released_savepoint'], 'wp_options_delete_returning_released'],
+    'rollback savepoint name' => [static fn (): mixed => $rollbackPlan()['rollback_savepoint'], 'wp_options_delete_returning_rollback'],
     'rollback executed release statements count' => [static fn (): mixed => count($rollbackPlan()['released_executed_statements']), 2],
     'rollback executed rollback statements count before failure' => [static fn (): mixed => count($rollbackPlan()['rollback_executed_statements']), 1],
     'rollback all executed statements count' => [static fn (): mixed => count($rollbackPlan()['executed_statements']), 3],
@@ -96,8 +96,8 @@ $cases = [
     'rollback inner attempted changes two' => [static fn (): mixed => $rollbackPlan()['rollback_attempted_changes'], 2],
     'rollback changed table current' => [static fn (): mixed => $rollbackPlan()['changed_tables'], ['wp_options']],
     'rollback changed table attempted' => [static fn (): mixed => $rollbackPlan()['attempted_changed_tables'], ['wp_options']],
-    'rollback dependency marks delete returning' => [static fn (): mixed => in_array('sqlite-delete-returning-row-value-current-source-next144', $rollbackPlan()['dependencies'], true), true],
-    'rollback dependency marks released survives' => [static fn (): mixed => in_array('sqlite-released-savepoint-delete-survives-inner-rollback-next144', $rollbackPlan()['dependencies'], true), true],
+    'rollback dependency marks delete returning' => [static fn (): mixed => in_array('sqlite-delete-returning-row-value-current-source', $rollbackPlan()['dependencies'], true), true],
+    'rollback dependency marks released survives' => [static fn (): mixed => in_array('sqlite-released-savepoint-delete-survives-inner-rollback', $rollbackPlan()['dependencies'], true), true],
 
     'single rollback delete can release when no failure' => [static fn (): mixed => $rollbackDeleteOnly()['status'], 'released'],
     'single rollback delete yields release plus rollback streams' => [static fn (): mixed => array_column($rollbackDeleteOnly()['yielded_returning'], 'phase'), ['released', 'released', 'rollback']],
@@ -123,7 +123,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue delete returning savepoint current source next144 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue delete returning savepoint current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

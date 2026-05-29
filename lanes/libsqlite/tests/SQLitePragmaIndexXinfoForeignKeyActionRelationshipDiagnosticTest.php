@@ -5,9 +5,9 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 
-$record11351150 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
+$record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowId): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowId);
 
-$scenario11351150 = static function (int $slice, string $updateAction, string $deleteAction, string $indexKind, bool $validLookup) use ($record11351150): array {
+$scenario = static function (int $slice, string $updateAction, string $deleteAction, string $indexKind, bool $validLookup) use ($record): array {
     $childColumns = $indexKind === 'collation' ? 'post_title' : 'site_id, post_id';
     $parentColumns = $indexKind === 'collation' ? 'title' : 'site_id, id';
     $childColumnSql = $indexKind === 'collation'
@@ -31,13 +31,13 @@ $scenario11351150 = static function (int $slice, string $updateAction, string $d
     };
 
     return [
-        $record11351150('table', "wp_posts_{$slice}", "wp_posts_{$slice}", 2, "CREATE TABLE wp_posts_{$slice}({$parentColumnSql})", 1),
-        $record11351150('table', "wp_comments_{$slice}", "wp_comments_{$slice}", 3, "CREATE TABLE wp_comments_{$slice}({$childColumnSql}, FOREIGN KEY({$childColumns}) REFERENCES wp_posts_{$slice}({$parentColumns}) ON UPDATE {$updateAction} ON DELETE {$deleteAction})", 2),
-        $record11351150('index', $indexName, "wp_comments_{$slice}", 4, $indexSql, 3),
+        $record('table', "wp_posts_{$slice}", "wp_posts_{$slice}", 2, "CREATE TABLE wp_posts_{$slice}({$parentColumnSql})", 1),
+        $record('table', "wp_comments_{$slice}", "wp_comments_{$slice}", 3, "CREATE TABLE wp_comments_{$slice}({$childColumnSql}, FOREIGN KEY({$childColumns}) REFERENCES wp_posts_{$slice}({$parentColumns}) ON UPDATE {$updateAction} ON DELETE {$deleteAction})", 2),
+        $record('index', $indexName, "wp_comments_{$slice}", 4, $indexSql, 3),
     ];
 };
 
-$cases11351150 = [
+$cases = [
     1135 => ['CASCADE', 'RESTRICT', 'order', 'on_update', 'CASCADE', 'update_cascade_order_mismatch_child_lookup_index'],
     1136 => ['CASCADE', 'RESTRICT', 'order', 'on_delete', 'RESTRICT', 'delete_restrict_order_mismatch_child_lookup_index'],
     1137 => ['CASCADE', 'RESTRICT', 'collation', 'on_update', 'CASCADE', 'update_cascade_collation_mismatch_child_lookup_index'],
@@ -57,10 +57,10 @@ $cases11351150 = [
 ];
 
 $tests = [];
-foreach ($cases11351150 as $slice => [$updateAction, $deleteAction, $indexKind, $actionColumn, $action, $status]) {
-    $tests["pragma index xinfo foreignkey current source next{$slice} reports next-only staged mixed-action {$status}"] = static function (TestRunner $t) use ($slice, $updateAction, $deleteAction, $indexKind, $actionColumn, $action, $status, $scenario11351150): void {
-        $currentRecords = $scenario11351150($slice, $updateAction, $deleteAction, $indexKind, true);
-        $nextRecords = $scenario11351150($slice, $updateAction, $deleteAction, $indexKind, false);
+foreach ($cases as $slice => [$updateAction, $deleteAction, $indexKind, $actionColumn, $action, $status]) {
+    $tests["pragma index xinfo foreignkey action relationship diagnostic {$slice} reports staged mixed-action {$status}"] = static function (TestRunner $t) use ($slice, $updateAction, $deleteAction, $indexKind, $actionColumn, $action, $status, $scenario): void {
+        $currentRecords = $scenario($slice, $updateAction, $deleteAction, $indexKind, true);
+        $nextRecords = $scenario($slice, $updateAction, $deleteAction, $indexKind, false);
         $page = SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::actionRelationshipDiagnosticPage(
             $slice,
             $status,

@@ -100,10 +100,10 @@ $planSourceClose = static fn (array $options = []): array => SQLiteTriggerRecurs
         'current_view_epoch_next218' => 'wp.returning.view.epoch.cursor.source.close',
         'current_trigger_epoch_next218' => 'wp.returning.trigger.epoch.cursor.source.close',
         'auto_ack_current_source_epochs_next218' => true,
-        'current_source_ticket_next222' => 'wp.current.source.ticket.source.close',
-        'current_view_source_next222' => 'main@view-cookie-source-close-current',
-        'current_trigger_source_next222' => 'main@trigger-cookie-source-close-current',
-        'auto_ack_current_source_tickets_next222' => true,
+        'current_source_ticket' => 'wp.current.source.ticket.source.close',
+        'current_view_source_ticket' => 'main@view-cookie-source-close-current',
+        'current_trigger_source_ticket' => 'main@trigger-cookie-source-close-current',
+        'auto_ack_current_source_tickets' => true,
         'current_source_cursor_source_close' => 'wp.returning.current.cursor.source.close',
         'current_source_close_token_source_close' => 'wp.current.source.close.source.close',
         'current_view_cookie_source_close' => 'main@view-cookie-source-close-current',
@@ -118,7 +118,7 @@ $unexpectedSourceClose = static fn (): array => $planSourceClose(['acknowledged_
 $reversedSourceClose = static fn (): array => $planSourceClose(['acknowledged_current_source_closures_source_close' => array_reverse($closuresSourceClose())]);
 $unorderedSourceClose = static fn (): array => $planSourceClose(['require_current_source_close_order_source_close' => false, 'acknowledged_current_source_closures_source_close' => array_reverse($closuresSourceClose())]);
 $closeMismatchSourceClose = static fn (): array => $planSourceClose(['auto_ack_current_source_closures_source_close' => true, 'expected_current_source_close_token_source_close' => 'wp.current.source.close.stale.source.close']);
-$baseHeldSourceClose = static fn (): array => $planSourceClose(['auto_ack_current_source_closures_source_close' => true, 'auto_ack_current_source_tickets_next222' => false]);
+$baseHeldSourceClose = static fn (): array => $planSourceClose(['auto_ack_current_source_closures_source_close' => true, 'auto_ack_current_source_tickets' => false]);
 $customSourceClose = static fn (): array => $planSourceClose([
     'auto_ack_current_source_closures_source_close' => true,
     'current_source_cursor_source_close' => 'wp.returning.current.cursor.custom.source.close',
@@ -136,8 +136,8 @@ $casesSourceClose = [
     'close mismatch status' => [static fn (): mixed => $closeMismatchSourceClose()['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-close-token-held'],
     'base held status' => [static fn (): mixed => $baseHeldSourceClose()['status_source_close'], 'trigger-recursive-view-returning-current-source-source_close-base-held'],
     'savepoint retained' => [static fn (): mixed => $releasedSourceClose()['savepoint'], 'wp_recursive_view_source_close'],
-    'base next222 released' => [static fn (): mixed => $releasedSourceClose()['base']['status_next222'], 'trigger-recursive-view-returning-current-source-next222-source-ticket-released'],
-    'base next222 held' => [static fn (): mixed => $baseHeldSourceClose()['base']['status_next222'], 'trigger-recursive-view-returning-current-source-next222-source-ticket-held'],
+    'base ticket released' => [static fn (): mixed => $releasedSourceClose()['base_status_current_source_ticket'], 'trigger-recursive-view-returning-current-source-next222-source-ticket-released'],
+    'base ticket held' => [static fn (): mixed => $baseHeldSourceClose()['base_status_current_source_ticket'], 'trigger-recursive-view-returning-current-source-next222-source-ticket-held'],
     'base visible released' => [static fn (): mixed => $releasedSourceClose()['base_next_source_visible_source_close'], true],
     'base visible held' => [static fn (): mixed => $baseHeldSourceClose()['base_next_source_visible_source_close'], false],
     'cursor retained' => [static fn (): mixed => $releasedSourceClose()['current_source_cursor_source_close'], 'wp.returning.current.cursor.source.close'],
@@ -209,8 +209,8 @@ $casesSourceClose = [
     'dependency closure marker' => [static fn (): mixed => $releasedSourceClose()['dependency_closure_source_close'], 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-handoff'],
     'dependency includes source_close' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-source_close', $releasedSourceClose()['dependencies_source_close'], true), true],
     'dependency includes close receipt' => [static fn (): mixed => in_array('sqlite-returning-current-source-cursor-close-handoff', $releasedSourceClose()['dependencies_source_close'], true), true],
-    'dependency includes next222' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next222', $releasedSourceClose()['dependencies_source_close'], true), true],
-    'non overlap mentions next222' => [static fn (): mixed => str_contains($releasedSourceClose()['non_overlap_source_close'], 'next222 source-ticket handoff'), true],
+    'dependency includes source ticket' => [static fn (): mixed => in_array('sqlite-trigger-recursive-view-returning-current-source-next222', $releasedSourceClose()['dependencies_source_close'], true), true],
+    'non overlap mentions source ticket' => [static fn (): mixed => str_contains($releasedSourceClose()['non_overlap_source_close'], 'source-ticket handoff'), true],
     'bad cursor rejected' => [static fn (): mixed => $planSourceClose(['current_source_cursor_source_close' => 'bad cursor']), InvalidArgumentException::class],
     'bad close token rejected' => [static fn (): mixed => $planSourceClose(['current_source_close_token_source_close' => 'bad token']), InvalidArgumentException::class],
     'bad view cookie rejected' => [static fn (): mixed => $planSourceClose(['current_view_cookie_source_close' => 'bad cookie']), InvalidArgumentException::class],

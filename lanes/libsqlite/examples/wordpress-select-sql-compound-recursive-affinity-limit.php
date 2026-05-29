@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitPlan;
 
 require_once __DIR__ . '/../src/SQLiteBlobValue.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteCoreScalarFunction.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
@@ -22,7 +23,7 @@ require_once __DIR__ . '/../src/SQLiteSelectProjection.php';
 require_once __DIR__ . '/../src/SQLiteSelectQuery.php';
 require_once __DIR__ . '/../src/SQLiteSelectResult.php';
 require_once __DIR__ . '/../src/SQLiteSelectSql.php';
-require_once __DIR__ . '/../src/SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteCompoundSelectRecursiveAffinityLimitPlan.php';
 
 $currentOptions = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'rank_value' => 1],
@@ -71,7 +72,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
+$summary = SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
     $sql,
     ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
     ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],

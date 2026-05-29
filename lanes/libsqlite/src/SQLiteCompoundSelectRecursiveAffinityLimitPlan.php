@@ -4,43 +4,43 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
+final class SQLiteCompoundSelectRecursiveAffinityLimitPlan
 {
 
-    /* Variant formerly implemented by SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan. */
+    /*  */
 
     /**
          * @param array<string,list<array<string,mixed>>> $currentTables
          * @param array<string,list<array<string,mixed>>> $nextTables
          * @return array<string,mixed>
          */
-        public static function compareNext149(string $sql, array $currentTables, array $nextTables): array
+        public static function compareRecursiveAffinityLimit(string $sql, array $currentTables, array $nextTables): array
         {
             $currentPlan = SQLiteSelectSql::plan($sql, $currentTables);
             $nextPlan = SQLiteSelectSql::plan($sql, $nextTables);
-            self::assertSupportedNext149($sql, $currentPlan, $nextPlan);
+            self::assertSupported($sql, $currentPlan, $nextPlan);
 
-            $unlimitedSql = self::withoutFinalLimitNext149($sql);
+            $unlimitedSql = self::withoutFinalLimit($sql);
             $currentRows = SQLiteSelectSql::execute($sql, $currentTables);
             $nextRows = SQLiteSelectSql::execute($sql, $nextTables);
             $currentUnlimitedRows = SQLiteSelectSql::execute($unlimitedSql, $currentTables);
             $nextUnlimitedRows = SQLiteSelectSql::execute($unlimitedSql, $nextTables);
-            $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace(self::traceSqlNext149($sql), $currentTables);
-            $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace(self::traceSqlNext149($sql), $nextTables);
+            $currentRecursive = SQLiteSelectSql::recursiveCteCycleTrace(self::traceSql($sql), $currentTables);
+            $nextRecursive = SQLiteSelectSql::recursiveCteCycleTrace(self::traceSql($sql), $nextTables);
 
             return [
-                'status' => 'compound-select-recursive-affinity-limit-current-source-next149-ready',
+                'status' => 'compound-select-recursive-affinity-limit-ready',
                 'dependencies' => [
-                    'sqlite-recursive-cte-union-affinity-dedup-current-source-next149',
-                    'sqlite-compound-select-final-limit-after-union-current-source-next149',
-                    'sqlite-compound-select-left-column-name-affinity-current-source-next149',
+                    'sqlite-recursive-cte-union-affinity-dedup',
+                    'sqlite-compound-select-final-limit-after-union',
+                    'sqlite-compound-select-left-column-name-affinity',
                 ],
                 'compound' => [
                     'operators' => array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? [])),
                     'currentArms' => count($currentPlan['compound']['arms'] ?? []),
                     'nextArms' => count($nextPlan['compound']['arms'] ?? []),
-                    'orderColumns' => self::orderColumnsNext149($currentPlan),
-                    'leftColumns' => self::leftColumnsNext149($currentPlan),
+                    'orderColumns' => self::orderColumns($currentPlan),
+                    'leftColumns' => self::leftColumns($currentPlan),
                     'limit' => $currentPlan['compound']['limit'] ?? null,
                     'offset' => $currentPlan['compound']['offset'] ?? 0,
                 ],
@@ -54,25 +54,25 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
                     'operator' => $currentRecursive['operator'] ?? null,
                     'currentRows' => $currentRecursive['rows'],
                     'nextRows' => $nextRecursive['rows'],
-                    'currentSkipped' => self::skippedRowsNext149($currentRecursive),
-                    'nextSkipped' => self::skippedRowsNext149($nextRecursive),
+                    'currentSkipped' => self::skippedRows($currentRecursive),
+                    'nextSkipped' => self::skippedRows($nextRecursive),
                     'currentTraceCount' => count($currentRecursive['trace']),
                     'nextTraceCount' => count($nextRecursive['trace']),
                     'dependencies' => array_values(array_unique(array_merge($currentRecursive['dependencies'], $nextRecursive['dependencies']))),
                 ],
                 'affinity' => [
-                    'currentKeyClasses' => self::columnClassesNext149($currentUnlimitedRows, 'key_value'),
-                    'nextKeyClasses' => self::columnClassesNext149($nextUnlimitedRows, 'key_value'),
-                    'currentDuplicateClasses' => self::duplicateColumnClassesNext149($currentUnlimitedRows, 'key_value'),
-                    'nextDuplicateClasses' => self::duplicateColumnClassesNext149($nextUnlimitedRows, 'key_value'),
-                    'changedKeyClasses' => self::changedColumnClassesNext149($currentUnlimitedRows, $nextUnlimitedRows, 'key_value'),
+                    'currentKeyClasses' => self::columnClasses($currentUnlimitedRows, 'key_value'),
+                    'nextKeyClasses' => self::columnClasses($nextUnlimitedRows, 'key_value'),
+                    'currentDuplicateClasses' => self::duplicateColumnClasses($currentUnlimitedRows, 'key_value'),
+                    'nextDuplicateClasses' => self::duplicateColumnClasses($nextUnlimitedRows, 'key_value'),
+                    'changedKeyClasses' => self::changedColumnClasses($currentUnlimitedRows, $nextUnlimitedRows, 'key_value'),
                 ],
                 'limitTrace' => [
-                    'current' => self::limitTraceNext149($currentUnlimitedRows, $currentRows, $currentPlan),
-                    'next' => self::limitTraceNext149($nextUnlimitedRows, $nextRows, $nextPlan),
+                    'current' => self::limitTrace($currentUnlimitedRows, $currentRows, $currentPlan),
+                    'next' => self::limitTrace($nextUnlimitedRows, $nextRows, $nextPlan),
                 ],
-                'changedSignatures' => self::changedSignaturesNext149($currentRows, $nextRows),
-                'replanReasons' => self::replanReasonsNext149($currentRows, $nextRows, $currentUnlimitedRows, $nextUnlimitedRows),
+                'changedSignatures' => self::changedSignatures($currentRows, $nextRows),
+                'replanReasons' => self::replanReasons($currentRows, $nextRows, $currentUnlimitedRows, $nextUnlimitedRows),
             ];
         }
 
@@ -80,39 +80,39 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param array<string,mixed> $currentPlan
          * @param array<string,mixed> $nextPlan
          */
-        private static function assertSupportedNext149(string $sql, array $currentPlan, array $nextPlan): void
+        private static function assertSupported(string $sql, array $currentPlan, array $nextPlan): void
         {
             if (!str_starts_with(strtoupper(ltrim($sql)), 'WITH RECURSIVE')) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 needs WITH RECURSIVE');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit needs WITH RECURSIVE');
             }
             if (!isset($currentPlan['compound'], $nextPlan['compound']) || !is_array($currentPlan['compound']) || !is_array($nextPlan['compound'])) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 needs a compound SELECT');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit needs a compound SELECT');
             }
             $operators = array_values(array_map('strtoupper', $currentPlan['compound']['operators'] ?? []));
             if ($operators !== ['UNION']) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 needs a DISTINCT UNION operator');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit needs a DISTINCT UNION operator');
             }
             if (($currentPlan['compound']['limit'] ?? null) === null) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 needs a final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit needs a final LIMIT');
             }
         }
 
-        private static function withoutFinalLimitNext149(string $sql): string
+        private static function withoutFinalLimit(string $sql): string
         {
             $trimmed = trim(rtrim(trim($sql), ';'));
             $without = preg_replace('/\s+LIMIT\s+\d+\s*(?:OFFSET\s+\d+)?\s*$/i', '', $trimmed);
             if (!is_string($without) || $without === $trimmed) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 cannot isolate final LIMIT');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit cannot isolate final LIMIT');
             }
 
             return $without;
         }
 
-        private static function traceSqlNext149(string $sql): string
+        private static function traceSql(string $sql): string
         {
             $trimmed = trim(rtrim(trim($sql), ';'));
             if (preg_match('/^(.*\))\s*SELECT\s+item_id\s+AS\s+id\b/is', $trimmed, $match) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound recursive affinity limit next149 cannot isolate recursive CTE');
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit cannot isolate recursive CTE');
             }
 
             return $match[1] . ' SELECT item_id, key_value, source FROM option_walk';
@@ -122,7 +122,7 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function orderColumnsNext149(array $plan): array
+        private static function orderColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             if (!is_array($compound) || !is_array($compound['orderBy'] ?? null)) {
@@ -136,7 +136,7 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return list<string>
          */
-        private static function leftColumnsNext149(array $plan): array
+        private static function leftColumns(array $plan): array
         {
             $compound = $plan['compound'] ?? null;
             $arms = is_array($compound) && is_array($compound['arms'] ?? null) ? $compound['arms'] : [];
@@ -166,7 +166,7 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param array<string,mixed> $trace
          * @return list<array<string,mixed>>
          */
-        private static function skippedRowsNext149(array $trace): array
+        private static function skippedRows(array $trace): array
         {
             $skipped = [];
             foreach ($trace['skipped'] ?? [] as $row) {
@@ -184,7 +184,7 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function limitTraceNext149(array $preLimitRows, array $limitedRows, array $plan): array
+        private static function limitTrace(array $preLimitRows, array $limitedRows, array $plan): array
         {
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
             $offset = isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0;
@@ -205,12 +205,12 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function columnClassesNext149(array $rows, string $column): array
+        private static function columnClasses(array $rows, string $column): array
         {
             $classes = [];
             foreach ($rows as $row) {
                 if (array_key_exists($column, $row)) {
-                    $classes[self::sqliteValueClassNext149($row[$column])] = true;
+                    $classes[self::sqliteValueClass($row[$column])] = true;
                 }
             }
 
@@ -221,12 +221,12 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function duplicateColumnClassesNext149(array $rows, string $column): array
+        private static function duplicateColumnClasses(array $rows, string $column): array
         {
             $counts = [];
             foreach ($rows as $row) {
                 if (array_key_exists($column, $row)) {
-                    $key = self::sqliteValueClassNext149($row[$column]);
+                    $key = self::sqliteValueClass($row[$column]);
                     $counts[$key] = ($counts[$key] ?? 0) + 1;
                 }
             }
@@ -239,11 +239,11 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedColumnClassesNext149(array $currentRows, array $nextRows, string $column): array
+        private static function changedColumnClasses(array $currentRows, array $nextRows, string $column): array
         {
             return array_values(array_merge(
-                array_diff(self::columnClassesNext149($currentRows, $column), self::columnClassesNext149($nextRows, $column)),
-                array_diff(self::columnClassesNext149($nextRows, $column), self::columnClassesNext149($currentRows, $column)),
+                array_diff(self::columnClasses($currentRows, $column), self::columnClasses($nextRows, $column)),
+                array_diff(self::columnClasses($nextRows, $column), self::columnClasses($currentRows, $column)),
             ));
         }
 
@@ -251,7 +251,7 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<string>
          */
-        private static function rowSignaturesNext149(array $rows): array
+        private static function rowSignatures(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => json_encode($row, JSON_THROW_ON_ERROR), $rows));
         }
@@ -261,15 +261,15 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextRows
          * @return list<string>
          */
-        private static function changedSignaturesNext149(array $currentRows, array $nextRows): array
+        private static function changedSignatures(array $currentRows, array $nextRows): array
         {
             return array_values(array_merge(
-                array_diff(self::rowSignaturesNext149($currentRows), self::rowSignaturesNext149($nextRows)),
-                array_diff(self::rowSignaturesNext149($nextRows), self::rowSignaturesNext149($currentRows)),
+                array_diff(self::rowSignatures($currentRows), self::rowSignatures($nextRows)),
+                array_diff(self::rowSignatures($nextRows), self::rowSignatures($currentRows)),
             ));
         }
 
-        private static function sqliteValueClassNext149(mixed $value): string
+        private static function sqliteValueClass(mixed $value): string
         {
             if ($value === null) {
                 return 'null';
@@ -291,16 +291,16 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan
          * @param list<array<string,mixed>> $nextUnlimitedRows
          * @return list<string>
          */
-        private static function replanReasonsNext149(array $currentRows, array $nextRows, array $currentUnlimitedRows, array $nextUnlimitedRows): array
+        private static function replanReasons(array $currentRows, array $nextRows, array $currentUnlimitedRows, array $nextUnlimitedRows): array
         {
             $reasons = ['compound-recursive-final-limit'];
-            if (self::rowSignaturesNext149($currentRows) !== self::rowSignaturesNext149($nextRows)) {
+            if (self::rowSignatures($currentRows) !== self::rowSignatures($nextRows)) {
                 $reasons[] = 'limited-rowset-boundary-changed';
             }
-            if (self::rowSignaturesNext149($currentUnlimitedRows) !== self::rowSignaturesNext149($nextUnlimitedRows)) {
+            if (self::rowSignatures($currentUnlimitedRows) !== self::rowSignatures($nextUnlimitedRows)) {
                 $reasons[] = 'recursive-union-source-rowset-changed';
             }
-            if (self::columnClassesNext149($currentUnlimitedRows, 'key_value') !== self::columnClassesNext149($nextUnlimitedRows, 'key_value')) {
+            if (self::columnClasses($currentUnlimitedRows, 'key_value') !== self::columnClasses($nextUnlimitedRows, 'key_value')) {
                 $reasons[] = 'affinity-storage-classes-changed';
             }
 

@@ -2501,20 +2501,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext164(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
+        public static function materializeStat4CurrentRange(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            self::validateTermsNext164($whereTerms);
+            self::validateTermsStat4CurrentRange($whereTerms);
             if ($neededColumns === []) {
-                throw new \InvalidArgumentException('SQLite next164 needed columns cannot be empty');
+                throw new \InvalidArgumentException('SQLite stat4-current-range needed columns cannot be empty');
             }
 
-            $prepared = self::sourcePlanNext164($preparedSource, $whereTerms, $neededColumns);
-            $current = self::sourcePlanNext164($currentSource, $whereTerms, $neededColumns);
-            $preparedSignature = self::signatureNext164($preparedSource);
-            $currentSignature = self::signatureNext164($currentSource);
+            $prepared = self::sourcePlanStat4CurrentRange($preparedSource, $whereTerms, $neededColumns);
+            $current = self::sourcePlanStat4CurrentRange($currentSource, $whereTerms, $neededColumns);
+            $preparedSignature = self::signatureStat4CurrentRange($preparedSource);
+            $currentSignature = self::signatureStat4CurrentRange($currentSource);
             $stale = $preparedSignature !== $currentSignature
-                || self::intValueNext164($preparedSource, 'schemaCookie') !== self::intValueNext164($currentSource, 'schemaCookie')
-                || self::intValueNext164($preparedSource, 'stat4Generation') !== self::intValueNext164($currentSource, 'stat4Generation');
+                || self::intValueStat4CurrentRange($preparedSource, 'schemaCookie') !== self::intValueStat4CurrentRange($currentSource, 'schemaCookie')
+                || self::intValueStat4CurrentRange($preparedSource, 'stat4Generation') !== self::intValueStat4CurrentRange($currentSource, 'stat4Generation');
             $selected = $stale ? $current : $prepared;
             $ready = ($selected['usable'] ?? false) === true
                 && ($selected['partialPredicateImpliedByRange'] ?? false) === true
@@ -2522,33 +2522,33 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 && ($selected['matchedRows'] ?? []) !== [];
 
             return [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next164-ready' : 'requires-next-stage',
+                'status' => $ready ? 'stat4-expression-partial-current-source-stat4-current-range-ready' : 'requires-next-stage',
                 'selectedSource' => $stale ? 'current' : 'prepared',
                 'stalePreparedStatement' => $stale,
                 'reprepareRequired' => $stale,
-                'schemaCookieChanged' => self::intValueNext164($preparedSource, 'schemaCookie') !== self::intValueNext164($currentSource, 'schemaCookie'),
-                'stat4GenerationChanged' => self::intValueNext164($preparedSource, 'stat4Generation') !== self::intValueNext164($currentSource, 'stat4Generation'),
+                'schemaCookieChanged' => self::intValueStat4CurrentRange($preparedSource, 'schemaCookie') !== self::intValueStat4CurrentRange($currentSource, 'schemaCookie'),
+                'stat4GenerationChanged' => self::intValueStat4CurrentRange($preparedSource, 'stat4Generation') !== self::intValueStat4CurrentRange($currentSource, 'stat4Generation'),
                 'sourceSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedPlan' => self::summaryNext164($preparedSource, $prepared, $preparedSignature),
-                'currentPlan' => self::summaryNext164($currentSource, $current, $currentSignature),
-                'selectedPlan' => self::selectedSummaryNext164($selected, $ready),
+                'preparedPlan' => self::summaryStat4CurrentRange($preparedSource, $prepared, $preparedSignature),
+                'currentPlan' => self::summaryStat4CurrentRange($currentSource, $current, $currentSignature),
+                'selectedPlan' => self::selectedSummaryStat4CurrentRange($selected, $ready),
                 'matchedRows' => $selected['matchedRows'] ?? [],
                 'matchedRowids' => array_column($selected['matchedRows'] ?? [], 'rowid'),
                 'matchedExpressionKeys' => array_column($selected['matchedRows'] ?? [], 'expressionKey'),
                 'stat4Fence' => [
-                    'schemaCookie' => self::intValueNext164($stale ? $currentSource : $preparedSource, 'schemaCookie'),
-                    'stat4Generation' => self::intValueNext164($stale ? $currentSource : $preparedSource, 'stat4Generation'),
+                    'schemaCookie' => self::intValueStat4CurrentRange($stale ? $currentSource : $preparedSource, 'schemaCookie'),
+                    'stat4Generation' => self::intValueStat4CurrentRange($stale ? $currentSource : $preparedSource, 'stat4Generation'),
                     'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
-                    'rangeSignature' => self::signatureNext164($selected['rangeConstraint'] ?? []),
-                    'stat4Signature' => self::signatureNext164($selected['stat4Samples'] ?? []),
-                    'rowStreamSignature' => self::signatureNext164(array_column($selected['matchedRows'] ?? [], 'rowid')),
+                    'rangeSignature' => self::signatureStat4CurrentRange($selected['rangeConstraint'] ?? []),
+                    'stat4Signature' => self::signatureStat4CurrentRange($selected['stat4Samples'] ?? []),
+                    'rowStreamSignature' => self::signatureStat4CurrentRange(array_column($selected['matchedRows'] ?? [], 'rowid')),
                 ],
-                'cursorProgram' => self::cursorProgramNext164($selected, $ready),
+                'cursorProgram' => self::cursorProgramStat4CurrentRange($selected, $ready),
                 'tableLookupRequired' => !($selected['covering'] ?? false),
                 'residualPredicateRequired' => true,
-                'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT164 RANGE ' . (string) ($selected['name'] ?? 'NO INDEX')),
-                'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next164'],
-                'dependency_closure' => 'no new support component needed; next164 reuses native PHP expression normalization, range implication, STAT4 fences, and current-source row diagnostics',
+                'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE STAT4_CURRENT_RANGE RANGE ' . (string) ($selected['name'] ?? 'NO INDEX')),
+                'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-stat4-current-range'],
+                'dependency_closure' => 'no new support component needed; stat4-current-range reuses native PHP expression normalization, range implication, STAT4 fences, and current-source row diagnostics',
                 'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range exclusion, and or-split-partial-expression OR-split probes by proving a partial expression index from current range bounds and rejecting prepared STAT4 fences after source changes',
             ];
         }
@@ -2558,30 +2558,30 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext164(array $source, array $terms, array $neededColumns): array
+        private static function sourcePlanStat4CurrentRange(array $source, array $terms, array $neededColumns): array
         {
             $best = null;
-            foreach (self::listValueNext164($source['indexes'] ?? []) as $index) {
+            foreach (self::listValueStat4CurrentRange($source['indexes'] ?? []) as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite next164 indexes must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4-current-range indexes must be arrays');
                 }
-                $expression = self::stringValueNext164($index, 'expression');
-                $range = self::expressionRangeNext164($terms, $expression);
-                $partial = self::listValueNext164($index['partialPredicateTerms'] ?? []);
-                $partialByRange = $range !== null && self::partialImpliedByRangeNext164($partial, $range, $terms);
-                $stat4 = self::stat4SamplesNext164(self::listValueNext164($index['stat4Samples'] ?? []));
-                $matchedSamples = $partialByRange ? self::matchingSamplesNext164($stat4, $range, (string) ($index['collation'] ?? 'BINARY')) : [];
-                $matchedRows = $matchedSamples === [] ? [] : self::matchedRowsNext164($source, $terms, $expression, (string) ($index['collation'] ?? 'BINARY'));
-                $covering = self::coversNext164($index['coveringColumns'] ?? [], $neededColumns);
+                $expression = self::stringValueStat4CurrentRange($index, 'expression');
+                $range = self::expressionRangeStat4CurrentRange($terms, $expression);
+                $partial = self::listValueStat4CurrentRange($index['partialPredicateTerms'] ?? []);
+                $partialByRange = $range !== null && self::partialImpliedByRangeStat4CurrentRange($partial, $range, $terms);
+                $stat4 = self::stat4SamplesStat4CurrentRange(self::listValueStat4CurrentRange($index['stat4Samples'] ?? []));
+                $matchedSamples = $partialByRange ? self::matchingSamplesStat4CurrentRange($stat4, $range, (string) ($index['collation'] ?? 'BINARY')) : [];
+                $matchedRows = $matchedSamples === [] ? [] : self::matchedRowsStat4CurrentRange($source, $terms, $expression, (string) ($index['collation'] ?? 'BINARY'));
+                $covering = self::coversStat4CurrentRange($index['coveringColumns'] ?? [], $neededColumns);
                 $estimate = max(1, array_sum(array_column($matchedSamples, 'neq')));
                 $plan = [
                     'usable' => $range !== null && $partialByRange && $matchedSamples !== [] && $matchedRows !== [],
-                    'name' => self::stringValueNext164($index, 'name'),
-                    'rootPage' => self::intValueNext164($index, 'rootPage'),
+                    'name' => self::stringValueStat4CurrentRange($index, 'name'),
+                    'rootPage' => self::intValueStat4CurrentRange($index, 'rootPage'),
                     'expression' => $expression,
                     'expressionColumn' => (string) ($index['expressionColumn'] ?? ''),
                     'collation' => strtoupper((string) ($index['collation'] ?? 'BINARY')),
-                    'coveringColumns' => self::stringListNext164($index['coveringColumns'] ?? []),
+                    'coveringColumns' => self::stringListStat4CurrentRange($index['coveringColumns'] ?? []),
                     'covering' => $covering,
                     'partialPredicateTerms' => $partial,
                     'partialPredicateImpliedByRange' => $partialByRange,
@@ -2593,7 +2593,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'matchedRows' => $matchedRows,
                     'estimatedRows' => $estimate,
                     'estimatedCost' => $estimate + ($covering ? 0 : 12) + ($partialByRange ? 0 : 50),
-                    'detail' => 'SEARCH ' . self::stringValueNext164($index, 'name') . ' USING STAT4 PARTIAL EXPRESSION RANGE',
+                    'detail' => 'SEARCH ' . self::stringValueStat4CurrentRange($index, 'name') . ' USING STAT4 PARTIAL EXPRESSION RANGE',
                 ];
                 if ($best === null || [
                     $plan['usable'] ? 0 : 1,
@@ -2615,16 +2615,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return array{lower:mixed,lowerInclusive:bool,upper:mixed,upperInclusive:bool}|null
          */
-        private static function expressionRangeNext164(array $terms, string $expression): ?array
+        private static function expressionRangeStat4CurrentRange(array $terms, string $expression): ?array
         {
-            $normalized = self::normalizeExpressionNext164($expression);
+            $normalized = self::normalizeExpressionStat4CurrentRange($expression);
             $range = ['lower' => null, 'lowerInclusive' => false, 'upper' => null, 'upperInclusive' => false];
             foreach ($terms as $term) {
-                if (self::normalizeExpressionNext164((string) ($term['left']['expression'] ?? '')) !== $normalized) {
+                if (self::normalizeExpressionStat4CurrentRange((string) ($term['left']['expression'] ?? '')) !== $normalized) {
                     continue;
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
-                $right = self::literalNext164($term['right'] ?? null);
+                $right = self::literalStat4CurrentRange($term['right'] ?? null);
                 if ($operator === '>=') {
                     $range['lower'] = $right;
                     $range['lowerInclusive'] = true;
@@ -2648,35 +2648,35 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array{lower:mixed,lowerInclusive:bool,upper:mixed,upperInclusive:bool} $range
          * @param list<array<string,mixed>> $terms
          */
-        private static function partialImpliedByRangeNext164(array $partial, array $range, array $terms): bool
+        private static function partialImpliedByRangeStat4CurrentRange(array $partial, array $range, array $terms): bool
         {
             foreach ($partial as $needed) {
                 if (!is_array($needed)) {
                     return false;
                 }
                 $operator = strtoupper((string) ($needed['operator'] ?? ''));
-                $neededLeft = self::leftKeyNext164($needed['left'] ?? null);
+                $neededLeft = self::leftKeyStat4CurrentRange($needed['left'] ?? null);
                 $found = false;
                 foreach ($terms as $term) {
-                    if (self::termKeyNext164($needed) === self::termKeyNext164($term) && self::literalNext164($needed['right'] ?? null) === self::literalNext164($term['right'] ?? null)) {
+                    if (self::termKeyStat4CurrentRange($needed) === self::termKeyStat4CurrentRange($term) && self::literalStat4CurrentRange($needed['right'] ?? null) === self::literalStat4CurrentRange($term['right'] ?? null)) {
                         $found = true;
                         break;
                     }
                     if ($operator === 'IS NOT NULL'
                         && strtoupper((string) ($term['operator'] ?? '')) !== 'IS NULL'
-                        && $neededLeft === self::leftKeyNext164($term['left'] ?? null)) {
+                        && $neededLeft === self::leftKeyStat4CurrentRange($term['left'] ?? null)) {
                         $found = true;
                         break;
                     }
                     if (($operator === '>=' || $operator === '>')
-                        && $neededLeft === self::leftKeyNext164($term['left'] ?? null)
-                        && self::compareNext164($range['lower'], self::literalNext164($needed['right'] ?? null), 'BINARY') >= 0) {
+                        && $neededLeft === self::leftKeyStat4CurrentRange($term['left'] ?? null)
+                        && self::compareStat4CurrentRange($range['lower'], self::literalStat4CurrentRange($needed['right'] ?? null), 'BINARY') >= 0) {
                         $found = true;
                         break;
                     }
                     if (($operator === '<' || $operator === '<=')
-                        && $neededLeft === self::leftKeyNext164($term['left'] ?? null)
-                        && self::compareNext164($range['upper'], self::literalNext164($needed['right'] ?? null), 'BINARY') <= 0) {
+                        && $neededLeft === self::leftKeyStat4CurrentRange($term['left'] ?? null)
+                        && self::compareStat4CurrentRange($range['upper'], self::literalStat4CurrentRange($needed['right'] ?? null), 'BINARY') <= 0) {
                         $found = true;
                         break;
                     }
@@ -2694,11 +2694,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array{lower:mixed,lowerInclusive:bool,upper:mixed,upperInclusive:bool} $range
          * @return list<array<string,mixed>>
          */
-        private static function matchingSamplesNext164(array $samples, array $range, string $collation): array
+        private static function matchingSamplesStat4CurrentRange(array $samples, array $range, string $collation): array
         {
             return array_values(array_filter($samples, static function (array $sample) use ($range, $collation): bool {
-                $lower = self::compareNext164($sample['key'], $range['lower'], $collation);
-                $upper = self::compareNext164($sample['key'], $range['upper'], $collation);
+                $lower = self::compareStat4CurrentRange($sample['key'], $range['lower'], $collation);
+                $upper = self::compareStat4CurrentRange($sample['key'], $range['upper'], $collation);
                 return ($range['lowerInclusive'] ? $lower >= 0 : $lower > 0)
                     && ($range['upperInclusive'] ? $upper <= 0 : $upper < 0);
             }));
@@ -2708,28 +2708,28 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return list<array<string,mixed>>
          */
-        private static function matchedRowsNext164(array $source, array $terms, string $expression, string $collation): array
+        private static function matchedRowsStat4CurrentRange(array $source, array $terms, string $expression, string $collation): array
         {
             $rows = [];
-            foreach (self::listValueNext164($source['rows'] ?? []) as $sourceOffset => $row) {
+            foreach (self::listValueStat4CurrentRange($source['rows'] ?? []) as $sourceOffset => $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite next164 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite stat4-current-range rows must be arrays');
                 }
                 $rowid = $row['rowid'] ?? null;
                 if (!is_int($rowid) || $rowid < 0) {
-                    throw new \InvalidArgumentException('SQLite next164 rows need non-negative integer rowid');
+                    throw new \InvalidArgumentException('SQLite stat4-current-range rows need non-negative integer rowid');
                 }
-                if (!self::rowSatisfiesNext164($row, $terms, $expression, $collation)) {
+                if (!self::rowSatisfiesStat4CurrentRange($row, $terms, $expression, $collation)) {
                     continue;
                 }
                 $rows[] = [
                     'rowid' => $rowid,
                     'sourceOffset' => $sourceOffset,
-                    'expressionKey' => self::expressionValueNext164($row, $expression),
+                    'expressionKey' => self::expressionValueStat4CurrentRange($row, $expression),
                     'payload' => $row,
                 ];
             }
-            usort($rows, static fn (array $a, array $b): int => [self::stringCastNext164($a['expressionKey']), $a['rowid']] <=> [self::stringCastNext164($b['expressionKey']), $b['rowid']]);
+            usort($rows, static fn (array $a, array $b): int => [self::stringCastStat4CurrentRange($a['expressionKey']), $a['rowid']] <=> [self::stringCastStat4CurrentRange($b['expressionKey']), $b['rowid']]);
 
             return $rows;
         }
@@ -2737,22 +2737,22 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesNext164(array $row, array $terms, string $expression, string $collation): bool
+        private static function rowSatisfiesStat4CurrentRange(array $row, array $terms, string $expression, string $collation): bool
         {
             foreach ($terms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $left = $term['left'] ?? [];
                 $leftValue = is_array($left) && isset($left['expression'])
-                    ? self::expressionValueNext164($row, $expression)
+                    ? self::expressionValueStat4CurrentRange($row, $expression)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === 'IS NOT NULL' && $leftValue !== null) {
                     continue;
                 }
-                if ($operator === '=' && self::literalNext164($term['right'] ?? null) === $leftValue) {
+                if ($operator === '=' && self::literalStat4CurrentRange($term['right'] ?? null) === $leftValue) {
                     continue;
                 }
                 if (in_array($operator, ['>', '>=', '<', '<='], true)) {
-                    $cmp = self::compareNext164($leftValue, self::literalNext164($term['right'] ?? null), $collation);
+                    $cmp = self::compareStat4CurrentRange($leftValue, self::literalStat4CurrentRange($term['right'] ?? null), $collation);
                     if (($operator === '>' && $cmp > 0) || ($operator === '>=' && $cmp >= 0) || ($operator === '<' && $cmp < 0) || ($operator === '<=' && $cmp <= 0)) {
                         continue;
                     }
@@ -2763,9 +2763,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function expressionValueNext164(array $row, string $expression): mixed
+        private static function expressionValueStat4CurrentRange(array $row, string $expression): mixed
         {
-            $normalized = self::normalizeExpressionNext164($expression);
+            $normalized = self::normalizeExpressionStat4CurrentRange($expression);
             if ($normalized === 'lower(option_name)') {
                 $value = $row['option_name'] ?? null;
                 return is_string($value) ? strtolower($value) : null;
@@ -2775,26 +2775,26 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 return is_array($decoded) ? ($decoded['plugin'] ?? null) : null;
             }
 
-            throw new \InvalidArgumentException('SQLite next164 unsupported expression ' . $expression);
+            throw new \InvalidArgumentException('SQLite stat4-current-range unsupported expression ' . $expression);
         }
 
         /**
          * @param list<array<string,mixed>> $samples
          * @return list<array<string,mixed>>
          */
-        private static function stat4SamplesNext164(array $samples): array
+        private static function stat4SamplesStat4CurrentRange(array $samples): array
         {
             $out = [];
             foreach ($samples as $sample) {
                 if (!is_array($sample) || !is_array($sample['sample'] ?? null) || count($sample['sample']) < 2) {
-                    throw new \InvalidArgumentException('SQLite next164 STAT4 samples need key and rowid');
+                    throw new \InvalidArgumentException('SQLite stat4-current-range STAT4 samples need key and rowid');
                 }
                 $out[] = [
-                    'key' => self::literalNext164($sample['sample'][0]),
-                    'rowid' => self::intLiteralNext164($sample['sample'][1]),
-                    'neq' => self::firstStatIntNext164($sample['neq'] ?? 1),
-                    'nlt' => self::firstStatIntNext164($sample['nlt'] ?? 0),
-                    'ndlt' => self::firstStatIntNext164($sample['ndlt'] ?? 0),
+                    'key' => self::literalStat4CurrentRange($sample['sample'][0]),
+                    'rowid' => self::intLiteralStat4CurrentRange($sample['sample'][1]),
+                    'neq' => self::firstStatIntStat4CurrentRange($sample['neq'] ?? 1),
+                    'nlt' => self::firstStatIntStat4CurrentRange($sample['nlt'] ?? 0),
+                    'ndlt' => self::firstStatIntStat4CurrentRange($sample['ndlt'] ?? 0),
                 ];
             }
 
@@ -2804,7 +2804,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext164(array $selected, bool $ready): array
+        private static function cursorProgramStat4CurrentRange(array $selected, bool $ready): array
         {
             if (!$ready) {
                 return [['opcode' => 'FallbackFullScan', 'reason' => 'partial expression STAT4 range not usable']];
@@ -2821,7 +2821,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
         }
 
-        private static function selectedSummaryNext164(array $plan, bool $ready): array
+        private static function selectedSummaryStat4CurrentRange(array $plan, bool $ready): array
         {
             return [
                 'name' => $plan['name'] ?? null,
@@ -2837,17 +2837,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'matchedRowCount' => count($plan['matchedRows'] ?? []),
                 'estimatedRows' => $plan['estimatedRows'] ?? null,
                 'estimatedCost' => $plan['estimatedCost'] ?? null,
-                'next164Ready' => $ready,
+                'stat4-current-rangeReady' => $ready,
                 'detail' => $plan['detail'] ?? 'NO PLAN',
             ];
         }
 
-        private static function summaryNext164(array $source, array $plan, string $signature): array
+        private static function summaryStat4CurrentRange(array $source, array $plan, string $signature): array
         {
             return [
                 'name' => (string) ($source['name'] ?? ''),
-                'schemaCookie' => self::intValueNext164($source, 'schemaCookie'),
-                'stat4Generation' => self::intValueNext164($source, 'stat4Generation'),
+                'schemaCookie' => self::intValueStat4CurrentRange($source, 'schemaCookie'),
+                'stat4Generation' => self::intValueStat4CurrentRange($source, 'stat4Generation'),
                 'sourceSignature' => $signature,
                 'selectedIndex' => $plan['name'] ?? null,
                 'usable' => $plan['usable'] ?? false,
@@ -2856,42 +2856,42 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $terms */
-        private static function validateTermsNext164(array $terms): void
+        private static function validateTermsStat4CurrentRange(array $terms): void
         {
             if ($terms === []) {
-                throw new \InvalidArgumentException('SQLite next164 WHERE terms cannot be empty');
+                throw new \InvalidArgumentException('SQLite stat4-current-range WHERE terms cannot be empty');
             }
             foreach ($terms as $term) {
                 if (!is_array($term) || !is_array($term['left'] ?? null) || !is_string($term['operator'] ?? null)) {
-                    throw new \InvalidArgumentException('SQLite next164 WHERE terms need left/operator');
+                    throw new \InvalidArgumentException('SQLite stat4-current-range WHERE terms need left/operator');
                 }
             }
         }
 
-        private static function normalizeExpressionNext164(string $expression): string
+        private static function normalizeExpressionStat4CurrentRange(string $expression): string
         {
             return strtolower(str_replace(' ', '', $expression));
         }
 
-        private static function termKeyNext164(array $term): string
+        private static function termKeyStat4CurrentRange(array $term): string
         {
-            return self::leftKeyNext164($term['left'] ?? null) . '|' . strtoupper((string) ($term['operator'] ?? ''));
+            return self::leftKeyStat4CurrentRange($term['left'] ?? null) . '|' . strtoupper((string) ($term['operator'] ?? ''));
         }
 
-        private static function leftKeyNext164(mixed $left): string
+        private static function leftKeyStat4CurrentRange(mixed $left): string
         {
             if (!is_array($left)) {
                 return '';
             }
             if (isset($left['expression'])) {
-                return 'expr:' . self::normalizeExpressionNext164((string) $left['expression']);
+                return 'expr:' . self::normalizeExpressionStat4CurrentRange((string) $left['expression']);
             }
 
             return 'col:' . strtolower((string) ($left['column'] ?? ''));
         }
 
         /** @return list<mixed> */
-        private static function listValueNext164(mixed $value): array
+        private static function listValueStat4CurrentRange(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -2901,14 +2901,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<string> */
-        private static function stringListNext164(mixed $value): array
+        private static function stringListStat4CurrentRange(mixed $value): array
         {
-            return array_values(array_map('strval', self::listValueNext164($value)));
+            return array_values(array_map('strval', self::listValueStat4CurrentRange($value)));
         }
 
-        private static function coversNext164(mixed $available, array $needed): bool
+        private static function coversStat4CurrentRange(mixed $available, array $needed): bool
         {
-            $set = array_flip(self::stringListNext164($available));
+            $set = array_flip(self::stringListStat4CurrentRange($available));
             foreach ($needed as $column) {
                 if (!isset($set[$column])) {
                     return false;
@@ -2918,10 +2918,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function compareNext164(mixed $left, mixed $right, string $collation): int
+        private static function compareStat4CurrentRange(mixed $left, mixed $right, string $collation): int
         {
-            $a = self::stringCastNext164($left);
-            $b = self::stringCastNext164($right);
+            $a = self::stringCastStat4CurrentRange($left);
+            $b = self::stringCastStat4CurrentRange($right);
             if (strtoupper($collation) === 'NOCASE') {
                 $a = strtolower($a);
                 $b = strtolower($b);
@@ -2930,50 +2930,50 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $a <=> $b;
         }
 
-        private static function literalNext164(mixed $value): mixed
+        private static function literalStat4CurrentRange(mixed $value): mixed
         {
             return is_array($value) && array_key_exists('value', $value) ? $value['value'] : $value;
         }
 
-        private static function stringCastNext164(mixed $value): string
+        private static function stringCastStat4CurrentRange(mixed $value): string
         {
             return is_scalar($value) || $value === null ? (string) $value : json_encode($value, JSON_THROW_ON_ERROR);
         }
 
-        private static function intLiteralNext164(mixed $value): int
+        private static function intLiteralStat4CurrentRange(mixed $value): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
-                throw new \InvalidArgumentException('SQLite next164 integer literal expected');
+                throw new \InvalidArgumentException('SQLite stat4-current-range integer literal expected');
             }
 
             return (int) $value;
         }
 
-        private static function intValueNext164(array $source, string $key): int
+        private static function intValueStat4CurrentRange(array $source, string $key): int
         {
-            return self::intLiteralNext164($source[$key] ?? 0);
+            return self::intLiteralStat4CurrentRange($source[$key] ?? 0);
         }
 
-        private static function stringValueNext164(array $source, string $key): string
+        private static function stringValueStat4CurrentRange(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException('SQLite next164 string value expected for ' . $key);
+                throw new \InvalidArgumentException('SQLite stat4-current-range string value expected for ' . $key);
             }
 
             return $value;
         }
 
-        private static function firstStatIntNext164(mixed $value): int
+        private static function firstStatIntStat4CurrentRange(mixed $value): int
         {
             if (is_string($value)) {
                 $value = preg_split('/\s+/', trim($value))[0] ?? '0';
             }
 
-            return self::intLiteralNext164($value);
+            return self::intLiteralStat4CurrentRange($value);
         }
 
-        private static function signatureNext164(mixed $value): string
+        private static function signatureStat4CurrentRange(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -3523,7 +3523,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          */
         public static function materializeNext167(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext164(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -3536,7 +3536,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $sampleFence = self::sampleFenceNext167($preparedSource, $currentSource, (string) ($selected['name'] ?? ''), $range, (string) ($selected['collation'] ?? 'BINARY'));
             $staleBlocked = array_values(array_diff($preparedWindow['rowids'], $currentWindow['rowids']));
             $currentOnly = array_values(array_diff($currentWindow['rowids'], $preparedWindow['rowids']));
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next164-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
                 && ($base['selectedSource'] ?? null) === 'current'
                 && $sampleFence['changed'] === true
                 && $sampleFence['currentKeys'] !== []
@@ -3585,7 +3585,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next167 reuses native STAT4 expression partial current-source planning and adds post-ANALYZE sample-window fencing',
-                'non_overlap' => 'avoids accepted next164 range-implies-partial proof, rangeFence stale-row range exclusion, or-split-partial-expression OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only fences post-ANALYZE STAT4 sample-window drift for a current partial expression index',
+                'non_overlap' => 'avoids accepted stat4-current-range range-implies-partial proof, rangeFence stale-row range exclusion, or-split-partial-expression OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only fences post-ANALYZE STAT4 sample-window drift for a current partial expression index',
             ]);
         }
 
@@ -3879,7 +3879,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT168 LIKE PREFIX ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next168'],
                 'dependency_closure' => 'no new support component needed; next168 reuses native expression normalization, LIKE prefix range derivation, partial-index proof, STAT4 fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range exclusion, or-split-partial-expression OR-split probes, and next164 explicit range bounds by proving LIKE-prefix partial expression admission from current STAT4 samples',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range exclusion, or-split-partial-expression OR-split probes, and stat4-current-range explicit range bounds by proving LIKE-prefix partial expression admission from current STAT4 samples',
             ];
         }
 
@@ -4317,7 +4317,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          */
         public static function materializeNext169(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext164(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -4328,7 +4328,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $competitors = self::competingExpressionIndexesNext169($selectedSource, (string) ($selected['name'] ?? ''));
             $partialCost = self::intValueNext169($selected, 'estimatedCost');
             $bestFullCost = self::bestFullCostNext169($competitors);
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next164-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
                 && $competitors !== []
                 && $bestFullCost !== null
                 && $partialCost < $bestFullCost;
@@ -4359,7 +4359,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     . (string) ($selected['name'] ?? 'NO INDEX'),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next169'],
                 'dependency_closure' => 'no new support component needed; next169 reuses current-source STAT4 range admission and adds lane-local cost fencing between partial and full expression indexes',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range windows, or-split-partial-expression OR-split probes, next164 range implication, next165 partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range windows, or-split-partial-expression OR-split probes, stat4-current-range range implication, next165 partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
             ]);
         }
 
@@ -4768,7 +4768,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT171 UNSAMPLED EQUALITY BRACKET ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next171'],
                 'dependency_closure' => 'no new support component needed; next171 reuses lane-local expression evaluation, partial predicate implication, STAT4 sample fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare exact STAT4 equality/IN/BETWEEN row streams, next167 post-ANALYZE sample-window fences, next164 range proof, expression ORDER BY, range-cost, JSON, WAL, VFS, and B-tree clusters; this slice admits an unsampled equality key using the current STAT4 bracket for a partial expression index',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare exact STAT4 equality/IN/BETWEEN row streams, next167 post-ANALYZE sample-window fences, stat4-current-range range proof, expression ORDER BY, range-cost, JSON, WAL, VFS, and B-tree clusters; this slice admits an unsampled equality key using the current STAT4 bracket for a partial expression index',
             ];
         }
 
@@ -5795,7 +5795,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next173 reuses native STAT4 expression partial current-source planning and adds duplicate-key sample fanout admission',
-                'non_overlap' => 'avoids accepted next167 post-ANALYZE sample-window drift, next164 range-implies-partial proof, or-split-partial-expression OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only admits duplicate current rowids behind one STAT4 sample key for a partial expression index',
+                'non_overlap' => 'avoids accepted next167 post-ANALYZE sample-window drift, stat4-current-range range-implies-partial proof, or-split-partial-expression OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only admits duplicate current rowids behind one STAT4 sample key for a partial expression index',
             ]);
         }
 
@@ -6444,7 +6444,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT175 LIKE PREFIX WINDOW ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next175'],
                 'dependency_closure' => 'no new support component needed; next175 reuses lane-local expression evaluation, LIKE prefix extraction, partial predicate implication, STAT4 sample fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, next164 range proof, next171 unsampled equality brackets, next173 duplicate sample fanout, expression ORDER BY, range-cost, JSON, WAL, VFS, and B-tree clusters; this slice admits a LIKE prefix window for a partial expression index',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, stat4-current-range range proof, next171 unsampled equality brackets, next173 duplicate sample fanout, expression ORDER BY, range-cost, JSON, WAL, VFS, and B-tree clusters; this slice admits a LIKE prefix window for a partial expression index',
             ];
         }
 
@@ -6944,7 +6944,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          */
         public static function materializeNext176(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext164(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,
@@ -6953,7 +6953,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $selected = self::arrayValueNext176($base, 'selectedPlan');
             $range = self::arrayValueNext176($selected, 'rangeConstraint');
             $boundary = self::rangeBoundaryNext176($range);
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next164-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
                 && ($selected['partialPredicateImpliedByRange'] ?? false) === true
                 && ($selected['stat4Used'] ?? false) === true
                 && ($selected['matchedRowCount'] ?? 0) > 0
@@ -7136,7 +7136,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         {
             $between = self::betweenTermNext177($whereTerms);
             $normalizedTerms = self::normalizeBetweenTermsNext177($whereTerms);
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext164(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
                 $preparedSource,
                 $currentSource,
                 $normalizedTerms,
@@ -7147,7 +7147,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $matchedRows = self::listValueNext177($base, 'matchedRows');
             $lowerRowids = self::boundaryRowidsNext177($matchedRows, $range['lower'] ?? null);
             $upperRowids = self::boundaryRowidsNext177($matchedRows, $range['upper'] ?? null);
-            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next164-ready'
+            $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4-current-range-ready'
                 && $between !== null
                 && ($range['lowerInclusive'] ?? false) === true
                 && ($range['upperInclusive'] ?? false) === true
@@ -7194,7 +7194,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next177 reuses current-source STAT4 expression partial planning and adds BETWEEN inclusive-bound normalization/fencing',
-                'non_overlap' => 'avoids accepted next164 explicit range terms, next169 full-vs-partial cost fencing, next170 next-source row churn admission, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only normalizes expression BETWEEN terms into inclusive current-source STAT4 partial-index bounds',
+                'non_overlap' => 'avoids accepted stat4-current-range explicit range terms, next169 full-vs-partial cost fencing, next170 next-source row churn admission, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only normalizes expression BETWEEN terms into inclusive current-source STAT4 partial-index bounds',
             ]);
         }
 
@@ -7431,7 +7431,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT178 ORDER FENCE ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next178'],
                 'dependency_closure' => 'no new support component needed; next178 reuses lane-local expression normalization, partial predicate proof, STAT4 fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted next164 range proof, next169 full-index cost, next173 duplicate fanout, next175 LIKE prefix windows, expression ORDER BY text execution, and range-cost ranking; this slice is the current-source ORDER fence for partial expression STAT4 scans',
+                'non_overlap' => 'avoids accepted stat4-current-range range proof, next169 full-index cost, next173 duplicate fanout, next175 LIKE prefix windows, expression ORDER BY text execution, and range-cost ranking; this slice is the current-source ORDER fence for partial expression STAT4 scans',
             ];
         }
 

@@ -59,12 +59,10 @@ $cases = [
 ];
 
 $summary = [
-    'scenario' => 'wordpress-pragma-index-xinfo-foreignkey-current-source-next1135-1150',
-    'wordpressUse' => 'WordPress import previews can page the staged next1135-1150 foreign-key action relationship diagnostics after next1119-1134 while preserving order, collation, and DESC child lookup mismatch coverage.',
-    'implemented_pages' => array_values(array_filter(
-        range(1135, 1150),
-        static fn (int $slice): bool => method_exists(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::class, 'page' . $slice),
-    )),
+    'scenario' => 'wordpress-pragma-index-xinfo-foreignkey-action-relationship-diagnostics',
+    'wordpressUse' => 'WordPress import previews can page staged foreign-key action relationship diagnostics while preserving order, collation, and DESC child lookup mismatch coverage.',
+    'diagnostic_slices' => range(1135, 1150),
+    'canonical_method' => method_exists(SQLitePragmaIndexXinfoForeignKeyCurrentSourceNext::class, 'actionRelationshipDiagnosticPage'),
 ];
 
 foreach ($cases as $slice => [$updateAction, $deleteAction, $indexKind, $status]) {
@@ -85,16 +83,16 @@ foreach ($cases as $slice => [$updateAction, $deleteAction, $indexKind, $status]
 if (($argv[1] ?? null) === '--self-test') {
     foreach ($cases as $slice => [, , , $status]) {
         if (($summary["next{$slice}_current_{$status}"] ?? null) !== 0 || ($summary["next{$slice}_next_{$status}"] ?? null) !== 1) {
-            fwrite(STDERR, "wordpress-pragma-index-xinfo-foreignkey-current-source-next1135-1150 self-test failed\n");
+            fwrite(STDERR, "wordpress-pragma-index-xinfo-foreignkey-action-relationship-diagnostics self-test failed\n");
             exit(1);
         }
     }
-    if ($summary['implemented_pages'] !== range(1135, 1150)) {
-        fwrite(STDERR, "wordpress-pragma-index-xinfo-foreignkey-current-source-next1135-1150 self-test failed\n");
+    if ($summary['diagnostic_slices'] !== range(1135, 1150) || $summary['canonical_method'] !== true) {
+        fwrite(STDERR, "wordpress-pragma-index-xinfo-foreignkey-action-relationship-diagnostics self-test failed\n");
         exit(1);
     }
 
-    fwrite(STDOUT, "wordpress-pragma-index-xinfo-foreignkey-current-source-next1135-1150 self-test passed\n");
+    fwrite(STDOUT, "wordpress-pragma-index-xinfo-foreignkey-action-relationship-diagnostics self-test passed\n");
     exit(0);
 }
 

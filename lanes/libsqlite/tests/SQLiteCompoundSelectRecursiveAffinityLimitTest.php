@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
@@ -54,20 +54,20 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound select recursive affinity limit current source next149 status dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit status dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-select-recursive-affinity-limit-current-source-next149-ready', $plan['status']);
+    $t->same('compound-select-recursive-affinity-limit-ready', $plan['status']);
     $t->same([
-        'sqlite-recursive-cte-union-affinity-dedup-current-source-next149',
-        'sqlite-compound-select-final-limit-after-union-current-source-next149',
-        'sqlite-compound-select-left-column-name-affinity-current-source-next149',
+        'sqlite-recursive-cte-union-affinity-dedup',
+        'sqlite-compound-select-final-limit-after-union',
+        'sqlite-compound-select-left-column-name-affinity',
     ], $plan['dependencies']);
 };
 
-$tests['compound select recursive affinity limit current source next149 compound metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit compound metadata'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -78,28 +78,28 @@ $tests['compound select recursive affinity limit current source next149 compound
     $t->same(1, $compound['offset']);
 };
 
-$tests['compound select recursive affinity limit current source next149 current final limit rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit current final limit rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'id'));
     $t->same(['siteurl', 'edge', 'home', 'active_plugins', 'edge'], array_column($rows, 'source'));
     $t->same([1, 1.0, '1', 2, '2'], array_column($rows, 'key_value'));
 };
 
-$tests['compound select recursive affinity limit current source next149 next final limit unchanged until boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit next final limit unchanged until boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'id'));
     $t->same(['siteurl', 'edge', 'home', 'active_plugins', 'edge'], array_column($rows, 'source'));
     $t->same([1, 1.0, '1', 2, '2'], array_column($rows, 'key_value'));
 };
 
-$tests['compound select recursive affinity limit current source next149 unlimited next captures deferred boundary'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit unlimited next captures deferred boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextUnlimitedRows'];
     $t->same([5, 5, 6, 6], array_slice(array_column($rows, 'id'), -4));
     $t->same(['edge', 'plugin_cache', 'edge', 'plugin_cache_text'], array_slice(array_column($rows, 'source'), -4));
     $t->same([3.0, 3, '3', '3'], array_slice(array_column($rows, 'key_value'), -4));
 };
 
-$tests['compound select recursive affinity limit current source next149 recursive trace deduplicates numeric seed'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit recursive trace deduplicates numeric seed'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same('option_walk', $recursive['name']);
     $t->same(['item_id', 'key_value', 'source'], $recursive['columns']);
@@ -109,7 +109,7 @@ $tests['compound select recursive affinity limit current source next149 recursiv
     $t->true(in_array('sqlite-recursive-union-cycle-dedup', $recursive['dependencies'], true));
 };
 
-$tests['compound select recursive affinity limit current source next149 recursive current next source depth'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit recursive current next source depth'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same(4, $recursive['currentTraceCount']);
     $t->same(6, $recursive['nextTraceCount']);
@@ -117,7 +117,7 @@ $tests['compound select recursive affinity limit current source next149 recursiv
     $t->same([1, 2, 3, 4, 5, 6], array_column($recursive['nextRows'], 'item_id'));
 };
 
-$tests['compound select recursive affinity limit current source next149 affinity diagnostics'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit affinity diagnostics'] = static function (TestRunner $t) use ($summary): void {
     $affinity = $summary()['affinity'];
     $t->same(['numeric:1', 'string:1', 'numeric:2', 'string:2'], $affinity['currentKeyClasses']);
     $t->same(['numeric:1', 'string:1', 'numeric:2', 'string:2', 'numeric:3', 'string:3'], $affinity['nextKeyClasses']);
@@ -126,7 +126,7 @@ $tests['compound select recursive affinity limit current source next149 affinity
     $t->same(['numeric:3', 'string:3'], $affinity['changedKeyClasses']);
 };
 
-$tests['compound select recursive affinity limit current source next149 limit trace applies after union'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit limit trace applies after union'] = static function (TestRunner $t) use ($summary): void {
     $trace = $summary()['limitTrace']['next'];
     $t->same(12, $trace['preLimitCount']);
     $t->same(5, $trace['acceptedCount']);
@@ -134,7 +134,7 @@ $tests['compound select recursive affinity limit current source next149 limit tr
     $t->same([[4, 2.0, 'edge'], [4, '2', 'theme_mods'], [5, 3.0, 'edge'], [5, 3, 'plugin_cache'], [6, '3', 'edge'], [6, '3', 'plugin_cache_text']], array_map(static fn (array $row): array => array_values($row), $trace['truncatedAfterLimit']));
 };
 
-$tests['compound select recursive affinity limit current source next149 changed diagnostics'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select recursive affinity limit changed diagnostics'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->same('', $changed);
@@ -143,24 +143,24 @@ $tests['compound select recursive affinity limit current source next149 changed 
     $t->true(in_array('affinity-storage-classes-changed', $plan['replanReasons'], true));
 };
 
-$tests['compound select recursive affinity limit current source next149 rejects non recursive'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
+$tests['compound select recursive affinity limit rejects non recursive'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
         'SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options UNION SELECT option_id, rank_value, option_name FROM wp_options ORDER BY id LIMIT 2',
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound select recursive affinity limit current source next149 rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
+$tests['compound select recursive affinity limit rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
         "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION ALL SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id LIMIT 2",
         $currentTables,
         $currentTables,
     ));
 };
 
-$tests['compound select recursive affinity limit current source next149 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNextPlan::compareNext149(
+$tests['compound select recursive affinity limit rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
         "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id",
         $currentTables,
         $currentTables,
@@ -168,7 +168,7 @@ $tests['compound select recursive affinity limit current source next149 rejects 
 };
 
 foreach (range(1, 67) as $case) {
-    $tests['compound select recursive affinity limit current source next149 generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select recursive affinity limit generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
             'wp_options' => [
                 ['option_id' => 1, 'option_name' => 'seed_' . $case, 'rank_value' => 1],

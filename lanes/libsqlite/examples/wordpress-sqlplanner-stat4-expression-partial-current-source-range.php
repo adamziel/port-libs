@@ -11,7 +11,7 @@ $notNull = static fn (string $column): array => ['left' => ['column' => $column]
 $exprRange = static fn (string $expression, string $operator, mixed $right): array => ['left' => ['expression' => $expression], 'operator' => $operator, 'right' => $right];
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-expression-partial-next164',
+    'name' => 'prepared-wp-options-stat4-expression-partial-stat4-current-range',
     'schemaCookie' => 1640,
     'stat4Generation' => 61,
     'rows' => [
@@ -20,7 +20,7 @@ $prepared = [
         ['rowid' => 30, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo', 'updated_at' => 30],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_range_partial_stat4_next164',
+        'name' => 'idx_wp_options_lower_range_partial_stat4_stat4-current-range',
         'rootPage' => 16401,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
@@ -41,7 +41,7 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-expression-partial-next164';
+$current['name'] = 'current-wp-options-stat4-expression-partial-stat4-current-range';
 $current['schemaCookie'] = 1649;
 $current['stat4Generation'] = 72;
 $current['indexes'][0]['rootPage'] = 16488;
@@ -61,7 +61,7 @@ $current['rows'] = [
     ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'no', 'option_name' => 'plugin_lazy', 'option_value' => 'lazy', 'updated_at' => 60],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext164(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4CurrentRange(
     $prepared,
     $current,
     [
@@ -74,15 +74,15 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next164-ready');
+    assert($plan['status'] === 'stat4-expression-partial-current-source-stat4-current-range-ready');
     assert($plan['matchedRowids'] === [10, 20, 40, 30]);
     assert($plan['selectedPlan']['partialPredicateImpliedByRange'] === true);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next164 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-stat4-current-range self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next164',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-stat4-current-range',
     'wordpressUse' => 'Preview copied wp_options plugin scans after ANALYZE/source changes where narrowed lower(option_name) range bounds prove a partial expression index predicate and select the current STAT4 fence instead of stale prepared rows.',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],

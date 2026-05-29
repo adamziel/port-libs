@@ -36,13 +36,13 @@ $putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type
     $pages[$pointerMapPage] = substr_replace($pages[$pointerMapPage], chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - $pointerMapPage - 1), 5);
 };
 
-$databaseForSlice = static function (int $sliceNumber) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
+$databaseForScenario = static function (int $scenarioOrdinal) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
     $pages[1] = $makeFirstPage(110);
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_next{$sliceNumber}", str_repeat('cache:', 42)])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_freelist_replay_{$scenarioOrdinal}", str_repeat('cache:', 42)])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
     ]);
     $pages[105] = str_repeat("\0", 512);
@@ -65,11 +65,10 @@ $databaseForSlice = static function (int $sliceNumber) use ($makeFirstPage, $put
 };
 
 $rows = [];
-foreach ([911, 912, 913, 914, 915, 916, 917, 918, 919, 920, 921, 922, 923, 924, 925, 926] as $sliceNumber) {
-    $database = $databaseForSlice($sliceNumber);
+foreach (range(1, 16) as $scenarioOrdinal) {
+    $database = $databaseForScenario($scenarioOrdinal);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
-    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult(
         $database,
         3,
         [
@@ -78,12 +77,12 @@ foreach ([911, 912, 913, 914, 915, 916, 917, 918, 919, 920, 921, 922, 923, 924, 
             'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
         ],
         2,
-        str_repeat("next{$sliceNumber}-current-source-followon-handoff-", 36),
+        str_repeat("freelist-handoff-replay-{$scenarioOrdinal}-", 42),
         3,
     );
     $summary = $plan->currentSourceSummary();
     $rows[] = [
-        'slice' => $sliceNumber,
+        'scenario' => $scenarioOrdinal,
         'status' => $summary['status'],
         'current_source_pages' => $summary['current_source_pages'],
         'current_source_leaf_pages' => $summary['current_source_leaf_pages'],

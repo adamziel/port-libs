@@ -18,19 +18,19 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
         array $releasedStatements,
         array $rollbackStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_delete_outer_next144',
-        string $releasedSavepoint = 'wp_options_delete_released_next144',
-        string $rollbackSavepoint = 'wp_options_delete_rollback_next144',
+        string $outerSavepoint = 'wp_options_delete_returning_outer',
+        string $releasedSavepoint = 'wp_options_delete_returning_released',
+        string $rollbackSavepoint = 'wp_options_delete_returning_rollback',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($releasedStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 needs released statements');
+            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint needs released statements');
         }
         if ($rollbackStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 needs rollback statements');
+            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint needs rollback statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint needs unique constraints');
         }
 
         $outerImage = self::normalizeTables($tables);
@@ -111,9 +111,9 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables' => self::changedTables($outerImage, $current),
             'attempted_changed_tables' => self::changedTables($outerImage, $attempted),
             'dependencies' => [
-                'sqlite-delete-returning-row-value-current-source-next144',
-                'sqlite-delete-returning-yields-before-savepoint-rollback-next144',
-                'sqlite-released-savepoint-delete-survives-inner-rollback-next144',
+                'sqlite-delete-returning-row-value-current-source',
+                'sqlite-delete-returning-yields-before-savepoint-rollback',
+                'sqlite-released-savepoint-delete-survives-inner-rollback',
             ],
         ];
     }
@@ -171,7 +171,7 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
         $before = $tables;
         $result = SQLiteUpdateDeleteReturningSql::execute($sql, $tables, $rowIdColumn, $uniqueConstraints);
         if ($result['action'] !== 'delete') {
-            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 only accepts DELETE statements');
+            throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint only accepts DELETE statements');
         }
 
         $deletedRows = self::rowsByIds($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn);
@@ -205,11 +205,11 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING next144 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint rows must be arrays');
                 }
             }
         }
@@ -232,11 +232,11 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value DELETE RETURNING next144 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value DELETE RETURNING savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value DELETE RETURNING next144 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value DELETE RETURNING savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 
-$makeFirstPage911926 = static function (int $pageCount): string {
+$makeFirstPage = static function (int $pageCount): string {
     $page = str_repeat("\0", 512);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', 512), 16, 2);
@@ -25,7 +25,7 @@ $makeFirstPage911926 = static function (int $pageCount): string {
     return $page;
 };
 
-$putPointerMapEntry911926 = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
+$putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
     if ($pageNumber === 2 || $pageNumber === 105) {
         return;
     }
@@ -34,13 +34,13 @@ $putPointerMapEntry911926 = static function (array &$pages, int $pageNumber, int
     $pages[$pointerMapPage] = substr_replace($pages[$pointerMapPage], chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - $pointerMapPage - 1), 5);
 };
 
-$database911926 = static function (int $sliceNumber) use ($makeFirstPage911926, $putPointerMapEntry911926): SQLiteDatabase {
+$databaseForScenario = static function (int $scenarioOrdinal) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
-    $pages[1] = $makeFirstPage911926(110);
+    $pages[1] = $makeFirstPage(110);
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_timeout_next{$sliceNumber}", str_repeat('ttl:', 52)])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_timeout_replay_{$scenarioOrdinal}", str_repeat('ttl:', 52)])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'template', str_repeat('theme:', 12)])),
     ]);
     $pages[105] = str_repeat("\0", 512);
@@ -56,18 +56,17 @@ $database911926 = static function (int $sliceNumber) use ($makeFirstPage911926, 
         109 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 108],
         110 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 109],
     ] as $pageNumber => [$type, $parent]) {
-        $putPointerMapEntry911926($pages, $pageNumber, $type, $parent);
+        $putPointerMapEntry($pages, $pageNumber, $type, $parent);
     }
 
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan911926 = static function (int $sliceNumber, int $batchSize = 2) use ($database911926): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
-    $database = $database911926($sliceNumber);
+$planForScenario = static function (int $scenarioOrdinal, int $batchSize = 2) use ($databaseForScenario): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+    $database = $databaseForScenario($scenarioOrdinal);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult(
         $database,
         3,
         [
@@ -76,7 +75,7 @@ $plan911926 = static function (int $sliceNumber, int $batchSize = 2) use ($datab
             'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
         ],
         2,
-        str_repeat("next{$sliceNumber}-current-source-pointermap-freeblock-", 34),
+        str_repeat("freelist-handoff-replay-{$scenarioOrdinal}-", 42),
         3,
         true,
         $batchSize,
@@ -85,14 +84,14 @@ $plan911926 = static function (int $sliceNumber, int $batchSize = 2) use ($datab
 
 $tests = [];
 
-foreach ([911, 912, 913, 914, 915, 916, 917, 918, 919, 920, 921, 922, 923, 924, 925, 926] as $sliceNumber) {
-    $tests["btree vacuum pointermap freeblock current source next{$sliceNumber} extends next911-926 handoff receipts"] = static function (TestRunner $t) use ($plan911926, $sliceNumber): void {
-        $plan = $plan911926($sliceNumber);
+foreach (range(1, 16) as $scenarioOrdinal) {
+    $tests["btree vacuum pointermap freeblock current source freelist handoff replay scenario {$scenarioOrdinal}"] = static function (TestRunner $t) use ($planForScenario, $scenarioOrdinal): void {
+        $plan = $planForScenario($scenarioOrdinal);
         $summary = $plan->currentSourceSummary();
         $rows = $plan->currentSourceRows();
 
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}", $plan->toArray()['action']);
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}-ready", $summary['status']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-freelist-handoff', $plan->toArray()['action']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-ready', $summary['status']);
         $t->same(7, $summary['current_source_row_count']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['current_source_pages']);
         $t->same([3, 106, 107, 108], $summary['current_source_leaf_pages']);
@@ -105,13 +104,13 @@ foreach ([911, 912, 913, 914, 915, 916, 917, 918, 919, 920, 921, 922, 923, 924, 
         $t->same(true, $summary['all_leaf_receipts_current_at_source']);
         $t->same(true, $summary['all_tail_pages_remain_excluded_from_source']);
         $t->same(true, $summary['all_current_source_links_valid']);
-        $t->same("current-source-next{$sliceNumber}-handoff-ready", $rows[0]['current_source_state']);
+        $t->same('current-source-freelist-handoff-ready', $rows[0]['current_source_state']);
         $t->same(null, $rows[0]['previous_current_source_token']);
         $t->same($rows[0]['current_source_token'], $rows[1]['previous_current_source_token']);
-        $t->same(true, isset($summary["current_source_next{$sliceNumber}_token"]));
-        $t->contains('next431-446 freelist splice shape', $summary['dependency_closure']);
+        $t->same(true, isset($summary['current_source_freelist_handoff_token']));
+        $t->contains('existing freelist splice shape', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
-        $t->same(6, $plan911926($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
+        $t->same(6, $planForScenario($scenarioOrdinal, 3)->currentSourceSummary()['current_source_row_count']);
     };
 }
 

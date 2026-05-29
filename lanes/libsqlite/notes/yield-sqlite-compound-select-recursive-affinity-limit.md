@@ -1,6 +1,9 @@
-# Compound SELECT Recursive Affinity LIMIT Current Source Next149
+# Compound SELECT Recursive Affinity LIMIT
 
-- Slice: `compound-select-recursive-affinity-limit-current-source-next149`.
+- Slice: `compound-select-recursive-affinity-limit`.
+- Consolidation: renamed the former numbered current-source implementation to
+  `SQLiteCompoundSelectRecursiveAffinityLimitPlan` and replaced its numbered
+  public/private methods with descriptive unsuffixed names.
 - Behavior: parser-level `WITH RECURSIVE` row production feeding a DISTINCT
   `UNION` compound SELECT keeps SQLite set-operator storage-class boundaries
   (`1`, `1.0`, and `'1'`) before final compound `ORDER BY ... LIMIT/OFFSET`
@@ -17,7 +20,7 @@
   existing native PHP `SQLiteSelectSql` recursive CTE and compound SELECT
   executor.
 - Focused evidence:
-  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectRecursiveAffinityLimitCurrentSourceNext149Test.php`
-  - `php lanes/libsqlite/examples/wordpress-select-sql-compound-recursive-affinity-limit-next149.php`
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectRecursiveAffinityLimitTest.php`
+  - `php lanes/libsqlite/examples/wordpress-select-sql-compound-recursive-affinity-limit.php`
   - PHP lint for changed PHP files
   - `git diff --check -- lanes/libsqlite`

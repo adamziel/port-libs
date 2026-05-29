@@ -2640,3 +2640,24 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Deferred rowvalue-window BX for targeted rebase or retirement. Public
   libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
   coverage because this is a consolidation-only slice.
+
+## Supervisor Rolling Integration 2026-05-29T17:34Z Shell Sample
+
+- Preflighted and accepted eight BY ready markers against the current
+  integration head `a6f029a5`: planner STAT4 current-source range cleanup,
+  JSON table cleanup, B-tree vacuum freelist handoff replay cleanup, compound
+  recursive affinity limit stable class rename, rowvalue delete returning
+  savepoint source cleanup, rowvalue statement-partitioned returning-window
+  cleanup, trigger recursive-view returning source-close cleanup, and
+  PRAGMA/FK action relationship diagnostic suffix cleanup.
+- Validation for the sixty-second reduced consolidation follow-up passed: 20
+  changed PHP files linted, 7 changed tests with 1,047 assertions and 0
+  failures, 7 changed WordPress examples/self-tests, `git diff --check`,
+  exact user-named 150 suffix scan clean in src/tests/examples, production
+  numbered file/class audits at 0, numbered production helper methods reduced
+  to 1,934, and broad numbered production helper occurrences remained 189.
+- Public libsqlite counts remain 154,019 pass / 0 fail and 830 / 1,589 mapped
+  coverage because this is a consolidation-only slice. Queued BY pager-master
+  and suite markers plus current BZ ready markers remain for the next triage
+  pass, while deferred older overlaps are preserved for targeted rebase or
+  retirement.

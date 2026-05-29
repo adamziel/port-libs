@@ -18,8 +18,8 @@ $rows = [
     ['option_id' => 5, 'blog_id' => 3, 'option_name' => 'rewrite_rules_shadow', 'autoload' => 'no', 'status' => 'queued', 'bytes' => 10, 'option_value' => 'shadow'],
 ];
 
-$attempt = "UPDATE wp_options SET status = 'attempt290293' WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, option_name, status ORDER BY option_id";
-$retryUpdate = "UPDATE wp_options SET status = 'retry290293' WHERE (blog_id, option_name) IN ((1, 'home'), (2, 'pending_theme'), (3, 'rewrite_rules_shadow')) RETURNING option_id, option_name, status ORDER BY option_id";
+$attempt = "UPDATE wp_options SET status = 'attempt' WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules')) RETURNING option_id, option_name, status ORDER BY option_id";
+$retryUpdate = "UPDATE wp_options SET status = 'retry' WHERE (blog_id, option_name) IN ((1, 'home'), (2, 'pending_theme'), (3, 'rewrite_rules_shadow')) RETURNING option_id, option_name, status ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (3, 'rewrite_rules')) RETURNING option_id, option_name, status ORDER BY option_id";
 
 $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementPartitionedReturningWindowSavepointRetry(

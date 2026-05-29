@@ -15919,6 +15919,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
+        $options = self::withCurrentSourceTicketOptionAliases($options);
         $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceTicketFence(
             $baseRows,
             $currentInput,
@@ -15935,11 +15936,11 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $viewCookie = self::currentSourceCloseToken((string) ($options['current_view_cookie_source_close'] ?? (string) ($currentView['source'] ?? 'main@view-cookie-source-close-current')), 'current view cookie');
         $triggerCookie = self::currentSourceCloseToken((string) ($options['current_trigger_cookie_source_close'] ?? (string) ($currentView['trigger_source'] ?? 'main@trigger-cookie-source-close-current')), 'current trigger cookie');
         $requireOrder = (bool) ($options['require_current_source_close_order_source_close'] ?? true);
-        $baseVisible = (bool) ($base['next_source_visible_after_current_source_ticket_next222'] ?? false);
+        $baseVisible = (bool) self::currentSourceTicketBaseValue($base, 'next_source_visible_after_current_source_ticket', 'next_source_visible_after_current_source_ticket_next222', false);
         $closeMatches = hash_equals($closeToken, $expectedCloseToken);
 
-        $currentRows = self::currentSourceCloseRows($base['current_source_rows_next222'] ?? [], 'current source rows');
-        $nextRows = self::currentSourceCloseRows($base['attempted_next_source_rows_next222'] ?? [], 'attempted next source rows');
+        $currentRows = self::currentSourceCloseRows(self::currentSourceTicketBaseValue($base, 'current_source_rows_current_source_ticket', 'current_source_rows_next222', []), 'current source rows');
+        $nextRows = self::currentSourceCloseRows(self::currentSourceTicketBaseValue($base, 'attempted_next_source_rows_current_source_ticket', 'attempted_next_source_rows_next222', []), 'attempted next source rows');
         $requiredClosures = self::currentSourceCloseReceipts($currentRows, $cursor, $closeToken, $viewCookie, $triggerCookie);
         $acknowledgedClosures = self::acknowledgedCurrentSourceClosures($options, $requiredClosures);
         $missingClosures = array_values(array_diff($requiredClosures, $acknowledgedClosures));
@@ -15952,7 +15953,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             && $orderMatches;
         $nextVisible = $baseVisible && $closeComplete;
         $blockedReasons = self::currentSourceCloseBlockedReasons(
-            $base['blocked_reasons_next222'] ?? [],
+            self::currentSourceTicketBaseValue($base, 'blocked_reasons_current_source_ticket', 'blocked_reasons_next222', []),
             $baseVisible,
             $closeMatches,
             $missingClosures,
@@ -15976,6 +15977,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'status_source_close' => self::currentSourceCloseStatus($baseVisible, $closeMatches, $missingClosures, $unexpectedClosures, $requireOrder, $orderMatches, $nextVisible),
             'savepoint' => $base['savepoint'],
             'base' => $base,
+            'base_status_current_source_ticket' => self::currentSourceTicketBaseValue($base, 'status_current_source_ticket', 'status_next222', null),
             'base_next_source_visible_source_close' => $baseVisible,
             'current_source_cursor_source_close' => $cursor,
             'current_source_close_token_source_close' => $closeToken,
@@ -16021,13 +16023,54 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 ? 'recursive-view-returning-source_close-current-cursor-close-then-next'
                 : 'recursive-view-returning-source_close-current-cursor-close-fences-next',
             'dependency_closure_source_close' => 'no-new-support-component-reuses-native-recursive-view-returning-current-source-close-handoff',
-            'dependencies_source_close' => array_values(array_unique(array_merge($base['dependencies_next222'] ?? [], [
+            'dependencies_source_close' => array_values(array_unique(array_merge(
+                self::currentSourceTicketBaseValue($base, 'dependencies_current_source_ticket', 'dependencies_next222', []),
+                [
                 'sqlite-trigger-recursive-view-returning-current-source-source_close',
                 'sqlite-returning-current-source-cursor-close-handoff',
                 'wordpress-recursive-view-returning-current-source-source_close',
-            ]))),
-            'non_overlap_source_close' => 'adds current RETURNING cursor close admission after accepted next222 source-ticket handoff; avoids accepted trigger recursive view RETURNING next157-next222 surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
+                ],
+            ))),
+            'non_overlap_source_close' => 'adds current RETURNING cursor close admission after the accepted source-ticket handoff; avoids accepted trigger recursive view RETURNING ticket surfaces, row-value RETURNING savepoints, DML RETURNING conflicts, deferred FK triggers, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     * @return array<string,mixed>
+     */
+    private static function withCurrentSourceTicketOptionAliases(array $options): array
+    {
+        $aliases = [
+            'current_source_ticket' => 'current_source_ticket_next222',
+            'current_view_source_ticket' => 'current_view_source_next222',
+            'current_trigger_source_ticket' => 'current_trigger_source_next222',
+            'auto_ack_current_source_tickets' => 'auto_ack_current_source_tickets_next222',
+            'acknowledged_current_source_tickets' => 'acknowledged_current_source_tickets_next222',
+            'require_current_source_ticket_order' => 'require_current_source_ticket_order_next222',
+        ];
+        foreach ($aliases as $canonical => $legacy) {
+            if (array_key_exists($canonical, $options) && !array_key_exists($legacy, $options)) {
+                $options[$legacy] = $options[$canonical];
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param array<string,mixed> $base
+     */
+    private static function currentSourceTicketBaseValue(array $base, string $canonicalKey, string $legacyKey, mixed $default): mixed
+    {
+        if (array_key_exists($canonicalKey, $base)) {
+            return $base[$canonicalKey];
+        }
+        if (array_key_exists($legacyKey, $base)) {
+            return $base[$legacyKey];
+        }
+
+        return $default;
     }
 
     /**
