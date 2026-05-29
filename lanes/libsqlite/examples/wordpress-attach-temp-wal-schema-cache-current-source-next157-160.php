@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCachePlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas = [
     'main' => [
@@ -41,11 +41,11 @@ $events = [
     ['op' => 'drop_index', 'schema' => 'main', 'index' => 'wp_options_autoload_name'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext157160($schemas, $statements, $events);
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, $events);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next157-160');
-    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next157');
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
+    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-consolidated');
     assert($plan['event_count'] === 4);
     assert($plan['changed_schemas'] === ['temp', 'main', 'archive', 'network']);
     assert($plan['statements']['shadow-postmeta-reader']['schema_transitions'][0]['next_schema'] === 'main');

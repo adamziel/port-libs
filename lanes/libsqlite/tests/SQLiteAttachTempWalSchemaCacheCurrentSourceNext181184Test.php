@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas181184 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements181184 = [
     ['name' => 'main-options-writer', 'sql' => 'UPDATE main.wp_options SET option_value = ? WHERE option_name = ?'],
 ];
 
-$plan181184 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext181184(
+$plan181184 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas181184,
     $statements ?? $statements181184,
     $events,
@@ -45,8 +45,8 @@ $tests['attach temp wal schema cache current source next181 attach media resolve
         ['op' => 'attach', 'schema' => 'media', 'schema_cookie' => 181, 'tables' => ['wp_postmeta'], 'indexes' => ['wp_postmeta_key'], 'file' => '/srv/wp/media-next181.sqlite'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next181-184', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next181', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['media'], $result['changed_schemas']);
     $t->same('__detached__', $result['statements']['media-reader']['schema_transitions'][0]['current_schema']);
     $t->same('media', $result['statements']['media-reader']['schema_transitions'][0]['next_schema']);

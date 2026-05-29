@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan;
 
-$plan107 = static fn (array $ops, array $options = []): array => SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::currentSourceNext107(
+$plan107 = static fn (array $ops, array $options = []): array => SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::planTempDirectorySidecarLock(
     $ops,
     $options + ['temp_dir' => '/tmp/wp-a', 'connection_id' => 'WP Import 107'],
 );
@@ -56,7 +56,7 @@ $deleteOnClose = static fn (): array => $plan107([
 ]);
 
 return [
-    'vfs temp directory sidecar lock current source next107 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-directory-sidecar-lock-current-source-next107', $move()['dependencies'], true)),
+    'vfs temp directory sidecar lock current source next107 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-directory-sidecar-lock', $move()['dependencies'], true)),
     'vfs temp directory sidecar lock current source next107 final status closed' => static fn (TestRunner $t) => $t->same('closed', $move()['status']),
     'vfs temp directory sidecar lock current source next107 first open status' => static fn (TestRunner $t) => $t->same('temp-open', $move()['events'][0]['status']),
     'vfs temp directory sidecar lock current source next107 first handle id' => static fn (TestRunner $t) => $t->same('temp-wp-import-107-1', $move()['events'][0]['handle']),
@@ -122,7 +122,7 @@ return [
     'vfs temp directory sidecar lock current source next107 delete on close status' => static fn (TestRunner $t) => $t->same('closed', $deleteOnClose()['status']),
     'vfs temp directory sidecar lock current source next107 delete on close removes controls' => static fn (TestRunner $t) => $t->same(0, $deleteOnClose()['next']['sidecar_control_count']),
     'vfs temp directory sidecar lock current source next107 delete on close unlocks sidecar' => static fn (TestRunner $t) => $t->same('unlocked', $deleteOnClose()['next']['current_sidecar_keys'] === [] ? 'unlocked' : $deleteOnClose()['current']['sidecar_locks']['/tmp/wp-a|temp|.delete-journal']),
-    'vfs temp directory sidecar lock current source next107 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::currentSourceNext107([])),
+    'vfs temp directory sidecar lock current source next107 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::planTempDirectorySidecarLock([])),
     'vfs temp directory sidecar lock current source next107 rejects bad source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan107([['op' => 'open', 'source' => 'bogus']])),
     'vfs temp directory sidecar lock current source next107 rejects bad temp directory' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan107([['op' => 'temp_directory', 'path' => '']])),
     'vfs temp directory sidecar lock current source next107 rejects bad suffix' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan107([['op' => 'open', 'suffix' => '../bad']])),

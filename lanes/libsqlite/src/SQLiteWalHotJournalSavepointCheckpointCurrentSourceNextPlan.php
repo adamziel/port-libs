@@ -32684,7 +32684,7 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1149, 'verify_after_ready_checkpoint_reader_mark_release_checkpoint_frame');
     }
 
-    public static function next1150AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
+    public static function pageCacheSourceTokenAfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
     {
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 1150, 'verify_after_ready_checkpoint_page_cache_source_token');
     }

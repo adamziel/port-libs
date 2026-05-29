@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas349364 = [
     'main' => [
@@ -56,7 +56,7 @@ $statements349364 = [
     ['name' => 'staging-writer', 'sql' => 'UPDATE staging.wp_stage_items INDEXED BY wp_stage_items_status SET status = ? WHERE status = ?'],
 ];
 
-$plan349364 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext349364(
+$plan349364 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas349364,
     $statements ?? $statements349364,
     $events,
@@ -84,10 +84,10 @@ $tests['attach temp wal schema cache current source next349-364 extends next333-
         ['op' => 'wal_commit', 'schema' => 'temp', 'schema_cookie' => 364, 'table' => 'wp_theme_stage_preview', 'indexes' => ['wp_theme_stage_preview_key'], 'commit' => true],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next349-364', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next349', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next364', $result['dependencies'][15]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next348', $result['dependencies'][31]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][31]);
     $t->same(15, $result['event_count']);
     $t->same(['temp', 'main', 'analytics', 'campaign', 'media', 'queue'], $result['changed_schemas']);
     $t->same(350, $result['schema_cookies_next']['main']);

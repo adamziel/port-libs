@@ -20184,9 +20184,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareRecursiveLimitSourceHandoff(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorNext246($cursor));
-            $handoff = self::sourceHandoffNext246($base);
-            self::validateCursorNext246($cursor, $handoff);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCompoundWindowReplayFence($sql, $currentTables, $nextTables, self::baseCursorRecursiveLimitSourceHandoff($cursor));
+            $handoff = self::sourceHandoffRecursiveLimitSourceHandoff($base);
+            self::validateCursorRecursiveLimitSourceHandoff($cursor, $handoff);
 
             $base['status'] = 'compound-select-window-recursive-limit-current-source-next246-ready';
             $base['compoundRecursiveLimitSourceHandoffNext246'] = $handoff;
@@ -20208,7 +20208,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext246(?array $cursor): ?array
+        private static function baseCursorRecursiveLimitSourceHandoff(?array $cursor): ?array
         {
             if ($cursor === null) {
                 return null;
@@ -20237,7 +20237,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function sourceHandoffNext246(array $plan): array
+        private static function sourceHandoffRecursiveLimitSourceHandoff(array $plan): array
         {
             $recursiveQueue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $spillover = is_array($plan['compoundFinalPageSpilloverDrainNext240'] ?? null) ? $plan['compoundFinalPageSpilloverDrainNext240'] : [];
@@ -20245,16 +20245,16 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $sourceWindow = is_array($plan['sourceWindow'] ?? null) ? $plan['sourceWindow'] : [];
             $compound = is_array($plan['compound'] ?? null) ? $plan['compound'] : [];
 
-            $currentLabels = self::stringListNext246($sourceWindow['currentAdmittedLabels'] ?? []);
-            $nextLabels = self::stringListNext246($sourceWindow['nextAdmittedLabels'] ?? []);
-            $spilloverLabels = self::stringListNext246($spillover['currentSpilloverLabels'] ?? []);
-            $replayTickets = self::stringListNext246($replay['requiredReplayTickets'] ?? []);
-            $recursiveEmitted = self::stringListNext246($recursiveQueue['currentEmittedLabels'] ?? []);
-            $recursiveSkipped = self::stringListNext246($recursiveQueue['currentSkippedLabels'] ?? []);
+            $currentLabels = self::stringListRecursiveLimitSourceHandoff($sourceWindow['currentAdmittedLabels'] ?? []);
+            $nextLabels = self::stringListRecursiveLimitSourceHandoff($sourceWindow['nextAdmittedLabels'] ?? []);
+            $spilloverLabels = self::stringListRecursiveLimitSourceHandoff($spillover['currentSpilloverLabels'] ?? []);
+            $replayTickets = self::stringListRecursiveLimitSourceHandoff($replay['requiredReplayTickets'] ?? []);
+            $recursiveEmitted = self::stringListRecursiveLimitSourceHandoff($recursiveQueue['currentEmittedLabels'] ?? []);
+            $recursiveSkipped = self::stringListRecursiveLimitSourceHandoff($recursiveQueue['currentSkippedLabels'] ?? []);
             $limitRemaining = (int) ($recursiveQueue['currentLimitRemaining'] ?? 0);
             $offsetRemaining = (int) ($recursiveQueue['currentOffsetRemaining'] ?? 0);
 
-            $recursiveLimitCursorToken = self::tokenNext246([
+            $recursiveLimitCursorToken = self::tokenRecursiveLimitSourceHandoff([
                 'name' => (string) ($recursiveQueue['name'] ?? ''),
                 'operator' => (string) ($recursiveQueue['operator'] ?? ''),
                 'emitted' => $recursiveEmitted,
@@ -20264,7 +20264,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'finalLimit' => (int) ($compound['limit'] ?? 0),
                 'finalOffset' => (int) ($compound['offset'] ?? 0),
             ]);
-            $currentSourceSignature = self::tokenNext246([
+            $currentSourceSignature = self::tokenRecursiveLimitSourceHandoff([
                 'currentToken' => (string) ($sourceWindow['currentToken'] ?? ''),
                 'windowReplayToken' => (string) ($replay['windowReplayToken'] ?? ''),
                 'spilloverDrainToken' => (string) ($spillover['spilloverDrainToken'] ?? ''),
@@ -20272,17 +20272,17 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'spilloverLabels' => $spilloverLabels,
                 'replayTickets' => $replayTickets,
             ]);
-            $nextSourceCandidateToken = self::tokenNext246([
+            $nextSourceCandidateToken = self::tokenRecursiveLimitSourceHandoff([
                 'nextToken' => (string) ($sourceWindow['nextToken'] ?? ''),
                 'nextLabels' => $nextLabels,
-                'nextOnlyLabels' => self::stringListNext246($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
+                'nextOnlyLabels' => self::stringListRecursiveLimitSourceHandoff($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
             ]);
             $requiredAcks = [
                 'recursive-limit:' . $recursiveLimitCursorToken,
                 'current-source:' . $currentSourceSignature,
                 'next-candidate:' . $nextSourceCandidateToken,
             ];
-            $sourceHandoffToken = self::tokenNext246([
+            $sourceHandoffToken = self::tokenRecursiveLimitSourceHandoff([
                 'recursiveLimitCursorToken' => $recursiveLimitCursorToken,
                 'currentSourceSignature' => $currentSourceSignature,
                 'nextSourceCandidateToken' => $nextSourceCandidateToken,
@@ -20299,8 +20299,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'requiredSourceHandoffAckCount' => count($requiredAcks),
                 'currentLabels' => $currentLabels,
                 'nextLabels' => $nextLabels,
-                'nextOnlyLabels' => self::stringListNext246($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
-                'currentOnlyLabels' => self::stringListNext246($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
+                'nextOnlyLabels' => self::stringListRecursiveLimitSourceHandoff($sourceWindow['nextOnlyAdmittedLabels'] ?? []),
+                'currentOnlyLabels' => self::stringListRecursiveLimitSourceHandoff($sourceWindow['currentOnlyAdmittedLabels'] ?? []),
                 'recursiveEmittedLabels' => $recursiveEmitted,
                 'recursiveSkippedLabels' => $recursiveSkipped,
                 'recursiveLimitRemaining' => $limitRemaining,
@@ -20319,7 +20319,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @param array<string,mixed> $handoff
          */
-        private static function validateCursorNext246(?array $cursor, array $handoff): void
+        private static function validateCursorRecursiveLimitSourceHandoff(?array $cursor, array $handoff): void
         {
             if ($cursor === null) {
                 return;
@@ -20341,7 +20341,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             }
 
             $acknowledged = array_values(array_map(static fn (mixed $ack): string => (string) $ack, $cursor['acknowledgedSourceHandoffAcksNext246']));
-            $required = self::stringListNext246($handoff['requiredSourceHandoffAcks'] ?? []);
+            $required = self::stringListRecursiveLimitSourceHandoff($handoff['requiredSourceHandoffAcks'] ?? []);
             $missing = array_values(array_diff($required, $acknowledged));
             $unexpected = array_values(array_diff($acknowledged, $required));
             if ($missing !== [] || $unexpected !== []) {
@@ -20350,7 +20350,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $value @return list<string> */
-        private static function stringListNext246(mixed $value): array
+        private static function stringListRecursiveLimitSourceHandoff(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -20360,7 +20360,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $payload */
-        private static function tokenNext246(mixed $payload): string
+        private static function tokenRecursiveLimitSourceHandoff(mixed $payload): string
         {
             return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION));
         }
@@ -20375,9 +20375,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         public static function compareRecursiveOffsetYieldSeal(string $sql, array $currentTables, array $nextTables, ?array $cursor = null): array
         {
-            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitExhaustionFence($sql, $currentTables, $nextTables, self::baseCursorNext247($cursor));
-            $seal = self::offsetYieldSealNext247($base);
-            self::validateCursorNext247($cursor, $seal);
+            $base = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveLimitExhaustionFence($sql, $currentTables, $nextTables, self::baseCursorRecursiveOffsetYieldSeal($cursor));
+            $seal = self::offsetYieldSealRecursiveOffsetYieldSeal($base);
+            self::validateCursorRecursiveOffsetYieldSeal($cursor, $seal);
 
             $base['status'] = 'compound-select-window-recursive-limit-current-source-next247-ready';
             $base['recursiveOffsetYieldSealNext247'] = $seal;
@@ -20399,7 +20399,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          * @param array<string,mixed>|null $cursor
          * @return array<string,mixed>|null
          */
-        private static function baseCursorNext247(?array $cursor): ?array
+        private static function baseCursorRecursiveOffsetYieldSeal(?array $cursor): ?array
         {
             if ($cursor === null) {
                 return null;
@@ -20437,34 +20437,34 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $plan @return array<string,mixed> */
-        private static function offsetYieldSealNext247(array $plan): array
+        private static function offsetYieldSealRecursiveOffsetYieldSeal(array $plan): array
         {
             $queue = is_array($plan['recursiveQueue'] ?? null) ? $plan['recursiveQueue'] : [];
             $fence = is_array($plan['recursiveLimitExhaustionFenceNext244'] ?? null) ? $plan['recursiveLimitExhaustionFenceNext244'] : [];
-            $currentRows = self::rowsNext247($plan['currentRows'] ?? []);
-            $nextRows = self::rowsNext247($plan['nextRows'] ?? []);
-            $currentSkipped = self::stringsNext247($queue['currentSkippedLabels'] ?? []);
-            $nextSkipped = self::stringsNext247($queue['nextSkippedLabels'] ?? []);
+            $currentRows = self::rowsRecursiveOffsetYieldSeal($plan['currentRows'] ?? []);
+            $nextRows = self::rowsRecursiveOffsetYieldSeal($plan['nextRows'] ?? []);
+            $currentSkipped = self::stringsRecursiveOffsetYieldSeal($queue['currentSkippedLabels'] ?? []);
+            $nextSkipped = self::stringsRecursiveOffsetYieldSeal($queue['nextSkippedLabels'] ?? []);
             $nextCursor = is_array($fence['nextSourceCursor'] ?? null) ? $fence['nextSourceCursor'] : [];
 
-            $currentSkippedWindowToken = self::tokenNext247([
+            $currentSkippedWindowToken = self::tokenRecursiveOffsetYieldSeal([
                 'skipped' => $currentSkipped,
-                'currentResultLabels' => self::labelsNext247($currentRows),
-                'currentWindowMetrics' => self::metricsNext247($currentRows),
+                'currentResultLabels' => self::labelsRecursiveOffsetYieldSeal($currentRows),
+                'currentWindowMetrics' => self::metricsRecursiveOffsetYieldSeal($currentRows),
                 'currentRecursiveWindowToken' => (string) ($fence['currentRecursiveWindowToken'] ?? ''),
             ]);
-            $nextSourceCursorToken = self::tokenNext247([
+            $nextSourceCursorToken = self::tokenRecursiveOffsetYieldSeal([
                 'nextCursor' => $nextCursor,
                 'nextSkipped' => $nextSkipped,
-                'nextResultLabels' => self::labelsNext247($nextRows),
-                'nextWindowMetrics' => self::metricsNext247($nextRows),
+                'nextResultLabels' => self::labelsRecursiveOffsetYieldSeal($nextRows),
+                'nextWindowMetrics' => self::metricsRecursiveOffsetYieldSeal($nextRows),
                 'nextRecursiveWindowToken' => (string) ($fence['nextRecursiveWindowToken'] ?? ''),
             ]);
-            $recursiveOffsetYieldSealToken = self::tokenNext247([
+            $recursiveOffsetYieldSealToken = self::tokenRecursiveOffsetYieldSeal([
                 'currentSkippedWindowToken' => $currentSkippedWindowToken,
                 'nextSourceCursorToken' => $nextSourceCursorToken,
                 'recursiveLimitFenceToken' => (string) ($fence['recursiveLimitFenceToken'] ?? ''),
-                'requiredRecursiveLimitAcks' => self::stringsNext247($fence['requiredRecursiveLimitAcks'] ?? []),
+                'requiredRecursiveLimitAcks' => self::stringsRecursiveOffsetYieldSeal($fence['requiredRecursiveLimitAcks'] ?? []),
             ]);
             $required = [
                 'offset-current-skipped:' . $currentSkippedWindowToken,
@@ -20480,11 +20480,11 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'requiredRecursiveOffsetYieldAckCount' => count($required),
                 'currentSkippedLabels' => $currentSkipped,
                 'nextSkippedLabels' => $nextSkipped,
-                'currentResultLabels' => self::labelsNext247($currentRows),
-                'nextResultLabels' => self::labelsNext247($nextRows),
-                'currentWindowMetrics' => self::metricsNext247($currentRows),
-                'nextWindowMetrics' => self::metricsNext247($nextRows),
-                'nextOnlyLabels' => self::stringsNext247($fence['nextOnlyLabels'] ?? []),
+                'currentResultLabels' => self::labelsRecursiveOffsetYieldSeal($currentRows),
+                'nextResultLabels' => self::labelsRecursiveOffsetYieldSeal($nextRows),
+                'currentWindowMetrics' => self::metricsRecursiveOffsetYieldSeal($currentRows),
+                'nextWindowMetrics' => self::metricsRecursiveOffsetYieldSeal($nextRows),
+                'nextOnlyLabels' => self::stringsRecursiveOffsetYieldSeal($fence['nextOnlyLabels'] ?? []),
                 'nextSourceCursor' => $nextCursor,
                 'yieldDecision' => 'held-until-recursive-offset-window-and-next-cursor-acks-match',
                 'yieldBoundary' => 'compound-window-recursive-limit-next247-offset-skip-before-next-source-cursor',
@@ -20492,7 +20492,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed>|null $cursor @param array<string,mixed> $seal */
-        private static function validateCursorNext247(?array $cursor, array $seal): void
+        private static function validateCursorRecursiveOffsetYieldSeal(?array $cursor, array $seal): void
         {
             if ($cursor === null) {
                 return;
@@ -20513,15 +20513,15 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next247 acknowledgements must be a list');
             }
 
-            $acknowledged = self::stringsNext247($cursor['acknowledgedRecursiveOffsetYieldAcksNext247']);
-            $required = self::stringsNext247($seal['requiredRecursiveOffsetYieldAcks'] ?? []);
+            $acknowledged = self::stringsRecursiveOffsetYieldSeal($cursor['acknowledgedRecursiveOffsetYieldAcksNext247']);
+            $required = self::stringsRecursiveOffsetYieldSeal($seal['requiredRecursiveOffsetYieldAcks'] ?? []);
             if (array_values(array_diff($required, $acknowledged)) !== [] || array_values(array_diff($acknowledged, $required)) !== []) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT next247 acknowledgements do not match required OFFSET/window yield seal');
             }
         }
 
         /** @param mixed $value @return list<array<string,mixed>> */
-        private static function rowsNext247(mixed $value): array
+        private static function rowsRecursiveOffsetYieldSeal(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -20539,19 +20539,19 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $rows @return list<string> */
-        private static function labelsNext247(array $rows): array
+        private static function labelsRecursiveOffsetYieldSeal(array $rows): array
         {
             return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<mixed> */
-        private static function metricsNext247(array $rows): array
+        private static function metricsRecursiveOffsetYieldSeal(array $rows): array
         {
             return array_values(array_map(static fn (array $row): mixed => $row['rn'] ?? $row['metric'] ?? $row['rank'] ?? null, $rows));
         }
 
         /** @param mixed $value @return list<string> */
-        private static function stringsNext247(mixed $value): array
+        private static function stringsRecursiveOffsetYieldSeal(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -20561,7 +20561,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         }
 
         /** @param mixed $payload */
-        private static function tokenNext247(mixed $payload): string
+        private static function tokenRecursiveOffsetYieldSeal(mixed $payload): string
         {
             return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION));
         }

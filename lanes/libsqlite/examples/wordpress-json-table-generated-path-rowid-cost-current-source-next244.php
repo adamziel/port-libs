@@ -23,8 +23,9 @@ $next = [
     'source_generation' => 'next-active-plugins-next244',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext244(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
     'json_tree',
+    244,
     $current,
     $next,
     'option_value',

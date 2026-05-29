@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas9891004 = [
     'main' => [
@@ -62,7 +62,7 @@ $statements9891004 = [
     ['name' => 'seal-reader', 'sql' => 'SELECT seal_id FROM seal.wp_schema_seal_receipt_next996 INDEXED BY wp_schema_seal_receipt_key_next996 WHERE seal_key = ?'],
 ];
 
-$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCachePreparationWindow(
+$plan9891004 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCachePreparationWindow(
     $schemas ?? $schemas9891004,
     $statements ?? $statements9891004,
     $events,
@@ -83,10 +83,10 @@ $tests['attach temp wal schema cache final preparation window extends predecesso
     ]);
 
     $t->same('attach-wal-temp-schema-cache-final-preparation-window', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next989', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1004', $result['dependencies'][15]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next973', $result['dependencies'][16]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next988', $result['dependencies'][31]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][16]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][31]);
     $t->same(7, $result['event_count']);
     $t->same(1004, $result['schema_cookies_next']['main']);
     $t->same(990, $result['schema_cookies_next']['temp']);

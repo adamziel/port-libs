@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas161164 = [
     'main' => [
@@ -31,7 +31,7 @@ $statements161164 = [
     ['name' => 'active-archive-index-reader', 'sql' => 'SELECT ID FROM archive.wp_posts_archive INDEXED BY wp_archive_posts_date WHERE post_date > ?', 'active' => true],
 ];
 
-$plan161164 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext161164(
+$plan161164 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas161164,
     $statements ?? $statements161164,
     $events,
@@ -44,8 +44,8 @@ $tests['attach temp wal schema cache current source next161 temp options shadow 
         ['op' => 'schema_write', 'schema' => 'temp', 'table' => 'wp_options'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next161-164', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next161', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['temp'], $result['changed_schemas']);
     $t->same('main', $result['statements']['options-reader']['schema_transitions'][0]['current_schema']);
     $t->same('temp', $result['statements']['options-reader']['schema_transitions'][0]['next_schema']);

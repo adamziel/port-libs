@@ -68,7 +68,7 @@ foreach (range(1049, 1064) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next1064 rejects next1065 alias'] = static function (TestRunner $t) use ($plan10491064): void {
+$tests['json table generated path rowid cost current source next1064 rejects out of range alias'] = static function (TestRunner $t) use ($plan10491064): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan10491064(1065));
 };
 

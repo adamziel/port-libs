@@ -20,8 +20,9 @@ $nextOption = array_replace($currentOption, [
     'source_generation' => 'next-385392',
 ]);
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext392(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
     'json_tree',
+    392,
     $currentOption,
     $nextOption,
     'option_value',

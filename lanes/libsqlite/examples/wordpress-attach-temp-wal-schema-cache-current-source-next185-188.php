@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCachePlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 185, 'tables' => ['wp_options', 'wp_posts'], 'indexes' => ['wp_options_name', 'wp_posts_date']],
@@ -19,15 +19,15 @@ $statements = [
     ['name' => 'main-posts-writer', 'sql' => 'UPDATE wp_posts SET post_modified = ? WHERE ID = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext185188($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, [
     ['op' => 'drop_index', 'schema' => 'temp', 'index' => 'wp_uploads_token'],
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 187, 'table' => 'wp_posts'],
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next185-188');
-    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next185');
-    assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next181', $plan['dependencies'], true));
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
+    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-consolidated');
+    assert(in_array('sqlite-attach-temp-wal-schema-cache-consolidated', $plan['dependencies'], true));
     assert($plan['changed_schemas'] === ['temp', 'main']);
     assert($plan['statements']['temp-upload-reader']['index_transitions'][0]['next_found'] === false);
     assert(in_array('main-posts-writer', $plan['write_statements_blocked_before_retry'], true));

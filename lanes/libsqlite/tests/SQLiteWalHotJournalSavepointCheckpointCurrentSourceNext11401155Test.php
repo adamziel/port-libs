@@ -58,7 +58,7 @@ $chain = static function () use ($base1139, $receiptFor): array {
     $next1147 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1147AfterCurrentCheckpoint($next1146, [$receiptFor($next1146, 'next1147-current-source-seal')]);
     $next1148 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1148AfterCurrentCheckpoint($next1147, [$receiptFor($next1147, 'next1148-restart-salt-database-digest')]);
     $next1149 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1149AfterCurrentCheckpoint($next1148, [$receiptFor($next1148, 'next1149-reader-release-checkpoint-frame')]);
-    $next1150 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1150AfterCurrentCheckpoint($next1149, [$receiptFor($next1149, 'next1150-page-cache-source-token')]);
+    $next1150 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::pageCacheSourceTokenAfterCurrentCheckpoint($next1149, [$receiptFor($next1149, 'next1150-page-cache-source-token')]);
     $next1151 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1151AfterCurrentCheckpoint($next1150, [$receiptFor($next1150, 'next1151-schema-cookie-database-header')]);
     $next1152 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1152AfterCurrentCheckpoint($next1151, [$receiptFor($next1151, 'next1152-commit-generation-wal-index')]);
     $next1153 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1153AfterCurrentCheckpoint($next1152, [$receiptFor($next1152, 'next1153-hot-journal-reader-release')]);
@@ -129,7 +129,7 @@ $tests['wal hot journal savepoint checkpoint current source next1150 blocks sour
     [, , , , , , , , , $next1149] = $chain();
     $receipt = $receiptFor($next1149, 'next1150-source-token-mismatch');
     $receipt['source_token'] = 'stale-wal-current-source';
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next1150AfterCurrentCheckpoint($next1149, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::pageCacheSourceTokenAfterCurrentCheckpoint($next1149, [$receipt]);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next1150', $record['status']);
     $t->same(['checkpoint_source_token_mismatch'], $record['blocked_reasons']);

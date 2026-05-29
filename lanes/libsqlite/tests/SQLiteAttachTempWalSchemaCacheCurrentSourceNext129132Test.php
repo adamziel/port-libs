@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas129132 = [
     'main' => [
@@ -31,7 +31,7 @@ $statements129132 = [
     ['name' => 'main-options-write', 'sql' => 'UPDATE main.wp_options SET option_value = ? WHERE option_name = ?'],
 ];
 
-$plan129132 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext129132(
+$plan129132 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas129132,
     $statements ?? $statements129132,
     $events,
@@ -47,8 +47,8 @@ $tests['attach temp wal schema cache current source next129 temp rename moves un
         ['name' => 'old-temp-shadow', 'sql' => 'SELECT option_value FROM wp_options_shadow WHERE option_name = ?'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next129-132', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next129', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['temp'], $result['changed_schemas']);
     $t->same('main', $result['statements']['unqualified-options']['schema_transitions'][0]['current_schema']);
     $t->same('temp', $result['statements']['unqualified-options']['schema_transitions'][0]['next_schema']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas118120 = [
     'main' => [
@@ -36,7 +36,7 @@ $statements118120 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT option_name FROM archive.wp_options INDEXED BY wp_archive_option_name WHERE option_name GLOB ?'],
 ];
 
-$plan118120 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext118120(
+$plan118120 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas118120,
     $statements ?? $statements118120,
     $events ?? [
@@ -52,8 +52,8 @@ $tests = [];
 $tests['attach temp wal schema cache current source next118 120 ignores rolled back wal and temp schema writes'] = static function (TestRunner $t) use ($plan118120): void {
     $result = $plan118120();
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next118-120', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next118', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(1, $result['event_count']);
     $t->same(41, $result['schema_cookies_next']['main']);
     $t->same(5, $result['schema_cookies_next']['temp']);

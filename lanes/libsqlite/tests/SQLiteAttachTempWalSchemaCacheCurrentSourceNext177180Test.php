@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas177180 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements177180 = [
     ['name' => 'unqualified-options-reader', 'sql' => 'SELECT option_value FROM wp_options WHERE option_name = ?'],
 ];
 
-$plan177180 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext177180(
+$plan177180 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas177180,
     $statements ?? $statements177180,
     $events,
@@ -45,8 +45,8 @@ $tests['attach temp wal schema cache current source next177 detach expires quali
         ['op' => 'detach', 'schema' => 'archive'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next177-180', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next177', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['archive'], $result['changed_schemas']);
     $t->same('__detached__', $result['statements']['archive-comments-reader']['schema_transitions'][0]['next_schema']);
     $t->same(false, $result['statements']['archive-comments-reader']['schema_transitions'][0]['next_found']);

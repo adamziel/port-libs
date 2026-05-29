@@ -67,7 +67,7 @@ $plan134 = static fn (
     array $nextView = null,
     array $returning = null,
     array $options = [],
-): array => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(
+): array => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeViewSavepointReturningRollback(
     $rows134,
     $current ?? $currentMutations134,
     $next ?? $nextMutations134,
@@ -82,7 +82,7 @@ $rolled134 = static fn (): array => $plan134();
 $released134 = static fn (): array => $plan134(null, null, array_slice($triggers134, 1));
 
 $cases134 = [
-    'rolled status' => [static fn (): mixed => $rolled134()['status'], 'trigger-savepoint-returning-view-current-source-rolled-back-next134'],
+    'rolled status' => [static fn (): mixed => $rolled134()['status'], 'trigger-savepoint-returning-view-current-source-rolled-back'],
     'savepoint retained' => [static fn (): mixed => $rolled134()['savepoint'], 'wp_import_view_batch'],
     'trigger retained' => [static fn (): mixed => $rolled134()['trigger'], 'wp_options_view_io_update_134'],
     'key retained' => [static fn (): mixed => $rolled134()['key'], 'option_name'],
@@ -136,11 +136,11 @@ $cases134 = [
     'rollback trigger effect source token' => [static fn (): mixed => $rolled134()['trigger_effects_before_rollback'][0]['row']['source_token'], 'main@view-cookie-134-current'],
     'attempted next audit effect retained' => [static fn (): mixed => $rolled134()['trigger_effects_before_rollback'][1]['trigger'], 'wp_options_view_next_audit'],
     'yield boundary records rollback source' => [static fn (): mixed => $rolled134()['yield_boundary'], 'view-returning-yield-then-savepoint-rollback-keeps-current-source'],
-    'dependency includes next134' => [static fn (): mixed => in_array('sqlite-trigger-savepoint-returning-view-current-source-next134', $rolled134()['dependencies'], true), true],
+    'dependency includes next134' => [static fn (): mixed => in_array('sqlite-trigger-savepoint-returning-view-current-source', $rolled134()['dependencies'], true), true],
     'dependency includes returning before rollback' => [static fn (): mixed => in_array('sqlite-returning-yield-before-view-trigger-rollback', $rolled134()['dependencies'], true), true],
     'dependency includes next view blocked' => [static fn (): mixed => in_array('sqlite-next-view-source-blocked-by-savepoint-rollback', $rolled134()['dependencies'], true), true],
 
-    'released status' => [static fn (): mixed => $released134()['status'], 'trigger-savepoint-returning-view-next-source-admitted-next134'],
+    'released status' => [static fn (): mixed => $released134()['status'], 'trigger-savepoint-returning-view-next-source-admitted'],
     'released visible view is next' => [static fn (): mixed => $released134()['visible_view']['source'], 'main@view-cookie-134-next'],
     'released next source admitted' => [static fn (): mixed => $released134()['next_source_admitted'], true],
     'released changes count current plus next' => [static fn (): mixed => $released134()['changes'], 4],
@@ -161,7 +161,7 @@ $cases134 = [
     'empty view columns throws' => [static fn (): mixed => $plan134(null, null, null, ['name' => 'v', 'source' => 'ok', 'columns' => []]), InvalidArgumentException::class],
     'bad view where throws' => [static fn (): mixed => $plan134(null, null, null, ['name' => 'v', 'source' => 'ok', 'columns' => ['option_name'], 'where' => 'no']), InvalidArgumentException::class],
     'missing mutation key throws' => [static fn (): mixed => $plan134([['option_value' => 'x']]), InvalidArgumentException::class],
-    'duplicate row key throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(array_merge($rows134, [['option_name' => 'siteurl']]), $currentMutations134, $nextMutations134, $currentView134, $nextView134, $triggers134, $returning134), InvalidArgumentException::class],
+    'duplicate row key throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeViewSavepointReturningRollback(array_merge($rows134, [['option_name' => 'siteurl']]), $currentMutations134, $nextMutations134, $currentView134, $nextView134, $triggers134, $returning134), InvalidArgumentException::class],
     'bad when operator throws' => [static fn (): mixed => $plan134(null, null, [['name' => 'bad', 'phase' => 'current', 'event' => 'update', 'when' => ['new.option_name', 'LIKE', 'theme_mods']]]), InvalidArgumentException::class],
 ];
 

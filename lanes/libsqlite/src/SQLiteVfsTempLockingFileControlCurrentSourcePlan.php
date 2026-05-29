@@ -11,10 +11,10 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
      * @param array{temp_dir?:string,connection_id?:string,temp_store?:string,directory_writable?:bool,current_source?:string,current?:array<string,mixed>} $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext83(array $operations, array $options = []): array
+    public static function planTempLockingFileControl(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS temp locking file-control current-source next83 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS temp locking file-control requires operations');
         }
 
         $trackGeneration = (bool) ($options['_track_temp_generation'] ?? false);
@@ -242,7 +242,7 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
             'dependencies' => [
                 'vfs-tempfile-open-lifecycle',
                 'vfs-xfilecontrol',
-                $trackGeneration ? 'vfs-temp-lock-filecontrol-current-source-next102' : 'vfs-temp-locking-current-source-next83',
+                $trackGeneration ? 'vfs-temp-lock-data-version-filecontrol' : 'vfs-temp-locking-filecontrol',
             ],
         ];
     }
@@ -252,11 +252,11 @@ final class SQLiteVfsTempLockingFileControlCurrentSourcePlan
      * @param array{temp_dir?:string,connection_id?:string,temp_store?:string,directory_writable?:bool,current_source?:string,current?:array<string,mixed>} $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext102(array $operations, array $options = []): array
+    public static function planTempLockDataVersionFileControl(array $operations, array $options = []): array
     {
         $options['_track_temp_generation'] = true;
 
-        return self::currentSourceNext83($operations, $options);
+        return self::planTempLockingFileControl($operations, $options);
     }
 
     /**

@@ -68,8 +68,8 @@ $rows = [];
 foreach ([359, 360, 361, 362, 363, 364, 365, 366] as $sliceNumber) {
     $database = $databaseForSlice($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
-    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistSpliceFromDeleteResult(
+        $sliceNumber,
         $database,
         3,
         [

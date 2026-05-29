@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas221228 = [
     'main' => [
@@ -46,7 +46,7 @@ $statements221228 = [
     ['name' => 'reporting-reader', 'sql' => 'SELECT report_id FROM reporting.wp_reports INDEXED BY wp_reports_slug WHERE slug = ?'],
 ];
 
-$plan221228 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext221228(
+$plan221228 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas221228,
     $statements ?? $statements221228,
     $events,
@@ -59,9 +59,9 @@ $tests['attach temp wal schema cache current source next221 temp import table dr
         ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_import_stage'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next221-228', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next221', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next228', $result['dependencies'][7]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][7]);
     $t->same(['temp'], $result['changed_schemas']);
     $t->same(['temp-options-reader', 'import-stage-reader', 'plugin-stage-reader'], $result['expired_statements']);
     $t->same(['import-stage-reader'], $result['active_current_snapshot_statements']);

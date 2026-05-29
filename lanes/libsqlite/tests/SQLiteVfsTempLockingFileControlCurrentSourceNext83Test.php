@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsTempLockingFileControlCurrentSourcePlan;
 
-$plan = static fn (array $ops, array $options = []): array => SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext83(
+$plan = static fn (array $ops, array $options = []): array => SQLiteVfsTempLockingFileControlCurrentSourcePlan::planTempLockingFileControl(
     $ops,
     $options + ['temp_dir' => '/tmp/wp-cache', 'connection_id' => 'WP Import 83'],
 );
@@ -63,7 +63,7 @@ $memory = static fn (): array => $plan([
 
 return [
     'vfs temp locking filecontrol current source next83 shadow status' => static fn (TestRunner $t) => $t->same('ok', $shadowed()['status']),
-    'vfs temp locking filecontrol current source next83 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-locking-current-source-next83', $shadowed()['dependencies'], true)),
+    'vfs temp locking filecontrol current source next83 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-locking-filecontrol', $shadowed()['dependencies'], true)),
     'vfs temp locking filecontrol current source next83 main open source' => static fn (TestRunner $t) => $t->same('main', $shadowed()['events'][0]['source']),
     'vfs temp locking filecontrol current source next83 temp open source' => static fn (TestRunner $t) => $t->same('temp', $shadowed()['events'][3]['source']),
     'vfs temp locking filecontrol current source next83 main handle mapped' => static fn (TestRunner $t) => $t->same('temp-wp-import-83-1', $shadowed()['current']['source_handles']['main']),

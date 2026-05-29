@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas145148 = [
     'main' => [
@@ -34,7 +34,7 @@ $statements145148 = [
     ['name' => 'archive-writer', 'sql' => 'UPDATE archive.wp_options_archive SET option_value = ? WHERE option_name = ?'],
 ];
 
-$plan145148 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext145148(
+$plan145148 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas145148,
     $statements ?? $statements145148,
     $events,
@@ -49,8 +49,8 @@ $tests['attach temp wal schema cache current source next145 attach report shadow
         ['name' => 'report-reader', 'sql' => 'SELECT report_name FROM wp_reports WHERE report_id = ?'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next145-148', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next145', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['report'], $result['changed_schemas']);
     $t->same('main', $result['statements']['report-reader']['schema_transitions'][0]['current_schema']);
     $t->same('report', $result['statements']['report-reader']['schema_transitions'][0]['next_schema']);

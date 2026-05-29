@@ -32392,7 +32392,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext622637(
+    public static function materializeStat4ExpressionPartialPreparedContinuation(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -32401,7 +32401,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $offset = 0
     ): array {
         $base = self::materializeNext606621($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext622637($base, $currentSource, $neededColumns);
+        $fence = self::stat4ExpressionPartialPreparedContinuationFence($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next606-621-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -32421,7 +32421,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next622637Prepared" => $ready,
                 "next622637HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext622637($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialPreparedContinuationCursorProgram($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next622-637-prep"],
@@ -32432,7 +32432,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext622637(array $base, array $currentSource, array $neededColumns): array
+    private static function stat4ExpressionPartialPreparedContinuationFence(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next622-637 needs projected columns");
@@ -32448,10 +32448,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next622-637 needs next606-621 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext622637($currentSource);
+        $currentRows = self::stat4ExpressionPartialContinuationRowsByRowid($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext622637($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::stat4ExpressionPartialContinuationIntList($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(622, 637) as $slice) {
             $ordinal = $slice - 622;
@@ -32460,12 +32460,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next622-637 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext622637($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::stat4ExpressionPartialContinuationIntValue($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext622637($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::stat4ExpressionPartialContinuationProjectedColumns($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext622637($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::stat4ExpressionPartialContinuationIntValue($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -32507,7 +32507,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function rowsByRowidNext622637(array $source): array
+    private static function stat4ExpressionPartialContinuationRowsByRowid(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next622-637 needs current rows");
@@ -32518,23 +32518,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next622-637 current rows must be arrays");
             }
-            $rowid = self::intValueNext622637($row["rowid"] ?? null, "current rowid");
+            $rowid = self::stat4ExpressionPartialContinuationIntValue($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
         return $rows;
     }
 
-    private static function intListNext622637(mixed $value, string $label): array
+    private static function stat4ExpressionPartialContinuationIntList(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next622-637 needs " . $label);
         }
 
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext622637($rowid, $label), $value));
+        return array_values(array_map(static fn (mixed $rowid): int => self::stat4ExpressionPartialContinuationIntValue($rowid, $label), $value));
     }
 
-    private static function intValueNext622637(mixed $value, string $label): int
+    private static function stat4ExpressionPartialContinuationIntValue(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -32546,7 +32546,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         throw new \InvalidArgumentException("SQLite next622-637 " . $label . " must be an integer");
     }
 
-    private static function projectedColumnsNext622637(array $row, array $neededColumns): array
+    private static function stat4ExpressionPartialContinuationProjectedColumns(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -32559,7 +32559,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $projected;
     }
 
-    private static function cursorProgramNext622637(array $program, bool $ready, array $fence): array
+    private static function stat4ExpressionPartialPreparedContinuationCursorProgram(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -32585,7 +32585,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext638653(
+    public static function materializeStat4ExpressionPartialPreparedFollowup(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -32593,8 +32593,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext622637($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
-        $fence = self::handoffFenceNext638653($base, $currentSource, $neededColumns);
+        $base = self::materializeStat4ExpressionPartialPreparedContinuation($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $fence = self::stat4ExpressionPartialPreparedFollowupFence($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next622-637-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -32614,7 +32614,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next638653Prepared" => $ready,
                 "next638653HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext638653($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::stat4ExpressionPartialPreparedFollowupCursorProgram($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next638-653-prep"],
@@ -32625,7 +32625,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ]);
     }
 
-    private static function handoffFenceNext638653(array $base, array $currentSource, array $neededColumns): array
+    private static function stat4ExpressionPartialPreparedFollowupFence(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next638-653 needs projected columns");
@@ -32641,10 +32641,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next638-653 needs next622-637 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext638653($currentSource);
+        $currentRows = self::stat4ExpressionPartialFollowupRowsByRowid($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext638653($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::stat4ExpressionPartialFollowupIntList($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(638, 653) as $slice) {
             $ordinal = $slice - 638;
@@ -32653,12 +32653,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next638-653 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext638653($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::stat4ExpressionPartialFollowupIntValue($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext638653($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::stat4ExpressionPartialFollowupProjectedColumns($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext638653($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::stat4ExpressionPartialFollowupIntValue($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -32700,7 +32700,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         ];
     }
 
-    private static function rowsByRowidNext638653(array $source): array
+    private static function stat4ExpressionPartialFollowupRowsByRowid(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next638-653 needs current rows");
@@ -32711,23 +32711,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next638-653 current rows must be arrays");
             }
-            $rowid = self::intValueNext638653($row["rowid"] ?? null, "current rowid");
+            $rowid = self::stat4ExpressionPartialFollowupIntValue($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
         return $rows;
     }
 
-    private static function intListNext638653(mixed $value, string $label): array
+    private static function stat4ExpressionPartialFollowupIntList(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next638-653 needs " . $label);
         }
 
-        return array_values(array_map(static fn (mixed $rowid): int => self::intValueNext638653($rowid, $label), $value));
+        return array_values(array_map(static fn (mixed $rowid): int => self::stat4ExpressionPartialFollowupIntValue($rowid, $label), $value));
     }
 
-    private static function intValueNext638653(mixed $value, string $label): int
+    private static function stat4ExpressionPartialFollowupIntValue(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -32739,7 +32739,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         throw new \InvalidArgumentException("SQLite next638-653 " . $label . " must be an integer");
     }
 
-    private static function projectedColumnsNext638653(array $row, array $neededColumns): array
+    private static function stat4ExpressionPartialFollowupProjectedColumns(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -32752,7 +32752,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $projected;
     }
 
-    private static function cursorProgramNext638653(array $program, bool $ready, array $fence): array
+    private static function stat4ExpressionPartialPreparedFollowupCursorProgram(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -32786,7 +32786,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext638653($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializeStat4ExpressionPartialPreparedFollowup($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::stat4ExpressionPartialHandoffContinuationFence($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next638-653-prepared"
             && $fence["allSlicesPrepared"]

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas10211036 = [
     'main' => [
@@ -62,7 +62,7 @@ $statements10211036 = [
     ['name' => 'archive-reader', 'sql' => 'SELECT archive_id FROM archive.wp_schema_archive_final_next1036 INDEXED BY wp_schema_archive_final_key_next1036 WHERE archive_key = ?'],
 ];
 
-$plan10211036 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::finalSchemaCacheAttachWindow(
+$plan10211036 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::finalSchemaCacheAttachWindow(
     $schemas ?? $schemas10211036,
     $statements ?? $statements10211036,
     $events,
@@ -84,10 +84,10 @@ $tests['attach temp wal schema cache final attach window extends publish handoff
     ]);
 
     $t->same('attach-wal-temp-schema-cache-final-attach-window', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1021', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1036', $result['dependencies'][15]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1005', $result['dependencies'][16]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next1020', $result['dependencies'][31]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][16]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][31]);
     $t->same(8, $result['event_count']);
     $t->same(1036, $result['schema_cookies_next']['main']);
     $t->same(1009, $result['schema_cookies_next']['temp']);

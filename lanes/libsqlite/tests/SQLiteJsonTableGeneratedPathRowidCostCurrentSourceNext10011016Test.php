@@ -19,10 +19,9 @@ $next10011016 = array_replace($current10011016, [
 ]);
 
 $plan10011016 = static function (int $next, ?array $current = null, ?array $nextSource = null, ?array $orderBy = null) use ($current10011016, $next10011016): array {
-    $method = 'currentSourceGeneratedPathRowidCostCurrentSourceNext' . $next;
-
-    return SQLiteJsonTablePlan::$method(
+    return SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
         'json_tree',
+        $next,
         $current ?? $current10011016,
         $nextSource ?? $next10011016,
         'option_value',
@@ -69,8 +68,8 @@ foreach (range(1001, 1016) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next1016 rejects next1033 alias'] = static function (TestRunner $t) use ($plan10011016): void {
-    $t->throws(Error::class, static fn () => $plan10011016(1033));
+$tests['json table generated path rowid cost current source next1016 rejects out of range alias'] = static function (TestRunner $t) use ($plan10011016): void {
+    $t->throws(InvalidArgumentException::class, static fn () => $plan10011016(1065));
 };
 
 return $tests;

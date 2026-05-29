@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas201204 = [
     'main' => [
@@ -33,7 +33,7 @@ $statements201204 = [
     ['name' => 'archive-comments-writer', 'sql' => 'UPDATE archive.wp_comments SET comment_approved = ? WHERE comment_ID = ?'],
 ];
 
-$plan201204 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext201204(
+$plan201204 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas201204,
     $statements ?? $statements201204,
     $events,
@@ -46,9 +46,9 @@ $tests['attach temp wal schema cache current source next201 attach schema change
         ['op' => 'attach', 'schema' => 'analytics', 'schema_cookie' => 1, 'tables' => ['wp_events'], 'indexes' => ['wp_events_name'], 'file' => '/srv/wp/analytics.sqlite'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next201-204', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next201', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next197', $result['dependencies'][4]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][4]);
     $t->same(['analytics'], $result['changed_schemas']);
     $t->same(['temp', 'main', 'analytics', 'archive'], $result['search_order_next']);
     $t->same([], $result['expired_statements']);

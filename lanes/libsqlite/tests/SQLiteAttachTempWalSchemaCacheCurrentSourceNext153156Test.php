@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas153156 = [
     'main' => [
@@ -31,7 +31,7 @@ $statements153156 = [
     ['name' => 'new-site-reader', 'sql' => 'SELECT option_value FROM site.wp_options WHERE option_name = ?'],
 ];
 
-$plan153156 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext153156(
+$plan153156 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas153156,
     $statements ?? $statements153156,
     $events,
@@ -44,8 +44,8 @@ $tests['attach temp wal schema cache current source next153 main drop expires un
         ['op' => 'drop_table', 'schema' => 'main', 'table' => 'wp_termmeta'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next153-156', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next153', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['main'], $result['changed_schemas']);
     $t->same(false, $result['statements']['termmeta-reader']['schema_transitions'][0]['next_found']);
     $t->same(['termmeta-reader'], $result['retryable_read_statements']);

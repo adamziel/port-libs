@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCachePlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 860, 'tables' => ['wp_options', 'wp_navigation_rule_locale_publish_final_next860', 'wp_navigation_rule_locale_publish_receipt_next876'], 'indexes' => ['wp_options_name', 'wp_navigation_rule_locale_publish_final_key_next860', 'wp_navigation_rule_locale_publish_receipt_key_next876'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 860, 'commit' => true]]],
@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'temp-gate-reader', 'sql' => 'SELECT gate_id FROM temp.wp_theme_stage_publish_gate_next864 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext861876($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 862, 'table' => 'wp_navigation_rule_locale_publish_delta_next862', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next862'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 864, 'table' => 'wp_theme_stage_publish_gate_next864', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_replay_key_next869', 'to' => 'wp_schema_audit_replay_key_next870'],
@@ -42,10 +42,10 @@ $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext86
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next861-876');
-    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next861');
-    assert($plan['dependencies'][15] === 'sqlite-attach-temp-wal-schema-cache-current-source-next876');
-    assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next860', $plan['dependencies'], true));
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
+    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-consolidated');
+    assert($plan['dependencies'][15] === 'sqlite-attach-temp-wal-schema-cache-consolidated');
+    assert(in_array('sqlite-attach-temp-wal-schema-cache-consolidated', $plan['dependencies'], true));
     assert($plan['event_count'] === 9);
     assert($plan['schema_cookies_next']['main'] === 876);
     assert($plan['schema_cookies_next']['temp'] === 864);

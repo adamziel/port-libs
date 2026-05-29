@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas205208 = [
     'main' => [
@@ -44,7 +44,7 @@ $statements205208 = [
     ['name' => 'unqualified-users-reader', 'sql' => 'SELECT ID FROM wp_users WHERE user_login = ?'],
 ];
 
-$plan205208 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext205208(
+$plan205208 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas205208,
     $statements ?? $statements205208,
     $events,
@@ -57,9 +57,9 @@ $tests['attach temp wal schema cache current source next205 temp option drop rev
         ['op' => 'drop_table', 'schema' => 'temp', 'table' => 'wp_options'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next205-208', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next205', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next201', $result['dependencies'][4]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][4]);
     $t->same(['temp'], $result['changed_schemas']);
     $t->same('temp', $result['statements']['temp-options-reader']['schema_transitions'][0]['current_schema']);
     $t->same('main', $result['statements']['temp-options-reader']['schema_transitions'][0]['next_schema']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas261268 = [
     'main' => [
@@ -53,7 +53,7 @@ $statements261268 = [
     ['name' => 'cache-reader', 'sql' => 'SELECT cache_value FROM cache.wp_object_cache INDEXED BY wp_object_cache_key WHERE cache_key = ?'],
 ];
 
-$plan261268 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext261268(
+$plan261268 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas261268,
     $statements ?? $statements261268,
     $events,
@@ -66,10 +66,10 @@ $tests['attach temp wal schema cache current source next261 committed postmeta w
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 262, 'table' => 'wp_links', 'indexes' => ['wp_links_visible'], 'commit' => true],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next261-268', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next261', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next268', $result['dependencies'][7]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next260', $result['dependencies'][15]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][7]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
     $t->same(['main'], $result['changed_schemas']);
     $t->same(262, $result['schema_cookies_next']['main']);
     $t->same(['main-posts-reader', 'postmeta-writer', 'users-reader'], $result['expired_statements']);

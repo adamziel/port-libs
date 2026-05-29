@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan;
 
-$plan = SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::currentSourceNext107(
+$plan = SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::planTempDirectorySidecarLock(
     [
         ['op' => 'open', 'source' => 'temp', 'suffix' => 'stmt-journal', 'delete_on_close' => false],
         ['op' => 'lock', 'source' => 'temp', 'value' => 'reserved'],
@@ -26,7 +26,7 @@ $plan = SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan::currentSourceNext107
 );
 
 $summary = [
-    'scenario' => 'wordpress-vfs-temp-directory-sidecar-lock-current-source-next107',
+    'scenario' => 'wordpress-vfs-temp-directory-sidecar-lock',
     'wordpressUse' => 'Preview copied wp_options temp statement-journal handles when PRAGMA temp_store_directory or a VFS temp directory handoff moves the next temp file into a new directory. Current handles keep the old sidecar lock namespace, while next handles use a distinct sidecar key and do not inherit stale locks or xFileControl state.',
     'status' => $plan['status'],
     'currentDirectory' => $plan['events'][0]['current']['temp_dir'],
@@ -54,7 +54,7 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     assert($summary['newControls']['size_hint'] === 8192);
     assert($summary['finalOpenCount'] === 0);
     assert($summary['finalLockedSidecars'] === 0);
-    echo "wordpress-vfs-temp-directory-sidecar-lock-current-source-next107 self-test passed\n";
+    echo "wordpress-vfs-temp-directory-sidecar-lock self-test passed\n";
     return;
 }
 

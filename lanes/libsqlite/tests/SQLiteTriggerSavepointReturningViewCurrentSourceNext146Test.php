@@ -68,7 +68,7 @@ $returning146 = [
 ];
 
 $run146 = static function (array $options = [], ?array $current = null, ?array $next = null, ?array $triggers = null, ?array $mapping = null, ?array $returning = null) use ($base146, $currentRows146, $nextRows146, $mapping146, $triggers146, $returning146): array {
-    return SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146(
+    return SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeMappedViewReturningSavepoint(
         $base146,
         $current ?? $currentRows146,
         $next ?? $nextRows146,
@@ -104,7 +104,7 @@ $triggerRollback146 = static fn (): array => $run146([], [
 ]);
 
 $cases146 = [
-    'released status' => [static fn (): mixed => $released146()['status'], 'trigger-savepoint-returning-view-current-source-next146-released'],
+    'released status' => [static fn (): mixed => $released146()['status'], 'trigger-savepoint-returning-view-current-source-released'],
     'released savepoint' => [static fn (): mixed => $released146()['savepoint'], 'wp_import_view_146'],
     'released view' => [static fn (): mixed => $released146()['view'], 'wp_option_import_view'],
     'released current source' => [static fn (): mixed => $released146()['current_source'], 'wp-options-current146'],
@@ -135,9 +135,9 @@ $cases146 = [
     'released trigger sources' => [static fn (): mixed => array_values(array_unique(array_column($released146()['trigger_effects'], 'source'))), ['wp-options-current146', 'wp-options-next146']],
     'released update trigger sees view name' => [static fn (): mixed => $released146()['current_trigger_effects'][0]['row']['view_name'], 'siteurl'],
     'released after insert sees original view value' => [static fn (): mixed => $released146()['current_trigger_effects'][3]['row']['source_value'], 'seed'],
-    'released dependency marker' => [static fn (): mixed => in_array('sqlite-trigger-savepoint-returning-view-current-source-next146', $released146()['dependencies'], true), true],
+    'released dependency marker' => [static fn (): mixed => in_array('sqlite-trigger-savepoint-returning-view-current-source-mapped', $released146()['dependencies'], true), true],
 
-    'rolled status' => [static fn (): mixed => $rolled146()['status'], 'trigger-savepoint-returning-view-current-source-next146-current-rolled-back'],
+    'rolled status' => [static fn (): mixed => $rolled146()['status'], 'trigger-savepoint-returning-view-current-source-current-rolled-back'],
     'rolled current returning suppressed' => [static fn (): mixed => $rolled146()['current_returning_rows'], []],
     'rolled attempted current returning retained' => [static fn (): mixed => array_column($rolled146()['attempted_current_returning_rows'], 'name'), ['siteurl', 'plugin_seed']],
     'rolled next starts from savepoint' => [static fn (): mixed => $rolled146()['source_transition']['next_started_from'], 'savepoint'],
@@ -153,7 +153,7 @@ $cases146 = [
     'rolled returning stream marks suppression' => [static fn (): mixed => $rolled146()['source_transition']['returning_stream'], 'current-suppressed-next-admitted'],
     'rolled trigger effects still diagnose attempted current' => [static fn (): mixed => array_values(array_unique(array_column($rolled146()['trigger_effects'], 'source'))), ['wp-options-current146', 'wp-options-next146']],
 
-    'trigger rollback status' => [static fn (): mixed => $triggerRollback146()['status'], 'trigger-savepoint-returning-view-current-source-next146-current-rolled-back'],
+    'trigger rollback status' => [static fn (): mixed => $triggerRollback146()['status'], 'trigger-savepoint-returning-view-current-source-current-rolled-back'],
     'trigger rollback reason' => [static fn (): mixed => $triggerRollback146()['rollback_reason'], 'view-trigger-home-current-source-rollback'],
     'trigger rollback attempted returning prior row' => [static fn (): mixed => array_column($triggerRollback146()['attempted_current_returning_rows'], 'name'), ['siteurl']],
     'trigger rollback current returning suppressed' => [static fn (): mixed => $triggerRollback146()['current_returning_rows'], []],
@@ -167,8 +167,8 @@ $cases146 = [
     'bad source throws' => [static fn (): mixed => $run146(['next_source' => 'bad next']), InvalidArgumentException::class],
     'empty mapping throws' => [static fn (): mixed => $run146([], null, null, null, []), InvalidArgumentException::class],
     'missing view column throws' => [static fn (): mixed => $run146([], [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'autoload_flag' => 'no', 'rev' => 1]], []), InvalidArgumentException::class],
-    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146($base146, [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'value' => 'x', 'autoload_flag' => 'no', 'rev' => 1]], [], ['import_id' => 'option_id'], ['option_name'], [], ['new.option_name']), InvalidArgumentException::class],
-    'empty returning throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext146($base146, [], [], $mapping146, ['blog_id', 'option_name'], [], []), InvalidArgumentException::class],
+    'missing unique column throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeMappedViewReturningSavepoint($base146, [['import_id' => 1, 'blog' => 1, 'name' => 'bad', 'value' => 'x', 'autoload_flag' => 'no', 'rev' => 1]], [], ['import_id' => 'option_id'], ['option_name'], [], ['new.option_name']), InvalidArgumentException::class],
+    'empty returning throws' => [static fn (): mixed => SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeMappedViewReturningSavepoint($base146, [], [], $mapping146, ['blog_id', 'option_name'], [], []), InvalidArgumentException::class],
     'bad trigger action throws' => [static fn (): mixed => $run146([], [['import_id' => 401, 'blog' => 1, 'name' => 'bad_action', 'value' => 'x', 'autoload_flag' => 'yes', 'rev' => 1]], [], [[
         'name' => 'bad_action',
         'timing' => 'after',

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsTempLockingFileControlCurrentSourcePlan;
 
-$plan102 = static fn (array $ops, array $options = []): array => SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext102(
+$plan102 = static fn (array $ops, array $options = []): array => SQLiteVfsTempLockingFileControlCurrentSourcePlan::planTempLockDataVersionFileControl(
     $ops,
     $options + ['temp_dir' => '/tmp/wp-cache', 'connection_id' => 'WP Import 102'],
 );
@@ -68,7 +68,7 @@ $memory = static fn (): array => $plan102([
 ], ['temp_store' => 'memory']);
 
 return [
-    'vfs temp lock filecontrol current source next102 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-lock-filecontrol-current-source-next102', $staleTemp()['dependencies'], true)),
+    'vfs temp lock filecontrol current source next102 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-temp-lock-data-version-filecontrol', $staleTemp()['dependencies'], true)),
     'vfs temp lock filecontrol current source next102 final status ok' => static fn (TestRunner $t) => $t->same('ok', $staleTemp()['status']),
     'vfs temp lock filecontrol current source next102 first open generation' => static fn (TestRunner $t) => $t->same(1, $staleTemp()['events'][0]['next']['handles']['temp-wp-import-102-1']['source_generation']),
     'vfs temp lock filecontrol current source next102 second open generation' => static fn (TestRunner $t) => $t->same(1, $staleTemp()['events'][1]['next']['handles']['temp-wp-import-102-2']['source_generation']),
@@ -122,5 +122,5 @@ return [
     'vfs temp lock filecontrol current source next102 memory controls not persisted' => static fn (TestRunner $t) => $t->same(0, $memory()['next']['persistent_control_count']),
     'vfs temp lock filecontrol current source next102 memory generations not persisted' => static fn (TestRunner $t) => $t->same(0, $memory()['next']['persistent_generation_count']),
 
-    'vfs temp lock filecontrol current source next102 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext102([])),
+    'vfs temp lock filecontrol current source next102 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsTempLockingFileControlCurrentSourcePlan::planTempLockDataVersionFileControl([])),
 ];

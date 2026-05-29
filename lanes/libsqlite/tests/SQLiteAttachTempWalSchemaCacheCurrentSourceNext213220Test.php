@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas213220 = [
     'main' => [
@@ -45,7 +45,7 @@ $statements213220 = [
     ['name' => 'archive-commentmeta-writer', 'sql' => 'UPDATE archive.wp_commentmeta SET meta_value = ? WHERE meta_key = ?'],
 ];
 
-$plan213220 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext213220(
+$plan213220 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas213220,
     $statements ?? $statements213220,
     $events,
@@ -58,9 +58,9 @@ $tests['attach temp wal schema cache current source next213 attached analytics i
         ['op' => 'rename_index', 'schema' => 'analytics', 'from' => 'wp_events_name', 'to' => 'wp_events_name_next213'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next213-220', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next213', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next220', $result['dependencies'][7]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][7]);
     $t->same(['analytics'], $result['changed_schemas']);
     $t->same(['analytics-events-reader'], $result['expired_statements']);
     $t->same(false, $result['statements']['analytics-events-reader']['index_transitions'][0]['next_found']);

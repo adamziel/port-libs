@@ -19,10 +19,9 @@ $next937952 = array_replace($current937952, [
 ]);
 
 $plan937952 = static function (int $next, ?array $current = null, ?array $nextSource = null, ?array $orderBy = null) use ($current937952, $next937952): array {
-    $method = 'currentSourceGeneratedPathRowidCostCurrentSourceNext' . $next;
-
-    return SQLiteJsonTablePlan::$method(
+    return SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
         'json_tree',
+        $next,
         $current ?? $current937952,
         $nextSource ?? $next937952,
         'option_value',

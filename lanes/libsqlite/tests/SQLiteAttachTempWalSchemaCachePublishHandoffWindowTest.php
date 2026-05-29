@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas957972 = [
     'main' => [
@@ -68,7 +68,7 @@ $statements957972 = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next957 INDEXED BY wp_schema_report_receipt_key_next957 WHERE report_key = ?'],
 ];
 
-$plan957972 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::schemaCachePublishHandoffWindow(
+$plan957972 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCachePublishHandoffWindow(
     $schemas ?? $schemas957972,
     $statements ?? $statements957972,
     $events,
@@ -90,11 +90,11 @@ $tests['attach temp wal schema cache current source next957-972 extends next941-
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 957, 'table' => 'wp_navigation_rule_locale_publish_uncommitted_next957', 'indexes' => ['wp_navigation_rule_locale_publish_uncommitted_key_next957'], 'commit' => false],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next957-972', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next957', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next972', $result['dependencies'][15]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next941', $result['dependencies'][16]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next956', $result['dependencies'][31]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][16]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][31]);
     $t->same(9, $result['event_count']);
     $t->same(972, $result['schema_cookies_next']['main']);
     $t->same(964, $result['schema_cookies_next']['temp']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas477492 = [
     'main' => [
@@ -49,7 +49,7 @@ $statements477492 = [
     ['name' => 'segment-writer', 'sql' => 'UPDATE segment.wp_segment_rollups_next485 INDEXED BY wp_segment_rollups_slug_next485 SET enabled = ? WHERE slug = ?'],
 ];
 
-$plan477492 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext477492(
+$plan477492 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas477492,
     $statements ?? $statements477492,
     $events,
@@ -77,10 +77,10 @@ $tests['attach temp wal schema cache current source next477-492 extends next461-
         ['op' => 'wal_commit', 'schema' => 'campaign', 'schema_cookie' => 492, 'table' => 'wp_campaign_experiments_next492', 'indexes' => ['wp_campaign_experiments_slug_next492'], 'commit' => true],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next477-492', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next477', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next492', $result['dependencies'][15]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next476', $result['dependencies'][31]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][15]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][31]);
     $t->same(15, $result['event_count']);
     $t->same(['temp', 'main', 'analytics', 'campaign', 'queue'], $result['changed_schemas']);
     $t->same(477, $result['schema_cookies_next']['main']);

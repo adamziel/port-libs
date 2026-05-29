@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas125128 = [
     'main' => [
@@ -30,7 +30,7 @@ $statements125128 = [
     ['name' => 'temp-indexed-write', 'sql' => 'UPDATE temp.wp_import_queue INDEXED BY wp_import_queue_status SET status = ? WHERE option_name = ?'],
 ];
 
-$plan125128 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext125128(
+$plan125128 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas125128,
     $statements ?? $statements125128,
     $events,
@@ -47,8 +47,8 @@ $tests['attach temp wal schema cache current source next125 detach reattach refr
         ['name' => 'archive-new-index', 'sql' => 'SELECT option_name FROM archive.wp_options INDEXED BY wp_archive_option_slug WHERE option_name = ?'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next125-128', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next125', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['archive'], $result['changed_schemas']);
     $t->same(false, $result['statements']['archive-old-index']['index_transitions'][0]['next_found']);
     $t->same(true, $result['statements']['archive-new-index']['index_transitions'][0]['next_found']);

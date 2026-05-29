@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas229236 = [
     'main' => [
@@ -55,7 +55,7 @@ $statements229236 = [
     ['name' => 'cache-reader', 'sql' => 'SELECT cache_value FROM cache.wp_object_cache INDEXED BY wp_object_cache_key WHERE cache_key = ?'],
 ];
 
-$plan229236 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext229236(
+$plan229236 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas229236,
     $statements ?? $statements229236,
     $events,
@@ -68,9 +68,9 @@ $tests['attach temp wal schema cache current source next229 main wal commit expi
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 230, 'table' => 'wp_sitemeta', 'indexes' => ['wp_sitemeta_key'], 'commit' => true],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next229-236', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next229', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next236', $result['dependencies'][7]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][7]);
     $t->same(['main'], $result['changed_schemas']);
     $t->same(230, $result['schema_cookies_next']['main']);
     $t->same(['main-options-reader', 'main-posts-reader', 'main-terms-reader', 'termmeta-writer'], $result['expired_statements']);

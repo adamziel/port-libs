@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas185188 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements185188 = [
     ['name' => 'main-posts-writer', 'sql' => 'UPDATE wp_posts SET post_modified = ? WHERE ID = ?'],
 ];
 
-$plan185188 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext185188(
+$plan185188 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas185188,
     $statements ?? $statements185188,
     $events,
@@ -45,9 +45,9 @@ $tests['attach temp wal schema cache current source next185 temp wal drop index 
         ['op' => 'drop_index', 'schema' => 'temp', 'index' => 'wp_uploads_token'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next185-188', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next185', $result['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next181', $result['dependencies'][4]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][4]);
     $t->same(['temp'], $result['changed_schemas']);
     $t->same(false, $result['statements']['temp-upload-reader']['index_transitions'][0]['next_found']);
     $t->same(['temp-upload-reader', 'unqualified-options-reader'], $result['expired_statements']);

@@ -48,7 +48,7 @@ $returning = [
     ['expr' => 'event', 'as' => 'event_name'],
 ];
 
-$plan = SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeNext134(
+$plan = SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan::executeViewSavepointReturningRollback(
     $rows,
     $current,
     $next,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas117 = [
     'main' => [
@@ -37,7 +37,7 @@ $events117 = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan117 = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext117(
+$plan117 = static fn (?array $events = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas117,
     $statements117,
     $events ?? $events117,
@@ -48,8 +48,8 @@ $tests = [];
 $tests['attach temp wal schema cache current source next117 duplicate index ddl advances cookies once'] = static function (TestRunner $t) use ($plan117): void {
     $result = $plan117();
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next117', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next117', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(3, $result['event_count']);
     $t->same(43, $result['schema_cookies_next']['main']);
     $t->same(10, $result['schema_cookies_next']['archive']);

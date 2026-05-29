@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteAttachWalTempSchemaCachePlan.php';
 require_once __DIR__ . '/../src/SQLiteAttachWalTempStatementLifecyclePlan.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas = [
     'main' => ['schema_cookie' => 193, 'tables' => ['wp_options', 'wp_termmeta'], 'indexes' => ['wp_options_name', 'wp_termmeta_key']],
@@ -20,7 +20,7 @@ $statements = [
     ['name' => 'archive-comments-writer', 'sql' => 'UPDATE archive.wp_comments SET comment_approved = ? WHERE comment_ID = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext193196($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan($schemas, $statements, [
     ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_import_stage_token', 'to' => 'wp_import_stage_token_next193'],
     ['op' => 'attach', 'schema' => 'reporting', 'schema_cookie' => 194, 'tables' => ['wp_reports'], 'indexes' => ['wp_reports_key']],
     ['op' => 'create_index', 'schema' => 'archive', 'index' => 'wp_comments_status_next195'],
@@ -28,9 +28,9 @@ $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext19
 ]);
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['operation'] === 'attach-wal-temp-schema-cache-current-source-next193-196');
-    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-current-source-next193');
-    assert(in_array('sqlite-attach-temp-wal-schema-cache-current-source-next189', $plan['dependencies'], true));
+    assert($plan['operation'] === 'attach-wal-temp-schema-cache-consolidated');
+    assert($plan['dependencies'][0] === 'sqlite-attach-temp-wal-schema-cache-consolidated');
+    assert(in_array('sqlite-attach-temp-wal-schema-cache-consolidated', $plan['dependencies'], true));
     assert($plan['event_count'] === 3);
     assert($plan['changed_schemas'] === ['temp', 'archive', 'reporting']);
     assert($plan['schema_cookies_next']['temp'] === 97);

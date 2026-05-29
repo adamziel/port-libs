@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsTempLockingFileControlCurrentSourcePlan;
 
-$plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext83(
+$plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::planTempLockingFileControl(
     [
         ['op' => 'open', 'source' => 'main', 'suffix' => 'db', 'delete_on_close' => false],
         ['op' => 'filecontrol', 'source' => 'main', 'control' => 'name_hint', 'value' => 'main wp_options'],
@@ -25,7 +25,7 @@ $plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext83(
 );
 
 $summary = [
-    'scenario' => 'wordpress-vfs-temp-locking-filecontrol-current-source-next83',
+    'scenario' => 'wordpress-vfs-temp-locking-filecontrol',
     'wordpressUse' => 'Route copied wp_options temp statement-journal locks and xFileControl calls through SQLite current-source rules: unqualified controls follow temp after a temp open, schema-qualified main controls still reach the main handle, and non-delete temp handles reuse persisted file-control state after close/reopen without ext/sqlite.',
     'status' => $plan['status'],
     'currentSource' => $plan['next']['current_source'],
@@ -46,7 +46,7 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     assert($summary['tempHandleControls']['name_hint'] === 'temp wp_options import');
     assert($summary['tempHandleControls']['chunk_size'] === 4096);
     assert($summary['mainHandleControls']['chunk_size'] === 8192);
-    echo "wordpress-vfs-temp-locking-filecontrol-current-source-next83 self-test passed\n";
+    echo "wordpress-vfs-temp-locking-filecontrol self-test passed\n";
     return;
 }
 

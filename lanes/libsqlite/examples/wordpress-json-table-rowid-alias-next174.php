@@ -18,8 +18,9 @@ $next = array_replace($current, [
     'generated_path' => '$.rules[2]',
 ]);
 
-$sameAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext174(
+$sameAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
     'json_tree',
+    174,
     $current,
     $next,
     'option_value',
@@ -34,8 +35,9 @@ $sameAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSour
     [['column' => 'path'], ['column' => 'rowid']],
 );
 
-$conflictingAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext174(
+$conflictingAlias = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
     'json_tree',
+    174,
     $current,
     $current,
     'option_value',

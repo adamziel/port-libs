@@ -11,10 +11,10 @@ final class SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan
      * @param array{temp_dir?:string,connection_id?:string,current?:array<string,mixed>} $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext107(array $operations, array $options = []): array
+    public static function planTempDirectorySidecarLock(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS temp-directory sidecar lock current-source next107 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS temp-directory sidecar lock requires operations');
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null, (string) ($options['temp_dir'] ?? sys_get_temp_dir()));
@@ -140,7 +140,7 @@ final class SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan
                 continue;
             }
 
-            throw new \InvalidArgumentException('Unsupported SQLite VFS temp-directory sidecar lock current-source next107 operation');
+            throw new \InvalidArgumentException('Unsupported SQLite VFS temp-directory sidecar lock operation');
         }
 
         return [
@@ -151,7 +151,7 @@ final class SQLiteVfsTempDirectorySidecarLockCurrentSourcePlan
             'dependencies' => [
                 'vfs-sidecar-paths',
                 'vfs-tempfile-open-lifecycle',
-                'vfs-temp-directory-sidecar-lock-current-source-next107',
+                'vfs-temp-directory-sidecar-lock',
             ],
         ];
     }

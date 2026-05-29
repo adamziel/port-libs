@@ -13,3 +13,19 @@ Verification:
 
 Dependency closure:
 - No new support component is needed; this is a production API consolidation over existing B-tree vacuum pointer-map/freeblock behavior.
+
+2026-05-29 - sixth pass
+
+Scope:
+- Consolidated `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan` production entrypoints `tableLeafFromDeleteResultNext331()` through `tableLeafFromDeleteResultNext414()` into the stable canonical `tableLeafFreelistSpliceFromDeleteResult()` dispatcher.
+- Migrated the direct focused tests and WordPress examples for ranges 331-334, 335-342, 343-350, 351-358, 359-366, 367-374, 375-382, 383-390, 391-398, and 399-414 to the stable method.
+
+Verification:
+- `php -l` passed for 21 changed PHP files.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext331334Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext335342Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext343350Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext351358Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext359366Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext367374Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext375382Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext383390Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext391398Test.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext399414Test.php` passed: 10 test files, 1596 assertions, 0 failures.
+- Changed WordPress examples for ranges 331-414 ran successfully and emitted valid JSON rowsets: 4, 8, 8, 8, 8, 8, 8, 8, 8, and 16 rows.
+- `git diff --check -- lanes/libsqlite` passed.
+- Targeted source/test/example scan found 0 remaining `tableLeafFromDeleteResultNext331` through `tableLeafFromDeleteResultNext414` references; remaining production numbered method-line audit is 8701.
+
+Dependency closure:
+- No new support component is needed; this is a production API consolidation over existing B-tree vacuum pointer-map/freeblock behavior.

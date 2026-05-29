@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas116 = [
     'main' => [
@@ -52,7 +52,7 @@ $events116 = [
     ['op' => 'drop_index', 'schema' => 'archive', 'index' => 'wp_archive_option_name'],
 ];
 
-$plan116 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext116(
+$plan116 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas116,
     $statements ?? $statements116,
     $events ?? $events116,
@@ -69,8 +69,8 @@ $value116 = static function (array $data, string $path): mixed {
 
 $pathCases116 = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-current-source-next116'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cache-current-source-next116'],
+    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-consolidated'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cache-consolidated'],
     'index dependency marker' => ['dependencies.1', 'sqlite-indexed-by-schema-cache-expiry'],
     'statement count' => ['statement_count', 7],
     'event count' => ['event_count', 4],
@@ -142,7 +142,7 @@ $tests['attach temp wal schema cache current source next116 stable indexed state
 };
 
 $tests['attach temp wal schema cache current source next116 attach supplies indexed dependency'] = static function (TestRunner $t): void {
-    $result = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext116([
+    $result = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan([
         'main' => ['schema_cookie' => 1, 'tables' => []],
     ], [
         ['name' => 'future', 'sql' => 'SELECT option_value FROM archive.wp_options INDEXED BY wp_archive_option_name'],

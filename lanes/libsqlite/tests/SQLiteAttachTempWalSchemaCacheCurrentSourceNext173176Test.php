@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas173176 = [
     'main' => [
@@ -32,7 +32,7 @@ $statements173176 = [
     ['name' => 'main-posts-reader', 'sql' => 'SELECT ID FROM wp_posts WHERE post_date > ?'],
 ];
 
-$plan173176 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext173176(
+$plan173176 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
     $schemas ?? $schemas173176,
     $statements ?? $statements173176,
     $events,
@@ -45,8 +45,8 @@ $tests['attach temp wal schema cache current source next173 attached wal table c
         ['op' => 'wal_commit', 'schema' => 'archive', 'schema_cookie' => 173, 'table' => 'wp_comments'],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next173-176', $result['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next173', $result['dependencies'][0]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $result['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $result['dependencies'][0]);
     $t->same(['archive'], $result['changed_schemas']);
     $t->same(false, $result['statements']['pending-archive-comments-reader']['schema_transitions'][0]['current_found']);
     $t->same(true, $result['statements']['pending-archive-comments-reader']['schema_transitions'][0]['next_found']);

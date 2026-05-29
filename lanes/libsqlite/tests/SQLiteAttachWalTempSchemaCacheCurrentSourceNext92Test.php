@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas92 = [
     'main' => [
@@ -49,7 +49,7 @@ $events92 = [
     ['op' => 'attach', 'schema' => 'analytics', 'schema_cookie' => 1, 'tables' => ['wp_events'], 'file' => '/srv/wp/analytics.sqlite'],
 ];
 
-$plan92 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::plan(
+$plan92 = static fn (?array $events = null, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::plan(
     $schemas ?? $schemas92,
     $statements ?? $statements92,
     $events ?? $events92,
@@ -66,7 +66,7 @@ $value92 = static function (array $data, string $path): mixed {
 
 $pathCases92 = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-current-source-next92'],
+    'operation marker' => ['operation', 'attach-wal-temp-schema-cache-current-source'],
     'source main' => ['source', 'main'],
     'event count' => ['event_count', 4],
     'statement count' => ['statement_count', 8],
@@ -111,16 +111,16 @@ $pathCases92 = [
     'quoted temp expires on temp schema write' => ['statements.quoted-temp-reader.requires_reprepare', true],
     'attach event logged' => ['events.3.op', 'attach'],
     'attach event schema' => ['events.3.schema', 'analytics'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current-source-next92'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current-source'],
 ];
 
 foreach ($pathCases92 as $name => [$path, $expected]) {
-    $tests['attach wal temp schema cache current source next92 ' . $name] = static function (TestRunner $t) use ($plan92, $value92, $path, $expected): void {
+    $tests['attach wal temp schema cache current source ' . $name] = static function (TestRunner $t) use ($plan92, $value92, $path, $expected): void {
         $t->same($expected, $value92($plan92(), $path));
     };
 }
 
-$tests['attach wal temp schema cache current source next92 temp drop reveals main source'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source temp drop reveals main source'] = static function (TestRunner $t) use ($plan92): void {
     $schemas = [
         'main' => ['schema_cookie' => 5, 'tables' => ['wp_options']],
         'temp' => ['schema_cookie' => 2, 'tables' => ['wp_options'], 'temp' => true],
@@ -135,7 +135,7 @@ $tests['attach wal temp schema cache current source next92 temp drop reveals mai
     $t->same('finish_current_source_then_sqlite_schema_on_reset', $result['statements']['reader']['next_step_action']);
 };
 
-$tests['attach wal temp schema cache current source next92 rollback-like uncommitted wal frame ignored'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source rollback-like uncommitted wal frame ignored'] = static function (TestRunner $t) use ($plan92): void {
     $result = $plan92([], [
         ['name' => 'reader', 'sql' => 'SELECT post_title FROM main.wp_posts'],
     ], [
@@ -151,7 +151,7 @@ $tests['attach wal temp schema cache current source next92 rollback-like uncommi
     $t->same(7, $result['schema_cookies_current']['main']);
 };
 
-$tests['attach wal temp schema cache current source next92 committed later wal frame wins current source'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source committed later wal frame wins current source'] = static function (TestRunner $t) use ($plan92): void {
     $result = $plan92([], [
         ['name' => 'reader', 'sql' => 'SELECT post_title FROM main.wp_posts'],
     ], [
@@ -169,7 +169,7 @@ $tests['attach wal temp schema cache current source next92 committed later wal f
     $t->same(9, $result['schema_cookies_current']['main']);
 };
 
-$tests['attach wal temp schema cache current source next92 quoted attach schema normalizes'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source quoted attach schema normalizes'] = static function (TestRunner $t) use ($plan92): void {
     $result = $plan92([
         ['op' => 'attach', 'schema' => '"ArchiveTwo"', 'schema_cookie' => 1, 'tables' => ['Wp_Options']],
     ], [
@@ -182,20 +182,20 @@ $tests['attach wal temp schema cache current source next92 quoted attach schema 
     $t->same(true, $result['statements']['future']['requires_reprepare']);
 };
 
-$tests['attach wal temp schema cache current source next92 rejects bad detach'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source rejects bad detach'] = static function (TestRunner $t) use ($plan92): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan92([
         ['op' => 'detach', 'schema' => 'main'],
     ]));
 };
 
-$tests['attach wal temp schema cache current source next92 rejects noninteger wal cookie'] = static function (TestRunner $t) use ($plan92): void {
+$tests['attach wal temp schema cache current source rejects noninteger wal cookie'] = static function (TestRunner $t) use ($plan92): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan92([], null, [
         'main' => ['schema_cookie' => 1, 'wal_schema_cookie' => 'bad', 'tables' => ['wp_options']],
     ]));
 };
 
-$tests['attach wal temp schema cache current source next525-540 follow-on expires changed sources'] = static function (TestRunner $t): void {
-    $plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext525540([
+$tests['attach wal temp schema cache current source-540 follow-on expires changed sources'] = static function (TestRunner $t): void {
+    $plan = SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan([
         'main' => ['schema_cookie' => 525, 'tables' => ['wp_options', 'wp_navigation_preview_next523'], 'indexes' => ['wp_options_name', 'wp_navigation_preview_slug_next523'], 'wal_frames' => [['page' => 1, 'schema_cookie' => 525, 'commit' => true]]],
         'temp' => ['schema_cookie' => 521, 'tables' => ['wp_theme_stage_publish_retries_next521'], 'indexes' => ['wp_theme_stage_publish_retries_key_next521'], 'temp' => true],
         'analytics' => ['schema_cookie' => 518, 'tables' => ['wp_event_capacity_bucket_next518'], 'indexes' => ['wp_event_capacity_bucket_day_next518'], 'file' => '/srv/wp/analytics-next525.sqlite'],
@@ -224,9 +224,9 @@ $tests['attach wal temp schema cache current source next525-540 follow-on expire
         ['op' => 'wal_commit', 'schema' => 'campaign', 'schema_cookie' => 540, 'table' => 'wp_campaign_restore_meta_next540', 'indexes' => ['wp_campaign_restore_meta_key_next540'], 'commit' => true],
     ]);
 
-    $t->same('attach-wal-temp-schema-cache-current-source-next525-540', $plan['operation']);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next525', $plan['dependencies'][0]);
-    $t->same('sqlite-attach-temp-wal-schema-cache-current-source-next540', $plan['dependencies'][15]);
+    $t->same('attach-wal-temp-schema-cache-consolidated', $plan['operation']);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $plan['dependencies'][0]);
+    $t->same('sqlite-attach-temp-wal-schema-cache-consolidated', $plan['dependencies'][15]);
     $t->same(11, $plan['event_count']);
     $t->same(['temp', 'analytics', 'campaign', 'queue', 'search'], $plan['changed_schemas']);
     $t->same(525, $plan['schema_cookies_next']['main']);

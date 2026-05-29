@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsTempLockingFileControlCurrentSourcePlan;
 
-$plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext102(
+$plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::planTempLockDataVersionFileControl(
     [
         ['op' => 'open', 'source' => 'temp', 'suffix' => 'stmt-journal', 'delete_on_close' => false],
         ['op' => 'open', 'source' => 'temp', 'suffix' => 'stmt-journal', 'delete_on_close' => false],
@@ -27,7 +27,7 @@ $plan = SQLiteVfsTempLockingFileControlCurrentSourcePlan::currentSourceNext102(
 );
 
 $summary = [
-    'scenario' => 'wordpress-vfs-temp-lock-filecontrol-current-source-next102',
+    'scenario' => 'wordpress-vfs-temp-lock-data-version-filecontrol',
     'wordpressUse' => 'Preview copied wp_options temp statement-journal handles where xFileControl writes bump temp data_version only after a write lock, stale sibling handles detect the newer current source, and close/reopen starts from the latest persisted temp state without ext/sqlite.',
     'status' => $plan['status'],
     'staleReader' => [
@@ -54,7 +54,7 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     assert($summary['staleWriterAfterSiblingWrite']['stale'] === true);
     assert($summary['reopenedTempDataVersion'] === 3);
     assert($summary['persistentGenerationCount'] === 1);
-    echo "wordpress-vfs-temp-lock-filecontrol-current-source-next102 self-test passed\n";
+    echo "wordpress-vfs-temp-lock-data-version-filecontrol self-test passed\n";
     return;
 }
 

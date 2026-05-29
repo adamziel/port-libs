@@ -19,10 +19,9 @@ $next385392 = array_replace($current385392, [
 ]);
 
 $plan385392 = static function (int $next, ?array $current = null, ?array $nextSource = null, ?array $orderBy = null) use ($current385392, $next385392): array {
-    $method = 'currentSourceGeneratedPathRowidCostCurrentSourceNext' . $next;
-
-    return SQLiteJsonTablePlan::$method(
+    return SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
         'json_tree',
+        $next,
         $current ?? $current385392,
         $nextSource ?? $next385392,
         'option_value',
@@ -70,7 +69,7 @@ foreach (range(385, 392) as $next) {
 }
 
 $tests['json table generated path rowid cost current source next392 hands off to next393 alias'] = static function (TestRunner $t): void {
-    $t->true(method_exists(SQLiteJsonTablePlan::class, 'currentSourceGeneratedPathRowidCostCurrentSourceNext393'));
+    $t->true(method_exists(SQLiteJsonTablePlan::class, 'currentSourceGeneratedPathRowidCostSelectionAlias'));
 };
 
 return $tests;

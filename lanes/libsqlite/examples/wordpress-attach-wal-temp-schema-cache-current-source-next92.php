@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
 $schemas = [
     'main' => [
@@ -41,7 +41,7 @@ $events = [
     ['op' => 'detach', 'schema' => 'archive'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::plan($schemas, $statements, $events);
+$plan = SQLiteAttachWalTempSchemaCachePlan::plan($schemas, $statements, $events);
 
 if (in_array('--self-test', $argv, true)) {
     $reader = $plan['statements']['options-reader']['schema_transitions'][0] ?? null;
@@ -54,16 +54,16 @@ if (in_array('--self-test', $argv, true)) {
         || !is_array($future)
         || $future['next_schema'] !== 'main'
     ) {
-        fwrite(STDERR, "wordpress-attach-wal-temp-schema-cache-current-source-next92 self-test failed\n");
+        fwrite(STDERR, "wordpress-attach-wal-temp-schema-cache-consolidated self-test failed\n");
         exit(1);
     }
 
-    echo "wordpress-attach-wal-temp-schema-cache-current-source-next92 self-test passed\n";
+    echo "wordpress-attach-wal-temp-schema-cache-consolidated self-test passed\n";
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'wordpress attach WAL temp schema cache current-source next92',
+    'scenario' => 'wordpress attach WAL temp schema cache current-source',
     'wordpressUse' => 'Preview prepared wp_options statements during an import that creates a temp shadow table, commits WAL-backed main schema DDL, and detaches an archive database.',
     'status' => $plan['status'],
     'requiresReprepare' => $plan['requires_reprepare'],

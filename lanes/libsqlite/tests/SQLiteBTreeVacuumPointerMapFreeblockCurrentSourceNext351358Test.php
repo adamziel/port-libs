@@ -65,9 +65,8 @@ $database351358 = static function (int $sliceNumber) use ($makeFirstPage351358, 
 $plan351358 = static function (int $sliceNumber, int $batchSize = 2) use ($database351358): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
     $database = $database351358($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
-
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistSpliceFromDeleteResult(
+        $sliceNumber,
         $database,
         3,
         [

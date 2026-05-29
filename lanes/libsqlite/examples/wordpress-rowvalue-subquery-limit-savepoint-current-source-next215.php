@@ -32,7 +32,7 @@ $attemptDelete = "DELETE FROM wp_options WHERE (option_id, option_name) NOT IN (
 $retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry215', option_value || ':retry215', bytes + 2) WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'migration_batch' ORDER BY priority DESC LIMIT 3) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (option_id, option_name) IN (SELECT meta_option_id, meta_value FROM wp_optionmeta WHERE meta_key = 'network_drop' ORDER BY priority DESC LIMIT 1) RETURNING option_id, blog_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext215(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSubqueryLimitSavepoint(
     ['wp_options' => $rows, 'wp_optionmeta' => $meta],
     [$attemptUpdate, $attemptDelete],
     [$retryUpdate, $retryDelete],

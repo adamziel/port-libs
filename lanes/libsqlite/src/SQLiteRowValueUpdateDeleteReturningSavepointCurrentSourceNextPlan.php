@@ -10778,7 +10778,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext213(
+    public static function executeOrderedLimitSubquerySavepoint(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -10795,7 +10795,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $plan = self::replaceMarkerNext213($plan);
+        $plan = self::replaceOrderedLimitSubqueryMarker($plan);
         $plan['status'] = 'rowvalue-update-delete-returning-order-limit-subquery-savepoint-current-source-next213';
         $plan['ordered_limited_subquery_source'] = true;
         $plan['dependencies'] = [
@@ -10811,7 +10811,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param mixed $value
      * @return mixed
      */
-    private static function replaceMarkerNext213(mixed $value): mixed
+    private static function replaceOrderedLimitSubqueryMarker(mixed $value): mixed
     {
         if (is_string($value)) {
             return str_replace(['next212', 'subquery'], ['next213', 'order-limit-subquery'], $value);
@@ -10821,7 +10821,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         }
 
         foreach ($value as $key => $entry) {
-            $value[$key] = self::replaceMarkerNext213($entry);
+            $value[$key] = self::replaceOrderedLimitSubqueryMarker($entry);
         }
 
         return $value;
@@ -15052,7 +15052,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext215(
+    public static function executeSubqueryLimitSavepoint(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -15094,7 +15094,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext216(
+    public static function executeDistinctSubquerySavepoint(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -15111,7 +15111,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $rowIdColumn,
         );
 
-        $plan = self::replaceMarkerNext216($plan);
+        $plan = self::replaceDistinctSubqueryMarker($plan);
         $plan['status'] = 'rowvalue-update-delete-returning-distinct-subquery-savepoint-current-source-next216';
         $plan['savepoint'] = $savepoint;
         $plan['distinct_subquery_source'] = true;
@@ -15130,7 +15130,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
      * @param mixed $value
      * @return mixed
      */
-    private static function replaceMarkerNext216(mixed $value): mixed
+    private static function replaceDistinctSubqueryMarker(mixed $value): mixed
     {
         if (is_string($value)) {
             return str_replace(['next212', 'subquery'], ['next216', 'distinct-subquery'], $value);
@@ -15140,7 +15140,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         }
 
         foreach ($value as $key => $entry) {
-            $value[$key] = self::replaceMarkerNext216($entry);
+            $value[$key] = self::replaceDistinctSubqueryMarker($entry);
         }
 
         return $value;
