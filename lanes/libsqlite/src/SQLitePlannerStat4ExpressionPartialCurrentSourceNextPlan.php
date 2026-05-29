@@ -3824,20 +3824,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext168(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
+        public static function materializeStat4LikePrefixPartialCurrentSource(array $preparedSource, array $currentSource, array $whereTerms, array $neededColumns): array
         {
-            self::validateTermsNext168($whereTerms);
+            self::stat4LikePrefixPartialValidateTerms($whereTerms);
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite next168 needed columns cannot be empty');
             }
 
-            $prepared = self::sourcePlanNext168($preparedSource, $whereTerms, $neededColumns);
-            $current = self::sourcePlanNext168($currentSource, $whereTerms, $neededColumns);
-            $preparedSignature = self::signatureNext168($preparedSource);
-            $currentSignature = self::signatureNext168($currentSource);
+            $prepared = self::stat4LikePrefixPartialSourcePlan($preparedSource, $whereTerms, $neededColumns);
+            $current = self::stat4LikePrefixPartialSourcePlan($currentSource, $whereTerms, $neededColumns);
+            $preparedSignature = self::stat4LikePrefixPartialSignature($preparedSource);
+            $currentSignature = self::stat4LikePrefixPartialSignature($currentSource);
             $stale = $preparedSignature !== $currentSignature
-                || self::intValueNext168($preparedSource, 'schemaCookie') !== self::intValueNext168($currentSource, 'schemaCookie')
-                || self::intValueNext168($preparedSource, 'stat4Generation') !== self::intValueNext168($currentSource, 'stat4Generation');
+                || self::stat4LikePrefixPartialIntValue($preparedSource, 'schemaCookie') !== self::stat4LikePrefixPartialIntValue($currentSource, 'schemaCookie')
+                || self::stat4LikePrefixPartialIntValue($preparedSource, 'stat4Generation') !== self::stat4LikePrefixPartialIntValue($currentSource, 'stat4Generation');
             $selected = $stale ? $current : $prepared;
             $ready = ($selected['usable'] ?? false) === true
                 && ($selected['likePrefixImpliedByPartial'] ?? false) === true
@@ -3849,12 +3849,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'selectedSource' => $stale ? 'current' : 'prepared',
                 'stalePreparedStatement' => $stale,
                 'reprepareRequired' => $stale,
-                'schemaCookieChanged' => self::intValueNext168($preparedSource, 'schemaCookie') !== self::intValueNext168($currentSource, 'schemaCookie'),
-                'stat4GenerationChanged' => self::intValueNext168($preparedSource, 'stat4Generation') !== self::intValueNext168($currentSource, 'stat4Generation'),
+                'schemaCookieChanged' => self::stat4LikePrefixPartialIntValue($preparedSource, 'schemaCookie') !== self::stat4LikePrefixPartialIntValue($currentSource, 'schemaCookie'),
+                'stat4GenerationChanged' => self::stat4LikePrefixPartialIntValue($preparedSource, 'stat4Generation') !== self::stat4LikePrefixPartialIntValue($currentSource, 'stat4Generation'),
                 'sourceSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedPlan' => self::summaryNext168($preparedSource, $prepared, $preparedSignature),
-                'currentPlan' => self::summaryNext168($currentSource, $current, $currentSignature),
-                'selectedPlan' => self::selectedSummaryNext168($selected, $ready),
+                'preparedPlan' => self::stat4LikePrefixPartialSummary($preparedSource, $prepared, $preparedSignature),
+                'currentPlan' => self::stat4LikePrefixPartialSummary($currentSource, $current, $currentSignature),
+                'selectedPlan' => self::stat4LikePrefixPartialSelectedSummary($selected, $ready),
                 'matchedRows' => $selected['matchedRows'] ?? [],
                 'matchedRowids' => array_column($selected['matchedRows'] ?? [], 'rowid'),
                 'matchedExpressionKeys' => array_column($selected['matchedRows'] ?? [], 'expressionKey'),
@@ -3866,14 +3866,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'prefix' => $selected['likePrefix'] ?? null,
                 ],
                 'stat4Fence' => [
-                    'schemaCookie' => self::intValueNext168($stale ? $currentSource : $preparedSource, 'schemaCookie'),
-                    'stat4Generation' => self::intValueNext168($stale ? $currentSource : $preparedSource, 'stat4Generation'),
+                    'schemaCookie' => self::stat4LikePrefixPartialIntValue($stale ? $currentSource : $preparedSource, 'schemaCookie'),
+                    'stat4Generation' => self::stat4LikePrefixPartialIntValue($stale ? $currentSource : $preparedSource, 'stat4Generation'),
                     'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
-                    'prefixSignature' => self::signatureNext168($selected['likeRange'] ?? []),
-                    'stat4Signature' => self::signatureNext168($selected['stat4Samples'] ?? []),
-                    'rowStreamSignature' => self::signatureNext168(array_column($selected['matchedRows'] ?? [], 'rowid')),
+                    'prefixSignature' => self::stat4LikePrefixPartialSignature($selected['likeRange'] ?? []),
+                    'stat4Signature' => self::stat4LikePrefixPartialSignature($selected['stat4Samples'] ?? []),
+                    'rowStreamSignature' => self::stat4LikePrefixPartialSignature(array_column($selected['matchedRows'] ?? [], 'rowid')),
                 ],
-                'cursorProgram' => self::cursorProgramNext168($selected, $ready),
+                'cursorProgram' => self::stat4LikePrefixPartialCursorProgram($selected, $ready),
                 'tableLookupRequired' => !($selected['covering'] ?? false),
                 'residualPredicateRequired' => true,
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT168 LIKE PREFIX ' . (string) ($selected['name'] ?? 'NO INDEX')),
@@ -3888,31 +3888,31 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext168(array $source, array $terms, array $neededColumns): array
+        private static function stat4LikePrefixPartialSourcePlan(array $source, array $terms, array $neededColumns): array
         {
             $best = null;
-            foreach (self::listValueNext168($source['indexes'] ?? []) as $index) {
+            foreach (self::stat4LikePrefixPartialListValue($source['indexes'] ?? []) as $index) {
                 if (!is_array($index)) {
                     throw new \InvalidArgumentException('SQLite next168 indexes must be arrays');
                 }
-                $expression = self::stringValueNext168($index, 'expression');
-                $like = self::likePrefixTermNext168($terms, $expression);
-                $range = $like === null ? null : self::prefixRangeNext168($like['prefix']);
-                $partial = self::listValueNext168($index['partialPredicateTerms'] ?? []);
-                $partialByLike = $like !== null && self::partialImpliedByTermsNext168($partial, $terms);
-                $stat4 = self::stat4SamplesNext168(self::listValueNext168($index['stat4Samples'] ?? []));
-                $matchedSamples = $range === null || !$partialByLike ? [] : self::matchingSamplesNext168($stat4, $range, (string) ($index['collation'] ?? 'BINARY'));
-                $matchedRows = $matchedSamples === [] ? [] : self::matchedRowsNext168($source, $terms, $expression, (string) ($index['collation'] ?? 'BINARY'));
-                $covering = self::coversNext168($index['coveringColumns'] ?? [], $neededColumns);
+                $expression = self::stat4LikePrefixPartialStringValue($index, 'expression');
+                $like = self::stat4LikePrefixPartialLikeTerm($terms, $expression);
+                $range = $like === null ? null : self::stat4LikePrefixPartialPrefixRange($like['prefix']);
+                $partial = self::stat4LikePrefixPartialListValue($index['partialPredicateTerms'] ?? []);
+                $partialByLike = $like !== null && self::stat4LikePrefixPartialPredicateImpliedByTerms($partial, $terms);
+                $stat4 = self::stat4LikePrefixPartialSamples(self::stat4LikePrefixPartialListValue($index['stat4Samples'] ?? []));
+                $matchedSamples = $range === null || !$partialByLike ? [] : self::stat4LikePrefixPartialMatchingSamples($stat4, $range, (string) ($index['collation'] ?? 'BINARY'));
+                $matchedRows = $matchedSamples === [] ? [] : self::stat4LikePrefixPartialMatchedRows($source, $terms, $expression, (string) ($index['collation'] ?? 'BINARY'));
+                $covering = self::stat4LikePrefixPartialCovers($index['coveringColumns'] ?? [], $neededColumns);
                 $estimate = max(1, array_sum(array_column($matchedSamples, 'neq')));
                 $plan = [
                     'usable' => $like !== null && $range !== null && $partialByLike && $matchedSamples !== [] && $matchedRows !== [],
-                    'name' => self::stringValueNext168($index, 'name'),
-                    'rootPage' => self::intValueNext168($index, 'rootPage'),
+                    'name' => self::stat4LikePrefixPartialStringValue($index, 'name'),
+                    'rootPage' => self::stat4LikePrefixPartialIntValue($index, 'rootPage'),
                     'expression' => $expression,
                     'expressionColumn' => (string) ($index['expressionColumn'] ?? ''),
                     'collation' => strtoupper((string) ($index['collation'] ?? 'BINARY')),
-                    'coveringColumns' => self::stringListNext168($index['coveringColumns'] ?? []),
+                    'coveringColumns' => self::stat4LikePrefixPartialStringList($index['coveringColumns'] ?? []),
                     'covering' => $covering,
                     'partialPredicateTerms' => $partial,
                     'likePrefixImpliedByPartial' => $partialByLike,
@@ -3926,7 +3926,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'matchedRows' => $matchedRows,
                     'estimatedRows' => $estimate,
                     'estimatedCost' => $estimate + ($covering ? 0 : 12) + ($partialByLike ? 0 : 50),
-                    'detail' => 'SEARCH ' . self::stringValueNext168($index, 'name') . ' USING STAT4 PARTIAL EXPRESSION LIKE PREFIX',
+                    'detail' => 'SEARCH ' . self::stat4LikePrefixPartialStringValue($index, 'name') . ' USING STAT4 PARTIAL EXPRESSION LIKE PREFIX',
                 ];
                 if ($best === null || [
                     $plan['usable'] ? 0 : 1,
@@ -3948,17 +3948,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return array{pattern:string,prefix:string}|null
          */
-        private static function likePrefixTermNext168(array $terms, string $expression): ?array
+        private static function stat4LikePrefixPartialLikeTerm(array $terms, string $expression): ?array
         {
-            $normalized = self::normalizeExpressionNext168($expression);
+            $normalized = self::stat4LikePrefixPartialNormalizeExpression($expression);
             foreach ($terms as $term) {
-                if (self::normalizeExpressionNext168((string) ($term['left']['expression'] ?? '')) !== $normalized) {
+                if (self::stat4LikePrefixPartialNormalizeExpression((string) ($term['left']['expression'] ?? '')) !== $normalized) {
                     continue;
                 }
                 if (strtoupper((string) ($term['operator'] ?? '')) !== 'LIKE') {
                     continue;
                 }
-                $pattern = self::stringCastNext168(self::literalNext168($term['right'] ?? null));
+                $pattern = self::stat4LikePrefixPartialStringCast(self::stat4LikePrefixPartialLiteral($term['right'] ?? null));
                 if (!str_ends_with($pattern, '%') || str_contains(substr($pattern, 0, -1), '%') || str_contains($pattern, '_')) {
                     return null;
                 }
@@ -3970,7 +3970,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return array{lower:string,upper:string}|null */
-        private static function prefixRangeNext168(string $prefix): ?array
+        private static function stat4LikePrefixPartialPrefixRange(string $prefix): ?array
         {
             if ($prefix === '') {
                 return null;
@@ -3987,23 +3987,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $partial
          * @param list<array<string,mixed>> $terms
          */
-        private static function partialImpliedByTermsNext168(array $partial, array $terms): bool
+        private static function stat4LikePrefixPartialPredicateImpliedByTerms(array $partial, array $terms): bool
         {
             foreach ($partial as $needed) {
                 if (!is_array($needed)) {
                     return false;
                 }
                 $operator = strtoupper((string) ($needed['operator'] ?? ''));
-                $neededLeft = self::leftKeyNext168($needed['left'] ?? null);
+                $neededLeft = self::stat4LikePrefixPartialLeftKey($needed['left'] ?? null);
                 $found = false;
                 foreach ($terms as $term) {
-                    if (self::termKeyNext168($needed) === self::termKeyNext168($term) && self::literalNext168($needed['right'] ?? null) === self::literalNext168($term['right'] ?? null)) {
+                    if (self::stat4LikePrefixPartialTermKey($needed) === self::stat4LikePrefixPartialTermKey($term) && self::stat4LikePrefixPartialLiteral($needed['right'] ?? null) === self::stat4LikePrefixPartialLiteral($term['right'] ?? null)) {
                         $found = true;
                         break;
                     }
                     if ($operator === 'IS NOT NULL'
                         && strtoupper((string) ($term['operator'] ?? '')) !== 'IS NULL'
-                        && $neededLeft === self::leftKeyNext168($term['left'] ?? null)) {
+                        && $neededLeft === self::stat4LikePrefixPartialLeftKey($term['left'] ?? null)) {
                         $found = true;
                         break;
                     }
@@ -4021,11 +4021,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array{lower:string,upper:string} $range
          * @return list<array<string,mixed>>
          */
-        private static function matchingSamplesNext168(array $samples, array $range, string $collation): array
+        private static function stat4LikePrefixPartialMatchingSamples(array $samples, array $range, string $collation): array
         {
             return array_values(array_filter($samples, static function (array $sample) use ($range, $collation): bool {
-                return self::compareNext168($sample['key'], $range['lower'], $collation) >= 0
-                    && self::compareNext168($sample['key'], $range['upper'], $collation) < 0;
+                return self::stat4LikePrefixPartialCompare($sample['key'], $range['lower'], $collation) >= 0
+                    && self::stat4LikePrefixPartialCompare($sample['key'], $range['upper'], $collation) < 0;
             }));
         }
 
@@ -4033,10 +4033,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $terms
          * @return list<array<string,mixed>>
          */
-        private static function matchedRowsNext168(array $source, array $terms, string $expression, string $collation): array
+        private static function stat4LikePrefixPartialMatchedRows(array $source, array $terms, string $expression, string $collation): array
         {
             $rows = [];
-            foreach (self::listValueNext168($source['rows'] ?? []) as $sourceOffset => $row) {
+            foreach (self::stat4LikePrefixPartialListValue($source['rows'] ?? []) as $sourceOffset => $row) {
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite next168 rows must be arrays');
                 }
@@ -4044,37 +4044,37 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_int($rowid) || $rowid < 0) {
                     throw new \InvalidArgumentException('SQLite next168 rows need non-negative integer rowid');
                 }
-                if (!self::rowSatisfiesNext168($row, $terms, $expression, $collation)) {
+                if (!self::stat4LikePrefixPartialRowSatisfies($row, $terms, $expression, $collation)) {
                     continue;
                 }
                 $rows[] = [
                     'rowid' => $rowid,
                     'sourceOffset' => $sourceOffset,
-                    'expressionKey' => self::expressionValueNext168($row, $expression),
+                    'expressionKey' => self::stat4LikePrefixPartialExpressionValue($row, $expression),
                     'payload' => $row,
                 ];
             }
-            usort($rows, static fn (array $a, array $b): int => [self::stringCastNext168($a['expressionKey']), $a['rowid']] <=> [self::stringCastNext168($b['expressionKey']), $b['rowid']]);
+            usort($rows, static fn (array $a, array $b): int => [self::stat4LikePrefixPartialStringCast($a['expressionKey']), $a['rowid']] <=> [self::stat4LikePrefixPartialStringCast($b['expressionKey']), $b['rowid']]);
 
             return $rows;
         }
 
         /** @param list<array<string,mixed>> $terms */
-        private static function rowSatisfiesNext168(array $row, array $terms, string $expression, string $collation): bool
+        private static function stat4LikePrefixPartialRowSatisfies(array $row, array $terms, string $expression, string $collation): bool
         {
             foreach ($terms as $term) {
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $left = $term['left'] ?? [];
                 $leftValue = is_array($left) && isset($left['expression'])
-                    ? self::expressionValueNext168($row, $expression)
+                    ? self::stat4LikePrefixPartialExpressionValue($row, $expression)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === 'IS NOT NULL' && $leftValue !== null) {
                     continue;
                 }
-                if ($operator === '=' && self::literalNext168($term['right'] ?? null) === $leftValue) {
+                if ($operator === '=' && self::stat4LikePrefixPartialLiteral($term['right'] ?? null) === $leftValue) {
                     continue;
                 }
-                if ($operator === 'LIKE' && self::likeMatchesNext168($leftValue, self::stringCastNext168(self::literalNext168($term['right'] ?? null)), $collation)) {
+                if ($operator === 'LIKE' && self::stat4LikePrefixPartialLikeMatches($leftValue, self::stat4LikePrefixPartialStringCast(self::stat4LikePrefixPartialLiteral($term['right'] ?? null)), $collation)) {
                     continue;
                 }
                 return false;
@@ -4083,9 +4083,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function expressionValueNext168(array $row, string $expression): mixed
+        private static function stat4LikePrefixPartialExpressionValue(array $row, string $expression): mixed
         {
-            $normalized = self::normalizeExpressionNext168($expression);
+            $normalized = self::stat4LikePrefixPartialNormalizeExpression($expression);
             if ($normalized === 'lower(option_name)') {
                 $value = $row['option_name'] ?? null;
                 return is_string($value) ? strtolower($value) : null;
@@ -4094,7 +4094,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite next168 unsupported expression ' . $expression);
         }
 
-        private static function likeMatchesNext168(mixed $value, string $pattern, string $collation): bool
+        private static function stat4LikePrefixPartialLikeMatches(mixed $value, string $pattern, string $collation): bool
         {
             if (!is_string($value) || !str_ends_with($pattern, '%')) {
                 return false;
@@ -4110,7 +4110,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $samples
          * @return list<array<string,mixed>>
          */
-        private static function stat4SamplesNext168(array $samples): array
+        private static function stat4LikePrefixPartialSamples(array $samples): array
         {
             $out = [];
             foreach ($samples as $sample) {
@@ -4118,11 +4118,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     throw new \InvalidArgumentException('SQLite next168 STAT4 samples need key and rowid');
                 }
                 $out[] = [
-                    'key' => self::literalNext168($sample['sample'][0]),
-                    'rowid' => self::intLiteralNext168($sample['sample'][1]),
-                    'neq' => self::firstStatIntNext168($sample['neq'] ?? 1),
-                    'nlt' => self::firstStatIntNext168($sample['nlt'] ?? 0),
-                    'ndlt' => self::firstStatIntNext168($sample['ndlt'] ?? 0),
+                    'key' => self::stat4LikePrefixPartialLiteral($sample['sample'][0]),
+                    'rowid' => self::stat4LikePrefixPartialIntLiteral($sample['sample'][1]),
+                    'neq' => self::stat4LikePrefixPartialFirstStatInt($sample['neq'] ?? 1),
+                    'nlt' => self::stat4LikePrefixPartialFirstStatInt($sample['nlt'] ?? 0),
+                    'ndlt' => self::stat4LikePrefixPartialFirstStatInt($sample['ndlt'] ?? 0),
                 ];
             }
 
@@ -4130,7 +4130,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<array<string,mixed>> */
-        private static function cursorProgramNext168(array $selected, bool $ready): array
+        private static function stat4LikePrefixPartialCursorProgram(array $selected, bool $ready): array
         {
             if (!$ready) {
                 return [['opcode' => 'FallbackFullScan', 'reason' => 'partial expression STAT4 LIKE prefix not usable']];
@@ -4147,7 +4147,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
         }
 
-        private static function selectedSummaryNext168(array $plan, bool $ready): array
+        private static function stat4LikePrefixPartialSelectedSummary(array $plan, bool $ready): array
         {
             return [
                 'name' => $plan['name'] ?? null,
@@ -4170,12 +4170,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
         }
 
-        private static function summaryNext168(array $source, array $plan, string $signature): array
+        private static function stat4LikePrefixPartialSummary(array $source, array $plan, string $signature): array
         {
             return [
                 'name' => (string) ($source['name'] ?? ''),
-                'schemaCookie' => self::intValueNext168($source, 'schemaCookie'),
-                'stat4Generation' => self::intValueNext168($source, 'stat4Generation'),
+                'schemaCookie' => self::stat4LikePrefixPartialIntValue($source, 'schemaCookie'),
+                'stat4Generation' => self::stat4LikePrefixPartialIntValue($source, 'stat4Generation'),
                 'sourceSignature' => $signature,
                 'selectedIndex' => $plan['name'] ?? null,
                 'usable' => $plan['usable'] ?? false,
@@ -4184,7 +4184,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param list<array<string,mixed>> $terms */
-        private static function validateTermsNext168(array $terms): void
+        private static function stat4LikePrefixPartialValidateTerms(array $terms): void
         {
             if ($terms === []) {
                 throw new \InvalidArgumentException('SQLite next168 WHERE terms cannot be empty');
@@ -4196,30 +4196,30 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             }
         }
 
-        private static function normalizeExpressionNext168(string $expression): string
+        private static function stat4LikePrefixPartialNormalizeExpression(string $expression): string
         {
             return strtolower(str_replace(' ', '', $expression));
         }
 
-        private static function termKeyNext168(array $term): string
+        private static function stat4LikePrefixPartialTermKey(array $term): string
         {
-            return self::leftKeyNext168($term['left'] ?? null) . '|' . strtoupper((string) ($term['operator'] ?? ''));
+            return self::stat4LikePrefixPartialLeftKey($term['left'] ?? null) . '|' . strtoupper((string) ($term['operator'] ?? ''));
         }
 
-        private static function leftKeyNext168(mixed $left): string
+        private static function stat4LikePrefixPartialLeftKey(mixed $left): string
         {
             if (!is_array($left)) {
                 return '';
             }
             if (isset($left['expression'])) {
-                return 'expr:' . self::normalizeExpressionNext168((string) $left['expression']);
+                return 'expr:' . self::stat4LikePrefixPartialNormalizeExpression((string) $left['expression']);
             }
 
             return 'col:' . strtolower((string) ($left['column'] ?? ''));
         }
 
         /** @return list<mixed> */
-        private static function listValueNext168(mixed $value): array
+        private static function stat4LikePrefixPartialListValue(mixed $value): array
         {
             if (!is_array($value)) {
                 return [];
@@ -4229,14 +4229,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @return list<string> */
-        private static function stringListNext168(mixed $value): array
+        private static function stat4LikePrefixPartialStringList(mixed $value): array
         {
-            return array_values(array_map('strval', self::listValueNext168($value)));
+            return array_values(array_map('strval', self::stat4LikePrefixPartialListValue($value)));
         }
 
-        private static function coversNext168(mixed $available, array $needed): bool
+        private static function stat4LikePrefixPartialCovers(mixed $available, array $needed): bool
         {
-            $set = array_flip(self::stringListNext168($available));
+            $set = array_flip(self::stat4LikePrefixPartialStringList($available));
             foreach ($needed as $column) {
                 if (!isset($set[$column])) {
                     return false;
@@ -4246,10 +4246,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function compareNext168(mixed $left, mixed $right, string $collation): int
+        private static function stat4LikePrefixPartialCompare(mixed $left, mixed $right, string $collation): int
         {
-            $a = self::stringCastNext168($left);
-            $b = self::stringCastNext168($right);
+            $a = self::stat4LikePrefixPartialStringCast($left);
+            $b = self::stat4LikePrefixPartialStringCast($right);
             if (strtoupper($collation) === 'NOCASE') {
                 $a = strtolower($a);
                 $b = strtolower($b);
@@ -4258,17 +4258,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $a <=> $b;
         }
 
-        private static function literalNext168(mixed $value): mixed
+        private static function stat4LikePrefixPartialLiteral(mixed $value): mixed
         {
             return is_array($value) && array_key_exists('value', $value) ? $value['value'] : $value;
         }
 
-        private static function stringCastNext168(mixed $value): string
+        private static function stat4LikePrefixPartialStringCast(mixed $value): string
         {
             return is_scalar($value) || $value === null ? (string) $value : json_encode($value, JSON_THROW_ON_ERROR);
         }
 
-        private static function intLiteralNext168(mixed $value): int
+        private static function stat4LikePrefixPartialIntLiteral(mixed $value): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
                 throw new \InvalidArgumentException('SQLite next168 integer literal expected');
@@ -4277,12 +4277,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $value;
         }
 
-        private static function intValueNext168(array $source, string $key): int
+        private static function stat4LikePrefixPartialIntValue(array $source, string $key): int
         {
-            return self::intLiteralNext168($source[$key] ?? 0);
+            return self::stat4LikePrefixPartialIntLiteral($source[$key] ?? 0);
         }
 
-        private static function stringValueNext168(array $source, string $key): string
+        private static function stat4LikePrefixPartialStringValue(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
@@ -4292,16 +4292,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $value;
         }
 
-        private static function firstStatIntNext168(mixed $value): int
+        private static function stat4LikePrefixPartialFirstStatInt(mixed $value): int
         {
             if (is_string($value)) {
                 $value = preg_split('/\s+/', trim($value))[0] ?? '0';
             }
 
-            return self::intLiteralNext168($value);
+            return self::stat4LikePrefixPartialIntLiteral($value);
         }
 
-        private static function signatureNext168(mixed $value): string
+        private static function stat4LikePrefixPartialSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -24141,7 +24141,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext249(
+        public static function materializeDuplicatePeerFence(
             array $preparedSource,
             array $currentSource,
             array $whereTerms,
@@ -24158,8 +24158,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $offset,
             );
             $selectedName = (string) ($base['selectedPlan']['name'] ?? '');
-            $index = self::indexByNameNext249($currentSource, $selectedName);
-            $fence = self::duplicatePeerFenceNext249(self::rowsNext249($currentSource), $whereTerms, $index);
+            $index = self::duplicatePeerIndexByName($currentSource, $selectedName);
+            $fence = self::duplicatePeerFence(self::duplicatePeerRows($currentSource), $whereTerms, $index);
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-stat4SampleAnchor-ready'
                 && $fence['ready'] === true;
 
@@ -24177,7 +24177,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'next249DuplicatePeerSignature' => $fence['proofSignature'],
                     'next249RejectedPeerKeys' => $fence['rejectedPeerKeys'],
                 ]),
-                'cursorProgram' => self::cursorProgramNext249(
+                'cursorProgram' => self::duplicatePeerCursorProgram(
                     is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
                     $ready,
                     $fence,
@@ -24204,20 +24204,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $index
          * @return array<string,mixed>
          */
-        private static function duplicatePeerFenceNext249(array $rows, array $whereTerms, array $index): array
+        private static function duplicatePeerFence(array $rows, array $whereTerms, array $index): array
         {
             $peers = [];
             foreach ($rows as $row) {
-                if (!self::rowSatisfiesTermsNext249($row, $whereTerms)) {
+                if (!self::duplicatePeerRowSatisfiesTerms($row, $whereTerms)) {
                     continue;
                 }
-                $key = self::peerKeyNext249(self::rowExpressionKeyNext249($row), (int) ($row['blog_id'] ?? 0));
+                $key = self::duplicatePeerKey(self::duplicatePeerRowExpressionKey($row), (int) ($row['blog_id'] ?? 0));
                 $peers[$key] ??= [
-                    'expressionKey' => self::rowExpressionKeyNext249($row),
+                    'expressionKey' => self::duplicatePeerRowExpressionKey($row),
                     'blogId' => (int) ($row['blog_id'] ?? 0),
                     'rowids' => [],
                 ];
-                $peers[$key]['rowids'][] = self::rowidNext249($row);
+                $peers[$key]['rowids'][] = self::duplicatePeerRowid($row);
             }
             ksort($peers);
             foreach ($peers as &$peer) {
@@ -24227,8 +24227,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
             $proofs = [];
             $rejected = [];
-            foreach (self::stat4SamplesNext249($index) as $sample) {
-                $key = self::peerKeyNext249($sample['key'], $sample['blogId']);
+            foreach (self::duplicatePeerStat4Samples($index) as $sample) {
+                $key = self::duplicatePeerKey($sample['key'], $sample['blogId']);
                 $peer = $peers[$key] ?? null;
                 $currentCount = is_array($peer) ? count($peer['rowids']) : 0;
                 $matches = $currentCount === $sample['neq'];
@@ -24263,12 +24263,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $proof + [
                 'ready' => $ready,
                 'rejectedReason' => $ready ? null : 'stale-stat4-duplicate-peer-count',
-                'proofSignature' => self::signatureNext249($proof),
+                'proofSignature' => self::duplicatePeerSignature($proof),
             ];
         }
 
         /** @param array<string,mixed> $source @return array<string,mixed> */
-        private static function indexByNameNext249(array $source, string $name): array
+        private static function duplicatePeerIndexByName(array $source, string $name): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes)) {
@@ -24287,7 +24287,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $source @return list<array<string,mixed>> */
-        private static function rowsNext249(array $source): array
+        private static function duplicatePeerRows(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -24303,7 +24303,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $index @return list<array{key:string,rowid:int,blogId:int,neq:int}> */
-        private static function stat4SamplesNext249(array $index): array
+        private static function duplicatePeerStat4Samples(array $index): array
         {
             $samples = $index['stat4Samples'] ?? null;
             if (!is_array($samples) || !array_is_list($samples) || $samples === []) {
@@ -24314,10 +24314,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($sample) || !is_array($sample['sample'] ?? null) || count($sample['sample']) < 3) {
                     throw new \InvalidArgumentException('SQLite next249 stat4 samples need key, rowid, and blog id');
                 }
-                $neq = self::firstStatIntegerNext249($sample['neq'] ?? null);
+                $neq = self::duplicatePeerFirstStatInteger($sample['neq'] ?? null);
                 $out[] = [
                     'key' => strtolower((string) $sample['sample'][0]),
-                    'rowid' => self::rowidNext249(['rowid' => $sample['sample'][1]]),
+                    'rowid' => self::duplicatePeerRowid(['rowid' => $sample['sample'][1]]),
                     'blogId' => (int) $sample['sample'][2],
                     'neq' => $neq,
                 ];
@@ -24326,7 +24326,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $out;
         }
 
-        private static function firstStatIntegerNext249(mixed $value): int
+        private static function duplicatePeerFirstStatInteger(mixed $value): int
         {
             $parts = preg_split('/\s+/', trim((string) $value));
             if ($parts === false || $parts === [] || !ctype_digit($parts[0])) {
@@ -24340,7 +24340,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param list<array<string,mixed>> $terms
          */
-        private static function rowSatisfiesTermsNext249(array $row, array $terms): bool
+        private static function duplicatePeerRowSatisfiesTerms(array $row, array $terms): bool
         {
             foreach ($terms as $term) {
                 $left = $term['left'] ?? null;
@@ -24349,7 +24349,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
                 $value = array_key_exists('expression', $left)
-                    ? self::rowExpressionKeyNext249($row)
+                    ? self::duplicatePeerRowExpressionKey($row)
                     : ($row[(string) ($left['column'] ?? '')] ?? null);
                 if ($operator === '=' && $value != ($term['right'] ?? null)) {
                     return false;
@@ -24357,13 +24357,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if ($operator === 'IS NOT NULL' && $value === null) {
                     return false;
                 }
-                if ($operator === 'LIKE' && !self::likePrefixNext249((string) $value, (string) ($term['right'] ?? ''))) {
+                if ($operator === 'LIKE' && !self::duplicatePeerLikePrefix((string) $value, (string) ($term['right'] ?? ''))) {
                     return false;
                 }
                 if ($operator === 'BETWEEN') {
                     $stringValue = strtolower((string) $value);
-                    $lower = self::stringOrNullNext249($term['lower'] ?? null);
-                    $upper = self::stringOrNullNext249($term['upper'] ?? null);
+                    $lower = self::duplicatePeerStringOrNull($term['lower'] ?? null);
+                    $upper = self::duplicatePeerStringOrNull($term['upper'] ?? null);
                     if (($lower !== null && $stringValue < $lower) || ($upper !== null && $stringValue > $upper)) {
                         return false;
                     }
@@ -24383,7 +24383,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
 
-        private static function likePrefixNext249(string $value, string $pattern): bool
+        private static function duplicatePeerLikePrefix(string $value, string $pattern): bool
         {
             if ($pattern === 'plugin_%') {
                 return str_starts_with(strtolower($value), 'plugin_');
@@ -24396,7 +24396,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowExpressionKeyNext249(array $row): string
+        private static function duplicatePeerRowExpressionKey(array $row): string
         {
             if (!array_key_exists('option_name', $row)) {
                 throw new \InvalidArgumentException('SQLite next249 current row needs option_name');
@@ -24406,7 +24406,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function rowidNext249(array $row): int
+        private static function duplicatePeerRowid(array $row): int
         {
             if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
                 throw new \InvalidArgumentException('SQLite next249 rowid must be an integer');
@@ -24420,7 +24420,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $fence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext249(array $program, bool $ready, array $fence): array
+        private static function duplicatePeerCursorProgram(array $program, bool $ready, array $fence): array
         {
             if (!$ready) {
                 return $program;
@@ -24436,17 +24436,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $program;
         }
 
-        private static function peerKeyNext249(string $expressionKey, int $blogId): string
+        private static function duplicatePeerKey(string $expressionKey, int $blogId): string
         {
             return strtolower($expressionKey) . '#' . $blogId;
         }
 
-        private static function stringOrNullNext249(mixed $value): ?string
+        private static function duplicatePeerStringOrNull(mixed $value): ?string
         {
             return $value === null ? null : strtolower((string) $value);
         }
 
-        private static function signatureNext249(mixed $value): string
+        private static function duplicatePeerSignature(mixed $value): string
         {
             return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
         }
@@ -25053,7 +25053,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             int $limit,
             int $offset = 0
         ): array {
-            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext249(
+            $base = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDuplicatePeerFence(
                 $preparedSource,
                 $currentSource,
                 $whereTerms,

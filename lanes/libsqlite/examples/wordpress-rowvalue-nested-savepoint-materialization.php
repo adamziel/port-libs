@@ -59,7 +59,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['suppressedReturningCount'] === 7);
     assert($summary['retryReturningCount'] === 5);
     assert($summary['rowIdsAfterRetry'] === [1, 2, 4, 5, 6, 7, 8, 9]);
-    echo "wordpress-rowvalue-nested-savepoint-current-source-next224 self-test passed\n";
+    echo "wordpress-rowvalue-nested-savepoint-materialization self-test passed\n";
     return;
 }
 

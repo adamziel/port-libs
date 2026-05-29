@@ -8,18 +8,18 @@ rollback discards both the released inner changes and the outer attempted
 changes, and retry statements read from the original outer savepoint image.
 
 WordPress path:
-`examples/wordpress-rowvalue-nested-savepoint-current-source-next224.php`
+`examples/wordpress-rowvalue-nested-savepoint-materialization.php`
 models a copied `wp_options` import that batches transient cleanup and option
 rewrites in an inner savepoint, then rolls back the outer import scope and
 retries without yielding stale inner `RETURNING` rows.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext224Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueNestedSavepointMaterializationTest.php`
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext224Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext224Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next224.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-current-source-next224.php --self-test`
+- `php -l lanes/libsqlite/tests/SQLiteRowValueNestedSavepointMaterializationTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-materialization.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-nested-savepoint-materialization.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta: update `phpPass` by the focused PASS-line delta from the new

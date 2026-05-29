@@ -88,7 +88,7 @@ $terms249 = static fn (): array => [
     $like249('option_name', 'plugin_%'),
 ];
 
-$plan249 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext249(
+$plan249 = static fn (?array $samples = null, ?array $rows = null, int $limit = 6, int $offset = 0): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDuplicatePeerFence(
     $prepared249(),
     $current249($samples, $rows),
     $terms249(),

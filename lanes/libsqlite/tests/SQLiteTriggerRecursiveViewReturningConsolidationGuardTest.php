@@ -58,8 +58,10 @@ $tests['trigger returning production files have no numbered method declarations'
     $bannedCurrentSourceSuffix = 'CurrentSourceNext' . '150';
     $bannedCurrentSuffix = 'CurrentNext' . '150';
     $files = array_merge(
-        glob($root . '/SQLiteTrigger*Returning*.php') ?: [],
-        glob($root . '/SQLiteTrigger*CurrentSourceNext*Plan.php') ?: [],
+        glob($root . '/*Trigger*Returning*.php') ?: [],
+        glob($root . '/*Returning*Trigger*.php') ?: [],
+        glob($root . '/*Trigger*CurrentNext*Plan.php') ?: [],
+        glob($root . '/*Trigger*CurrentSourceNext*Plan.php') ?: [],
     );
     $files = array_values(array_unique($files));
     sort($files);

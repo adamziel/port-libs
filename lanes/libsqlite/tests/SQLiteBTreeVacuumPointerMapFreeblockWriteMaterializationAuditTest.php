@@ -154,15 +154,15 @@ $cases212 = [
     'batch size three apply batches' => static fn (): mixed => array_column($plan212(3)->applyRows(), 'apply_pages'),
     'batch size three token count' => static fn (): mixed => count($plan212(3)->applyTokens()),
     'dependency closure' => static fn (): mixed => $plan212()->applySummary()['dependency_closure'],
-    'non overlap' => static fn (): mixed => str_contains($plan212()->applySummary()['non_overlap'], 'does not repeat next209'),
+    'non overlap' => static fn (): mixed => str_contains($plan212()->applySummary()['non_overlap'], 'does not repeat writer-source-latch'),
     'base action' => static fn (): mixed => $plan212()->basePlan->toArray()['action'],
     'base source rows' => static fn (): mixed => $plan212()->basePlan->writerSourceSummary()['source_row_count'],
     'bad batch size rejected' => static fn (): mixed => $message212(static fn () => $plan212(0)),
 ];
 
 $expected212 = [
-    'action label' => 'btree-vacuum-pointermap-freeblock-current-source-next212',
-    'summary status' => 'btree-vacuum-pointermap-freeblock-current-source-next212-ready',
+    'action label' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply',
+    'summary status' => 'btree-vacuum-pointermap-freeblock-current-source-page-apply-ready',
     'apply row count' => 6,
     'apply pages' => [2, 3, 105, 106, 107, 108],
     'summary apply pages' => [2, 3, 105, 106, 107, 108],
@@ -212,9 +212,9 @@ $expected212 = [
     'batch size three pages' => [2, 3, 105, 106, 107, 108],
     'batch size three apply batches' => [[2], [3], [105], [106, 107, 108]],
     'batch size three token count' => 4,
-    'dependency closure' => 'no new support component needed; next212 reuses next209 writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
+    'dependency closure' => 'no new support component needed; page-apply reuses writer-source-latch writer-source latch rows, pointer-map source pages, leaf freeblock receipts, and fenced-tail metadata',
     'non overlap' => true,
-    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-next209',
+    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-writer-source-latch',
     'base source rows' => 6,
     'bad batch size rejected' => 'SQLite b-tree vacuum pointer-map freeblock next174 requires a positive cursor batch size',
 ];
@@ -241,7 +241,7 @@ foreach (range(1, 80) as $index) {
         $t->same([true, true, true, true, true, true], array_column($plan->applyRows(), 'freeblock_receipt_carried'));
         $t->same([true, true, true, true, true, true], array_column($plan->applyRows(), 'tail_pages_fenced_for_apply'));
         $t->same([64, 64, 64, 64, 64, 64], array_map('strlen', $plan->applyTokens()));
-        $t->same('btree-vacuum-pointermap-freeblock-current-source-next212-ready', $summary['status']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-page-apply-ready', $summary['status']);
         $t->same(true, $summary['apply_matches_writer_source_pages']);
     };
 }

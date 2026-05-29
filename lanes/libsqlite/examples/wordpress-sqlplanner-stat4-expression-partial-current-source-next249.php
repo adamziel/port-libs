@@ -57,7 +57,7 @@ $prepared['stat4Generation'] = 249;
 $prepared['indexes'][0]['rootPage'] = 24901;
 $prepared['indexes'][0]['stat4Samples'][0]['neq'] = '1 1';
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext249(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeDuplicatePeerFence(
     $prepared,
     $source,
     [

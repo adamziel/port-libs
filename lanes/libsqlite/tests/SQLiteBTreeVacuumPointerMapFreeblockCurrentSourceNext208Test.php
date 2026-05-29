@@ -145,7 +145,7 @@ $cases208 = [
     'seal signature length' => static fn (): mixed => strlen($plan208()->sourceNextSummary()['seal_signature']),
     'writer freeblock token length' => static fn (): mixed => strlen($plan208()->sourceNextSummary()['next_writer_freeblock_source_token']),
     'dependency closure' => static fn (): mixed => $plan208()->sourceNextSummary()['dependency_closure'],
-    'non overlap' => static fn (): mixed => str_contains($plan208()->sourceNextSummary()['non_overlap'], 'does not repeat next206'),
+    'non overlap' => static fn (): mixed => str_contains($plan208()->sourceNextSummary()['non_overlap'], 'does not repeat sealed-writer-admission'),
     'bad batch size rejected' => static fn (): mixed => $message208(static fn () => $plan208(0)),
 ];
 
@@ -186,13 +186,13 @@ $expected208 = [
     'batch size three rows' => 2,
     'batch size three readable pages' => [2, 3, 105, 106, 107, 108],
     'batch size three source pages' => [[2, 105], [3, 106, 107, 108]],
-    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-next206',
+    'base action' => 'btree-vacuum-pointermap-freeblock-current-source-sealed-writer-admission',
     'base sealed pages' => [2, 3, 105, 106, 107, 108],
     'base seal row count' => 6,
     'base tail pages fenced' => true,
     'seal signature length' => 64,
     'writer freeblock token length' => 64,
-    'dependency closure' => 'no new support component needed; next208 reuses next206 sealed pointer-map/payload rows, freeblock receipts, and fenced-tail metadata',
+    'dependency closure' => 'no new support component needed; next208 reuses sealed-writer-admission sealed pointer-map/payload rows, freeblock receipts, and fenced-tail metadata',
     'non overlap' => true,
     'bad batch size rejected' => 'SQLite b-tree vacuum pointer-map freeblock next174 requires a positive cursor batch size',
 ];

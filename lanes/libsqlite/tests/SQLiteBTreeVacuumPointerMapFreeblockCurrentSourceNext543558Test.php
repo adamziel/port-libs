@@ -65,9 +65,8 @@ $database543558 = static function (int $sliceNumber) use ($makeFirstPage543558, 
 $plan543558 = static function (int $sliceNumber, int $batchSize = 2) use ($database543558): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
     $database = $database543558($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult(
         $database,
         3,
         [
@@ -90,8 +89,8 @@ foreach ([543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 
         $plan = $plan543558($sliceNumber);
         $summary = $plan->currentSourceSummary();
 
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}", $plan->toArray()['action']);
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}-ready", $summary['status']);
+        $t->same("btree-vacuum-pointermap-freeblock-current-source-freelist-handoff", $plan->toArray()['action']);
+        $t->same("btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-ready", $summary['status']);
         $t->same(7, $summary['current_source_row_count']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['current_source_pages']);
         $t->same([3, 106, 107, 108], $summary['current_source_leaf_pages']);
@@ -104,8 +103,8 @@ foreach ([543, 544, 545, 546, 547, 548, 549, 550, 551, 552, 553, 554, 555, 556, 
         $t->same(true, $summary['all_leaf_receipts_current_at_source']);
         $t->same(true, $summary['all_tail_pages_remain_excluded_from_source']);
         $t->same(true, $summary['all_current_source_links_valid']);
-        $t->same(true, isset($summary["current_source_next{$sliceNumber}_token"]));
-        $t->contains('next431-446 freelist splice shape', $summary['dependency_closure']);
+        $t->same(true, isset($summary["current_source_freelist_handoff_token"]));
+        $t->contains('existing freelist splice shape', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
         $t->same(6, $plan543558($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
     };

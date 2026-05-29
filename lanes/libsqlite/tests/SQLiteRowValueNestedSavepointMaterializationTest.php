@@ -134,7 +134,7 @@ $cases224 = [
 
 $tests = [];
 foreach ($cases224 as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next224 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue nested savepoint materialization preserves next224 metadata ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

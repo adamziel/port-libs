@@ -88,8 +88,8 @@ $tests = [
         $summary = $plan->currentSourceSummary();
         $rows = $plan->currentSourceRows();
 
-        $t->same('btree-vacuum-pointermap-freeblock-current-source-next242', $plan->toArray()['action']);
-        $t->same('btree-vacuum-pointermap-freeblock-current-source-next242-ready', $summary['status']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-handoff', $plan->toArray()['action']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-handoff-ready', $summary['status']);
         $t->same(7, $summary['current_source_row_count']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['current_source_pages']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['freelist_pages']);
@@ -105,10 +105,10 @@ $tests = [
         $t->same(true, $summary['all_reusable_pages_monotonic']);
         $t->same(true, $summary['all_tail_pages_excluded']);
         $t->same(true, $summary['all_current_source_links_valid']);
-        $t->same('current-source-next242-freeblock-handoff-visible', $rows[0]['current_source_state']);
+        $t->same('current-source-freeblock-handoff-visible', $rows[0]['current_source_state']);
         $t->same(null, $rows[0]['previous_current_source_token']);
         $t->same($rows[0]['current_source_token'], $rows[1]['previous_current_source_token']);
-        $t->same(true, isset($summary['current_source_next242_token']));
+        $t->same(true, isset($summary['current_source_handoff_token']));
         $t->contains('current-source freeblock handoff visibility', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
         $t->same(6, $planCurrentSourceHandoff(3)->currentSourceSummary()['current_source_row_count']);

@@ -85,7 +85,7 @@ $planFinal = static function (int $caseNumber, int $batchSize = 2) use ($databas
 $tests = [];
 
 foreach (range(1, 16) as $caseNumber) {
-    $tests["btree vacuum pointermap freeblock final numbered methods case {$caseNumber} uses canonical writer handoff"] = static function (TestRunner $t) use ($planFinal, $caseNumber): void {
+    $tests["btree vacuum pointermap freeblock final writer handoff batch case {$caseNumber} uses canonical writer handoff"] = static function (TestRunner $t) use ($planFinal, $caseNumber): void {
         $plan = $planFinal($caseNumber);
         $summary = $plan->handoffSummary();
         $rows = $plan->handoffRows();

@@ -49,7 +49,7 @@ $current['rows'] = [
     ['rowid' => 24, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'theme_mods', 'option_value' => 'theme', 'updated_at' => 40],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext168(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4LikePrefixPartialCurrentSource(
     $prepared,
     $current,
     [

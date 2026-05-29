@@ -1428,10 +1428,10 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTablePathConstraintProfile123($plan['current'], $plan['currentIndexedConstraintCost']);
-        $nextProfile = self::jsonTablePathConstraintProfile123($plan['next'], $plan['nextIndexedConstraintCost']);
-        $transitions = self::jsonTablePathConstraintTransitions123($currentProfile, $nextProfile);
-        $reasons = self::jsonTablePathConstraintReplanReasons123($transitions);
+        $currentProfile = self::jsonTablePathConstraintProfile($plan['current'], $plan['currentIndexedConstraintCost']);
+        $nextProfile = self::jsonTablePathConstraintProfile($plan['next'], $plan['nextIndexedConstraintCost']);
+        $transitions = self::jsonTablePathConstraintTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTablePathConstraintReplanReasons($transitions);
 
         $plan['currentPathConstraint'] = $currentProfile;
         $plan['nextPathConstraint'] = $nextProfile;
@@ -18392,7 +18392,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $indexedCost
      * @return array{pathConstraints:list<array<string,mixed>>,selectedPath:array<string,mixed>|null,selectedPathSignature:string|null,pathScanStrategy:string,pathEstimatedRows:int,pathEstimatedCost:int,effectiveEstimatedCost:int,costClass:string,pathRowCount:int,pathTape:list<string>,firstPath:string|null,lastPath:string|null}
      */
-    private static function jsonTablePathConstraintProfile123(array $plan, array $indexedCost): array
+    private static function jsonTablePathConstraintProfile(array $plan, array $indexedCost): array
     {
         $pathConstraints = [];
         foreach ($indexedCost['indexedConstraints'] as $constraint) {
@@ -18408,7 +18408,7 @@ final class SQLiteJsonTablePlan
             $selected = $pathConstraints[0];
         }
 
-        $pathTape = self::jsonTablePathTape123($plan['rows']);
+        $pathTape = self::jsonTablePathTape($plan['rows']);
         if (!$plan['runnable']) {
             $strategy = 'unrunnable-json-table';
             $rows = 0;
@@ -18453,7 +18453,7 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function jsonTablePathTape123(array $rows): array
+    private static function jsonTablePathTape(array $rows): array
     {
         $paths = [];
         foreach ($rows as $row) {
@@ -18471,7 +18471,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTablePathConstraintTransitions123(array $current, array $next): array
+    private static function jsonTablePathConstraintTransitions(array $current, array $next): array
     {
         return [
             [
@@ -18517,7 +18517,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTablePathConstraintReplanReasons123(array $transitions): array
+    private static function jsonTablePathConstraintReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

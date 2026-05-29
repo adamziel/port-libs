@@ -76,7 +76,7 @@ $terms168 = static fn (): array => [
     $notNull168('option_name'),
 ];
 $needed168 = ['option_name', 'option_value', 'updated_at'];
-$plan168 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext168(
+$plan168 = static fn (?array $prepared = null, ?array $current = null, ?array $terms = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4LikePrefixPartialCurrentSource(
     $prepared ?? $prepared168(),
     $current ?? $current168(),
     $terms ?? $terms168(),
