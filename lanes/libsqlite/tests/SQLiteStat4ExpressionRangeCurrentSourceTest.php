@@ -70,7 +70,7 @@ $current104 = static function () use ($source104): array {
     return $source;
 };
 
-$plan104 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $columns = null): array => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104(
+$plan104 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $columns = null): array => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange(
     $prepared ?? $source104(),
     $current ?? $current104(),
     $predicate ?? $GLOBALS['predicate104'],
@@ -132,20 +132,20 @@ $tests = [
     'stat4 expression range current source next104 dependency closure note' => static fn (TestRunner $t) => $t->contains('no new support component needed', $plan104()['dependency_closure']),
     'stat4 expression range current source next104 reuses prepared when signatures match' => static function (TestRunner $t) use ($source104): void {
         $fresh = $source104(['name' => 'current-same-stat4']);
-        $t->same('prepared', SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(), $fresh, $GLOBALS['predicate104'], $GLOBALS['needed104'])['selectedSource']);
+        $t->same('prepared', SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(), $fresh, $GLOBALS['predicate104'], $GLOBALS['needed104'])['selectedSource']);
     },
     'stat4 expression range current source next104 no reprepare when signatures match' => static function (TestRunner $t) use ($source104): void {
         $fresh = $source104(['name' => 'current-same-stat4']);
-        $t->same(false, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(), $fresh, $GLOBALS['predicate104'], $GLOBALS['needed104'])['reprepareRequired']);
+        $t->same(false, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(), $fresh, $GLOBALS['predicate104'], $GLOBALS['needed104'])['reprepareRequired']);
     },
     'stat4 expression range current source next104 schema cookie alone invalidates' => static function (TestRunner $t) use ($source104): void {
-        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(), $source104(['schemaCookie' => 106]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['schemaCookieChanged']);
+        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(), $source104(['schemaCookie' => 106]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['schemaCookieChanged']);
     },
     'stat4 expression range current source next104 stat4 generation alone invalidates' => static function (TestRunner $t) use ($source104): void {
-        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(), $source104(['stat4Generation' => 23]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['stat4GenerationChanged']);
+        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(), $source104(['stat4Generation' => 23]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['stat4GenerationChanged']);
     },
     'stat4 expression range current source next104 projection change invalidates' => static function (TestRunner $t) use ($source104): void {
-        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(), $source104(['coveringColumns' => ['option_name']]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['projectionChanged']);
+        $t->same(true, SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(), $source104(['coveringColumns' => ['option_name']]), $GLOBALS['predicate104'], $GLOBALS['needed104'])['projectionChanged']);
     },
     'stat4 expression range current source next104 missing covering column table lookup' => static fn (TestRunner $t) => $t->same('table-rowid-lookup', $plan104(null, null, null, ['option_name', 'missing_meta'])['selectedPlan']['nextSource']),
     'stat4 expression range current source next104 missing covering column not covering' => static fn (TestRunner $t) => $t->same(false, $plan104(null, null, null, ['option_name', 'missing_meta'])['selectedPlan']['covering']),
@@ -153,23 +153,23 @@ $tests = [
     'stat4 expression range current source next104 between upper inclusive' => static fn (TestRunner $t) => $t->same(true, $plan104(null, null, ['operator' => 'BETWEEN', 'left' => ['expression' => 'substr(option_name,1,12)'], 'right' => ['plugin_cache', 'plugin_forms']])['selectedPlan']['upperInclusive']),
     'stat4 expression range current source next104 unsupported expression scans table' => static fn (TestRunner $t) => $t->same('unusable', $plan104(null, null, $expr104('=', 'plugin_cache'))['status']),
     'stat4 expression range current source next104 validates schema cookie' => static function (TestRunner $t) use ($source104): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(['schemaCookie' => -1]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(['schemaCookie' => -1]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
     },
     'stat4 expression range current source next104 validates stat4 generation' => static function (TestRunner $t) use ($source104): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(['stat4Generation' => -1]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(['stat4Generation' => -1]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
     },
     'stat4 expression range current source next104 validates indexes list' => static function (TestRunner $t) use ($source104): void {
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source104(['indexes' => ['bad' => []]]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source104(['indexes' => ['bad' => []]]), $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
     },
     'stat4 expression range current source next104 validates expression index' => static function (TestRunner $t) use ($source104): void {
         $source = $source104();
         $source['indexes'][0]['expression'] = 'option_name';
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source, $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source, $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
     },
     'stat4 expression range current source next104 validates sample rowid' => static function (TestRunner $t) use ($source104): void {
         $source = $source104();
         $source['indexes'][0]['stat4Samples'][0]['sample'][1] = 'rowid';
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($source, $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($source, $source104(), $GLOBALS['predicate104'], $GLOBALS['needed104']));
     },
 ];
 

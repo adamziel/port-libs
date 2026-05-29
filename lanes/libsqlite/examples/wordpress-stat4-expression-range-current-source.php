@@ -48,7 +48,7 @@ $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '5 5', 'nlt' => '25 25', 'sample' => ['plugin_forms', 105]],
 ];
 
-$plan = SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareNext104($prepared, $current, $predicate, ['option_name', 'option_value', 'autoload']);
+$plan = SQLiteStat4ExpressionRangeCurrentSourceNextPlan::compareExpressionRange($prepared, $current, $predicate, ['option_name', 'option_value', 'autoload']);
 
 echo json_encode([
     'scenario' => 'wordpress-stat4-expression-range-current-source-next104',
