@@ -15,7 +15,7 @@ $rows = [
     ['option_id' => 10, 'blog_id' => 4, 'option_name' => 'active_plugins', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 40, 'option_value' => 'a:0:{}'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch(
     ['wp_options' => $rows],
     ["UPDATE wp_options SET (status, option_value, bytes) = ('outer', option_value || ':outer', bytes + 1) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'orphaned_cache')) RETURNING option_id, option_name, status, option_value, bytes ORDER BY option_id"],
     [

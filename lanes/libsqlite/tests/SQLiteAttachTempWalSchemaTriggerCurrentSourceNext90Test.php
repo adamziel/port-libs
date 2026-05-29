@@ -73,7 +73,7 @@ $prepared90 = [
     ['name' => 'archive.archive_cleanup'],
 ];
 
-$plan90 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90(
+$plan90 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan(
     $current90(),
     $next90(),
     $prepared ?? $prepared90,
@@ -104,7 +104,7 @@ $value90 = static function (array $data, string $path): mixed {
 
 $cases90 = [
     'status expired' => ['status', 'trigger_current_source_expired'],
-    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-current-source-next90'],
+    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-source-reprepare'],
     'trigger count' => ['trigger_count', 6],
     'active trigger count' => ['active_trigger_count', 3],
     'requires reprepare' => ['requires_reprepare', true],
@@ -123,7 +123,7 @@ $cases90 = [
     'next site cookie from committed frame' => ['schema_cookies_next.site', 9],
     'archive non page one cookie ignored' => ['schema_cookies_next.archive', 6],
     'wal cookie sources' => ['wal_schema_cookie_sources', ['main', 'site', 'archive']],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-current-source-next90'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-source-reprepare'],
     'dependency current source reset' => ['dependencies.1', 'sqlite-prepared-trigger-current-source-reset'],
     'dependency temp shadow' => ['dependencies.2', 'sqlite-temp-trigger-shadow-resolution'],
     'dependency wal cookie' => ['dependencies.3', 'sqlite-wal-page-one-schema-cookie'],
@@ -191,13 +191,13 @@ foreach ($predicateCases90 as $name => $predicate) {
 }
 
 $errorCases90 = [
-    'rejects empty prepared trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), []),
-    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['active' => true]]),
-    'rejects empty trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['name' => '']]),
-    'rejects missing current trigger' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['name' => 'missing_trigger']]),
-    'rejects non integer schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => '20']]),
-    'rejects non integer wal frame page' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => 20, 'wal_frames' => [['page' => '1']]]]),
-    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext90($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => 20, 'wal_schema_cookie' => '22']]),
+    'rejects empty prepared trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), []),
+    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['active' => true]]),
+    'rejects empty trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['name' => '']]),
+    'rejects missing current trigger' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['name' => 'missing_trigger']]),
+    'rejects non integer schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => '20']]),
+    'rejects non integer wal frame page' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => 20, 'wal_frames' => [['page' => '1']]]]),
+    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerSourceRepreparePlan($current90(), $next90(), [['name' => 'archive.archive_cleanup']], ['main' => ['schema_cookie' => 20, 'wal_schema_cookie' => '22']]),
 ];
 
 foreach ($errorCases90 as $name => $callback) {

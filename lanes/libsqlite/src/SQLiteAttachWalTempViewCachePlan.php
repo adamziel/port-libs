@@ -175,7 +175,7 @@ final class SQLiteAttachWalTempViewCachePlan
 
         return [
             'status' => 'planned',
-            'operation' => 'attach-temp-main-wal-view-cache-current-next78',
+            'operation' => 'attach-temp-main-wal-view-cache-dependency-plan',
             'source_schema' => $source,
             'view_count' => count($views),
             'views' => $viewPlans,
@@ -188,7 +188,7 @@ final class SQLiteAttachWalTempViewCachePlan
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'invalidation' => $invalidation,
             'dependencies' => [
-                'sqlite-attach-temp-main-wal-view-cache-current-next78',
+                'sqlite-attach-temp-main-wal-view-cache-dependency-plan',
                 'sqlite-view-dependency-cache-reprepare',
                 'sqlite-wal-page-one-schema-cookie',
             ],
@@ -201,14 +201,14 @@ final class SQLiteAttachWalTempViewCachePlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext82(
+    public static function preparedViewCacheRepreparePlan(
         SQLiteAttachedSchemaCatalog $catalog,
         array $preparedViews,
         array $nextSchemaRecords = [],
         array $schemaStates = [],
     ): array {
         if ($preparedViews === []) {
-            throw new \InvalidArgumentException('SQLite attach WAL temp view-cache current-source-next82 requires prepared views');
+            throw new \InvalidArgumentException('SQLite attach WAL temp view-cache reprepare requires prepared views');
         }
 
         $viewNames = [];
@@ -272,7 +272,7 @@ final class SQLiteAttachWalTempViewCachePlan
 
         return [
             'status' => $plan['requires_reprepare'] ? 'view_cache_expired' : 'view_cache_stable',
-            'operation' => 'attach-wal-temp-schema-view-cache-current-source-next82',
+            'operation' => 'attach-wal-temp-schema-view-cache-reprepare',
             'source_schema' => $primarySource,
             'source_schemas' => $sourceSchemas,
             'view_count' => count($viewNames),
@@ -291,7 +291,7 @@ final class SQLiteAttachWalTempViewCachePlan
             'wal_schema_cookie_sources' => $plan['wal_schema_cookie_sources'],
             'invalidation' => $plan['invalidation'],
             'dependencies' => array_values(array_unique(array_merge(
-                ['sqlite-attach-wal-temp-schema-view-cache-current-source-next82'],
+                ['sqlite-attach-wal-temp-schema-view-cache-reprepare'],
                 $plan['dependencies'],
                 ['sqlite-prepared-view-current-source-reset']
             ))),

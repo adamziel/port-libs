@@ -66,7 +66,7 @@ $jsonbNext100 = [
     ],
 ];
 
-$plan100 = static fn (array $current = null, array $next = null, array $constraints = null, string $function = 'json_each'): array => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100(
+$plan100 = static fn (array $current = null, array $next = null, array $constraints = null, string $function = 'json_each'): array => SQLiteJsonTablePlan::lateralCurrentSourcePlanner(
     $current ?? $current100,
     $next ?? $next100,
     'option_id',
@@ -150,11 +150,11 @@ $tests = [
     'argument transition records current json value' => static fn (TestRunner $t) => $t->same($current100[1]['option_value'], $plan100()['transitions'][1]['argumentTransitions'][0]['current']),
     'argument transition records next json value' => static fn (TestRunner $t) => $t->same($next100[0]['option_value'], $plan100()['transitions'][1]['argumentTransitions'][0]['next']),
     'argument transition marks changed' => static fn (TestRunner $t) => $t->true($plan100()['transitions'][1]['argumentTransitions'][0]['changed']),
-    'missing key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100([['option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
-    'null key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100([['option_id' => null, 'option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
-    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100([['option_id' => 1, 'option_value' => '{}'], ['option_id' => 1, 'option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
-    'missing json column is rejected through current source planner' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100([['option_id' => 1]], [['option_id' => 1, 'option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100([], [], 'option_id', 'option_value', 'json_bad')),
+    'missing key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralCurrentSourcePlanner([['option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
+    'null key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralCurrentSourcePlanner([['option_id' => null, 'option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
+    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralCurrentSourcePlanner([['option_id' => 1, 'option_value' => '{}'], ['option_id' => 1, 'option_value' => '{}']], [], 'option_id', 'option_value', 'json_each')),
+    'missing json column is rejected through current source planner' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralCurrentSourcePlanner([['option_id' => 1]], [['option_id' => 1, 'option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralCurrentSourcePlanner([], [], 'option_id', 'option_value', 'json_bad')),
 ];
 
 foreach ($tests as $name => $case) {

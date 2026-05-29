@@ -2691,16 +2691,16 @@ final class SQLiteJsonTablePlan
             $orderBy,
         );
 
-        $currentProfile = self::jsonTableGeneratedPathRowidCurrentSourceNext170Profile(
+        $currentProfile = self::jsonTableGeneratedPathRowidProfile(
             $plan['currentGeneratedPathRowidYield'],
             $plan['currentGeneratedPathRowidBestIndex'],
         );
-        $nextProfile = self::jsonTableGeneratedPathRowidCurrentSourceNext170Profile(
+        $nextProfile = self::jsonTableGeneratedPathRowidProfile(
             $plan['nextGeneratedPathRowidYield'],
             $plan['nextGeneratedPathRowidBestIndex'],
         );
-        $transitions = self::jsonTableGeneratedPathRowidCurrentSourceNext170Transitions($currentProfile, $nextProfile);
-        $reasons = self::jsonTableGeneratedPathRowidCurrentSourceNext170ReplanReasons($transitions);
+        $transitions = self::jsonTableGeneratedPathRowidTransitions($currentProfile, $nextProfile);
+        $reasons = self::jsonTableGeneratedPathRowidReplanReasons($transitions);
 
         $plan['currentGeneratedPathRowidCurrentSourceNext170'] = $currentProfile;
         $plan['nextGeneratedPathRowidCurrentSourceNext170'] = $nextProfile;
@@ -7440,7 +7440,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:array<string,mixed>,next:array<string,mixed>,constraintValueTransitions:list<array<string,mixed>>,currentRows:list<array<string,mixed>>,nextRows:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function hiddenConstraintSourceCurrentSourceNext102(
+    public static function hiddenConstraintSourceCurrentSource(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7632,7 +7632,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
      */
-    public static function lateralPlannerCurrentSourceNext100(
+    public static function lateralCurrentSourcePlanner(
         array $currentHostRows,
         array $nextHostRows,
         string $hostKeyColumn,
@@ -7653,8 +7653,8 @@ final class SQLiteJsonTablePlan
         }
 
         $function = self::normalizeFunction($function);
-        $currentByKey = self::hostRowsByKey100($currentHostRows, $hostKeyColumn, 'current');
-        $nextByKey = self::hostRowsByKey100($nextHostRows, $hostKeyColumn, 'next');
+        $currentByKey = self::hostRowsByKey($currentHostRows, $hostKeyColumn, 'current');
+        $nextByKey = self::hostRowsByKey($nextHostRows, $hostKeyColumn, 'next');
         $keys = array_values(array_unique(array_merge(array_keys($currentByKey), array_keys($nextByKey))));
 
         $current = [];
@@ -7679,8 +7679,8 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralCurrentSourceHostPlan100($currentEntry['index'], $key, $currentEntry['row'], $pair, 'current');
-                $nextPlan = self::lateralCurrentSourceHostPlan100($nextEntry['index'], $key, $nextEntry['row'], $pair, 'next');
+                $currentPlan = self::lateralCurrentSourceHostPlan($currentEntry['index'], $key, $currentEntry['row'], $pair, 'current');
+                $nextPlan = self::lateralCurrentSourceHostPlan($nextEntry['index'], $key, $nextEntry['row'], $pair, 'next');
             } elseif ($currentEntry !== null) {
                 $single = self::currentSourceConstraintPlannerNext86(
                     $function,
@@ -7691,7 +7691,7 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $currentPlan = self::lateralCurrentSourceHostPlan100($currentEntry['index'], $key, $currentEntry['row'], $single, 'current');
+                $currentPlan = self::lateralCurrentSourceHostPlan($currentEntry['index'], $key, $currentEntry['row'], $single, 'current');
             } elseif ($nextEntry !== null) {
                 $single = self::currentSourceConstraintPlannerNext86(
                     $function,
@@ -7702,7 +7702,7 @@ final class SQLiteJsonTablePlan
                     $rootColumn,
                     $orderBy,
                 );
-                $nextPlan = self::lateralCurrentSourceHostPlan100($nextEntry['index'], $key, $nextEntry['row'], $single, 'next');
+                $nextPlan = self::lateralCurrentSourceHostPlan($nextEntry['index'], $key, $nextEntry['row'], $single, 'next');
             }
 
             if ($currentPlan !== null) {
@@ -7712,7 +7712,7 @@ final class SQLiteJsonTablePlan
                 $next[] = $nextPlan;
             }
 
-            $reason = self::lateralCurrentSourceTransitionReason100($currentPlan, $nextPlan, $pair);
+            $reason = self::lateralCurrentSourceTransitionReason($currentPlan, $nextPlan, $pair);
             if ($reason !== 'stable-lateral-current-source-json-plan') {
                 $reasons[$reason] = true;
             }
@@ -7767,7 +7767,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array{function:string,hostKeyColumn:string,current:list<array<string,mixed>>,next:list<array<string,mixed>>,transitions:list<array<string,mixed>>,hostOrderTransition:array{current:list<mixed>,next:list<mixed>,changed:bool},replanRequired:bool,replanReasons:list<string>,currentReaderPolicy:string,nextReaderPolicy:string,leftJoin:bool,dependencies:list<string>}
      */
-    public static function lateralHiddenConstraintCurrentSourceNext103(
+    public static function lateralHiddenConstraintCurrentSource(
         array $currentHostRows,
         array $nextHostRows,
         string $hostKeyColumn,
@@ -7921,7 +7921,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function lateralRowidHiddenCurrentSourceNext105(
+    public static function lateralRowidHiddenCurrentSource(
         array $currentHostRows,
         array $nextHostRows,
         string $hostKeyColumn,
@@ -7932,7 +7932,7 @@ final class SQLiteJsonTablePlan
         array $orderBy = [],
         string $joinType = 'inner',
     ): array {
-        $plan = self::lateralHiddenConstraintCurrentSourceNext103(
+        $plan = self::lateralHiddenConstraintCurrentSource(
             $currentHostRows,
             $nextHostRows,
             $hostKeyColumn,
@@ -8047,7 +8047,7 @@ final class SQLiteJsonTablePlan
             $pair = null;
 
             if ($currentEntry !== null && $nextEntry !== null) {
-                $pair = self::hiddenConstraintSourceCurrentSourceNext102(
+                $pair = self::hiddenConstraintSourceCurrentSource(
                     $function,
                     $currentEntry['row'],
                     $nextEntry['row'],
@@ -8057,7 +8057,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $pair, 'current', $joinType);
                 $nextPlan = self::lateralConstraintHiddenHostPlan118($nextEntry['ordinal'], $nextEntry['row'], $pair, 'next', $joinType);
             } elseif ($currentEntry !== null) {
-                $single = self::hiddenConstraintSourceCurrentSourceNext102(
+                $single = self::hiddenConstraintSourceCurrentSource(
                     $function,
                     $currentEntry['row'],
                     $currentEntry['row'],
@@ -8067,7 +8067,7 @@ final class SQLiteJsonTablePlan
                 $currentPlan = self::lateralConstraintHiddenHostPlan118($currentEntry['ordinal'], $currentEntry['row'], $single, 'current', $joinType);
                 $nextPlan = null;
             } else {
-                $single = self::hiddenConstraintSourceCurrentSourceNext102(
+                $single = self::hiddenConstraintSourceCurrentSource(
                     $function,
                     $nextEntry['row'],
                     $nextEntry['row'],
@@ -8209,14 +8209,14 @@ final class SQLiteJsonTablePlan
      * @param list<array<string,mixed>> $hostRows
      * @return array<string,array{index:int,row:array<string,mixed>}>
      */
-    private static function hostRowsByKey100(array $hostRows, string $hostKeyColumn, string $side): array
+    private static function hostRowsByKey(array $hostRows, string $hostKeyColumn, string $side): array
     {
         $rows = [];
         foreach ($hostRows as $index => $hostRow) {
             if (!array_key_exists($hostKeyColumn, $hostRow)) {
                 throw new \InvalidArgumentException("SQLite JSON table lateral {$side} host row is missing {$hostKeyColumn}");
             }
-            $key = self::hostKey100($hostRow[$hostKeyColumn]);
+            $key = self::hostKey($hostRow[$hostKeyColumn]);
             if (isset($rows[$key])) {
                 throw new \InvalidArgumentException("SQLite JSON table lateral {$side} host key {$key} is duplicated");
             }
@@ -8226,7 +8226,7 @@ final class SQLiteJsonTablePlan
         return $rows;
     }
 
-    private static function hostKey100(mixed $value): string
+    private static function hostKey(mixed $value): string
     {
         if (is_int($value) || is_string($value)) {
             return (string) $value;
@@ -8243,7 +8243,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $pair
      * @return array<string,mixed>
      */
-    private static function lateralCurrentSourceHostPlan100(
+    private static function lateralCurrentSourceHostPlan(
         int $hostIndex,
         string $hostKey,
         array $hostRow,
@@ -8277,7 +8277,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed>|null $next
      * @param array<string,mixed>|null $pair
      */
-    private static function lateralCurrentSourceTransitionReason100(?array $current, ?array $next, ?array $pair): string
+    private static function lateralCurrentSourceTransitionReason(?array $current, ?array $next, ?array $pair): string
     {
         if ($current === null) {
             return 'next-lateral-current-source-host-row-added';
@@ -12677,7 +12677,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $bestIndex
      * @return array{sourceOptionId:int|null,sourceOptionName:string|null,sourceRoot:mixed,generatedPath:string|null,idxNum:int,idxStr:string,argvValues:list<mixed>,argvColumns:list<string>,omitColumns:list<string>,residualColumns:list<string>,orderByConsumed:bool,currentSourcePinned:bool,cursorMode:string,cursorRows:list<array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}>,cursorRowCount:int,rowidTape:list<int>,pathTape:list<string>,firstCursorRow:array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}|null,lastCursorRow:array{sequence:int,rowid:int,path:string,sourceOptionId:int|null,currentSourcePinned:bool}|null,estimatedRows:int,estimatedCost:int,costClass:string,planFingerprint:string}
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceNext170Profile(array $yield, array $bestIndex): array
+    private static function jsonTableGeneratedPathRowidProfile(array $yield, array $bestIndex): array
     {
         $argvValues = [];
         $argvColumns = [];
@@ -12701,7 +12701,7 @@ final class SQLiteJsonTablePlan
 
         $pinned = (bool) ($yield['currentSourcePinned'] ?? false);
         $residualColumns = array_values($yield['residualConstraintColumns'] ?? []);
-        $cursorMode = self::jsonTableGeneratedPathRowidCurrentSourceNext170Mode($pinned, count($rows), $residualColumns);
+        $cursorMode = self::jsonTableGeneratedPathRowidCursorMode($pinned, count($rows), $residualColumns);
         $estimatedRows = (int) ($yield['estimatedRows'] ?? 0);
         $estimatedCost = (int) ($yield['estimatedCost'] ?? 1000000);
         $idxStr = (string) ($bestIndex['idxStr'] ?? '');
@@ -12728,7 +12728,7 @@ final class SQLiteJsonTablePlan
             'lastCursorRow' => $rows === [] ? null : $rows[array_key_last($rows)],
             'estimatedRows' => $estimatedRows,
             'estimatedCost' => $estimatedCost,
-            'costClass' => self::jsonTableGeneratedPathRowidCurrentSourceNext170CostClass(
+            'costClass' => self::jsonTableGeneratedPathRowidCostClass(
                 (string) ($yield['costClass'] ?? ''),
                 $cursorMode,
                 $estimatedRows,
@@ -12750,7 +12750,7 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<string> $residualColumns
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceNext170Mode(bool $pinned, int $rows, array $residualColumns): string
+    private static function jsonTableGeneratedPathRowidCursorMode(bool $pinned, int $rows, array $residualColumns): string
     {
         if (!$pinned) {
             return 'fresh-json-table-xfilter';
@@ -12768,7 +12768,7 @@ final class SQLiteJsonTablePlan
         return 'pinned-current-source-range';
     }
 
-    private static function jsonTableGeneratedPathRowidCurrentSourceNext170CostClass(
+    private static function jsonTableGeneratedPathRowidCostClass(
         string $yieldCostClass,
         string $cursorMode,
         int $estimatedRows,
@@ -12798,7 +12798,7 @@ final class SQLiteJsonTablePlan
      * @param array<string,mixed> $next
      * @return list<array{field:string,current:mixed,next:mixed,changed:bool}>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceNext170Transitions(array $current, array $next): array
+    private static function jsonTableGeneratedPathRowidTransitions(array $current, array $next): array
     {
         return [
             ['field' => 'sourceOptionId', 'current' => $current['sourceOptionId'], 'next' => $next['sourceOptionId'], 'changed' => $current['sourceOptionId'] !== $next['sourceOptionId']],
@@ -12823,7 +12823,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{field:string,current:mixed,next:mixed,changed:bool}> $transitions
      * @return list<string>
      */
-    private static function jsonTableGeneratedPathRowidCurrentSourceNext170ReplanReasons(array $transitions): array
+    private static function jsonTableGeneratedPathRowidReplanReasons(array $transitions): array
     {
         $reasons = [];
         foreach ($transitions as $transition) {

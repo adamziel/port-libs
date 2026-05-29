@@ -8420,7 +8420,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext194(
+    public static function executeCurrentSourceDoneGate(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -8450,29 +8450,29 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentDoneCode = self::resultCodeNext194((string) ($options['current_result_code'] ?? 'SQLITE_DONE'), 'current result code');
-        $expectedDoneCode = self::resultCodeNext194((string) ($options['expected_current_result_code'] ?? 'SQLITE_DONE'), 'expected current result code');
-        $currentCookie = self::tokenNext194((string) ($options['current_source_cookie'] ?? self::sourceCookieNext194($currentView, $returning)), 'current source cookie');
-        $expectedCookie = self::tokenNext194((string) ($options['expected_current_source_cookie'] ?? self::sourceCookieNext194($currentView, $returning)), 'expected current source cookie');
-        $stepEpoch = self::tokenNext194((string) ($options['current_step_epoch'] ?? self::stepEpochNext194($base)), 'current step epoch');
-        $expectedStepEpoch = self::tokenNext194((string) ($options['expected_current_step_epoch'] ?? self::stepEpochNext194($base)), 'expected current step epoch');
+        $currentDoneCode = self::currentSourceDoneResultCode((string) ($options['current_result_code'] ?? 'SQLITE_DONE'), 'current result code');
+        $expectedDoneCode = self::currentSourceDoneResultCode((string) ($options['expected_current_result_code'] ?? 'SQLITE_DONE'), 'expected current result code');
+        $currentCookie = self::currentSourceDoneToken((string) ($options['current_source_cookie'] ?? self::currentSourceDoneCookie($currentView, $returning)), 'current source cookie');
+        $expectedCookie = self::currentSourceDoneToken((string) ($options['expected_current_source_cookie'] ?? self::currentSourceDoneCookie($currentView, $returning)), 'expected current source cookie');
+        $stepEpoch = self::currentSourceDoneToken((string) ($options['current_step_epoch'] ?? self::currentSourceDoneStepEpoch($base)), 'current step epoch');
+        $expectedStepEpoch = self::currentSourceDoneToken((string) ($options['expected_current_step_epoch'] ?? self::currentSourceDoneStepEpoch($base)), 'expected current step epoch');
 
         $doneMatches = hash_equals($expectedDoneCode, $currentDoneCode) && $currentDoneCode === 'SQLITE_DONE';
         $cookieMatches = hash_equals($expectedCookie, $currentCookie);
         $epochMatches = hash_equals($expectedStepEpoch, $stepEpoch);
         $baseExposed = (bool) ($base['next_source_exposed_after_resume_source'] ?? false);
         $admitNext = $baseExposed && $doneMatches && $cookieMatches && $epochMatches;
-        $blockReasons = self::blockReasonsNext194($base['block_reasons'] ?? [], $baseExposed, $doneMatches, $cookieMatches, $epochMatches);
+        $blockReasons = self::currentSourceDoneBlockReasons($base['block_reasons'] ?? [], $baseExposed, $doneMatches, $cookieMatches, $epochMatches);
 
-        $currentRows = self::rowsNext194($base['current_source_rows'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext194($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
-        $gatedCurrentRows = self::tagRowsNext194($currentRows, $currentDoneCode, $currentCookie, $stepEpoch, true, []);
-        $gatedNextRows = self::tagRowsNext194($nextRows, $currentDoneCode, $currentCookie, $stepEpoch, $admitNext, $blockReasons);
+        $currentRows = self::currentSourceDoneRows($base['current_source_rows'] ?? [], 'current source rows');
+        $nextRows = self::currentSourceDoneRows($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
+        $gatedCurrentRows = self::tagCurrentSourceDoneRows($currentRows, $currentDoneCode, $currentCookie, $stepEpoch, true, []);
+        $gatedNextRows = self::tagCurrentSourceDoneRows($nextRows, $currentDoneCode, $currentCookie, $stepEpoch, $admitNext, $blockReasons);
         $visibleRows = array_values(array_filter(array_merge($gatedCurrentRows, $gatedNextRows), static fn (array $row): bool => $row['visible_after_current_done_next194']));
         $heldRows = array_values(array_filter($gatedNextRows, static fn (array $row): bool => !$row['visible_after_current_done_next194']));
 
         return [
-            'status' => self::statusNext194($admitNext, $baseExposed, $doneMatches, $cookieMatches, $epochMatches),
+            'status' => self::currentSourceDoneStatus($admitNext, $baseExposed, $doneMatches, $cookieMatches, $epochMatches),
             'base' => $base,
             'current_result_code_next194' => $currentDoneCode,
             'expected_current_result_code_next194' => $expectedDoneCode,
@@ -8528,7 +8528,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockReasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext194(array $rows, string $resultCode, string $cookie, string $epoch, bool $visible, array $blockReasons): array
+    private static function tagCurrentSourceDoneRows(array $rows, string $resultCode, string $cookie, string $epoch, bool $visible, array $blockReasons): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -8547,7 +8547,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext194(mixed $rows, string $label): array
+    private static function currentSourceDoneRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next194 {$label} must be a list");
@@ -8565,7 +8565,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockReasonsNext194(mixed $baseReasons, bool $baseExposed, bool $doneMatches, bool $cookieMatches, bool $epochMatches): array
+    private static function currentSourceDoneBlockReasons(mixed $baseReasons, bool $baseExposed, bool $doneMatches, bool $cookieMatches, bool $epochMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next194 base block reasons must be a list');
@@ -8588,7 +8588,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext194(bool $admitted, bool $baseExposed, bool $doneMatches, bool $cookieMatches, bool $epochMatches): string
+    private static function currentSourceDoneStatus(bool $admitted, bool $baseExposed, bool $doneMatches, bool $cookieMatches, bool $epochMatches): string
     {
         if ($admitted) {
             return 'trigger-recursive-view-returning-current-source-next194-next-exposed';
@@ -8612,7 +8612,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<string|array{expr:string,as?:string}|callable> $returning
      */
-    private static function sourceCookieNext194(array $view, array $returning): string
+    private static function currentSourceDoneCookie(array $view, array $returning): string
     {
         $material = [
             (string) ($view['name'] ?? ''),
@@ -8627,7 +8627,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $base
      */
-    private static function stepEpochNext194(array $base): string
+    private static function currentSourceDoneStepEpoch(array $base): string
     {
         $resumePlan = is_array($base['resume_plan'] ?? null) ? $base['resume_plan'] : [];
         $material = [
@@ -8640,7 +8640,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'epoch194:' . substr(hash('sha256', implode('|', $material)), 0, 16);
     }
 
-    private static function resultCodeNext194(string $value, string $label): string
+    private static function currentSourceDoneResultCode(string $value, string $label): string
     {
         if (!in_array($value, ['SQLITE_ROW', 'SQLITE_DONE', 'SQLITE_BUSY', 'SQLITE_SCHEMA', 'SQLITE_ERROR'], true)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next194 {$label} is malformed");
@@ -8649,7 +8649,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext194(string $value, string $label): string
+    private static function currentSourceDoneToken(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next194 {$label} is malformed");
@@ -9308,7 +9308,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext194(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDoneGate(
             $baseRows,
             $currentInput,
             $nextInput,

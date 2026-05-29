@@ -60,7 +60,7 @@ $constraints105 = [
     ['column' => 'type', 'operator' => '=', 'value' => 'object'],
 ];
 
-$plan105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105(
+$plan105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource(
     $current105,
     $next105,
     'option_id',
@@ -72,7 +72,7 @@ $plan105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrent
     'left',
 );
 
-$stableReorder105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105(
+$stableReorder105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource(
     $current105,
     [$current105[2], $current105[0], $current105[1]],
     'option_id',
@@ -84,7 +84,7 @@ $stableReorder105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHidd
     'left',
 );
 
-$oidPlan105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105(
+$oidPlan105 = static fn (): array => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource(
     $current105,
     $next105,
     'option_id',
@@ -157,14 +157,14 @@ $tests = [
     'oid plan gamma jsonb source remains stable rowids' => static fn (TestRunner $t) => $t->same([1, 2, 3], $oidPlan105()['rowidTransitions'][2]['nextRowids']),
     'inner oid plan does not null extend beta current' => static fn (TestRunner $t) => $t->same(false, $oidPlan105()['current'][1]['nullExtended']),
     'inner oid plan beta rowids are empty' => static fn (TestRunner $t) => $t->same([], $oidPlan105()['rowidTransitions'][1]['currentRowids']),
-    'missing current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105([['option_value' => '{}']], $next105, 'option_id', 'option_value', 'json_each')),
-    'missing next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, [['option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
-    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105([$current105[0], $current105[0]], $next105, 'option_id', 'option_value', 'json_each')),
-    'duplicate next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, [$next105[0], $next105[0]], 'option_id', 'option_value', 'json_each')),
-    'empty key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, $next105, '', 'option_value', 'json_each')),
-    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, $next105, 'option_id', '', 'json_each')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, $next105, 'option_id', 'option_value', 'json_bad')),
-    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSourceNext105($current105, $next105, 'option_id', 'option_value', 'json_each', [], null, [], 'outer')),
+    'missing current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource([['option_value' => '{}']], $next105, 'option_id', 'option_value', 'json_each')),
+    'missing next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, [['option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
+    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource([$current105[0], $current105[0]], $next105, 'option_id', 'option_value', 'json_each')),
+    'duplicate next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, [$next105[0], $next105[0]], 'option_id', 'option_value', 'json_each')),
+    'empty key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, $next105, '', 'option_value', 'json_each')),
+    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, $next105, 'option_id', '', 'json_each')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, $next105, 'option_id', 'option_value', 'json_bad')),
+    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralRowidHiddenCurrentSource($current105, $next105, 'option_id', 'option_value', 'json_each', [], null, [], 'outer')),
 ];
 
 foreach ($tests as $name => $case) {

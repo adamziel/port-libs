@@ -24,7 +24,7 @@ $before = [
     3 => $page('next197 stale active_plugins page before member source'),
 ];
 
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext197(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::masterJournalMemberSourceFence(
     $databasePath,
     $masterJournalPath,
     $masterJournalBytes,

@@ -68,7 +68,7 @@ $states82 = static fn (): array => [
     'archive' => ['schema_cookie' => 4, 'wal_frames' => [['page' => 2, 'schema_cookie' => 99, 'commit' => true]]],
 ];
 
-$plan82 = static fn (array $views, array $next = [], ?array $states = null): array => SQLiteAttachWalTempViewCachePlan::currentSourceNext82(
+$plan82 = static fn (array $views, array $next = [], ?array $states = null): array => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan(
     $catalog82(),
     $views,
     $next,
@@ -122,7 +122,7 @@ $value82 = static function (array $data, string $path): mixed {
 
 $pathCases82 = [
     'stable status' => [$stable82, 'status', 'view_cache_stable'],
-    'stable operation' => [$stable82, 'operation', 'attach-wal-temp-schema-view-cache-current-source-next82'],
+    'stable operation' => [$stable82, 'operation', 'attach-wal-temp-schema-view-cache-reprepare'],
     'stable source main' => [$stable82, 'source_schema', 'main'],
     'stable view count' => [$stable82, 'view_count', 2],
     'stable active count' => [$stable82, 'active_view_count', 1],
@@ -132,7 +132,7 @@ $pathCases82 = [
     'stable archive source tracked' => [$stable82, 'source_schemas.archive.archived_options', 'archive'],
     'stable wal sources preserved' => [$stable82, 'wal_schema_cookie_sources', ['main', 'site', 'archive']],
     'stable site page one cookie' => [$stable82, 'schema_cookies_next.site', 9],
-    'stable dependency marker' => [$stable82, 'dependencies.0', 'sqlite-attach-wal-temp-schema-view-cache-current-source-next82'],
+    'stable dependency marker' => [$stable82, 'dependencies.0', 'sqlite-attach-wal-temp-schema-view-cache-reprepare'],
 
     'main change status expired' => [$mainChanged82, 'status', 'view_cache_expired'],
     'main change active current source' => [$mainChanged82, 'active_current_snapshot_views', ['main.autoloaded_options']],
@@ -208,11 +208,11 @@ $predicateCases82 = [
         $records = $catalog->schemaRecords('main');
         $records[] = $record82('view', 'constant_view', 'constant_view', 0, 'CREATE VIEW main.constant_view AS SELECT 1 AS one', 200);
         $catalog->replaceSchemaRecords('main', $records);
-        $plan = SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog, [['name' => 'constant_view', 'source' => 'main', 'active' => true]]);
+        $plan = SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog, [['name' => 'constant_view', 'source' => 'main', 'active' => true]]);
         return $plan['views']['constant_view']['dependency_tables_before'] === [];
     },
     'quoted attached view source is normalized' => static function () use ($catalog82): bool {
-        $plan = SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'site.site_options', 'source' => '"site"']]);
+        $plan = SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'site.site_options', 'source' => '"site"']]);
         return $plan['source_schemas']['site.site_options'] === 'site';
     },
 ];
@@ -224,14 +224,14 @@ foreach ($predicateCases82 as $name => $predicate) {
 }
 
 $errorCases82 = [
-    'rejects empty prepared view list' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), []),
-    'rejects missing view name' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['source' => 'main']]),
-    'rejects empty view name' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => '']]),
-    'rejects missing source schema' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'autoloaded_options', 'source' => 'missing']]),
-    'rejects replacement missing schema' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'autoloaded_options']], ['missing' => []]),
-    'rejects non integer schema cookie' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => '12']]),
-    'rejects non integer wal frame page' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => 12, 'wal_frames' => [['page' => '1']]]]),
-    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => 12, 'wal_schema_cookie' => '13']]),
+    'rejects empty prepared view list' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), []),
+    'rejects missing view name' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['source' => 'main']]),
+    'rejects empty view name' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => '']]),
+    'rejects missing source schema' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'autoloaded_options', 'source' => 'missing']]),
+    'rejects replacement missing schema' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'autoloaded_options']], ['missing' => []]),
+    'rejects non integer schema cookie' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => '12']]),
+    'rejects non integer wal frame page' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => 12, 'wal_frames' => [['page' => '1']]]]),
+    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog82(), [['name' => 'autoloaded_options']], [], ['main' => ['schema_cookie' => 12, 'wal_schema_cookie' => '13']]),
 ];
 
 foreach ($errorCases82 as $name => $callback) {

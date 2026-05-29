@@ -76,7 +76,7 @@ $value96 = static function (array $data, string $path): mixed {
 
 $pathCases96 = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation remains source cookie plan' => ['operation', 'attach-wal-temp-schema-cookie-current-source-next87'],
+    'operation remains source cookie plan' => ['operation', 'attach-wal-temp-schema-cookie-source'],
     'global source main' => ['source', 'main'],
     'search order unchanged' => ['search_order', ['temp', 'main', 'archive', 'network']],
     'current temp cookie' => ['schema_cookies_current.temp', 5],
@@ -123,7 +123,7 @@ $pathCases96 = [
     'quoted source normalized' => ['statements.7.prepare_source_schema', 'archive'],
     'quoted source archive stable object schema' => ['statements.7.schema_transitions.0.prepare_schema', 'archive'],
     'database list archive next cookie' => ['database_list.2.next_schema_cookie', 14],
-    'dependency source marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cookie-current-source-next87'],
+    'dependency source marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cookie-source'],
 ];
 
 foreach ($pathCases96 as $name => [$path, $expected]) {

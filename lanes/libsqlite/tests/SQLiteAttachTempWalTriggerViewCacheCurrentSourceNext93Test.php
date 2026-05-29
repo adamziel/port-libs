@@ -50,7 +50,7 @@ $tempNext93 = static fn (int $root): array => [
     $record93('trigger', 'temp_autoloaded_options_io_update', 'autoloaded_options', 0, "CREATE TEMP TRIGGER temp_autoloaded_options_io_update INSTEAD OF UPDATE ON autoloaded_options BEGIN UPDATE wp_options SET option_value = new.option_value WHERE option_id = old.option_id; END", $root + 3),
 ];
 
-$triggerPlan93 = static fn (): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89(
+$triggerPlan93 = static fn (): array => SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan(
     $catalog93(),
     [
         ['name' => '[site].[site_autoloaded_options_io_update]', 'source' => '[site]', 'active' => true],
@@ -65,7 +65,7 @@ $triggerPlan93 = static fn (): array => SQLiteAttachTempWalSchemaTriggerPlan::cu
     ],
 );
 
-$viewPlan93 = static fn (): array => SQLiteAttachWalTempViewCachePlan::currentSourceNext82(
+$viewPlan93 = static fn (): array => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan(
     $catalog93(),
     [
         ['name' => '[site].[autoloaded_options]', 'source' => '[site]', 'active' => true],
@@ -105,7 +105,7 @@ $value93 = static function (array $data, string $path): mixed {
 
 $cases93 = [
     'trigger status expired' => [$triggerPlan93, 'status', 'trigger_cache_expired'],
-    'trigger operation stays accepted engine' => [$triggerPlan93, 'operation', 'attach-wal-temp-trigger-cache-current-source-next89'],
+    'trigger operation stays accepted engine' => [$triggerPlan93, 'operation', 'attach-wal-temp-trigger-cookie-cache'],
     'trigger primary source unquoted' => [$triggerPlan93, 'source_schema', 'site'],
     'trigger count' => [$triggerPlan93, 'trigger_count', 3],
     'trigger active count' => [$triggerPlan93, 'active_trigger_count', 1],
@@ -136,7 +136,7 @@ $cases93 = [
     'trigger temp reusable action' => [$triggerPlan93, 'triggers.[temp_autoloaded_options_io_update].next_step_action', 'reuse_prepared_trigger_current_and_next_source'],
 
     'view status expired' => [$viewPlan93, 'status', 'view_cache_expired'],
-    'view operation stays accepted engine' => [$viewPlan93, 'operation', 'attach-wal-temp-schema-view-cache-current-source-next82'],
+    'view operation stays accepted engine' => [$viewPlan93, 'operation', 'attach-wal-temp-schema-view-cache-reprepare'],
     'view primary source unquoted' => [$viewPlan93, 'source_schema', 'site'],
     'view count' => [$viewPlan93, 'view_count', 3],
     'view active count' => [$viewPlan93, 'active_view_count', 1],
@@ -158,7 +158,7 @@ $cases93 = [
     'view site source schema' => [$viewPlan93, 'views.[site].[autoloaded_options].source_schema', 'site'],
     'view site reusable action' => [$viewPlan93, 'views.[site].[autoloaded_options].next_step_action', 'reuse_prepared_view'],
     'view main source schema' => [$viewPlan93, 'views.[main].[autoloaded_options].source_schema', 'main'],
-    'view dependency marker' => [$viewPlan93, 'dependencies.0', 'sqlite-attach-wal-temp-schema-view-cache-current-source-next82'],
+    'view dependency marker' => [$viewPlan93, 'dependencies.0', 'sqlite-attach-wal-temp-schema-view-cache-reprepare'],
 ];
 
 $tests = [];
@@ -169,13 +169,13 @@ foreach ($cases93 as $name => [$factory, $path, $expected]) {
 }
 
 $tests['attach temp wal trigger view cache current source next93 rejects empty bracket source'] = static function (TestRunner $t) use ($catalog93): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89($catalog93(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan($catalog93(), [
         ['name' => '[main].[autoloaded_options_io_update]', 'source' => '[]'],
     ]));
 };
 
 $tests['attach temp wal trigger view cache current source next93 rejects empty bracket view source'] = static function (TestRunner $t) use ($catalog93): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempViewCachePlan::currentSourceNext82($catalog93(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempViewCachePlan::preparedViewCacheRepreparePlan($catalog93(), [
         ['name' => '[main].[autoloaded_options]', 'source' => '[]'],
     ]));
 };

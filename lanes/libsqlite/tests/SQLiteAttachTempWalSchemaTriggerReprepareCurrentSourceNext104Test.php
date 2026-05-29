@@ -76,7 +76,7 @@ $prepared104 = static fn (): array => [
     ['name' => 'archive.archive_options_ai'],
 ];
 
-$plan104 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104(
+$plan104 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan(
     $current104(),
     $next104(),
     $prepared ?? $prepared104(),
@@ -106,9 +106,9 @@ $value104 = static function (array $data, string $path): mixed {
 };
 
 $pathCases104 = [
-    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-reprepare-current-source-next104'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-reprepare-current-source-next104'],
-    'retains next90 dependency' => ['dependencies.1', 'sqlite-attach-temp-wal-schema-trigger-current-source-next90'],
+    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-body-dependency-reprepare'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-body-dependency-reprepare'],
+    'retains next90 dependency' => ['dependencies.1', 'sqlite-attach-temp-wal-schema-trigger-source-reprepare'],
     'status expired' => ['status', 'trigger_body_dependency_expired'],
     'trigger count' => ['trigger_count', 6],
     'active trigger count' => ['active_trigger_count', 2],
@@ -163,7 +163,7 @@ $predicateCases104 = [
     'non temp trigger ignores temp body shadow for unqualified table' => static fn (): bool => $plan104()['triggers']['main.main_options_meta']['body_dependency_resolution']['changed'] === false,
     'qualified archive dependency does not follow temp shadow' => static fn (): bool => $plan104()['triggers']['archive.archive_options_ai']['body_dependency_resolution']['next'][0]['resolved_schema'] === 'archive',
     'stable only plan reports stable status' => static fn (): bool => $plan104([['name' => 'archive.archive_options_ai']])['status'] === 'trigger_body_dependency_stable',
-    'stable only keeps dependency marker' => static fn (): bool => $plan104([['name' => 'archive.archive_options_ai']])['dependencies'][0] === 'sqlite-attach-temp-wal-schema-trigger-reprepare-current-source-next104',
+    'stable only keeps dependency marker' => static fn (): bool => $plan104([['name' => 'archive.archive_options_ai']])['dependencies'][0] === 'sqlite-attach-temp-wal-schema-trigger-body-dependency-reprepare',
     'uncommitted wal schema cookie frame is ignored' => static function () use ($plan104, $states104): bool {
         $states = $states104();
         unset($states['main']['wal_schema_cookie']);
@@ -187,7 +187,7 @@ $predicateCases104 = [
             $record104('table', 'wp_options', 'wp_options', 2, 'CREATE TABLE main.wp_options(option_id integer)', 1),
             $record104('trigger', 'main_missing', 'wp_options', 0, 'CREATE TRIGGER main.main_missing AFTER INSERT ON wp_options BEGIN SELECT * FROM wp_missing; END', 2),
         ]);
-        $plan = SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current, $next, [['name' => 'main.main_missing']]);
+        $plan = SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current, $next, [['name' => 'main.main_missing']]);
         return $plan['triggers']['main.main_missing']['body_dependency_resolution']['current'][0]['found'] === false
             && $plan['status'] === 'trigger_body_dependency_stable';
     },
@@ -203,7 +203,7 @@ $predicateCases104 = [
             $record104('table', 'wp_missing', 'wp_missing', 4, 'CREATE TEMP TABLE wp_missing(option_id integer)', 2),
             $record104('trigger', 'temp_missing', 'wp_options', 0, 'CREATE TEMP TRIGGER temp_missing AFTER INSERT ON main.wp_options BEGIN SELECT * FROM wp_missing; END', 3),
         ]);
-        $plan = SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current, $next, [['name' => 'temp_missing']]);
+        $plan = SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current, $next, [['name' => 'temp_missing']]);
         return $plan['triggers']['temp_missing']['body_dependency_resolution']['next'][0]['found'] === true
             && $plan['body_dependency_expired_triggers'] === ['temp_missing'];
     },
@@ -216,10 +216,10 @@ foreach ($predicateCases104 as $name => $predicate) {
 }
 
 $errorCases104 = [
-    'rejects empty trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current104(), $next104(), []),
-    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current104(), $next104(), [['active' => true]]),
-    'rejects missing trigger record' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current104(), $next104(), [['name' => 'missing']]),
-    'rejects bad schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext104($current104(), $next104(), [['name' => 'archive.archive_options_ai']], ['main' => ['schema_cookie' => '12']]),
+    'rejects empty trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current104(), $next104(), []),
+    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current104(), $next104(), [['active' => true]]),
+    'rejects missing trigger record' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current104(), $next104(), [['name' => 'missing']]),
+    'rejects bad schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerBodyDependencyRepreparePlan($current104(), $next104(), [['name' => 'archive.archive_options_ai']], ['main' => ['schema_cookie' => '12']]),
 ];
 
 foreach ($errorCases104 as $name => $callback) {

@@ -26,7 +26,7 @@ $nextView['source'] = 'main@view-cookie-194-next';
 $nextView['trigger_source'] = 'main@trigger-cookie-194-next';
 $nextView['audit_label'] = 'next-recursive-view-trigger-194';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext194(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDoneGate(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],

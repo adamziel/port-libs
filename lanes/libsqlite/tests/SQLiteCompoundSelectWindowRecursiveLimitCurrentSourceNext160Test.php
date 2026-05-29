@@ -42,21 +42,21 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary160 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160($sql160, $currentTables160, $nextTables160);
+$summary160 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaLimitWindow($sql160, $currentTables160, $nextTables160);
 $tests = [];
 
-$tests['compound select window recursive limit current source next160 status dependencies'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window status dependencies'] = static function (TestRunner $t) use ($summary160): void {
     $plan = $summary160();
-    $t->same('compound-select-window-recursive-limit-current-source-next160-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-recursive-comma-limit-window-ready', $plan['status']);
     $t->same([
         'sqlite-select-sql-recursive-cte-comma-limit-offset',
         'sqlite-select-sql-window-arm-evaluation',
         'sqlite-select-sql-compound-final-limit',
-        'sqlite-current-source-next160',
+        'sqlite-current-source-recursive-comma-limit-window',
     ], $plan['dependencies']);
 };
 
-$tests['compound select window recursive limit current source next160 compound metadata'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window compound metadata'] = static function (TestRunner $t) use ($summary160): void {
     $compound = $summary160()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -66,21 +66,21 @@ $tests['compound select window recursive limit current source next160 compound m
     $t->same(1, $compound['offset']);
 };
 
-$tests['compound select window recursive limit current source next160 current rows'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window current rows'] = static function (TestRunner $t) use ($summary160): void {
     $rows = $summary160()['currentRows'];
     $t->same([2, 2, 3, 3, 4], array_column($rows, 'id'));
     $t->same(['seed:2', 'home', 'seed:3', 'blogname', 'seed:4'], array_column($rows, 'label'));
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'rank'));
 };
 
-$tests['compound select window recursive limit current source next160 next rows'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window next rows'] = static function (TestRunner $t) use ($summary160): void {
     $rows = $summary160()['nextRows'];
     $t->same([5, 1, 3, 2, 4], array_column($rows, 'id'));
     $t->same(['rewrite_rules', 'siteurl', 'seed:3', 'home', 'seed:4'], array_column($rows, 'label'));
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'rank'));
 };
 
-$tests['compound select window recursive limit current source next160 recursive comma limit trace'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window recursive comma limit trace'] = static function (TestRunner $t) use ($summary160): void {
     $recursive = $summary160()['recursive'];
     $t->same('staged', $recursive['name']);
     $t->same(['id', 'label', 'weight'], $recursive['columns']);
@@ -92,7 +92,7 @@ $tests['compound select window recursive limit current source next160 recursive 
     $t->same(0, $recursive['currentFinalOffsetRemaining']);
 };
 
-$tests['compound select window recursive limit current source next160 window metadata'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window window metadata'] = static function (TestRunner $t) use ($summary160): void {
     $windows = $summary160()['windows']['current'];
     $t->same(['row_number', 'row_number'], array_column($windows, 'function'));
     $t->same(['rank', 'rank'], array_column($windows, 'alias'));
@@ -100,7 +100,7 @@ $tests['compound select window recursive limit current source next160 window met
     $t->same([1, 2], array_column($windows, 'orderCount'));
 };
 
-$tests['compound select window recursive limit current source next160 limit trace'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window limit trace'] = static function (TestRunner $t) use ($summary160): void {
     $trace = $summary160()['limitTrace'];
     $t->same(7, $trace['current']['preLimitCount']);
     $t->same(9, $trace['next']['preLimitCount']);
@@ -110,7 +110,7 @@ $tests['compound select window recursive limit current source next160 limit trac
     $t->same(['blogname', 'seed:5', 'theme_mods'], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit current source next160 changed signatures reasons'] = static function (TestRunner $t) use ($summary160): void {
+$tests['compound select window recursive limit current source recursive-comma-limit-window changed signatures reasons'] = static function (TestRunner $t) use ($summary160): void {
     $plan = $summary160();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->contains('"label":"rewrite_rules"', $changed);
@@ -121,24 +121,24 @@ $tests['compound select window recursive limit current source next160 changed si
     $t->true(in_array('window-before-compound-final-limit', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit current source next160 rejects missing comma recursive limit'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
+$tests['compound select window recursive limit current source recursive-comma-limit-window rejects missing comma recursive limit'] = static function (TestRunner $t) use ($currentTables160): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaLimitWindow(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight DESC) FROM wp_options LIMIT 2",
         $currentTables160,
         $currentTables160,
     ));
 };
 
-$tests['compound select window recursive limit current source next160 rejects non compound'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
+$tests['compound select window recursive limit current source recursive-comma-limit-window rejects non compound'] = static function (TestRunner $t) use ($currentTables160): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaLimitWindow(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 1, 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged LIMIT 2",
         $currentTables160,
         $currentTables160,
     ));
 };
 
-$tests['compound select window recursive limit current source next160 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables160): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
+$tests['compound select window recursive limit current source recursive-comma-limit-window rejects missing final limit'] = static function (TestRunner $t) use ($currentTables160): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaLimitWindow(
         "WITH RECURSIVE staged(id, label, weight) AS (VALUES (1, 'seed', 22) UNION ALL SELECT id + 1, 'seed:' || (id + 1), weight - 3 FROM staged WHERE id < 7 LIMIT 1, 4) SELECT id, label, row_number() OVER (ORDER BY id) AS rank FROM staged UNION ALL SELECT option_id, option_name, row_number() OVER (ORDER BY weight DESC) FROM wp_options ORDER BY rank",
         $currentTables160,
         $currentTables160,
@@ -146,7 +146,7 @@ $tests['compound select window recursive limit current source next160 rejects mi
 };
 
 foreach (range(1, 58) as $case) {
-    $tests['compound select window recursive limit current source next160 generated comma limit boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current source recursive-comma-limit-window generated comma limit boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveOffset = 1 + ($case % 2);
         $recursiveCount = 3 + ($case % 3);
         $finalLimit = 3 + ($case % 4);

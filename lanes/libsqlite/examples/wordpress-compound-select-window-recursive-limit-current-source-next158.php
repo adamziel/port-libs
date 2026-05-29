@@ -46,9 +46,9 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimitOffset($sql, $currentTables, $nextTables);
 $result = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next158',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-window-recursive-limit-offset',
     'sqlShape' => 'WITH RECURSIVE queue LIMIT/OFFSET feeding windowed compound SELECT with final ORDER BY/LIMIT/OFFSET',
     'wordpressUse' => 'Copied wp_options import previews can skip a recursive seed row, rank recursive and option-source rows with window functions, then apply the final compound SELECT boundary before showing current-source/next changes.',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
@@ -72,7 +72,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "missing recursive offset reason\n");
         exit(1);
     }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next158 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-window-recursive-limit-offset self-test passed\n";
 }
 
 return $result;

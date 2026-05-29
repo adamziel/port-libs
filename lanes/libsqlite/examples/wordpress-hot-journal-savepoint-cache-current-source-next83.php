@@ -10,7 +10,7 @@ use PortLibs\LibSqlite\SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan;
 $pageSize = 64;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(
+$plan = SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(
     $pageSize,
     'wp_plugin_import',
     [

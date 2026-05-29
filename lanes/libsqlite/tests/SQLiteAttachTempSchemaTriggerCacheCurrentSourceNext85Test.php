@@ -73,7 +73,7 @@ $states85 = static fn (): array => [
     'archive' => ['schema_cookie' => 5, 'wal_frames' => [['page' => 2, 'schema_cookie' => 99, 'commit' => true]]],
 ];
 
-$plan85 = static fn (array $triggers, array $next = [], ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85(
+$plan85 = static fn (array $triggers, array $next = [], ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan(
     $catalog85(),
     $triggers,
     $next,
@@ -125,7 +125,7 @@ $value85 = static function (array $data, string $path): mixed {
 
 $pathCases85 = [
     'stable status' => [$stable85, 'status', 'trigger_cache_stable'],
-    'stable operation' => [$stable85, 'operation', 'attach-temp-schema-trigger-cache-current-source-next85'],
+    'stable operation' => [$stable85, 'operation', 'attach-temp-schema-trigger-cache-reprepare'],
     'stable source main' => [$stable85, 'source_schema', 'main'],
     'stable trigger count' => [$stable85, 'trigger_count', 2],
     'stable active count' => [$stable85, 'active_trigger_count', 1],
@@ -135,7 +135,7 @@ $pathCases85 = [
     'stable archive source tracked' => [$stable85, 'source_schemas.archive.archive_cleanup', 'archive'],
     'stable wal sources preserved' => [$stable85, 'wal_schema_cookie_sources', ['main', 'site', 'archive']],
     'stable site page one cookie' => [$stable85, 'schema_cookies_next.site', 9],
-    'stable dependency marker' => [$stable85, 'dependencies.0', 'sqlite-attach-temp-schema-trigger-cache-current-source-next85'],
+    'stable dependency marker' => [$stable85, 'dependencies.0', 'sqlite-attach-temp-schema-trigger-cache-reprepare'],
 
     'main change status expired' => [$mainChanged85, 'status', 'trigger_cache_expired'],
     'main change active current source' => [$mainChanged85, 'active_current_snapshot_triggers', ['main.options_ai']],
@@ -206,7 +206,7 @@ $predicateCases85 = [
         return $plan85([['name' => 'site.site_options_ai', 'source' => 'site']], [], $states)['schema_cookies_next']['site'] === 55;
     },
     'quoted attached trigger source is normalized' => static function () use ($catalog85): bool {
-        $plan = SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'site.site_options_ai', 'source' => '"site"']]);
+        $plan = SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'site.site_options_ai', 'source' => '"site"']]);
         return $plan['source_schemas']['site.site_options_ai'] === 'site';
     },
 ];
@@ -218,15 +218,15 @@ foreach ($predicateCases85 as $name => $predicate) {
 }
 
 $errorCases85 = [
-    'rejects empty prepared trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), []),
-    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['source' => 'main']]),
-    'rejects empty trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => '']]),
-    'rejects missing trigger' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'missing_trigger']]),
-    'rejects missing source schema' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'options_ai', 'source' => 'missing']]),
-    'rejects replacement missing schema' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'options_ai']], ['missing' => []]),
-    'rejects non integer schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => '12']]),
-    'rejects non integer wal frame page' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => 12, 'wal_frames' => [['page' => '1']]]]),
-    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext85($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => 12, 'wal_schema_cookie' => '13']]),
+    'rejects empty prepared trigger list' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), []),
+    'rejects missing trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['source' => 'main']]),
+    'rejects empty trigger name' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => '']]),
+    'rejects missing trigger' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'missing_trigger']]),
+    'rejects missing source schema' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'options_ai', 'source' => 'missing']]),
+    'rejects replacement missing schema' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'options_ai']], ['missing' => []]),
+    'rejects non integer schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => '12']]),
+    'rejects non integer wal frame page' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => 12, 'wal_frames' => [['page' => '1']]]]),
+    'rejects non integer wal schema cookie' => static fn () => SQLiteAttachTempWalSchemaTriggerPlan::triggerCacheRepreparePlan($catalog85(), [['name' => 'options_ai']], [], ['main' => ['schema_cookie' => 12, 'wal_schema_cookie' => '13']]),
 ];
 
 foreach ($errorCases85 as $name => $callback) {

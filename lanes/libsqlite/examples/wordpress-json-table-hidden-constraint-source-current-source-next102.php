@@ -21,7 +21,7 @@ $next = [
     'target_type' => 'true',
 ];
 
-$plan = SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSourceNext102(
+$plan = SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSource(
     'json_tree',
     $current,
     $next,

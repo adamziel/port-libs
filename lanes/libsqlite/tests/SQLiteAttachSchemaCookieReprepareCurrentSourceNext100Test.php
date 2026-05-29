@@ -78,7 +78,7 @@ $events100 = static fn (): array => [
     ['op' => 'detach', 'schema' => 'archive'],
 ];
 
-$plan100 = static fn (?array $schemas = null, ?array $statements = null, ?array $events = null, string $source = 'main'): array => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100(
+$plan100 = static fn (?array $schemas = null, ?array $statements = null, ?array $events = null, string $source = 'main'): array => SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan(
     $schemas ?? $schemas100(),
     $statements ?? $statements100(),
     $events ?? $events100(),
@@ -100,8 +100,8 @@ $value100 = static function (array $data, string $path): mixed {
 };
 
 $pathCases100 = [
-    'operation marker' => ['operation', 'attach-schema-cookie-reprepare-current-source-next100'],
-    'next100 dependency first' => ['dependencies.0', 'sqlite-attach-schema-cookie-reprepare-current-source-next100'],
+    'operation marker' => ['operation', 'attach-schema-cookie-reprepare'],
+    'next100 dependency first' => ['dependencies.0', 'sqlite-attach-schema-cookie-reprepare'],
     'retains base dependency' => ['dependencies.1', 'sqlite-attach-schema-cookie-reprepare-current-source-next84'],
     'status expired' => ['status', 'schema_cache_expired'],
     'statement count' => ['statement_count', 8],
@@ -159,7 +159,7 @@ foreach ($pathCases100 as $name => [$path, $expected]) {
 }
 
 $tests['attach schema cookie reprepare current source next100 cte alias alone is not a schema dependency'] = static function (TestRunner $t) use ($schemas100): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'site-only', 'sql' => 'WITH c AS (SELECT option_name FROM [site].[wp_2_options]) SELECT option_name FROM c'],
     ], [
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 103],
@@ -171,7 +171,7 @@ $tests['attach schema cookie reprepare current source next100 cte alias alone is
 };
 
 $tests['attach schema cookie reprepare current source next100 cte body main table expires on main cookie'] = static function (TestRunner $t) use ($schemas100): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'main-body', 'sql' => 'WITH c AS (SELECT option_name FROM [main].[wp_options]) SELECT option_name FROM c'],
     ], [
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 103],
@@ -182,7 +182,7 @@ $tests['attach schema cookie reprepare current source next100 cte body main tabl
 };
 
 $tests['attach schema cookie reprepare current source next100 multiple ctes drop both aliases'] = static function (TestRunner $t) use ($schemas100): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'multi', 'sql' => 'WITH a AS (SELECT option_name FROM [site].[wp_2_options]), b AS (SELECT option_name FROM a) SELECT option_name FROM b'],
     ], [
         ['op' => 'schema_write', 'schema' => 'site'],
@@ -193,7 +193,7 @@ $tests['attach schema cookie reprepare current source next100 multiple ctes drop
 };
 
 $tests['attach schema cookie reprepare current source next100 quoted cte alias is filtered'] = static function (TestRunner $t) use ($schemas100): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'quoted-cte', 'sql' => 'WITH [Recent Options] AS (SELECT option_name FROM [site].[wp_2_options]) SELECT option_name FROM [Recent Options]'],
     ], [
         ['op' => 'schema_write', 'schema' => 'main'],
@@ -204,24 +204,24 @@ $tests['attach schema cookie reprepare current source next100 quoted cte alias i
 };
 
 $tests['attach schema cookie reprepare current source next100 bracket source accepted'] = static function (TestRunner $t) use ($schemas100, $statements100): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [$statements100()[0]], [], '[site]');
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [$statements100()[0]], [], '[site]');
     $t->same('site', $result['source']);
 };
 
 $tests['attach schema cookie reprepare current source next100 cte values without real table rejected'] = static function (TestRunner $t) use ($schemas100): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'values-only', 'sql' => 'WITH c(x) AS (VALUES (1)) SELECT x FROM c'],
     ], []));
 };
 
 $tests['attach schema cookie reprepare current source next100 rejects unterminated quoted cte'] = static function (TestRunner $t) use ($schemas100): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'bad-cte', 'sql' => 'WITH [bad'],
     ], []));
 };
 
 $tests['attach schema cookie reprepare current source next100 rejects unterminated cte body'] = static function (TestRunner $t) use ($schemas100): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas100(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas100(), [
         ['name' => 'bad-body', 'sql' => 'WITH c AS (SELECT option_name FROM [main].[wp_options] SELECT option_name FROM c'],
     ], []));
 };
@@ -229,7 +229,7 @@ $tests['attach schema cookie reprepare current source next100 rejects unterminat
 $tests['attach schema cookie reprepare current source next100 uncommitted wal frame remains ignored'] = static function (TestRunner $t) use ($schemas100): void {
     $schemas = $schemas100();
     unset($schemas['main']['wal_frames'][0]);
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext100($schemas, [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::schemaCookieRepreparePlan($schemas, [
         ['name' => 'main-reader', 'sql' => 'SELECT option_name FROM [main].[wp_options]'],
     ], []);
 

@@ -101,7 +101,7 @@ $value78 = static function (array $data, string $path): mixed {
 
 $pathCases78 = [
     'stable status' => [$stable78, 'status', 'planned'],
-    'stable operation' => [$stable78, 'operation', 'attach-temp-main-wal-view-cache-current-next78'],
+    'stable operation' => [$stable78, 'operation', 'attach-temp-main-wal-view-cache-dependency-plan'],
     'stable view count' => [$stable78, 'view_count', 2],
     'stable requires reprepare false' => [$stable78, 'requires_reprepare', false],
     'stable reprepare views empty' => [$stable78, 'reprepare_views', []],

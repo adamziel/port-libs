@@ -41,37 +41,45 @@ $receiptFor = static function (array $base, string $name): array {
 };
 
 $chain = static function () use ($base331, $receiptFor): array {
-    $next332 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next332AfterCurrentCheckpoint(
+    $next332 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $base331,
-        [$receiptFor($base331, 'next332-wal-restart-generation')]
+        [$receiptFor($base331, 'next332-wal-restart-generation')],
+        332
     );
-    $next333 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next333AfterCurrentCheckpoint(
+    $next333 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next332,
-        [$receiptFor($next332, 'next333-reader-reopen-token')]
+        [$receiptFor($next332, 'next333-reader-reopen-token')],
+        333
     );
-    $next334 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next334AfterCurrentCheckpoint(
+    $next334 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next333,
-        [$receiptFor($next333, 'next334-savepoint-release-token')]
+        [$receiptFor($next333, 'next334-savepoint-release-token')],
+        334
     );
-    $next335 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next335AfterCurrentCheckpoint(
+    $next335 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next334,
-        [$receiptFor($next334, 'next335-hot-journal-delete-token')]
+        [$receiptFor($next334, 'next335-hot-journal-delete-token')],
+        335
     );
-    $next336 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next336AfterCurrentCheckpoint(
+    $next336 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next335,
-        [$receiptFor($next335, 'next336-database-header-epoch')]
+        [$receiptFor($next335, 'next336-database-header-epoch')],
+        336
     );
-    $next337 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next337AfterCurrentCheckpoint(
+    $next337 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next336,
-        [$receiptFor($next336, 'next337-wal-index-reader-boundary')]
+        [$receiptFor($next336, 'next337-wal-index-reader-boundary')],
+        337
     );
-    $next338 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next338AfterCurrentCheckpoint(
+    $next338 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next337,
-        [$receiptFor($next337, 'next338-savepoint-retry-absence-token')]
+        [$receiptFor($next337, 'next338-savepoint-retry-absence-token')],
+        338
     );
-    $next339 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next339AfterCurrentCheckpoint(
+    $next339 = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         $next338,
-        [$receiptFor($next338, 'next339-current-source-seal')]
+        [$receiptFor($next338, 'next339-current-source-seal')],
+        339
     );
 
     return [$next332, $next333, $next334, $next335, $next336, $next337, $next338, $next339];
@@ -106,7 +114,7 @@ $tests['wal hot journal savepoint checkpoint current source next332-339 chains a
 $tests['wal hot journal savepoint checkpoint current source next332 blocks stale source token'] = static function (TestRunner $t) use ($base331, $receiptFor): void {
     $receipt = $receiptFor($base331, 'next332-stale-source-token');
     $receipt['source_token'] = 'wp-next332-339-stale-source';
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next332AfterCurrentCheckpoint($base331, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt($base331, [$receipt], 332);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next332', $record['status']);
     $t->same(['checkpoint_source_token_mismatch'], $record['blocked_reasons']);
@@ -116,7 +124,7 @@ $tests['wal hot journal savepoint checkpoint current source next335 blocks visib
     [, , $next334] = $chain();
     $receipt = $receiptFor($next334, 'next335-visible-hot-journal');
     $receipt['hot_journal_visible'] = true;
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next335AfterCurrentCheckpoint($next334, [$receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt($next334, [$receipt], 335);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next335', $record['status']);
     $t->same(['checkpoint_hot_journal_visible'], $record['blocked_reasons']);
@@ -125,16 +133,17 @@ $tests['wal hot journal savepoint checkpoint current source next335 blocks visib
 $tests['wal hot journal savepoint checkpoint current source next337 blocks duplicate receipt names'] = static function (TestRunner $t) use ($chain, $receiptFor): void {
     [, , , , $next336] = $chain();
     $receipt = $receiptFor($next336, 'next337-duplicate-receipt');
-    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next337AfterCurrentCheckpoint($next336, [$receipt, $receipt]);
+    $record = SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt($next336, [$receipt, $receipt], 337);
 
     $t->same('wal-hot-journal-savepoint-checkpoint-current-source-blocked-next337', $record['status']);
     $t->same(['checkpoint_receipt_name_duplicate:next337-duplicate-receipt'], $record['blocked_reasons']);
 };
 
 $tests['wal hot journal savepoint checkpoint current source next339 rejects missing next338 base'] = static function (TestRunner $t) use ($base331, $receiptFor): void {
-    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next339AfterCurrentCheckpoint(
+    $t->throws(Throwable::class, static fn () => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointReceipt(
         array_replace($base331, ['status' => 'wal-hot-journal-savepoint-checkpoint-current-source-next337']),
-        [$receiptFor($base331, 'next339-current-source-seal')]
+        [$receiptFor($base331, 'next339-current-source-seal')],
+        339
     ));
 };
 

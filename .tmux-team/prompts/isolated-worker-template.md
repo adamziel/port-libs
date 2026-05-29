@@ -33,6 +33,12 @@ Current supervisor override, 2026-05-29 11:20 UTC:
   target immediately. Remove remaining numbered production methods/helpers in
   the assigned family, migrate direct callers/tests/examples to stable
   descriptive unsuffixed names, and preserve focused tests.
+- If your slice name includes `production-suffix-cleanup`, audit for any
+  remaining user-named `CurrentSource` + `Next150` + `Plan.php` suffix and all
+  generated `CurrentNextNN`/`CurrentSourceNextNN` production class, file, helper,
+  test, and example names in the libsqlite tree. Consolidate them into stable
+  descriptive unsuffixed names; do not leave compatibility shims with numbered
+  production names.
 - If your slice is not a consolidation slice, work on the assigned libsqlite
   functional/test-coverage slice immediately. Add behavior-backed PHP
   implementation, direct tests, and a WordPress example or smoke path where

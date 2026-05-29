@@ -48,6 +48,21 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 12:04 UTC):
+  Fifth consolidation follow-up is validated in the rolling libsqlite
+  integration worktree. The batch accepted 14 current consolidation handoffs
+  after quarantining stale handoffs that would add `user-named removed-suffix`
+  names and skipping six conflicting handoffs for later rebase. Verification
+  passed: php-lint for `80` changed PHP files, focused changed tests
+  `38 test files / 3405 assertions / 0 failures`, `27` changed
+  WordPress examples/self-tests, git diff --check, exact removed-suffix scan
+  clean, numbered production filename/class scans at `0`, and remaining
+  numbered production method-line audit down to `6220`. Public libsqlite PASS
+  and mapped totals remain `154019 / 0 fail` and `830 / 1589` because this is
+  consolidation, not new upstream behavior coverage. The visible `main` tmux
+  pool was refilled to 11 active P-wave libsqlite consolidation workers with
+  no long sleepers.
+
 - 2026-05-28 supervisor continuation (shell samples 06:42 UTC):
   Batch118/119 clean subset is integrated and root-verified in the rolling
   integration worktree. Source commit
@@ -1664,6 +1679,6 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   group.
 - New consolidation rule: no new numbered `CurrentSourceNext...Plan.php`
   helper names. Existing numbered duplicate groups must be merged into stable
-  unnumbered helpers, beginning with exact `CurrentSourceNext150Plan.php`
+  unnumbered helpers, beginning with exact `user-named removed-suffixPlan.php`
   groups and then VFS, PRAGMA/FK, B-tree vacuum/freeblock, pager reader-cache,
   WAL, rowvalue, planner, and smaller duplicate groups.

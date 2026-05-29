@@ -63,7 +63,7 @@ $states89 = static fn (): array => [
     'archive' => ['schema_cookie' => 5],
 ];
 
-$plan89 = static fn (array $triggers, array $next = [], ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89(
+$plan89 = static fn (array $triggers, array $next = [], ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan(
     $catalog89(),
     $triggers,
     $next,
@@ -139,7 +139,7 @@ $value89 = static function (array $data, string $path): mixed {
 
 $pathCases89 = [
     'stable status' => [$stable89, 'status', 'trigger_cache_stable'],
-    'stable operation' => [$stable89, 'operation', 'attach-wal-temp-trigger-cache-current-source-next89'],
+    'stable operation' => [$stable89, 'operation', 'attach-wal-temp-trigger-cookie-cache'],
     'stable trigger count' => [$stable89, 'trigger_count', 3],
     'stable active count' => [$stable89, 'active_trigger_count', 1],
     'stable source schemas' => [$stable89, 'source_schemas.temp_options_au', 'temp'],
@@ -193,7 +193,7 @@ $pathCases89 = [
     'temp record trigger changed' => [$tempRecord89, 'triggers.temp_options_au.trigger_changed', true],
     'temp record no cookie expiry' => [$tempRecord89, 'triggers.temp_options_au.schema_cookie_changed', false],
     'temp record active keeps source' => [$tempRecord89, 'triggers.temp_options_au.current_source_kept_until_reset', true],
-    'dependency marker' => [$stable89, 'dependencies.0', 'sqlite-attach-wal-temp-trigger-cache-current-source-next89'],
+    'dependency marker' => [$stable89, 'dependencies.0', 'sqlite-attach-wal-temp-trigger-cookie-cache'],
     'temp cookie dependency marker' => [$stable89, 'dependencies.3', 'sqlite-temp-schema-cookie-trigger-expiry'],
 ];
 
@@ -219,7 +219,7 @@ $predicateCases89 = [
         return $plan['schema_cookies_next']['main'] === 14 && $plan['requires_reprepare'] === true;
     },
     'quoted source schema is normalized' => static function () use ($catalog89): bool {
-        $plan = SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89($catalog89(), [['name' => 'site.site_options_au', 'source' => '"site"']]);
+        $plan = SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan($catalog89(), [['name' => 'site.site_options_au', 'source' => '"site"']]);
         return $plan['source_schemas']['site.site_options_au'] === 'site';
     },
     'archive WAL cookie does not expire unrelated main trigger' => static function () use ($plan89): bool {
@@ -240,7 +240,7 @@ $predicateCases89 = [
     'main delete trigger without body select depends on main schema' => static fn (): bool => $mainRecordAndCookie89()['triggers']['main.options_ad']['dependency_schemas'] === ['main'],
     'empty list rejected' => static function () use ($catalog89): bool {
         try {
-            SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89($catalog89(), []);
+            SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan($catalog89(), []);
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -249,7 +249,7 @@ $predicateCases89 = [
     },
     'missing trigger name rejected' => static function () use ($catalog89): bool {
         try {
-            SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext89($catalog89(), [['source' => 'main']]);
+            SQLiteAttachTempWalSchemaTriggerPlan::walTriggerCookieCachePlan($catalog89(), [['source' => 'main']]);
         } catch (InvalidArgumentException) {
             return true;
         }

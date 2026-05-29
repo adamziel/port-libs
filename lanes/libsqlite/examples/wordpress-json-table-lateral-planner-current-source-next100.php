@@ -42,7 +42,7 @@ $nextRows = [
     ],
 ];
 
-$plan = SQLiteJsonTablePlan::lateralPlannerCurrentSourceNext100(
+$plan = SQLiteJsonTablePlan::lateralCurrentSourcePlanner(
     $currentRows,
     $nextRows,
     'option_id',

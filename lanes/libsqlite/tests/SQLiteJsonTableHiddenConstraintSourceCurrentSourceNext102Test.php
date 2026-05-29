@@ -29,7 +29,7 @@ $constraintSources102 = [
     ['column' => 'type', 'sourceColumn' => 'target_type'],
 ];
 
-$plan102 = static fn (array $current = null, array $next = null, array $sources = null): array => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSourceNext102(
+$plan102 = static fn (array $current = null, array $next = null, array $sources = null): array => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSource(
     'json_tree',
     $current ?? $current102,
     $next ?? $next102,
@@ -97,9 +97,9 @@ $tests = [
     'root null reports sql null root error' => static fn (TestRunner $t) => $t->same('SQL NULL root path', $rootNull102()['next']['jsonError']),
     'missing source column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan102([], $next102)),
     'missing constraint source value is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan102($current102, $next102, [['column' => 'json']])),
-    'empty constraint sources are rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSourceNext102('json_tree', $current102, $next102, [])),
+    'empty constraint sources are rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSource('json_tree', $current102, $next102, [])),
     'empty source column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan102($current102, $next102, [['column' => 'json', 'sourceColumn' => '']])),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSourceNext102('json_bad', $current102, $next102, $constraintSources102)),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::hiddenConstraintSourceCurrentSource('json_bad', $current102, $next102, $constraintSources102)),
 ];
 
 foreach ($tests as $name => $case) {

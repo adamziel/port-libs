@@ -60,7 +60,7 @@ $cache103 = static fn (): array => [
     'blog103' => ['file' => '/srv/wp/blog103.sqlite', 'cache' => 'shared', 'schema_cookie' => 2, 'generation' => 11],
 ];
 
-$plan103 = static fn (?array $schemas = null, ?array $statements = null, ?array $events = null, ?array $cache = null): array => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103(
+$plan103 = static fn (?array $schemas = null, ?array $statements = null, ?array $events = null, ?array $cache = null): array => SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan(
     $schemas ?? $schemas103(),
     $statements ?? $statements103(),
     $events ?? $events103(),
@@ -82,8 +82,8 @@ $value103 = static function (array $data, string $path): mixed {
 };
 
 $pathCases103 = [
-    'operation marker' => ['operation', 'attach-temp-schema-cache-reprepare-current-source-next103'],
-    'dependency first' => ['dependencies.0', 'sqlite-attach-temp-schema-cache-reprepare-current-source-next103'],
+    'operation marker' => ['operation', 'attach-temp-schema-cache-reprepare'],
+    'dependency first' => ['dependencies.0', 'sqlite-attach-temp-schema-cache-reprepare'],
     'retains next84 dependency' => ['dependencies.1', 'sqlite-attach-schema-cookie-reprepare-current-source-next84'],
     'status expired' => ['status', 'schema_cache_expired'],
     'source main' => ['source', 'main'],
@@ -157,7 +157,7 @@ foreach ($pathCases103 as $name => [$path, $expected]) {
 }
 
 $tests['attach temp schema cache reprepare current source next103 cache reuse stays stable'] = static function (TestRunner $t) use ($schemas103, $cache103): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103($schemas103(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan($schemas103(), [
         ['name' => 'site-reader', 'sql' => 'SELECT option_value FROM [site].[wp_2_options]'],
     ], [], $cache103());
 
@@ -169,7 +169,7 @@ $tests['attach temp schema cache reprepare current source next103 cache reuse st
 $tests['attach temp schema cache reprepare current source next103 private cache does not reload'] = static function (TestRunner $t) use ($schemas103, $events103, $cache103): void {
     $cache = $cache103();
     $cache['site']['cache'] = 'private';
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103($schemas103(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan($schemas103(), [
         ['name' => 'site-reader', 'sql' => 'SELECT option_value FROM [site].[wp_2_options]'],
     ], $events103(), $cache);
 
@@ -178,7 +178,7 @@ $tests['attach temp schema cache reprepare current source next103 private cache 
 };
 
 $tests['attach temp schema cache reprepare current source next103 missing cache entry loads without shared reload'] = static function (TestRunner $t) use ($schemas103, $events103): void {
-    $result = SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103($schemas103(), [
+    $result = SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan($schemas103(), [
         ['name' => 'main-reader', 'sql' => 'SELECT option_value FROM [main].[wp_options]'],
     ], $events103(), []);
 
@@ -189,7 +189,7 @@ $tests['attach temp schema cache reprepare current source next103 missing cache 
 $tests['attach temp schema cache reprepare current source next103 invalid cache cookie rejected'] = static function (TestRunner $t) use ($schemas103, $events103, $cache103): void {
     $cache = $cache103();
     $cache['main']['schema_cookie'] = '41';
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::currentSourceNext103($schemas103(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachSchemaCookieRepreparePlan::sharedCacheRepreparePlan($schemas103(), [
         ['name' => 'main-reader', 'sql' => 'SELECT option_value FROM [main].[wp_options]'],
     ], $events103(), $cache));
 };

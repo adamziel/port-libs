@@ -16,7 +16,7 @@ $range = static fn (string $column, string $operator, mixed $value): array => ['
 $and = static fn (array ...$terms): array => ['operator' => 'AND', 'terms' => $terms];
 
 $prepared = [
-    'name' => 'prepared-wp-options-plugin-range-next136',
+    'name' => 'prepared-wp-options-plugin-range-partial-range-covering',
     'schemaCookie' => 1360,
     'stat4Generation' => 60,
     'rows' => [
@@ -25,20 +25,20 @@ $prepared = [
         ['rowid' => 4, 'blog_id' => 1, 'autoload' => 'yes', 'kind' => 'plugin', 'option_name' => 'plugin_forms', 'option_value' => 'a:2'],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_plugin_kind_range_covering_next136',
+        'name' => 'idx_wp_options_plugin_kind_range_covering_partial_range_covering',
         'rootPage' => 13601,
         'estimatedRows' => 80,
-        'sql' => "CREATE INDEX idx_wp_options_plugin_kind_range_covering_next136 ON wp_options(blog_id, autoload, option_name, option_value, kind, rowid) WHERE kind = 'plugin' AND autoload = 'yes' AND option_name >= 'plugin_'",
+        'sql' => "CREATE INDEX idx_wp_options_plugin_kind_range_covering_partial_range_covering ON wp_options(blog_id, autoload, option_name, option_value, kind, rowid) WHERE kind = 'plugin' AND autoload = 'yes' AND option_name >= 'plugin_'",
     ]],
 ];
 $current = $prepared;
-$current['name'] = 'current-wp-options-plugin-range-next136';
+$current['name'] = 'current-wp-options-plugin-range-partial-range-covering';
 $current['schemaCookie'] = 1361;
 $current['stat4Generation'] = 61;
 $current['rows'][] = ['rowid' => 7, 'blog_id' => 1, 'autoload' => 'yes', 'kind' => 'mu-plugin', 'option_name' => 'plugin_mu', 'option_value' => 'mu'];
 $current['rows'][] = ['rowid' => 8, 'blog_id' => 1, 'autoload' => 'yes', 'kind' => 'plugin', 'option_name' => 'plugin_security', 'option_value' => 'a:5'];
 
-$plan = SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan::materializeNext136(
+$plan = SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan::materializePartialRangeCovering(
     $prepared,
     $current,
     $and(
@@ -55,12 +55,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['status'] === 'partial-range-covering-current-source-ready');
     assert(array_column($plan['coveredRows'], 'rowid') === [2, 4, 8]);
     assert($plan['partialPredicateFilteredRowids'] === [3, 7]);
-    echo "wordpress-planner-partial-range-covering-current-source-next136 self-test passed\n";
+    echo "wordpress-planner-partial-range-covering-current-source self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-planner-partial-range-covering-current-source-next136',
+    'scenario' => 'wordpress-planner-partial-range-covering-current-source',
     'status' => $plan['status'],
     'selectedSource' => $plan['selectedSource'],
     'coveredRowids' => array_column($plan['coveredRows'], 'rowid'),

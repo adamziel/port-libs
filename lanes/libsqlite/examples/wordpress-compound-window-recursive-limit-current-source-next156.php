@@ -9,6 +9,7 @@ require_once __DIR__ . '/../src/SQLiteJsonTree.php';
 require_once __DIR__ . '/../src/SQLiteJsonTableCursor.php';
 require_once __DIR__ . '/../src/SQLiteJson5Parser.php';
 require_once __DIR__ . '/../src/SQLiteGroupedAggregate.php';
+require_once __DIR__ . '/../src/SQLiteAffinityComparison.php';
 require_once __DIR__ . '/../src/SQLiteWindowFunction.php';
 require_once __DIR__ . '/../src/SQLiteSelectExpression.php';
 require_once __DIR__ . '/../src/SQLiteSelectPredicate.php';
@@ -61,7 +62,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 2
 SQL;
 
-$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext156($sql, $currentTables, $nextTables);
+$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimit($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['currentRows'], 'label') !== ['blogname', 'theme_mods', 'seed:2:3:4:5', 'seed:2:3:4', 'seed:2:3', 'seed:2']) {
@@ -76,7 +77,7 @@ if (($argv[1] ?? '') === '--self-test') {
         fwrite(STDERR, "missing recursive queue LIMIT exhaustion diagnostic\n");
         exit(1);
     }
-    echo "wordpress-compound-window-recursive-limit-current-source-next156 self-test passed\n";
+    echo "wordpress-compound-window-recursive-limit-current-source-window-recursive-limit self-test passed\n";
     exit(0);
 }
 

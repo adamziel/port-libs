@@ -55,14 +55,14 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext85(
+    public static function triggerCacheRepreparePlan(
         SQLiteAttachedSchemaCatalog $catalog,
         array $preparedTriggers,
         array $nextSchemaRecords = [],
         array $schemaStates = [],
     ): array {
         if ($preparedTriggers === []) {
-            throw new \InvalidArgumentException('SQLite attach temp schema trigger-cache current-source-next85 requires prepared triggers');
+            throw new \InvalidArgumentException('SQLite attach temp schema trigger-cache reprepare requires prepared triggers');
         }
 
         $triggerNames = [];
@@ -142,7 +142,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
 
         return [
             'status' => $reprepareTriggers === [] ? 'trigger_cache_stable' : 'trigger_cache_expired',
-            'operation' => 'attach-temp-schema-trigger-cache-current-source-next85',
+            'operation' => 'attach-temp-schema-trigger-cache-reprepare',
             'source_schema' => $primarySource,
             'source_schemas' => $sourceSchemas,
             'trigger_count' => count($triggerNames),
@@ -160,7 +160,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
             'schema_cookies_next' => $schemaCookies['next'],
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'dependencies' => [
-                'sqlite-attach-temp-schema-trigger-cache-current-source-next85',
+                'sqlite-attach-temp-schema-trigger-cache-reprepare',
                 'sqlite-prepared-trigger-current-source-reset',
                 'sqlite-wal-page-one-schema-cookie',
             ],
@@ -173,14 +173,14 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext89(
+    public static function walTriggerCookieCachePlan(
         SQLiteAttachedSchemaCatalog $catalog,
         array $preparedTriggers,
         array $nextSchemaRecords = [],
         array $schemaStates = [],
     ): array {
         if ($preparedTriggers === []) {
-            throw new \InvalidArgumentException('SQLite attach WAL temp trigger-cache current-source-next89 requires prepared triggers');
+            throw new \InvalidArgumentException('SQLite attach WAL temp trigger-cache cookie-cache requires prepared triggers');
         }
 
         $schemaCookies = self::schemaCookies($schemaStates);
@@ -283,7 +283,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
 
         return [
             'status' => $reprepareTriggers === [] ? 'trigger_cache_stable' : 'trigger_cache_expired',
-            'operation' => 'attach-wal-temp-trigger-cache-current-source-next89',
+            'operation' => 'attach-wal-temp-trigger-cookie-cache',
             'source_schema' => $primarySource,
             'source_schemas' => $sourceSchemas,
             'trigger_count' => count($triggerNames),
@@ -303,7 +303,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
             'schema_cookies_next' => $schemaCookies['next'],
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'dependencies' => [
-                'sqlite-attach-wal-temp-trigger-cache-current-source-next89',
+                'sqlite-attach-wal-temp-trigger-cookie-cache',
                 'sqlite-prepared-trigger-current-source-reset',
                 'sqlite-wal-page-one-schema-cookie',
                 'sqlite-temp-schema-cookie-trigger-expiry',
@@ -316,14 +316,14 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext90(
+    public static function triggerSourceRepreparePlan(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
         array $preparedTriggers,
         array $schemaStates = [],
     ): array {
         if ($preparedTriggers === []) {
-            throw new \InvalidArgumentException('SQLite attach temp WAL schema trigger current-source-next90 requires prepared triggers');
+            throw new \InvalidArgumentException('SQLite attach temp WAL schema trigger source-reprepare requires prepared triggers');
         }
 
         $plans = [];
@@ -395,7 +395,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
 
         return [
             'status' => $reprepare === [] ? 'trigger_current_source_stable' : 'trigger_current_source_expired',
-            'operation' => 'attach-temp-wal-schema-trigger-current-source-next90',
+            'operation' => 'attach-temp-wal-schema-trigger-source-reprepare',
             'trigger_count' => count($preparedTriggers),
             'active_trigger_count' => count(array_filter($preparedTriggers, static fn (array $trigger): bool => (bool) ($trigger['active'] ?? false))),
             'triggers' => $plans,
@@ -413,7 +413,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
             'schema_cookies_next' => $schemaCookies['next'],
             'wal_schema_cookie_sources' => $schemaCookies['wal_sources'],
             'dependencies' => [
-                'sqlite-attach-temp-wal-schema-trigger-current-source-next90',
+                'sqlite-attach-temp-wal-schema-trigger-source-reprepare',
                 'sqlite-prepared-trigger-current-source-reset',
                 'sqlite-temp-trigger-shadow-resolution',
                 'sqlite-wal-page-one-schema-cookie',
@@ -426,13 +426,13 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext95(
+    public static function triggerDependencyCookiePlan(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
         array $preparedTriggers,
         array $schemaStates = [],
     ): array {
-        $plan = self::currentSourceNext90($current, $next, $preparedTriggers, $schemaStates);
+        $plan = self::triggerSourceRepreparePlan($current, $next, $preparedTriggers, $schemaStates);
         $schemaCookies = self::schemaCookies($schemaStates);
         $cookieChanged = array_fill_keys($schemaCookies['changed_schemas'], true);
 
@@ -515,7 +515,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         $plan['status'] = $reprepare === [] ? 'trigger_current_source_stable' : 'trigger_current_source_expired';
-        $plan['operation'] = 'attach-temp-wal-schema-trigger-current-source-next95';
+        $plan['operation'] = 'attach-temp-wal-schema-trigger-dependency-cookie';
         $plan['reprepare_triggers'] = $reprepare;
         $plan['stable_triggers'] = $stable;
         $plan['active_current_snapshot_triggers'] = $activeCurrent;
@@ -529,7 +529,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         $plan['dependency_moved_triggers'] = $dependencyMovedTriggers;
         $plan['cookie_expired_triggers'] = $cookieExpiredTriggers;
         $plan['dependencies'] = [
-            'sqlite-attach-temp-wal-schema-trigger-current-source-next95',
+            'sqlite-attach-temp-wal-schema-trigger-dependency-cookie',
             'sqlite-prepared-trigger-current-source-reset',
             'sqlite-temp-trigger-body-dependency-resolution',
             'sqlite-wal-page-one-schema-cookie',
@@ -543,13 +543,13 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
      * @param array<string,array{schema_cookie:int, wal_schema_cookie?:int|null, wal_frames?:list<array{page:int, schema_cookie?:int|null, commit?:bool}>}> $schemaStates
      * @return array<string,mixed>
      */
-    public static function currentSourceNext104(
+    public static function triggerBodyDependencyRepreparePlan(
         SQLiteAttachedSchemaCatalog $current,
         SQLiteAttachedSchemaCatalog $next,
         array $preparedTriggers,
         array $schemaStates = [],
     ): array {
-        $base = self::currentSourceNext90($current, $next, $preparedTriggers, $schemaStates);
+        $base = self::triggerSourceRepreparePlan($current, $next, $preparedTriggers, $schemaStates);
         $dependencyExpired = [];
         $dependencyStable = [];
         $bodyDependencySchemas = [];
@@ -623,7 +623,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         $base['status'] = $base['reprepare_triggers'] === [] ? 'trigger_body_dependency_stable' : 'trigger_body_dependency_expired';
-        $base['operation'] = 'attach-temp-wal-schema-trigger-reprepare-current-source-next104';
+        $base['operation'] = 'attach-temp-wal-schema-trigger-body-dependency-reprepare';
         $base['requires_reprepare'] = $base['reprepare_triggers'] !== [];
         $base['stable_triggers'] = array_values(array_filter(
             $base['stable_triggers'],
@@ -641,7 +641,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         $base['body_dependency_expired_triggers'] = $dependencyExpired;
         $base['body_dependency_stable_triggers'] = $dependencyStable;
         $base['body_dependency_schemas'] = $bodyDependencySchemas;
-        array_unshift($base['dependencies'], 'sqlite-attach-temp-wal-schema-trigger-reprepare-current-source-next104');
+        array_unshift($base['dependencies'], 'sqlite-attach-temp-wal-schema-trigger-body-dependency-reprepare');
         $base['dependencies'] = array_values(array_unique($base['dependencies']));
 
         return $base;
@@ -659,10 +659,10 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         array $schemaStates = [],
     ): array {
         if ($preparedTriggers === []) {
-            throw new \InvalidArgumentException('SQLite attach temp WAL trigger view-cache current-source-next97 requires prepared triggers');
+            throw new \InvalidArgumentException('SQLite attach temp WAL trigger view-cache reprepare requires prepared triggers');
         }
 
-        $base = self::currentSourceNext90($current, $next, $preparedTriggers, $schemaStates);
+        $base = self::triggerSourceRepreparePlan($current, $next, $preparedTriggers, $schemaStates);
         $viewExpired = [];
         $viewStable = [];
         $viewPlans = [];
@@ -744,7 +744,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         }
 
         $base['status'] = $reprepare === [] ? 'trigger_view_cache_stable' : 'trigger_view_cache_expired';
-        $base['operation'] = 'attach-temp-wal-trigger-view-cache-current-source-next97';
+        $base['operation'] = 'attach-temp-wal-trigger-view-cache-reprepare';
         $base['reprepare_triggers'] = array_values($reprepare);
         $base['stable_triggers'] = array_values(array_filter(
             $base['stable_triggers'],
@@ -767,7 +767,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         $base['view_cache_expired_triggers'] = $viewExpired;
         $base['view_cache_stable_triggers'] = $viewStable;
         $base['view_caches'] = $viewPlans;
-        array_unshift($base['dependencies'], 'sqlite-attach-temp-wal-trigger-view-cache-current-source-next97');
+        array_unshift($base['dependencies'], 'sqlite-attach-temp-wal-trigger-view-cache-reprepare');
         $base['dependencies'] = array_values(array_unique($base['dependencies']));
 
         return $base;

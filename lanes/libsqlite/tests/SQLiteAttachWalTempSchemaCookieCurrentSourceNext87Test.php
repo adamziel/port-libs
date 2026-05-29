@@ -81,7 +81,7 @@ $value87 = static function (array $data, string $path): mixed {
 
 $pathCases87 = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation marker' => ['operation', 'attach-wal-temp-schema-cookie-current-source-next87'],
+    'operation marker' => ['operation', 'attach-wal-temp-schema-cookie-source'],
     'source main' => ['source', 'main'],
     'search order' => ['search_order', ['temp', 'main', 'archive', 'network']],
     'current main cookie from last committed wal frame' => ['schema_cookies_current.main', 21],
@@ -134,7 +134,7 @@ $pathCases87 = [
     'archive shadow next found' => ['statements.6.schema_transitions.0.next_found', true],
     'database list temp next cookie' => ['database_list.0.next_schema_cookie', 5],
     'database list main file' => ['database_list.1.file', '/srv/wp/current.sqlite'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cookie-current-source-next87'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cookie-source'],
 ];
 
 foreach ($pathCases87 as $name => [$path, $expected]) {

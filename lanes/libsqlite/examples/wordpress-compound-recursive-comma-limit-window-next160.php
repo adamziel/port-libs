@@ -40,7 +40,7 @@ SELECT option_id AS id,
  LIMIT 5 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext160(
+$summary = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaLimitWindow(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],

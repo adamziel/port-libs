@@ -84,7 +84,7 @@ $current['rows'] = [
 ];
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext862877(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffResumeWindow(
     $prepared,
     $current,
     [

@@ -56,7 +56,7 @@ $statements94 = static fn (): array => [
     ['name' => 'main-plugin-state', 'sql' => 'SELECT option_name FROM [main].[wp_plugin_state]'],
 ];
 
-$plan94 = static fn (?array $schemas = null, ?array $statements = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94(
+$plan94 = static fn (?array $schemas = null, ?array $statements = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan(
     $schemas ?? $schemas94(),
     $statements ?? $statements94(),
     $source,
@@ -77,8 +77,8 @@ $value94 = static function (array $data, string $path): mixed {
 };
 
 $pathCases94 = [
-    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-current-source-next94'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-current-source-next94'],
+    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-bracket-quoted-source'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-bracket-quoted-source'],
     'bracket dependency marker' => ['dependencies.3', 'sqlite-bracket-quoted-attach-schema-cookie-source'],
     'schema alias dependency marker' => ['dependencies.4', 'sqlite-schema-table-alias-cookie-source'],
     'search order preserves temp main attached' => ['search_order', ['temp', 'main', 'site', 'analytics']],
@@ -128,12 +128,12 @@ foreach ($pathCases94 as $name => [$path, $expected]) {
 }
 
 $tests['attach temp wal schema cookie current source next94 bracket quoted source accepted'] = static function (TestRunner $t) use ($schemas94, $statements94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), $statements94(), '[site]');
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), $statements94(), '[site]');
     $t->same('site', $result['source']);
 };
 
 $tests['attach temp wal schema cookie current source next94 sqlite master bare alias resolves'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), [
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
         ['name' => 'bare-master', 'sql' => 'SELECT name FROM sqlite_master WHERE type = ?'],
     ]);
     $t->same('temp', $result['statements'][0]['schema_transitions'][0]['prepare_schema']);
@@ -146,7 +146,7 @@ $tests['attach temp wal schema cookie current source next94 stable without pendi
     $schemas['main']['next_tables'] = $schemas['main']['tables'];
     $schemas['temp']['next_tables'] = $schemas['temp']['tables'];
     $schemas['site']['next_tables'] = $schemas['site']['tables'];
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas, [
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas, [
         ['name' => 'main-schema', 'sql' => 'SELECT name FROM [main].[sqlite_schema]'],
         ['name' => 'site-options', 'sql' => 'SELECT option_value FROM [site].[wp_2_options]'],
     ]);
@@ -154,13 +154,13 @@ $tests['attach temp wal schema cookie current source next94 stable without pendi
 };
 
 $tests['attach temp wal schema cookie current source next94 rejects empty bracket identifier'] = static function (TestRunner $t) use ($schemas94): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), [
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
         ['name' => 'bad', 'sql' => 'SELECT sql FROM []'],
     ]));
 };
 
 $tests['attach temp wal schema cookie current source next94 update bracket target blocks write retry'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), [
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
         ['name' => 'update-main', 'sql' => 'UPDATE [main].[wp_options] SET option_value = ? WHERE option_name = ?'],
     ]);
     $t->same('main.wp_options', $result['statements'][0]['tables'][0]);
@@ -169,7 +169,7 @@ $tests['attach temp wal schema cookie current source next94 update bracket targe
 };
 
 $tests['attach temp wal schema cookie current source next94 delete bracket target extracts schema'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), [
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
         ['name' => 'delete-stage', 'sql' => 'DELETE FROM [temp].[wp_options_stage] WHERE option_name = ?'],
     ]);
     $t->same('temp.wp_options_stage', $result['statements'][0]['tables'][0]);
@@ -177,7 +177,7 @@ $tests['attach temp wal schema cookie current source next94 delete bracket targe
 };
 
 $tests['attach temp wal schema cookie current source next94 quoted sqlite master alias remains schema table'] = static function (TestRunner $t) use ($schemas94): void {
-    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext94($schemas94(), [
+    $result = SQLiteAttachWalTempSchemaCookieSourcePlan::bracketQuotedSchemaCookieSourcePlan($schemas94(), [
         ['name' => 'quoted-master', 'sql' => 'SELECT name FROM "main"."sqlite_master" WHERE type = ?'],
     ]);
     $t->same('main.sqlite_schema', $result['statements'][0]['tables'][0]);

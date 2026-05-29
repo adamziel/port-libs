@@ -9,7 +9,7 @@ $tests = [];
 $pageSize = 64;
 $page = static fn (string $label): string => str_pad($label, $pageSize, '.', STR_PAD_RIGHT);
 
-$plan = static fn (): array => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(
+$plan = static fn (): array => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(
     $pageSize,
     'plugin_import',
     [
@@ -95,59 +95,59 @@ foreach ($cases as $name => [$callback, $expected]) {
 }
 
 $tests['pager hot journal savepoint cache current source next83 rejects bad page size'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(0, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(0, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects empty savepoint'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, '', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, '', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects empty hot journal pages'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects empty current writes'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects empty next writes'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [1 => $page('b')], []));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [1 => $page('b')], []));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects zero source epoch'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], 0));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')], 0));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects zero cache page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [0 => ['image' => $page('cache')]], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [0 => ['image' => $page('cache')]], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects short cache image'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [1 => ['image' => 'short']], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [1 => ['image' => 'short']], [1 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects zero hot journal page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [0 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [0 => $page('a')], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects short hot journal image'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => 'short'], [1 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => 'short'], [1 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects zero current page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [0 => $page('b')], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [0 => $page('b')], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects short current image'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [1 => 'short'], [1 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [1 => 'short'], [1 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects zero next page'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [1 => $page('b')], [0 => $page('c')]));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [1 => $page('b')], [0 => $page('c')]));
 };
 
 $tests['pager hot journal savepoint cache current source next83 rejects short next image'] = static function (TestRunner $t) use ($page): void {
-    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::currentSourceNext83(64, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => 'short']));
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLitePagerHotJournalSavepointCacheCurrentSourceNextPlan::planRecoveredHotJournalSavepointRetry(64, 's', [], [1 => $page('a')], [1 => $page('b')], [1 => 'short']));
 };
 
 return $tests;

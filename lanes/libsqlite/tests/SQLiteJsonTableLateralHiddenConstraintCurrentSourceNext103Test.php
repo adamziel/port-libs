@@ -57,7 +57,7 @@ $next103 = [
 $jsonbNext103 = $next103;
 $jsonbNext103[0]['option_value'] = new SQLiteBlobValue(SQLiteJsonB::encode(json_decode('{"rules":[{"slug":"forms","enabled":true}],"meta":{"version":1}}')));
 
-$plan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103(
+$plan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource(
     $current103,
     $next103,
     'option_id',
@@ -72,7 +72,7 @@ $plan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCu
     'left',
 );
 
-$stableReorder103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103(
+$stableReorder103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource(
     $current103,
     [$current103[2], $current103[0], $current103[1]],
     'option_id',
@@ -87,7 +87,7 @@ $stableReorder103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenCon
     'left',
 );
 
-$jsonbPlan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103(
+$jsonbPlan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource(
     $current103,
     $jsonbNext103,
     'option_id',
@@ -99,7 +99,7 @@ $jsonbPlan103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstra
     'inner',
 );
 
-$removed103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103(
+$removed103 = static fn (): array => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource(
     $current103,
     [$next103[1]],
     'option_id',
@@ -166,14 +166,14 @@ $tests = [
     'inner join mode does not null extend empty beta' => static fn (TestRunner $t) => $t->same(false, $jsonbPlan103()['transitions'][1]['currentNullExtended']),
     'removed beta host transition is reported by key' => static fn (TestRunner $t) => $t->same('current-lateral-hidden-host-row-removed', $removed103()['transitions'][1]['reason']),
     'removed beta host keeps null next' => static fn (TestRunner $t) => $t->same(null, $removed103()['transitions'][1]['next']),
-    'missing current key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103([['option_value' => '{}']], $next103, 'option_id', 'option_value', 'json_each')),
-    'missing next key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, [['option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
-    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103([$current103[0], $current103[0]], $next103, 'option_id', 'option_value', 'json_each')),
-    'duplicate next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, [$next103[0], $next103[0]], 'option_id', 'option_value', 'json_each')),
-    'empty key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, $next103, '', 'option_value', 'json_each')),
-    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, $next103, 'option_id', '', 'json_each')),
-    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, $next103, 'option_id', 'option_value', 'json_bad')),
-    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103($current103, $next103, 'option_id', 'option_value', 'json_each', [], null, [], 'outer')),
+    'missing current key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource([['option_value' => '{}']], $next103, 'option_id', 'option_value', 'json_each')),
+    'missing next key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, [['option_value' => '{}']], 'option_id', 'option_value', 'json_each')),
+    'duplicate current key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource([$current103[0], $current103[0]], $next103, 'option_id', 'option_value', 'json_each')),
+    'duplicate next key is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, [$next103[0], $next103[0]], 'option_id', 'option_value', 'json_each')),
+    'empty key column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, $next103, '', 'option_value', 'json_each')),
+    'empty json column is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, $next103, 'option_id', '', 'json_each')),
+    'bad function is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, $next103, 'option_id', 'option_value', 'json_bad')),
+    'bad join type is rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource($current103, $next103, 'option_id', 'option_value', 'json_each', [], null, [], 'outer')),
 ];
 
 foreach ($tests as $name => $case) {

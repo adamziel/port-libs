@@ -75,7 +75,7 @@ $statements99 = static fn (): array => [
     ],
 ];
 
-$plan99 = static fn (?array $schemas = null, ?array $statements = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99(
+$plan99 = static fn (?array $schemas = null, ?array $statements = null, string $source = 'main'): array => SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan(
     $schemas ?? $schemas99(),
     $statements ?? $statements99(),
     $source,
@@ -96,8 +96,8 @@ $value99 = static function (array $data, string $path): mixed {
 };
 
 $pathCases99 = [
-    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-current-source-next99'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-current-source-next99'],
+    'operation marker' => ['operation', 'attach-temp-wal-schema-cookie-cte-source'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-cookie-cte-source'],
     'cte dependency marker' => ['dependencies.3', 'sqlite-with-cte-schema-cookie-source-filter'],
     'recursive dependency marker' => ['dependencies.4', 'sqlite-recursive-cte-attach-temp-wal-source'],
     'search order' => ['search_order', ['temp', 'main', 'site', 'archive']],
@@ -146,7 +146,7 @@ foreach ($pathCases99 as $name => [$path, $expected]) {
 $predicateCases99 = [
     'cte only query is rejected when no real table exists' => static function () use ($schemas99): bool {
         try {
-            SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+            SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
                 ['name' => 'cte-only', 'sql' => 'WITH only_cte AS (SELECT 1) SELECT * FROM only_cte'],
             ]);
             return false;
@@ -155,21 +155,21 @@ $predicateCases99 = [
         }
     },
     'unqualified table matching CTE name is ignored but qualified table remains real' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'shadow', 'sql' => 'WITH recent_options AS (SELECT option_name FROM main.wp_options) SELECT option_name FROM recent_options JOIN main.recent_options USING(option_name)'],
         ]);
 
         return $result['statements'][0]['tables'] === ['main.wp_options', 'main.recent_options'];
     },
     'multiple CTE definitions are ignored in later joins' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'multi', 'sql' => 'WITH a AS (SELECT option_name FROM main.wp_options), b AS (SELECT option_name FROM a) SELECT * FROM b JOIN archive.wp_archive_options USING(option_name)'],
         ]);
 
         return $result['statements'][0]['tables'] === ['main.wp_options', 'archive.wp_archive_options'];
     },
     'recursive CTE self reference does not add missing main table' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'recursive', 'sql' => 'WITH RECURSIVE q(x) AS (SELECT blog_id FROM site.wp_blogs UNION ALL SELECT x + 1 FROM q WHERE x < 9) SELECT x FROM q'],
         ]);
 
@@ -177,14 +177,14 @@ $predicateCases99 = [
             && $result['statements'][0]['requires_reprepare'] === false;
     },
     'cte insert target remains write blocked by temp cookie' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'insert-stage', 'sql' => 'WITH rows AS (SELECT option_name FROM main.wp_options) INSERT INTO temp.wp_options_stage SELECT option_name FROM rows'],
         ]);
 
         return $result['write_statements_blocked_before_retry'] === ['insert-stage'];
     },
     'active CTE reader finishes current snapshot before schema reset' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'active', 'active' => true, 'sql' => 'WITH rows AS (SELECT option_name FROM main.wp_options) SELECT option_name FROM rows'],
         ]);
 
@@ -192,27 +192,27 @@ $predicateCases99 = [
             && $result['statements'][0]['next_step_action'] === 'finish_current_snapshot_then_sqlite_schema_on_reset';
     },
     'quoted CTE name with column list is ignored' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'quoted-columns', 'sql' => 'WITH [Plugin Rows](name) AS (SELECT option_name FROM main.wp_options) SELECT name FROM [Plugin Rows]'],
         ]);
 
         return $result['statements'][0]['tables'] === ['main.wp_options'];
     },
     'stable attached source remains stable when CTE shadows temp table name' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'stable-site', 'sql' => 'WITH recent_options AS (SELECT blog_id FROM site.wp_blogs) SELECT blog_id FROM recent_options'],
         ]);
 
         return $result['status'] === 'schema_cache_stable';
     },
     'source schema may be bracket quoted' => static function () use ($schemas99): bool {
-        return SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        return SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'source', 'sql' => 'WITH rows AS (SELECT option_name FROM main.wp_options) SELECT option_name FROM rows'],
         ], '[archive]')['source'] === 'archive';
     },
     'missing source schema still rejected' => static function () use ($schemas99): bool {
         try {
-            SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+            SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
                 ['name' => 'source', 'sql' => 'WITH rows AS (SELECT option_name FROM main.wp_options) SELECT option_name FROM rows'],
             ], 'missing');
             return false;
@@ -222,14 +222,14 @@ $predicateCases99 = [
     },
     'empty statement list rejected' => static function () use ($schemas99): bool {
         try {
-            SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), []);
+            SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), []);
             return false;
         } catch (InvalidArgumentException) {
             return true;
         }
     },
     'cte name does not suppress same-name table in schema-qualified update' => static function () use ($schemas99): bool {
-        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::currentSourceNext99($schemas99(), [
+        $result = SQLiteAttachWalTempSchemaCookieSourcePlan::cteSchemaCookieSourcePlan($schemas99(), [
             ['name' => 'qualified-update', 'sql' => 'WITH recent_options AS (SELECT option_name FROM main.wp_options) UPDATE main.recent_options SET option_name = option_name'],
         ]);
 

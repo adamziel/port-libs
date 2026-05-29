@@ -47,21 +47,21 @@ SELECT option_id AS id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary158 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158($sql158, $currentTables158, $nextTables158);
+$summary158 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimitOffset($sql158, $currentTables158, $nextTables158);
 $tests = [];
 
-$tests['compound select window recursive limit current source next158 status dependencies'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset status dependencies'] = static function (TestRunner $t) use ($summary158): void {
     $plan = $summary158();
-    $t->same('compound-select-window-recursive-limit-current-source-next158-ready', $plan['status']);
+    $t->same('compound-select-window-recursive-limit-current-source-window-recursive-limit-offset-ready', $plan['status']);
     $t->same([
         'sqlite-recursive-cte-limit-offset-queue',
         'sqlite-window-arm-before-compound-select',
         'sqlite-compound-select-final-limit-offset',
-        'sqlite-current-source-next158',
+        'sqlite-current-source-window-recursive-limit-offset',
     ], $plan['dependencies']);
 };
 
-$tests['compound select window recursive limit current source next158 compound metadata'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset compound metadata'] = static function (TestRunner $t) use ($summary158): void {
     $compound = $summary158()['compound'];
     $t->same(['UNION'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -71,27 +71,27 @@ $tests['compound select window recursive limit current source next158 compound m
     $t->same(1, $compound['offset']);
 };
 
-$tests['compound select window recursive limit current source next158 current rows'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset current rows'] = static function (TestRunner $t) use ($summary158): void {
     $rows = $summary158()['currentRows'];
     $t->same([3, 4, 5, 1], array_column($rows, 'id'));
     $t->same(['seed:3', 'seed:4', 'seed:5', 'siteurl'], array_column($rows, 'label'));
     $t->same([30, 26, 22, 18], array_column($rows, 'score'));
 };
 
-$tests['compound select window recursive limit current source next158 next rows'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset next rows'] = static function (TestRunner $t) use ($summary158): void {
     $rows = $summary158()['nextRows'];
     $t->same([3, 4, 4, 5], array_column($rows, 'id'));
     $t->same(['seed:3', 'seed:4', 'plugin_alpha', 'seed:5'], array_column($rows, 'label'));
     $t->same([30, 26, 25, 22], array_column($rows, 'score'));
 };
 
-$tests['compound select window recursive limit current source next158 prelimit boundary'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset prelimit boundary'] = static function (TestRunner $t) use ($summary158): void {
     $plan = $summary158();
     $t->same(['seed:2', 'seed:3', 'seed:4', 'seed:5', 'siteurl', 'home', 'active_plugins', 'seed:6'], array_column($plan['currentPreLimitRows'], 'label'));
     $t->same(['seed:2', 'seed:3', 'seed:4', 'plugin_alpha', 'seed:5', 'plugin_beta', 'siteurl', 'home', 'active_plugins', 'seed:6'], array_column($plan['nextPreLimitRows'], 'label'));
 };
 
-$tests['compound select window recursive limit current source next158 recursive limit offset trace'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset recursive limit offset trace'] = static function (TestRunner $t) use ($summary158): void {
     $recursive = $summary158()['recursive'];
     $t->same('option_queue', $recursive['name']);
     $t->same(['id', 'label', 'weight'], $recursive['columns']);
@@ -104,7 +104,7 @@ $tests['compound select window recursive limit current source next158 recursive 
     $t->true(in_array('sqlite-recursive-cte-current-row', $recursive['dependencies'], true));
 };
 
-$tests['compound select window recursive limit current source next158 window metadata'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset window metadata'] = static function (TestRunner $t) use ($summary158): void {
     $windows = $summary158()['windows']['current'];
     $t->same(['sum', 'first_value'], array_column($windows, 'function'));
     $t->same(['score', 'score'], array_column($windows, 'alias'));
@@ -113,7 +113,7 @@ $tests['compound select window recursive limit current source next158 window met
     $t->same(['ROWS', 'ROWS'], array_column($windows, 'frameUnit'));
 };
 
-$tests['compound select window recursive limit current source next158 limit trace'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset limit trace'] = static function (TestRunner $t) use ($summary158): void {
     $trace = $summary158()['limitTrace'];
     $t->same(8, $trace['current']['preLimitCount']);
     $t->same(10, $trace['next']['preLimitCount']);
@@ -123,7 +123,7 @@ $tests['compound select window recursive limit current source next158 limit trac
     $t->same(['plugin_beta', 'siteurl', 'home', 'active_plugins', 'seed:6'], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit current source next158 boundary changes'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset boundary changes'] = static function (TestRunner $t) use ($summary158): void {
     $boundary = $summary158()['boundary'];
     $t->same('seed:3', $boundary['currentFirst']['label']);
     $t->same('seed:3', $boundary['nextFirst']['label']);
@@ -133,7 +133,7 @@ $tests['compound select window recursive limit current source next158 boundary c
     $t->true(in_array('plugin_beta', $boundary['truncatedLabelsChanged'], true));
 };
 
-$tests['compound select window recursive limit current source next158 changed signatures and reasons'] = static function (TestRunner $t) use ($summary158): void {
+$tests['compound select window recursive limit current source window-recursive-limit-offset changed signatures and reasons'] = static function (TestRunner $t) use ($summary158): void {
     $plan = $summary158();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->contains('"label":"plugin_alpha"', $changed);
@@ -145,24 +145,24 @@ $tests['compound select window recursive limit current source next158 changed si
     $t->true(in_array('compound-final-limit-offset', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit current source next158 rejects non recursive'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
+$tests['compound select window recursive limit current source window-recursive-limit-offset rejects non recursive'] = static function (TestRunner $t) use ($currentTables158): void {
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimitOffset(
         'SELECT option_id AS id, option_name AS label FROM wp_options UNION SELECT option_id, option_name FROM wp_options LIMIT 2 OFFSET 1',
         $currentTables158,
         $currentTables158,
     ));
 };
 
-$tests['compound select window recursive limit current source next158 rejects missing window'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
+$tests['compound select window recursive limit current source window-recursive-limit-offset rejects missing window'] = static function (TestRunner $t) use ($currentTables158): void {
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimitOffset(
         "WITH RECURSIVE option_queue(id, label, weight) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, weight - 1 FROM option_queue WHERE id < 3 LIMIT 2 OFFSET 1) SELECT id, label, weight AS score FROM option_queue UNION SELECT option_id, option_name, weight FROM wp_options ORDER BY score LIMIT 2 OFFSET 1",
         $currentTables158,
         $currentTables158,
     ));
 };
 
-$tests['compound select window recursive limit current source next158 rejects missing final limit'] = static function (TestRunner $t) use ($currentTables158): void {
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext158(
+$tests['compound select window recursive limit current source window-recursive-limit-offset rejects missing final limit'] = static function (TestRunner $t) use ($currentTables158): void {
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareWindowRecursiveLimitOffset(
         "WITH RECURSIVE option_queue(id, label, weight) AS (VALUES (1, 'seed', 20) UNION ALL SELECT id + 1, label, weight - 1 FROM option_queue WHERE id < 3 LIMIT 2 OFFSET 1) SELECT id, label, sum(weight) OVER (ORDER BY id) AS score FROM option_queue UNION SELECT option_id, option_name, weight FROM wp_options ORDER BY score",
         $currentTables158,
         $currentTables158,
@@ -170,7 +170,7 @@ $tests['compound select window recursive limit current source next158 rejects mi
 };
 
 foreach (range(1, 52) as $case) {
-    $tests['compound select window recursive limit current source next158 generated limit offset boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current source window-recursive-limit-offset generated limit offset boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $cteLimit = 3 + ($case % 4);
         $finalLimit = 2 + ($case % 3);
         $tables = [

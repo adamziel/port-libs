@@ -35,14 +35,14 @@ $parsedAfter = static fn (): array => SQLiteUpdateDeleteReturningSql::parse($aft
 $outerOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($outerStageSql, $tables, 'option_id', $unique);
 $innerDeleteOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerDeleteSql, $outerOnly()['tables'], 'option_id', $unique);
 $innerUpdateOnly = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($innerUpdateSql, $innerDeleteOnly()['tables'], 'option_id', $unique);
-$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157(
+$plan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch(
     $tables,
     [$outerStageSql],
     [$innerDeleteSql, $innerUpdateSql],
     [$afterRollbackSql, $afterCleanupSql],
     $unique,
 );
-$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157(
+$cleanPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch(
     $tables,
     [$outerStageSql],
     [$innerUpdateSql],
@@ -126,13 +126,13 @@ $cases = [
     'clean plan final row ten live' => [static fn (): mixed => array_column($cleanPlan()['current_source_tables']['wp_options'], 'status', 'option_id')[10], 'live'],
     'clean plan changes four' => [static fn (): mixed => $cleanPlan()['changes'], 4],
 
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [], [$innerUpdateSql], [$afterRollbackSql], $unique), InvalidArgumentException::class],
-    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [$outerStageSql], [], [$afterRollbackSql], $unique), InvalidArgumentException::class],
-    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [$outerStageSql], [$innerUpdateSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], []), InvalidArgumentException::class],
-    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique, 'same_name', 'same_name'), InvalidArgumentException::class],
-    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext157(['wp_options' => ['bad']], [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [], [$innerUpdateSql], [$afterRollbackSql], $unique), InvalidArgumentException::class],
+    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [$outerStageSql], [], [$afterRollbackSql], $unique), InvalidArgumentException::class],
+    'malformed empty after rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [$outerStageSql], [$innerUpdateSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], []), InvalidArgumentException::class],
+    'malformed same savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique, 'same_name', 'same_name'), InvalidArgumentException::class],
+    'malformed bad savepoint rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch($tables, [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNestedSavepointRollbackBatch(['wp_options' => ['bad']], [$outerStageSql], [$innerUpdateSql], [$afterRollbackSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];

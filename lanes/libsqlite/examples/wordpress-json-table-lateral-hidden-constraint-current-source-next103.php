@@ -54,7 +54,7 @@ $nextOptions = [
     ],
 ];
 
-$plan = SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSourceNext103(
+$plan = SQLiteJsonTablePlan::lateralHiddenConstraintCurrentSource(
     $currentOptions,
     $nextOptions,
     'option_id',

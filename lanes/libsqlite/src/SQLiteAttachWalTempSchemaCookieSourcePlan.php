@@ -131,7 +131,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
 
         return [
             'status' => $expired === [] ? 'schema_cache_stable' : 'schema_cache_expired',
-            'operation' => 'attach-wal-temp-schema-cookie-current-source-next87',
+            'operation' => 'attach-wal-temp-schema-cookie-source',
             'source' => $source,
             'search_order' => $order,
             'schema_cookies_current' => $currentCookies,
@@ -148,7 +148,7 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
             'requires_reprepare' => $expired !== [],
             'database_list' => self::databaseList($normalized, $order, $currentCookies, $nextCookies),
             'dependencies' => [
-                'sqlite-attach-wal-temp-schema-cookie-current-source-next87',
+                'sqlite-attach-wal-temp-schema-cookie-source',
                 'sqlite-wal-page-one-schema-cookie',
                 'sqlite-temp-schema-cookie-rollback-journal',
             ],
@@ -160,11 +160,11 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
      * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool}> $statements
      * @return array<string,mixed>
      */
-    public static function currentSourceNext94(array $schemas, array $statements, string $sourceSchema = 'main'): array
+    public static function bracketQuotedSchemaCookieSourcePlan(array $schemas, array $statements, string $sourceSchema = 'main'): array
     {
         $plan = self::plan($schemas, $statements, $sourceSchema);
-        $plan['operation'] = 'attach-temp-wal-schema-cookie-current-source-next94';
-        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-current-source-next94';
+        $plan['operation'] = 'attach-temp-wal-schema-cookie-bracket-quoted-source';
+        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-bracket-quoted-source';
         $plan['dependencies'][] = 'sqlite-bracket-quoted-attach-schema-cookie-source';
         $plan['dependencies'][] = 'sqlite-schema-table-alias-cookie-source';
 
@@ -176,11 +176,11 @@ final class SQLiteAttachWalTempSchemaCookieSourcePlan
      * @param list<array{name?:string,sql:string,active?:bool,read_only?:bool}> $statements
      * @return array<string,mixed>
      */
-    public static function currentSourceNext99(array $schemas, array $statements, string $sourceSchema = 'main'): array
+    public static function cteSchemaCookieSourcePlan(array $schemas, array $statements, string $sourceSchema = 'main'): array
     {
         $plan = self::plan($schemas, $statements, $sourceSchema);
-        $plan['operation'] = 'attach-temp-wal-schema-cookie-current-source-next99';
-        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-current-source-next99';
+        $plan['operation'] = 'attach-temp-wal-schema-cookie-cte-source';
+        $plan['dependencies'][0] = 'sqlite-attach-temp-wal-schema-cookie-cte-source';
         $plan['dependencies'][] = 'sqlite-with-cte-schema-cookie-source-filter';
         $plan['dependencies'][] = 'sqlite-recursive-cte-attach-temp-wal-source';
 

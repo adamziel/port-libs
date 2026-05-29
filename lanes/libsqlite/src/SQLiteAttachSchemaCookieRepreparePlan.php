@@ -245,11 +245,11 @@ final class SQLiteAttachSchemaCookieRepreparePlan
      * @param list<array{op:string,schema?:string,file?:string|null,schema_cookie?:int,tables?:list<string>,table?:string,object?:string,commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext100(array $schemas, array $preparedStatements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCookieRepreparePlan(array $schemas, array $preparedStatements, array $events, string $sourceSchema = 'main'): array
     {
         $plan = self::plan($schemas, $preparedStatements, $events, $sourceSchema);
-        $plan['operation'] = 'attach-schema-cookie-reprepare-current-source-next100';
-        array_unshift($plan['dependencies'], 'sqlite-attach-schema-cookie-reprepare-current-source-next100');
+        $plan['operation'] = 'attach-schema-cookie-reprepare';
+        array_unshift($plan['dependencies'], 'sqlite-attach-schema-cookie-reprepare');
         $plan['dependencies'] = array_values(array_unique($plan['dependencies']));
 
         return $plan;
@@ -262,7 +262,7 @@ final class SQLiteAttachSchemaCookieRepreparePlan
      * @param array<string,array{file?:string|null,cache?:string|null,schema_cookie:int,generation?:int}> $schemaCacheEntries
      * @return array<string,mixed>
      */
-    public static function currentSourceNext103(
+    public static function sharedCacheRepreparePlan(
         array $schemas,
         array $preparedStatements,
         array $events,
@@ -270,8 +270,8 @@ final class SQLiteAttachSchemaCookieRepreparePlan
         string $sourceSchema = 'main',
     ): array {
         $plan = self::plan($schemas, $preparedStatements, $events, $sourceSchema);
-        $plan['operation'] = 'attach-temp-schema-cache-reprepare-current-source-next103';
-        array_unshift($plan['dependencies'], 'sqlite-attach-temp-schema-cache-reprepare-current-source-next103');
+        $plan['operation'] = 'attach-temp-schema-cache-reprepare';
+        array_unshift($plan['dependencies'], 'sqlite-attach-temp-schema-cache-reprepare');
         $plan['dependencies'] = array_values(array_unique($plan['dependencies']));
 
         $current = self::normalizeSchemas($schemas);

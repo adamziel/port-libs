@@ -68,7 +68,7 @@ $prepared95 = [
     ['name' => 'archive.archive_cleanup'],
 ];
 
-$plan95 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext95(
+$plan95 = static fn (?array $prepared = null, ?array $states = null): array => SQLiteAttachTempWalSchemaTriggerPlan::triggerDependencyCookiePlan(
     $current95(),
     $next95(),
     $prepared ?? $prepared95,
@@ -99,7 +99,7 @@ $value95 = static function (array $data, string $path): mixed {
 
 $cases95 = [
     'status expired' => ['status', 'trigger_current_source_expired'],
-    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-current-source-next95'],
+    'operation marker' => ['operation', 'attach-temp-wal-schema-trigger-dependency-cookie'],
     'trigger count' => ['trigger_count', 5],
     'active trigger count' => ['active_trigger_count', 2],
     'requires reprepare' => ['requires_reprepare', true],
@@ -117,7 +117,7 @@ $cases95 = [
     'current main cookie' => ['schema_cookies_current.main', 30],
     'next main cookie' => ['schema_cookies_next.main', 31],
     'next site cookie' => ['schema_cookies_next.site', 13],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-current-source-next95'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-temp-wal-schema-trigger-dependency-cookie'],
     'dependency temp body resolution' => ['dependencies.2', 'sqlite-temp-trigger-body-dependency-resolution'],
     'temp bridge current deps' => ['triggers.temp_bridge_ai.current_body_dependency_schemas', ['temp', 'site']],
     'temp bridge next deps' => ['triggers.temp_bridge_ai.next_body_dependency_schemas', ['main', 'site']],
@@ -165,7 +165,7 @@ $predicateCases95 = [
     'stable archive-only plan reports stable status' => static fn (): bool => $plan95([['name' => 'archive.archive_cleanup']], ['archive' => ['schema_cookie' => 5]])['status'] === 'trigger_current_source_stable',
     'missing trigger rejected through next95' => static function () use ($current95, $next95): bool {
         try {
-            SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext95($current95(), $next95(), [['name' => 'missing']]);
+            SQLiteAttachTempWalSchemaTriggerPlan::triggerDependencyCookiePlan($current95(), $next95(), [['name' => 'missing']]);
         } catch (InvalidArgumentException) {
             return true;
         }
@@ -174,7 +174,7 @@ $predicateCases95 = [
     },
     'empty prepared list rejected through next95' => static function () use ($current95, $next95): bool {
         try {
-            SQLiteAttachTempWalSchemaTriggerPlan::currentSourceNext95($current95(), $next95(), []);
+            SQLiteAttachTempWalSchemaTriggerPlan::triggerDependencyCookiePlan($current95(), $next95(), []);
         } catch (InvalidArgumentException) {
             return true;
         }
