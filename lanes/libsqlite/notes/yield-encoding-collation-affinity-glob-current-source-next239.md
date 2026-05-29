@@ -4,14 +4,14 @@ Slice: malformed UTF-8 byte `GLOB` bracket/range comparison after text affinity 
 
 Behavior:
 
-- Adds `SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Plan`.
+- Adds `SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan`.
 - Preserves SQLite-style GLOB tokenization where well-formed UTF-8 codepoints stay intact and malformed bytes are consumed one byte at a time.
 - Records current/next cursor invalidation for source-name, schema-cookie, matched-rowset, byte, storage-class, and token-count changes.
 - Covers scalar text affinity for integer, float, and boolean values while leaving BLOB and SQL NULL values outside implicit GLOB matching.
 
 Focused evidence:
 
-- `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-encoding-collation-affinity-glob-current-source-next239.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Test.php`

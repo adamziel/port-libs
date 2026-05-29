@@ -1,6 +1,6 @@
 # Encoding RTRIM LIKE/GLOB Affinity Current Source Next144
 
-This slice adds `SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNext144Plan`
+This slice adds `SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan`
 for the intersection of accepted RTRIM current-source scans and accepted
 LIKE/GLOB affinity predicates.
 

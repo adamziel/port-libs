@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNext144Plan
+final class SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows

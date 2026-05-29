@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
+final class SQLiteCastRtrimLikeCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
@@ -16,24 +16,16 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
         array $nextRows,
         string $castTarget,
         string $pattern,
-        string $operator = 'LIKE',
         ?string $escape = null,
-        string $currentSource = 'main.wp_options@132',
-        string $nextSource = 'main.wp_options@133',
-        int $currentSchemaCookie = 132,
-        int $nextSchemaCookie = 133,
+        string $currentSource = 'main.wp_options@130',
+        string $nextSource = 'main.wp_options@131',
+        int $currentSchemaCookie = 130,
+        int $nextSchemaCookie = 131,
     ): array {
-        $operator = strtoupper($operator);
-        if (!in_array($operator, ['LIKE', 'GLOB'], true)) {
-            throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB current-source operator must be LIKE or GLOB');
-        }
-        if ($operator === 'GLOB' && $escape !== null) {
-            throw new \InvalidArgumentException('SQLite CAST GLOB current-source does not accept ESCAPE');
-        }
-
-        $range = self::prefixRange($operator, $pattern, $escape);
-        $currentTrace = self::traceRows($currentRows, $castTarget, $operator, $pattern, $escape, $range);
-        $nextTrace = self::traceRows($nextRows, $castTarget, $operator, $pattern, $escape, $range);
+        $patternPlan = SQLiteDatabase::likePatternPlan($pattern, $escape);
+        $range = $patternPlan['prefix'] === '' ? null : $patternPlan['binaryRange'];
+        $currentTrace = self::traceRows($currentRows, $castTarget, $pattern, $escape, $range);
+        $nextTrace = self::traceRows($nextRows, $castTarget, $pattern, $escape, $range);
         $currentByRowid = self::byRowid($currentTrace);
         $nextByRowid = self::byRowid($nextTrace);
 
@@ -42,21 +34,17 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
         $currentMatched = self::rowidsWhere($currentTrace, 'matched');
         $nextMatched = self::rowidsWhere($nextTrace, 'matched');
         $changedCast = [];
-        $changedText = [];
-        $changedBytes = [];
+        $changedRtrimKey = [];
         $changedCandidate = [];
         $changedMatch = [];
         foreach (array_unique(array_merge(array_keys($currentByRowid), array_keys($nextByRowid))) as $rowid) {
             $current = $currentByRowid[$rowid] ?? null;
             $next = $nextByRowid[$rowid] ?? null;
-            if ($current === null || $next === null || $current['castStorage'] !== $next['castStorage'] || $current['castValue'] !== $next['castValue']) {
+            if ($current === null || $next === null || $current['castStorage'] !== $next['castStorage'] || $current['castText'] !== $next['castText']) {
                 $changedCast[] = (int) $rowid;
             }
-            if ($current === null || $next === null || $current['castText'] !== $next['castText']) {
-                $changedText[] = (int) $rowid;
-            }
-            if ($current === null || $next === null || $current['castTextHex'] !== $next['castTextHex']) {
-                $changedBytes[] = (int) $rowid;
+            if ($current === null || $next === null || $current['rtrimKey'] !== $next['rtrimKey']) {
+                $changedRtrimKey[] = (int) $rowid;
             }
             if ($current === null || $next === null || $current['candidate'] !== $next['candidate']) {
                 $changedCandidate[] = (int) $rowid;
@@ -66,8 +54,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
             }
         }
         sort($changedCast);
-        sort($changedText);
-        sort($changedBytes);
+        sort($changedRtrimKey);
         sort($changedCandidate);
         sort($changedMatch);
 
@@ -84,11 +71,8 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
         if ($changedCast !== []) {
             $reasons[] = 'cast-result';
         }
-        if ($changedText !== []) {
-            $reasons[] = 'text-affinity';
-        }
-        if ($changedBytes !== []) {
-            $reasons[] = 'encoded-bytes';
+        if ($changedRtrimKey !== []) {
+            $reasons[] = 'rtrim-key';
         }
         if ($changedCandidate !== []) {
             $reasons[] = 'candidate-rowset';
@@ -98,14 +82,19 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
         }
 
         return [
-            'operator' => $operator,
-            'collation' => 'BINARY',
+            'operator' => 'LIKE',
+            'collation' => 'RTRIM',
+            'caseSensitiveLike' => true,
             'castTarget' => trim($castTarget),
             'pattern' => $pattern,
             'escape' => $escape,
+            'patternPrefix' => $patternPlan['prefix'],
+            'prefixIsAscii' => $patternPlan['prefixIsAscii'],
             'range' => $range,
             'indexUsable' => $range !== null,
             'residualScan' => true,
+            'likeDoesNotTrimTrailingSpaces' => true,
+            'rtrimTrimsOnlySpace' => true,
             'currentSource' => $currentSource,
             'nextSource' => $nextSource,
             'currentSchemaCookie' => $currentSchemaCookie,
@@ -122,8 +111,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
             'enteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
             'exitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
             'changedCastRowids' => $changedCast,
-            'changedTextRowids' => $changedText,
-            'changedBytesRowids' => $changedBytes,
+            'changedRtrimKeyRowids' => $changedRtrimKey,
             'changedCandidateRowids' => $changedCandidate,
             'changedMatchRowids' => $changedMatch,
             'cursorInvalidated' => $reasons !== [],
@@ -131,25 +119,11 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
             'invalidationReasons' => $reasons,
             'dependencies' => [
                 'sqlite-select-cast-expression',
-                'sqlite-binary-like-glob-prefix-range',
-                'sqlite-like-glob-text-affinity-residual',
-                'sqlite-current-source-next133',
+                'sqlite-rtrim-like-prefix-range',
+                'sqlite-like-binary-residual',
+                'sqlite-current-source-next131',
             ],
         ];
-    }
-
-    /**
-     * @return null|array{lowerInclusive:string,upperBound:?string}
-     */
-    private static function prefixRange(string $operator, string $pattern, ?string $escape): ?array
-    {
-        if ($operator === 'LIKE') {
-            $plan = SQLiteDatabase::likePatternPlan($pattern, $escape);
-
-            return $plan['prefix'] === '' ? null : $plan['binaryRange'];
-        }
-
-        return SQLiteDatabase::globPrefixRangeBounds($pattern);
     }
 
     /**
@@ -157,19 +131,19 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
      * @param null|array{lowerInclusive:string,upperBound:?string} $range
      * @return list<array<string,mixed>>
      */
-    private static function traceRows(array $rows, string $castTarget, string $operator, string $pattern, ?string $escape, ?array $range): array
+    private static function traceRows(array $rows, string $castTarget, string $pattern, ?string $escape, ?array $range): array
     {
         foreach ($rows as $row) {
             if (!is_array($row)) {
-                throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB rows must be arrays');
+                throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE rows must be arrays');
             }
             foreach (['option_id', 'option_value'] as $column) {
                 if (!array_key_exists($column, $row)) {
-                    throw new \InvalidArgumentException("SQLite CAST LIKE/GLOB row is missing {$column}");
+                    throw new \InvalidArgumentException("SQLite CAST RTRIM LIKE row is missing {$column}");
                 }
             }
             if (!is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB option_id must be an integer');
+                throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE option_id must be an integer');
             }
         }
 
@@ -183,11 +157,10 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
         foreach ($castRows as $row) {
             $castValue = $row['cast_value'];
             $castText = self::textValue($castValue);
-            $candidate = $range !== null && strcmp($castText, $range['lowerInclusive']) >= 0
-                && ($range['upperBound'] === null || strcmp($castText, $range['upperBound']) < 0);
-            $matched = $candidate && ($operator === 'LIKE'
-                ? SQLiteDatabase::likeMatches($castText, $pattern, $escape, true)
-                : SQLiteDatabase::globMatches($castText, $pattern));
+            $rtrimKey = rtrim($castText, ' ');
+            $candidate = $range !== null && strcmp($rtrimKey, $range['lowerInclusive']) >= 0
+                && ($range['upperBound'] === null || strcmp($rtrimKey, $range['upperBound']) < 0);
+            $matched = $candidate && SQLiteDatabase::likeMatches($castText, $pattern, $escape, true);
             $trace[] = [
                 'rowid' => $row['option_id'],
                 'originalStorage' => self::storageClass($row['option_value']),
@@ -195,6 +168,8 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
                 'castValue' => $castValue instanceof SQLiteBlobValue ? $castValue->bytes : $castValue,
                 'castText' => $castText,
                 'castTextHex' => strtoupper(bin2hex($castText)),
+                'rtrimKey' => $rtrimKey,
+                'rtrimKeyHex' => strtoupper(bin2hex($rtrimKey)),
                 'candidate' => $candidate,
                 'matched' => $matched,
             ];
@@ -207,7 +182,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
     {
         $target = trim($target);
         if (preg_match('/^[A-Za-z][A-Za-z0-9_ ]*(?:\([0-9 ,]+\))?$/', $target) !== 1) {
-            throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB current-source target affinity is malformed');
+            throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE target affinity is malformed');
         }
 
         return $target;
@@ -228,7 +203,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
             return (string) $value;
         }
 
-        throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB values must be scalar, BLOB, or NULL');
+        throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE values must be scalar, BLOB, or NULL');
     }
 
     private static function storageClass(mixed $value): string
@@ -239,7 +214,7 @@ final class SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan
             is_int($value), is_bool($value) => 'integer',
             is_float($value) => 'real',
             is_string($value) => 'text',
-            default => throw new \InvalidArgumentException('SQLite CAST LIKE/GLOB values must be scalar, BLOB, or NULL'),
+            default => throw new \InvalidArgumentException('SQLite CAST RTRIM LIKE values must be scalar, BLOB, or NULL'),
         };
     }
 

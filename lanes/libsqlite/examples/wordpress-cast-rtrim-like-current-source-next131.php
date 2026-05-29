@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastRtrimLikeCurrentSourceNext131Plan;
+use PortLibs\LibSqlite\SQLiteCastRtrimLikeCurrentSourceNextPlan;
 
 $currentRows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'plugin_cache'],
@@ -22,7 +22,7 @@ $nextRows = [
     ['option_id' => 5, 'option_name' => 'fresh_plugin', 'option_value' => 'plugin_cache_new'],
 ];
 
-$plan = SQLiteCastRtrimLikeCurrentSourceNext131Plan::wordpressOptionValuePlan(
+$plan = SQLiteCastRtrimLikeCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',

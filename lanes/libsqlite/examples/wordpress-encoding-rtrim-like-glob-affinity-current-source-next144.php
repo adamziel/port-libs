@@ -5,7 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNext144Plan;
+use PortLibs\LibSqlite\SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan;
 
 $current = [
     ['option_id' => 1, 'option_value' => 'cache  ', 'option_pattern' => 'cache', 'option_escape' => '!'],
@@ -21,7 +21,7 @@ $next = [
     ['option_id' => 5, 'option_value' => 'emoji_😀', 'option_pattern' => 'emoji_*', 'option_escape' => '!'],
 ];
 
-$plan = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNext144Plan::wordpressOptionValuePlan(
+$plan = SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
     $current,
     $next,
     'option_value',

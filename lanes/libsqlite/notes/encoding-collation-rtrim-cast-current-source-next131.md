@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteCastRtrimLikeCurrentSourceNext131Plan` for current-source `CAST(option_value AS ...) COLLATE RTRIM LIKE` planning over copied `wp_options` rows.
+- Adds `SQLiteCastRtrimLikeCurrentSourceNextPlan` for current-source `CAST(option_value AS ...) COLLATE RTRIM LIKE` planning over copied `wp_options` rows.
 - The range candidate key trims ASCII space only, matching SQLite `RTRIM` collation behavior.
 - The residual LIKE match still uses the original cast text, so exact LIKE does not silently match space-padded or tab-padded values.
 - Tracks current/next cursor invalidation by source name, schema cookie, cast result, RTRIM key, candidate rowset, and matched rowset.
@@ -11,7 +11,7 @@
 
 - Focused test: `php tools/run-tests.php lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`
 - WordPress smoke: `php lanes/libsqlite/examples/wordpress-cast-rtrim-like-current-source-next131.php --self-test`
-- Lint: `php -l lanes/libsqlite/src/SQLiteCastRtrimLikeCurrentSourceNext131Plan.php`, `php -l lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`, `php -l lanes/libsqlite/examples/wordpress-cast-rtrim-like-current-source-next131.php`
+- Lint: `php -l lanes/libsqlite/src/SQLiteCastRtrimLikeCurrentSourceNextPlan.php`, `php -l lanes/libsqlite/tests/SQLiteCastRtrimLikeCurrentSourceNext131Test.php`, `php -l lanes/libsqlite/examples/wordpress-cast-rtrim-like-current-source-next131.php`
 - Diff hygiene: `git diff --check -- lanes/libsqlite`
 
 ## Non-Overlap

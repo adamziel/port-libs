@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -23,14 +23,14 @@ $nextRows = [
     ['option_id' => 6, 'option_name' => 'fresh', 'option_value' => 'plugin:fresh'],
 ];
 
-$like = SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan(
+$like = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
     'plugin:%',
     'LIKE',
 );
-$glob = SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan(
+$glob = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
     $currentRows,
     $nextRows,
     'INTEGER',

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
-use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan;
+use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -52,7 +52,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@133',
     int $currentCookie = 132,
     int $nextCookie = 133,
-): array => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan(
+): array => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $castTarget,
@@ -158,7 +158,7 @@ $tests['cast like glob affinity current source next133 stable sources are reusab
         ['option_id' => 1, 'option_value' => 'plugin:alpha'],
         ['option_id' => 2, 'option_value' => new SQLiteBlobValue('plugin:blob')],
     ];
-    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($rows, $rows, 'TEXT', 'plugin:%', 'LIKE', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'TEXT', 'plugin:%', 'LIKE', null, 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
@@ -166,7 +166,7 @@ $tests['cast like glob affinity current source next133 stable sources are reusab
 
 $tests['cast like glob affinity current source next133 stable leading wildcard keeps no prefix reason'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'plugin:alpha']];
-    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($rows, $rows, 'TEXT', '%alpha', 'LIKE', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'TEXT', '%alpha', 'LIKE', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
@@ -174,38 +174,38 @@ $tests['cast like glob affinity current source next133 stable leading wildcard k
 
 $tests['cast like glob affinity current source next133 stable glob leading class keeps no prefix reason'] = static function (TestRunner $t): void {
     $rows = [['option_id' => 1, 'option_value' => 'plugin:alpha']];
-    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($rows, $rows, 'TEXT', '[Pp]lugin:*', 'GLOB', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($rows, $rows, 'TEXT', '[Pp]lugin:*', 'GLOB', null, 'stable', 'stable', 7, 7);
     $t->same(null, $plan['range']);
     $t->same([], $plan['currentRowids']);
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
 $tests['cast like glob affinity current source next133 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT); DROP TABLE wp_options; --', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'REGEXP'));
 };
 
 $tests['cast like glob affinity current source next133 rejects glob escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin:*', 'GLOB', '!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin:*', 'GLOB', '!'));
 };
 
 $tests['cast like glob affinity current source next133 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan([['option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects missing option value'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan([['option_id' => 1]], [], 'TEXT', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => 1]], [], 'TEXT', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects non integer option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan([['option_id' => '1', 'option_value' => 'plugin']], [], 'TEXT', 'plugin:%'));
 };
 
 $tests['cast like glob affinity current source next133 rejects multi byte escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNext133Plan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin!!:%', 'LIKE', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::wordpressOptionValuePlan($currentRows, $currentRows, 'TEXT', 'plugin!!:%', 'LIKE', '!!'));
 };
 
 return $tests;
