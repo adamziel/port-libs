@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Plan
      * @param list<array<string, mixed>> $rows
      */
     private function __construct(
-        public readonly SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan $basePlan,
+        public readonly SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan $basePlan,
         public readonly array $rows,
     ) {
     }
@@ -28,7 +28,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Plan
         string $replacementOverflowPayload,
         bool $secureDelete = true,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan::tableAndIndexFromCurrentSourceDeleteResults(
+        return self::fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan::next147TableAndIndexFromCurrentSourceDeleteResults(
             $database,
             $leafPageNumber,
             $currentOverflowChains,
@@ -39,7 +39,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext153Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNext147Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeOverflowFreeblockPointerMapCurrentSourceNextPlan $basePlan): self
     {
         $rows = [];
         $leafPageNumber = $basePlan->coalescePlan->pageNumber;
