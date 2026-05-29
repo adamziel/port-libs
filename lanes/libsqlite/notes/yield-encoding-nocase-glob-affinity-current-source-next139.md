@@ -2,7 +2,7 @@
 
 ## Behavior
 
-- Adds `SQLiteNocaseGlobAffinityCurrentSourceNext139Plan` for the SQLite rule that `GLOB` remains bytewise/case-sensitive even when the available option-name source is ordered by `NOCASE`.
+- Adds `SQLiteNocaseGlobAffinityCurrentSourceNextPlan` for the SQLite rule that `GLOB` remains bytewise/case-sensitive even when the available option-name source is ordered by `NOCASE`.
 - A fixed `GLOB` prefix is still recorded, but the range is only reusable for `BINARY` collation. `NOCASE` sources fall back to a residual scan and report `glob-range-requires-binary-collation`.
 - Tracks text-affinity coercion, encoded bytes, candidate rowsets, matched rowsets, and current-source invalidation across `current` and `next` wp_options snapshots.
 

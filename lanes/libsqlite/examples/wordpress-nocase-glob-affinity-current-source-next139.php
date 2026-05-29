@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteNocaseGlobAffinityCurrentSourceNext139Plan;
+use PortLibs\LibSqlite\SQLiteNocaseGlobAffinityCurrentSourceNextPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -20,7 +20,7 @@ $nextRows = [
     ['option_id' => 5, 'option_name' => 'plugin_fresh', 'autoload' => 'yes'],
 ];
 
-$summary = SQLiteNocaseGlobAffinityCurrentSourceNext139Plan::wordpressOptionNamePlan(
+$summary = SQLiteNocaseGlobAffinityCurrentSourceNextPlan::wordpressOptionNamePlan(
     $currentRows,
     $nextRows,
     'plugin_*',

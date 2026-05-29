@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteNocaseLikeRtrimCurrentSourceNext146Plan;
+use PortLibs\LibSqlite\SQLiteNocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -61,7 +61,7 @@ $plan = static fn (
     string $nextSource = 'main.wp_options@146',
     int $currentCookie = 145,
     int $nextCookie = 146,
-): array => SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan(
+): array => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
     $pattern,
@@ -169,7 +169,7 @@ foreach ($cases as $name => [$pattern, $escape, $path, $expected]) {
 
 $tests['nocase like rtrim current source next146 stable rows reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_alpha   ', 'UTF-8'), $row(2, 'Plugin_Beta', 'UTF-16LE')];
-    $plan = SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan($rows, $rows, 'plugin\_%', '\\', 'stable', 'stable', 7, 7);
+    $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, 'plugin\_%', '\\', 'stable', 'stable', 7, 7);
     $t->same([1, 2], $plan['currentMatchedRowids']);
     $t->same([], $plan['invalidationReasons']);
     $t->same(true, $plan['cursorReusable']);
@@ -177,32 +177,32 @@ $tests['nocase like rtrim current source next146 stable rows reusable'] = static
 
 $tests['nocase like rtrim current source next146 stable no-prefix still not reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [$row(1, 'plugin_alpha   ', 'UTF-8'), $row(2, 'theme_plugin', 'UTF-16LE')];
-    $plan = SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan($rows, $rows, '%plugin%', null, 'stable', 'stable', 7, 7);
+    $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan($rows, $rows, '%plugin%', null, 'stable', 'stable', 7, 7);
     $t->same([], $plan['currentMatchedRowids']);
     $t->same(['no_fixed_prefix'], $plan['invalidationReasons']);
     $t->same(false, $plan['cursorReusable']);
 };
 
 $tests['nocase like rtrim current source next146 rejects missing option id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan([['option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_name_bytes' => 'plugin', 'text_encoding' => 1]], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 rejects missing bytes'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 rejects missing encoding'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin']], [], 'plugin%'));
 };
 
 $tests['nocase like rtrim current source next146 records unsupported encoding as malformed'] = static function (TestRunner $t): void {
-    $plan = SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin%');
+    $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'option_name_bytes' => 'plugin', 'text_encoding' => 9]], [], 'plugin%');
     $t->same([1], $plan['currentMalformedRowids']);
     $t->same('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE', $plan['currentErrors'][1]);
 };
 
 $tests['nocase like rtrim current source next146 rejects bad escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan($currentRows, [], 'plugin%', 'xx'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan($currentRows, [], 'plugin%', 'xx'));
 };
 
 return $tests;

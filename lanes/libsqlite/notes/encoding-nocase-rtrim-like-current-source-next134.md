@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteNocaseRtrimLikeCurrentSourceNext134Plan` for current-source `LIKE`
+Adds `SQLiteNocaseRtrimLikeCurrentSourceNextPlan` for current-source `LIKE`
 cursor invalidation when copied `wp_options.option_name` scans move between a
 usable default `LIKE`/`NOCASE` prefix range and an unusable `RTRIM` collation
 source that must be residual-scanned. The plan decodes UTF-8/UTF-16 text,

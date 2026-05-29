@@ -38,7 +38,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         self::v157_assertUtf16Rows($currentRows);
         self::v157_assertUtf16Rows($nextRows);
 
-        $plan = SQLiteNocaseLikeRtrimCurrentSourceNext146Plan::wordpressOptionNamePlan(
+        $plan = SQLiteNocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNamePlan(
             $currentRows,
             $nextRows,
             $pattern,

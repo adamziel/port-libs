@@ -1,6 +1,6 @@
 # Encoding NOCASE LIKE RTRIM current-source next146
 
-This slice adds `SQLiteNocaseLikeRtrimCurrentSourceNext146Plan`, a focused
+This slice adds `SQLiteNocaseLikeRtrimCurrentSourceNextPlan`, a focused
 current/next cursor plan for WordPress option-name predicates shaped like:
 
 ```sql

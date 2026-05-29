@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteNocaseRtrimLikeCurrentSourceNext134Plan;
+use PortLibs\LibSqlite\SQLiteNocaseRtrimLikeCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -70,7 +70,7 @@ $plan134 = static fn (
     bool $caseSensitiveLike = false,
     string $currentSource = 'main.wp_options@133',
     string $nextSource = 'main.wp_options@134',
-): array => SQLiteNocaseRtrimLikeCurrentSourceNext134Plan::wordpressOptionNamePlan(
+): array => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan(
     $current ?? $current134,
     $next ?? $next134,
     $currentPattern,
@@ -208,11 +208,11 @@ $tests['nocase rtrim like current source next134 rejects unsupported current col
 };
 
 $tests['nocase rtrim like current source next134 rejects non integer option id'] = static function (TestRunner $t) use ($next134): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNext134Plan::wordpressOptionNamePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
 };
 
 $tests['nocase rtrim like current source next134 rejects missing bytes'] = static function (TestRunner $t) use ($next134): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNext134Plan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::wordpressOptionNamePlan([['option_id' => 1, 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
 };
 
 return $tests;

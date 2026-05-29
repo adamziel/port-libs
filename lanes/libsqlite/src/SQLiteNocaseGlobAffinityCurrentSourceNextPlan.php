@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteNocaseGlobAffinityCurrentSourceNext139Plan
+final class SQLiteNocaseGlobAffinityCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $currentRows
