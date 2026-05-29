@@ -21,43 +21,60 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$plans = [];
+$statuses = [];
+$summary = [
+    'status' => 'rowvalue-update-delete-returning-window-current-source-next686-701',
+    'candidateStatuses' => [],
+    'wordpressUse' => 'Copied wp_options imports validate the next686-701 row-value UPDATE/DELETE RETURNING window current-source continuation after merged next670-685 while preserving independent libsqlite throughput.',
+];
 for ($next = 686; $next <= 701; $next++) {
-    $plans[$next] = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReadyPublicationContinuation($next, ...$args);
+    $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReadyPublicationContinuation($next, ...$args);
+    $statuses[] = $plan['status'];
+
+    if ($next === 686) {
+        $summary['next686Handoff'] = $plan['next686_handoff']['next686_handoff'];
+        $summary['next686AfterReadyRange'] = $plan['next686_handoff']['after_ready_range'];
+        $summary['next686ConsumesNext685Ready'] = $plan['next686_handoff']['next685_ready'];
+    }
+    if ($next === 687) {
+        $summary['next687SourceAudit'] = $plan['next687_source_audit']['next687_source_audit'];
+        $summary['next687PreservesCurrentSource'] = $plan['next687_source_audit']['retry_rows_preserve_current_source'];
+    }
+    if ($next === 688) {
+        $summary['next688Preflight'] = $plan['next688_preflight']['next688_preflight'];
+        $summary['next688KeepsThroughputHigh'] = $plan['next688_preflight']['keeps_libsqlite_throughput_high'];
+    }
+    if ($next === 689) {
+        $summary['next689Final'] = $plan['next689_final']['next689_final'];
+        $summary['next689Ready'] = $plan['next689_ready'];
+    }
+    if ($next === 690) {
+        $summary['next690Handoff'] = $plan['next690_handoff']['next690_handoff'];
+        $summary['next690AfterReadyRange'] = $plan['next690_handoff']['after_ready_range'];
+    }
+    if ($next === 693) {
+        $summary['next693Ready'] = $plan['next693_ready'];
+    }
+    if ($next === 697) {
+        $summary['next697Ready'] = $plan['next697_ready'];
+    }
+    if ($next === 701) {
+        $summary['next701Final'] = $plan['next701_final']['next701_final'];
+        $summary['next701Ready'] = $plan['next701_ready'];
+    }
 }
 
-$statuses = array_map(static fn (array $plan): string => $plan['status'], $plans);
 $expectedStatuses = [];
 for ($next = 686; $next <= 701; $next++) {
     $expectedStatuses[] = 'rowvalue-update-delete-returning-window-current-source-next' . $next;
 }
 assert(array_values($statuses) === $expectedStatuses);
-assert($plans[686]['next686_handoff']['next685_ready'] === true);
-assert($plans[689]['next689_ready'] === true);
-assert($plans[693]['next693_ready'] === true);
-assert($plans[697]['next697_ready'] === true);
-assert($plans[701]['next701_ready'] === true);
-
-$summary = [
-    'status' => 'rowvalue-update-delete-returning-window-current-source-next686-701',
-    'candidateStatuses' => array_values($statuses),
-    'next686Handoff' => $plans[686]['next686_handoff']['next686_handoff'],
-    'next686AfterReadyRange' => $plans[686]['next686_handoff']['after_ready_range'],
-    'next686ConsumesNext685Ready' => $plans[686]['next686_handoff']['next685_ready'],
-    'next687SourceAudit' => $plans[687]['next687_source_audit']['next687_source_audit'],
-    'next687PreservesCurrentSource' => $plans[687]['next687_source_audit']['retry_rows_preserve_current_source'],
-    'next688Preflight' => $plans[688]['next688_preflight']['next688_preflight'],
-    'next688KeepsThroughputHigh' => $plans[688]['next688_preflight']['keeps_libsqlite_throughput_high'],
-    'next689Final' => $plans[689]['next689_final']['next689_final'],
-    'next689Ready' => $plans[689]['next689_ready'],
-    'next690Handoff' => $plans[690]['next690_handoff']['next690_handoff'],
-    'next690AfterReadyRange' => $plans[690]['next690_handoff']['after_ready_range'],
-    'next693Ready' => $plans[693]['next693_ready'],
-    'next697Ready' => $plans[697]['next697_ready'],
-    'next701Final' => $plans[701]['next701_final']['next701_final'],
-    'next701Ready' => $plans[701]['next701_ready'],
-    'wordpressUse' => 'Copied wp_options imports validate the next686-701 row-value UPDATE/DELETE RETURNING window current-source continuation after merged next670-685 while preserving independent libsqlite throughput.',
-];
+$summary['candidateStatuses'] = array_values($statuses);
+assert($summary['next686ConsumesNext685Ready'] === true);
+assert($summary['next689Ready'] === true);
+assert($summary['next693Ready'] === true);
+assert($summary['next697Ready'] === true);
+assert($summary['next701Ready'] === true);
 
 if (($argv[1] ?? null) === '--self-test') {
     echo "wordpress-rowvalue-returning-window-current-source-next686-701 self-test passed\n";
