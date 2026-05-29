@@ -5747,7 +5747,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_window_current_next256',
+        string $savepoint = 'wp_options_rowvalue_window_retry_commit',
         string $rowIdColumn = 'option_id',
         ?array $acknowledgedYieldTickets = null,
         int $chunkSize = 2,
@@ -5778,8 +5778,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $durableRows = self::retryCommitWatermarkDurableRows($base['window_current_source_cursor_next253'], (bool) $gate['commit_source_complete']);
 
         return array_merge($base, [
-            'status' => 'rowvalue-update-delete-returning-window-current-source-next256',
-            'retry_commit_watermark_next256' => [
+            'status' => 'rowvalue-update-delete-returning-window-retry-commit-watermark',
+            'retry_commit_watermark' => [
                 'savepoint' => $savepoint,
                 'source_boundary' => $gate['source_boundary'],
                 'current_chunk_gate_complete' => (bool) $base['window_current_source_chunk_gate_next253']['chunk_source_complete'],
@@ -5792,33 +5792,33 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'durable_retry_count' => count(array_filter(
                     $durableRows,
                     static fn (array $row): bool => ($row['source'] ?? null) === 'next-source-retry-window-next253'
-                        && ($row['durable_next256'] ?? false) === true,
+                        && ($row['durable'] ?? false) === true,
                 )),
                 'watermark_token' => self::retryCommitWatermarkToken($savepoint, $requiredCommitTokens, $gate),
             ],
-            'required_retry_commit_tokens_next256' => $requiredCommitTokens,
-            'acknowledged_retry_commit_tokens_next256' => $acknowledged,
-            'retry_commit_rows_next256' => $retryRows,
-            'durable_publication_rows_next256' => $durableRows,
-            'durable_publication_rowids_next256' => array_column($durableRows, $rowIdColumn),
-            'durable_retry_rowids_next256' => array_values(array_map(
+            'required_retry_commit_tokens' => $requiredCommitTokens,
+            'acknowledged_retry_commit_tokens' => $acknowledged,
+            'retry_commit_rows' => $retryRows,
+            'durable_publication_rows' => $durableRows,
+            'durable_publication_rowids' => array_column($durableRows, $rowIdColumn),
+            'durable_retry_rowids' => array_values(array_map(
                 static fn (array $row): int|string => $row[$rowIdColumn],
                 array_filter(
                     $durableRows,
                     static fn (array $row): bool => ($row['source'] ?? null) === 'next-source-retry-window-next253'
-                        && ($row['durable_next256'] ?? false) === true,
+                        && ($row['durable'] ?? false) === true,
                 ),
             )),
-            'retry_commit_state_next256' => $gate['commit_source_complete']
-                ? 'current-source-complete-next-source-retry-durable-next256'
-                : 'next-source-retry-held-for-commit-watermark-next256',
-            'dependency_closure_next256' => 'no new support component needed; next256 reuses native PHP row-value UPDATE/DELETE RETURNING execution, next253 current-window chunk admission, and retry cursor tokens while adding a commit watermark before next-source retry rows are durable',
-            'dependencies_next256' => [
-                'sqlite-rowvalue-returning-window-retry-commit-watermark-next256',
-                'sqlite-returning-next-source-durable-after-current-window-next256',
+            'retry_commit_state' => $gate['commit_source_complete']
+                ? 'current-source-complete-next-source-retry-durable'
+                : 'next-source-retry-held-for-commit-watermark',
+            'dependency_closure' => 'no new support component needed; the retry commit watermark reuses native PHP row-value UPDATE/DELETE RETURNING execution, current-window chunk admission, and retry cursor tokens while adding a commit watermark before next-source retry rows are durable',
+            'dependencies' => [
+                'sqlite-rowvalue-returning-window-retry-commit-watermark',
+                'sqlite-returning-next-source-durable-after-current-window',
                 'wordpress-rowvalue-returning-window-retry-commit-watermark',
             ],
-            'non_overlap_next256' => 'adds a retry commit-token durability watermark above accepted next253 chunk-token admission; avoids next253 cursor construction, next249 chunking, next248 publication cursor, next245 yield-ticket gate, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
+            'non_overlap' => 'adds a retry commit-token durability watermark above accepted next253 chunk-token admission; avoids next253 cursor construction, next249 chunking, next248 publication cursor, next245 yield-ticket gate, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
     }
 
@@ -5834,7 +5834,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 continue;
             }
             if (!is_string($row['cursor_token'] ?? null) || $row['cursor_token'] === '') {
-                throw new \InvalidArgumentException('SQLite row-value returning window next256 retry cursor token is missing');
+                throw new \InvalidArgumentException('SQLite row-value returning window retry-commit-watermark retry cursor token is missing');
             }
             $rows[] = $row;
         }
@@ -5872,8 +5872,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'unexpected_commit_tokens' => $unexpected,
             'commit_source_complete' => $complete,
             'source_boundary' => $complete
-                ? 'current-source-complete-next-source-retry-durable-next256'
-                : 'next-source-retry-held-for-commit-watermark-next256',
+                ? 'current-source-complete-next-source-retry-durable'
+                : 'next-source-retry-held-for-commit-watermark',
         ];
     }
 
@@ -5886,12 +5886,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $rows = [];
         foreach (array_values($cursorRows) as $index => $row) {
             $isRetry = ($row['source'] ?? null) === 'next-source-retry-window-next253';
-            $row['durable_ordinal_next256'] = $index + 1;
-            $row['durable_next256'] = !$isRetry || $commitComplete;
-            $row['commit_phase_next256'] = $isRetry
+            $row['durable_ordinal'] = $index + 1;
+            $row['durable'] = !$isRetry || $commitComplete;
+            $row['commit_phase'] = $isRetry
                 ? ($commitComplete ? 'next-source-retry-durable' : 'next-source-retry-pending')
                 : 'current-source-window-durable';
-            $row['commit_token_next256'] = hash(
+            $row['commit_token'] = hash(
                 'sha256',
                 (string) ($row['source'] ?? '') . '|' . (string) ($row['cursor_token'] ?? '') . '|' . (string) $index,
             );
@@ -7363,7 +7363,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'sqlite-rowvalue-returning-peer-source-boundary-next262',
                 'wordpress-rowvalue-returning-window-peer-groups-next262',
             ],
-            'non_overlap_next262' => 'adds GROUPS/RANGE peer-group admission for RETURNING rows whose peer value spans current-source and retry-source rows; avoids next260 adjacent frame-boundary receipts, next259 CURRENT ROW frame close, next256 commit watermarks, next255 next-row admission, row-value savepoint-only variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
+            'non_overlap_next262' => 'adds GROUPS/RANGE peer-group admission for RETURNING rows whose peer value spans current-source and retry-source rows; avoids next260 adjacent frame-boundary receipts, next259 CURRENT ROW frame close, retry-commit-watermark commit watermarks, next255 next-row admission, row-value savepoint-only variants, trigger RETURNING, WAL/VFS, JSON table, planner, B-tree, encoding, PRAGMA, and suite-runner surfaces',
         ]);
     }
 

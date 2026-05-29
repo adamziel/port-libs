@@ -30,7 +30,7 @@ $postResetView['source'] = 'main@view-cookie-193-post-reset';
 $postResetView['trigger_source'] = 'main@trigger-cookie-193-post-reset';
 $postResetView['audit_label'] = 'post-reset-recursive-view-trigger-193';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext193(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSealedNextSourcePublication(
     [
         ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
         ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
@@ -76,8 +76,8 @@ if (
     || array_column($summary['published_next_source_payloads_next193'], 'name') !== ['home', 'next_plugin']
     || $summary['current_source_returning_handoff_next193']['decision'] !== 'publish-sealed-next-source-after-current-drain'
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next193 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-sealed-next-source-publication self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next193 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-sealed-next-source-publication self-test passed\n";

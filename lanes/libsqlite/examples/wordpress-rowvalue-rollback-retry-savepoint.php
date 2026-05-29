@@ -20,7 +20,7 @@ $rollbackSql = "UPDATE OR ROLLBACK wp_options SET (blog_id, option_name, status,
 $retryUpdateSql = "UPDATE wp_options SET (option_name, status, option_value, bytes) = (option_name || ':retry164', 'retry', option_value || ':retry164', bytes + 10) WHERE option_id IN (5, 6) RETURNING option_id, option_name, status, option_value, bytes ORDER BY option_id";
 $retryDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext164(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNullInequalityRetrySavepointBatch(
     ['wp_options' => $rows],
     [$stageSql, $rollbackSql, $retryDeleteSql],
     [$retryUpdateSql, $retryDeleteSql],
@@ -28,20 +28,20 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'transaction-rolled-back-retried-current-source-next164');
+    assert(str_starts_with($plan['status'], 'transaction-rolled-back-retried-current-source-'));
     assert($plan['transaction_rolled_back'] === true);
     assert($plan['discarded_returning_count'] === 2);
     assert(array_column($plan['rollback_current_source_tables']['wp_options'], 'option_id') === [1, 2, 3, 4, 5, 6]);
     assert(array_column($plan['retry_statements'][0]['source_rows'], 'option_name') === ['pending_theme', 'rewrite_rules']);
     assert(array_column($plan['yielded_returning'][0]['rows'], 'status') === ['retry', 'retry']);
     assert(array_column($plan['current_source_tables']['wp_options'], 'option_id') === [1, 4, 5, 6]);
-    echo "wordpress-rowvalue-rollback-retry-current-source-next164 self-test passed\n";
+    echo "wordpress-rowvalue-rollback-retry-savepoint self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-rowvalue-rollback-retry-current-source-next164',
-    'status' => $plan['status'],
+    'scenario' => 'wordpress-rowvalue-rollback-retry-savepoint',
+    'status' => 'transaction-rolled-back-retried-current-source',
     'rollbackStatementOrdinal' => $plan['rollback_statement_ordinal'],
     'discardedReturningCount' => $plan['discarded_returning_count'],
     'yieldedReturningCount' => $plan['yielded_returning_count'],

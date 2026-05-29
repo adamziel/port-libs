@@ -22,14 +22,14 @@ $rows = [
     ['rowid' => 16, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo-a'],
     ['rowid' => 17, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo-b'],
 ];
-$indexSql = 'CREATE INDEX idx_wp_options_blog_autoload_name_cover_stat4_next140 ON wp_options(blog_id, autoload, option_name, option_value, rowid)';
+$indexSql = 'CREATE INDEX idx_wp_options_blog_autoload_name_cover_stat4_currentSourceCursor ON wp_options(blog_id, autoload, option_name, option_value, rowid)';
 $source = static fn (array $sourceRows, int $cookie, int $stat4, int $root, array $samples): array => [
-    'name' => 'wp-options-stat4-covering-range-next140-' . $cookie,
+    'name' => 'wp-options-stat4-covering-range-currentSourceCursor-' . $cookie,
     'schemaCookie' => $cookie,
     'stat4Generation' => $stat4,
     'rows' => $sourceRows,
     'indexes' => [[
-        'name' => 'idx_wp_options_blog_autoload_name_cover_stat4_next140',
+        'name' => 'idx_wp_options_blog_autoload_name_cover_stat4_currentSourceCursor',
         'rootPage' => $root,
         'estimatedRows' => 80,
         'stat4Samples' => $samples,
@@ -48,7 +48,7 @@ $preparedSamples = [
     ['neq' => '1 1 1', 'nlt' => '2 2 2', 'ndlt' => '2 2 2', 'sample' => [1, 'yes', 'plugin_forms']],
 ];
 
-$plan = SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan::materializeNext140(
+$plan = SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan::materializeCurrentSourceCursor(
     $source(array_slice($rows, 0, 3), 1400, 90, 14001, $preparedSamples),
     $source($rows, 1401, 91, 14041, $currentSamples),
     $and(
@@ -62,12 +62,12 @@ $plan = SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan::materializeNext140
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'stat4-covering-range-current-source-next140-ready');
+    assert($plan['status'] === 'stat4-covering-range-current-source-cursor-ready');
     assert($plan['selectedSource'] === 'current');
     assert($plan['currentSourceNextCursor']['rowids'] === [10, 11, 12, 16, 17]);
     assert($plan['rangeDuplicateRowids'] === [11, 12, 16, 17]);
     assert($plan['currentSourceNextCursor']['stalePreparedBucketsRejected'] === ['plugin_legacy']);
-    echo "wordpress-planner-stat4-covering-range-current-source-next140 self-test passed\n";
+    echo "wordpress-planner-stat4-covering-range-current-source-cursor self-test passed\n";
 
     return;
 }

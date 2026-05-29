@@ -17,7 +17,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext140(
+        public static function materializeCurrentSourceCursor(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -32,18 +32,18 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
                 $neededColumns,
             );
 
-            $rows = self::listOfArraysNext140($base, 'coveredRows', false);
+            $rows = self::listOfArrays($base, 'coveredRows', false);
             $ready = ($base['status'] ?? null) === 'covering-stat4-range-current-source-next138-ready'
                 && ($base['selectedSource'] ?? null) === 'current'
                 && ($base['tableLookupElided'] ?? false) === true
                 && $rows !== [];
-            $duplicateGroups = self::duplicateRangeGroupsNext140($rows);
-            $steps = self::cursorStepsNext140($rows, $base);
-            $currentBuckets = self::bucketKeysNext140($base);
-            $preparedBuckets = self::preparedBucketKeysNext140($preparedSource, $base);
+            $duplicateGroups = self::duplicateRangeGroups($rows);
+            $steps = self::cursorSteps($rows, $base);
+            $currentBuckets = self::currentBoundaryKeys($base);
+            $preparedBuckets = self::preparedBoundaryKeys($preparedSource, $base);
 
             return array_replace($base, [
-                'status' => $ready ? 'stat4-covering-range-current-source-next140-ready' : 'requires-next-stage',
+                'status' => $ready ? 'stat4-covering-range-current-source-cursor-ready' : 'requires-next-stage',
                 'currentSourceNextCursor' => [
                     'source' => $base['selectedSource'] ?? null,
                     'rangeColumn' => $base['selectedPlan']['rangeColumn'] ?? null,
@@ -53,7 +53,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
                     'stepCount' => count($steps),
                     'duplicateRangeGroups' => $duplicateGroups,
                     'duplicateRangeGroupCount' => count($duplicateGroups),
-                    'stableTieBreak' => self::stableTieBreakNext140($rows),
+                    'stableTieBreak' => self::stableTieBreak($rows),
                     'usesCurrentStat4Buckets' => $currentBuckets !== [],
                     'stalePreparedBucketsRejected' => array_values(array_diff($preparedBuckets, $currentBuckets)),
                     'nextOpcode' => $base['cursorTape']['nextOpcode'] ?? 'Next',
@@ -63,36 +63,36 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
                 'stat4CurrentBoundaryKeys' => $currentBuckets,
                 'stat4PreparedBoundaryKeys' => $preparedBuckets,
                 'stat4BoundarySource' => 'current',
-                'rangeDuplicateRowids' => self::rangeDuplicateRowidsNext140($duplicateGroups),
+                'rangeDuplicateRowids' => self::rangeDuplicateRowids($duplicateGroups),
                 'selectedPlan' => array_replace(
                     is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [],
                     [
-                        'nextSource' => $ready ? 'stat4-covering-range-current-source-next140' : 'table-rowid-lookup',
-                        'currentNextCursorStable' => $ready && self::stableTieBreakNext140($rows),
+                        'nextSource' => $ready ? 'stat4-covering-range-current-source-cursor' : 'table-rowid-lookup',
+                        'currentNextCursorStable' => $ready && self::stableTieBreak($rows),
                         'duplicateRangeGroupCount' => count($duplicateGroups),
                         'stalePreparedBucketsRejected' => array_values(array_diff($preparedBuckets, $currentBuckets)),
-                        'cursorProgram' => self::cursorProgramNext140($base, $steps, $ready),
+                        'cursorProgram' => self::cursorProgram($base, $steps, $ready),
                     ],
                 ),
                 'currentSourceFence' => array_replace(
                     is_array($base['currentSourceFence'] ?? null) ? $base['currentSourceFence'] : [],
                     [
-                        'next140CursorSignature' => hash('sha256', json_encode(array_column($steps, 'signature'), JSON_THROW_ON_ERROR)),
-                        'next140BoundarySignature' => hash('sha256', json_encode($currentBuckets, JSON_THROW_ON_ERROR)),
+                        'currentSourceCursorSignature' => hash('sha256', json_encode(array_column($steps, 'signature'), JSON_THROW_ON_ERROR)),
+                        'currentSourceBoundarySignature' => hash('sha256', json_encode($currentBuckets, JSON_THROW_ON_ERROR)),
                         'preparedBoundarySignature' => hash('sha256', json_encode($preparedBuckets, JSON_THROW_ON_ERROR)),
                     ],
                 ),
                 'detail' => (($base['stalePreparedStatement'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 COVERING RANGE CURRENT-SOURCE NEXT140 '
+                    . ' STAT4 COVERING RANGE CURRENT-SOURCE CURSOR '
                     . (string) ($base['selectedPlan']['name'] ?? 'NO INDEX'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                     [
                         'SQLitePlannerCoveringStat4RangeCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-covering-range-current-source-next140',
+                        'sqlite-sqlplanner-stat4-covering-range-current-source-cursor',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next140 reuses native covering STAT4 range planning and adds current-source next cursor continuity for duplicate range keys',
+                'dependency_closure' => 'no new support component needed; currentSourceCursor reuses native covering STAT4 range planning and adds current-source next cursor continuity for duplicate range keys',
                 'non_overlap' => 'avoids accepted next138 row admission, expression-index range cost, expression ORDER BY, partial STAT4 covering, skip-scan, JSON, VFS, WAL, and B-tree clusters; this slice covers current-source STAT4 boundary selection plus stable Next advancement across duplicate covering range keys',
             ]);
         }
@@ -102,7 +102,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<string>
          */
-        private static function preparedBucketKeysNext140(array $source, array $base): array
+        private static function preparedBoundaryKeys(array $source, array $base): array
         {
             $plan = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
             $lower = $plan['rangeLower'] ?? null;
@@ -110,9 +110,9 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
             $lowerInclusive = (bool) ($plan['lowerInclusive'] ?? false);
             $upperInclusive = (bool) ($plan['upperInclusive'] ?? false);
             $keys = [];
-            foreach (self::sourceStat4SamplesNext140($source, (string) ($plan['name'] ?? '')) as $sample) {
+            foreach (self::sourceStat4Samples($source, (string) ($plan['name'] ?? '')) as $sample) {
                 $key = $sample[count($sample) - 1] ?? null;
-                if ($key !== null && self::withinRangeNext140($key, $lower, $upper, $lowerInclusive, $upperInclusive)) {
+                if ($key !== null && self::withinRange($key, $lower, $upper, $lowerInclusive, $upperInclusive)) {
                     $keys[] = (string) $key;
                 }
             }
@@ -124,7 +124,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<list<mixed>>
          */
-        private static function sourceStat4SamplesNext140(array $source, string $selectedName): array
+        private static function sourceStat4Samples(array $source, string $selectedName): array
         {
             $indexes = $source['indexes'] ?? [];
             if (!is_array($indexes)) {
@@ -155,16 +155,16 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<string>
          */
-        private static function bucketKeysNext140(array $base): array
+        private static function currentBoundaryKeys(array $base): array
         {
-            return array_map(static fn (mixed $key): string => (string) $key, array_column(self::listOfArraysNext140($base, 'stat4RangeBuckets', false), 'key'));
+            return array_map(static fn (mixed $key): string => (string) $key, array_column(self::listOfArrays($base, 'stat4RangeBuckets', false), 'key'));
         }
 
         /**
          * @param list<array<string,mixed>> $rows
          * @return list<array{rangeKey:mixed,rowids:list<mixed>,count:int}>
          */
-        private static function duplicateRangeGroupsNext140(array $rows): array
+        private static function duplicateRangeGroups(array $rows): array
         {
             $groups = [];
             foreach ($rows as $row) {
@@ -191,7 +191,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param list<array{rangeKey:mixed,rowids:list<mixed>,count:int}> $groups
          * @return list<mixed>
          */
-        private static function rangeDuplicateRowidsNext140(array $groups): array
+        private static function rangeDuplicateRowids(array $groups): array
         {
             $rowids = [];
             foreach ($groups as $group) {
@@ -206,15 +206,15 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function cursorStepsNext140(array $rows, array $base): array
+        private static function cursorSteps(array $rows, array $base): array
         {
             $steps = [];
             $nextOpcode = (string) ($base['cursorTape']['nextOpcode'] ?? 'Next');
             foreach ($rows as $offset => $row) {
                 $previous = $rows[$offset - 1] ?? null;
                 $next = $rows[$offset + 1] ?? null;
-                $sameAsPrevious = is_array($previous) && self::compareNext140($previous['rangeKey'] ?? null, $row['rangeKey'] ?? null) === 0;
-                $sameAsNext = is_array($next) && self::compareNext140($next['rangeKey'] ?? null, $row['rangeKey'] ?? null) === 0;
+                $sameAsPrevious = is_array($previous) && self::compareValues($previous['rangeKey'] ?? null, $row['rangeKey'] ?? null) === 0;
+                $sameAsNext = is_array($next) && self::compareValues($next['rangeKey'] ?? null, $row['rangeKey'] ?? null) === 0;
                 $opcode = $offset === 0 ? (string) ($base['cursorTape']['seekOpcode'] ?? 'SeekGE') : $nextOpcode;
                 $steps[] = [
                     'ordinal' => $offset,
@@ -235,14 +235,14 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
         /**
          * @param list<array<string,mixed>> $rows
          */
-        private static function stableTieBreakNext140(array $rows): bool
+        private static function stableTieBreak(array $rows): bool
         {
             $previousKey = null;
             $previousRowid = null;
             foreach ($rows as $row) {
                 $key = $row['rangeKey'] ?? null;
                 $rowid = $row['rowid'] ?? null;
-                if ($previousKey !== null && self::compareNext140($previousKey, $key) === 0 && (int) $previousRowid > (int) $rowid) {
+                if ($previousKey !== null && self::compareValues($previousKey, $key) === 0 && (int) $previousRowid > (int) $rowid) {
                     return false;
                 }
                 $previousKey = $key;
@@ -257,7 +257,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $steps
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext140(array $base, array $steps, bool $ready): array
+        private static function cursorProgram(array $base, array $steps, bool $ready): array
         {
             $program = is_array($base['selectedPlan']['cursorProgram'] ?? null) ? $base['selectedPlan']['cursorProgram'] : [];
             $program[] = ['opcode' => 'Stat4CurrentSourceBoundary', 'source' => 'current'];
@@ -272,35 +272,35 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function listOfArraysNext140(array $source, string $key, bool $required = true): array
+        private static function listOfArrays(array $source, string $key, bool $required = true): array
         {
             $value = $source[$key] ?? [];
             if (!is_array($value) || !array_is_list($value)) {
                 if ($required) {
-                    throw new \InvalidArgumentException("SQLite planner STAT4 covering range next140 {$key} must be a list");
+                    throw new \InvalidArgumentException("SQLite planner STAT4 covering range currentSourceCursor {$key} must be a list");
                 }
 
                 return [];
             }
             foreach ($value as $entry) {
                 if (!is_array($entry)) {
-                    throw new \InvalidArgumentException("SQLite planner STAT4 covering range next140 {$key} entries must be arrays");
+                    throw new \InvalidArgumentException("SQLite planner STAT4 covering range currentSourceCursor {$key} entries must be arrays");
                 }
             }
 
             return $value;
         }
 
-        private static function withinRangeNext140(mixed $value, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): bool
+        private static function withinRange(mixed $value, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): bool
         {
             if ($lower !== null) {
-                $comparison = self::compareNext140($value, $lower);
+                $comparison = self::compareValues($value, $lower);
                 if ($comparison < 0 || ($comparison === 0 && !$lowerInclusive)) {
                     return false;
                 }
             }
             if ($upper !== null) {
-                $comparison = self::compareNext140($value, $upper);
+                $comparison = self::compareValues($value, $upper);
                 if ($comparison > 0 || ($comparison === 0 && !$upperInclusive)) {
                     return false;
                 }
@@ -309,7 +309,7 @@ final class SQLitePlannerStat4CoveringRangeCurrentSourceNextPlan
             return true;
         }
 
-        private static function compareNext140(mixed $left, mixed $right): int
+        private static function compareValues(mixed $left, mixed $right): int
         {
             if (is_numeric($left) && is_numeric($right)) {
                 return (float) $left <=> (float) $right;

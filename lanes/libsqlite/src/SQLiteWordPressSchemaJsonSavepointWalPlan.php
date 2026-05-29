@@ -96,7 +96,7 @@ final class SQLiteWordPressSchemaJsonSavepointWalPlan
 
         return [
             'status' => 'planned',
-            'current_next49' => true,
+            'schema_json_savepoint_wal' => true,
             'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-schema-json-savepoint.sqlite'),
             'schema' => $schema,
             'batch_count' => count($batches),
@@ -114,11 +114,11 @@ final class SQLiteWordPressSchemaJsonSavepointWalPlan
                 'current_frame' => $currentWalFrame,
                 'frame_count' => count($walFrames),
                 'frames' => $walFrames,
-                'current_next49' => true,
+                'schema_json_savepoint_wal' => true,
             ],
             'dependencies' => [
-                'sqlite-wordpress-schema-json-savepoint-wal-current-next49',
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-schema-json-savepoint-wal',
+                'sqlite-wordpress-json-import-wal-savepoint',
                 'sqlite-wordpress-import-transaction-current',
                 'sqlite-json-extract',
             ],

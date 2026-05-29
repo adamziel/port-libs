@@ -46,9 +46,9 @@ SELECT option_id AS id,
  LIMIT 1,4
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext168($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareRecursiveCommaBoundary($sql, $currentTables, $nextTables);
 $result = [
-    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-next168',
+    'scenario' => 'wordpress-compound-select-window-recursive-limit-current-source-comma-boundary',
     'sqlShape' => 'WITH RECURSIVE queue LIMIT offset,count feeding windowed UNION ALL with final LIMIT offset,count',
     'wordpressUse' => 'Copied wp_options import previews can use SQLite comma-form LIMIT syntax while preserving recursive queue skipping, per-arm window metrics, and final compound current/next boundaries.',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
@@ -73,7 +73,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "missing comma LIMIT reason\n");
         exit(1);
     }
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next168 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-current-source-comma-boundary self-test passed\n";
 }
 
 return $result;

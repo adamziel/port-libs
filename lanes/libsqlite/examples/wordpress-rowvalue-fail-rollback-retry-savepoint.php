@@ -15,7 +15,7 @@ $rows = [
     ['option_id' => 8, 'blog_id' => 3, 'option_name' => 'orphaned_cache', 'autoload' => 'no', 'status' => 'staged', 'bytes' => 5, 'option_value' => 'cache'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext161(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeConflictRetrySavepointBatch(
     ['wp_options' => $rows],
     [
         "UPDATE OR FAIL wp_options SET (blog_id, option_name, status, option_value, bytes) = (4, 'siteurl', option_name || ':fail', option_value || ':fail', bytes + 100) WHERE option_id IN (8, 7) RETURNING option_id, blog_id, option_name, status, option_value, bytes ORDER BY option_id DESC",
@@ -29,7 +29,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-fail-rollback-retry-current-source-next161',
+    'scenario' => 'wordpress-rowvalue-fail-rollback-retry-savepoint',
     'wordpressUse' => 'A copied wp_options import can yield one UPDATE OR FAIL RETURNING row, hit a later row-value unique conflict, roll back to the import savepoint, and retry UPDATE/DELETE RETURNING against the restored current source.',
     'status' => $plan['status'],
     'discardedReturningIds' => array_column($plan['discarded_returning'][0]['rows'], 'option_id'),
@@ -47,11 +47,11 @@ if (
     || $summary['retryReturningIds'] !== [7, 8, 3, 4]
     || $summary['finalOptionIds'] !== [1, 5, 7, 8]
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-fail-rollback-retry-current-source-next161 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-fail-rollback-retry-savepoint self-test failed\n");
     exit(1);
 }
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    echo "wordpress-rowvalue-fail-rollback-retry-current-source-next161 self-test passed\n";
+    echo "wordpress-rowvalue-fail-rollback-retry-savepoint self-test passed\n";
     echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 }

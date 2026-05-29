@@ -30,10 +30,10 @@ $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeR
     [['blog_id', 'option_name']],
 );
 
-assert($plan['status'] === 'rowvalue-update-delete-returning-window-current-source-next256');
-assert($plan['retry_commit_watermark_next256']['commit_source_complete'] === true);
-assert($plan['durable_publication_rowids_next256'] === [4, 3, 1, 5, 6, 4, 3, 2]);
-assert($plan['durable_retry_rowids_next256'] === [5, 6, 4, 3, 2]);
+assert($plan['status'] === 'rowvalue-update-delete-returning-window-retry-commit-watermark');
+assert($plan['retry_commit_watermark']['commit_source_complete'] === true);
+assert($plan['durable_publication_rowids'] === [4, 3, 1, 5, 6, 4, 3, 2]);
+assert($plan['durable_retry_rowids'] === [5, 6, 4, 3, 2]);
 
 if (($argv[1] ?? null) === '--self-test') {
     echo "wordpress-rowvalue-returning-window-retry-commit-watermark self-test passed\n";
@@ -42,9 +42,9 @@ if (($argv[1] ?? null) === '--self-test') {
 
 return [
     'status' => $plan['status'],
-    'commitWatermark' => $plan['retry_commit_watermark_next256'],
-    'durableRowids' => $plan['durable_publication_rowids_next256'],
-    'durableRetryRowids' => $plan['durable_retry_rowids_next256'],
+    'commitWatermark' => $plan['retry_commit_watermark'],
+    'durableRowids' => $plan['durable_publication_rowids'],
+    'durableRetryRowids' => $plan['durable_retry_rowids'],
     'wordpressUse' => 'Copied wp_options imports can mark next-source retry RETURNING rows durable only after current-source row-value UPDATE/DELETE window chunks and retry cursor commit tokens are both acknowledged.',
-    'dependencyClosure' => $plan['dependency_closure_next256'],
+    'dependencyClosure' => $plan['dependency_closure'],
 ];

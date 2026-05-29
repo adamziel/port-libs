@@ -17,7 +17,7 @@ $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JS
 $plan = static fn (array $imports, array $options = []) => SQLiteWordPressSchemaJsonSavepointWalPlan::plan(
     $currentRows(),
     $imports,
-    $options + ['database_path' => '/tmp/wp-schema-json-savepoint-current-next49.sqlite', 'page_size' => 1024],
+    $options + ['database_path' => '/tmp/wp-schema-json-savepoint.sqlite', 'page_size' => 1024],
 );
 
 $tests = [
@@ -29,7 +29,7 @@ $tests = [
         ]);
 
         $t->same('planned', $result['status']);
-        $t->same(true, $result['current_next49']);
+        $t->same(true, $result['schema_json_savepoint_wal']);
         $t->same(['theme_schema'], $result['released_batches']);
         $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'theme_mods_modern'], $result['final_option_names']);
         $t->same(1, $result['wal']['current_frame']);
@@ -78,7 +78,7 @@ $tests = [
         ]]));
         $result = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows(), [
             ['name' => 'jsonb_schema', 'json' => $blob, 'path' => '$.rows'],
-        ], ['database_path' => '/tmp/wp-schema-jsonb-current-next49.sqlite']);
+        ], ['database_path' => '/tmp/wp-schema-jsonb.sqlite']);
 
         $t->same(['jsonb_schema'], $result['released_batches']);
         $t->same(['jsonb_settings'], $result['batches'][0]['json']['option_names']);
@@ -88,7 +88,7 @@ $tests = [
         $subtype = new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_settings","option_value":"{\"mode\":\"json\"}","autoload":"no"}]}');
         $result = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows(), [
             ['name' => 'subtype_schema', 'json' => $subtype, 'path' => '$.rows'],
-        ], ['database_path' => '/tmp/wp-schema-subtype-current-next49.sqlite']);
+        ], ['database_path' => '/tmp/wp-schema-subtype.sqlite']);
 
         $t->same(['subtype_schema'], $result['released_batches']);
         $t->same(['subtype_settings'], $result['batches'][0]['json']['option_names']);
@@ -180,7 +180,7 @@ foreach ([64 => 2, 65 => 3, 128 => 3, 129 => 4, 192 => 4, 193 => 5, 256 => 5] as
             ['name' => 'update_' . $optionId, 'json' => $jsonRows([
                 ['option_id' => $optionId, 'option_name' => 'plugin_' . $optionId . '_settings', 'option_value' => '{"new":true}', 'autoload' => 'no'],
             ]), 'path' => '$.rows'],
-        ], ['database_path' => '/tmp/wp-schema-update-current-next49.sqlite']);
+        ], ['database_path' => '/tmp/wp-schema-update.sqlite']);
 
         $t->same([$pageNumber], $result['batches'][0]['dirty_pages']);
         $t->same($pageNumber, $result['wal']['frames'][0]['page_number']);
@@ -218,14 +218,14 @@ foreach (['delete', 'truncate', 'persist', 'wal'] as $mode) {
     };
 }
 
-$tests['schema dependencies name current next 49'] = static function (TestRunner $t) use ($plan, $jsonRows): void {
+$tests['schema dependencies use canonical names'] = static function (TestRunner $t) use ($plan, $jsonRows): void {
     $result = $plan([
         ['name' => 'deps', 'json' => $jsonRows([
             ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}', 'autoload' => 'no'],
         ]), 'path' => '$.rows'],
     ]);
 
-    $t->same(true, in_array('sqlite-wordpress-schema-json-savepoint-wal-current-next49', $result['dependencies'], true));
+    $t->same(true, in_array('sqlite-wordpress-schema-json-savepoint-wal', $result['dependencies'], true));
 };
 
 return $tests;

@@ -26,15 +26,15 @@ $plan = SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan::currentNext($c
 
 if (($argv[1] ?? '') === '--self-test') {
     if ($plan['status'] !== 'reparse-required' || $plan['generatedAdded'] !== ['option_value_len', 'option_bucket']) {
-        fwrite(STDERR, "wordpress-schema-generated-trigger-reparse-current-source-next106 self-test failed\n");
+        fwrite(STDERR, "wordpress-schema-generated-trigger-reparse-current-source self-test failed\n");
         exit(1);
     }
-    echo "wordpress-schema-generated-trigger-reparse-current-source-next106 self-test passed\n";
+    echo "wordpress-schema-generated-trigger-reparse-current-source self-test passed\n";
     exit(0);
 }
 
 echo json_encode([
-    'scenario' => 'copied wp_options generated-column trigger reparse current source next106',
+    'scenario' => 'copied wp_options generated-column trigger reparse current source',
     'wordpressUse' => 'Detect when migration DDL adds generated columns used by an existing wp_options audit trigger so the prepared trigger source is reparsed before the next import write.',
     'status' => $plan['status'],
     'requiresReparse' => $plan['requiresReparse'],

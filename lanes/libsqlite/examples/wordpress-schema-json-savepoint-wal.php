@@ -24,14 +24,14 @@ $plan = SQLiteWordPressSchemaJsonSavepointWalPlan::plan($currentRows, [
         'path' => '$.rows',
     ],
 ], [
-    'database_path' => '/tmp/wp-schema-json-savepoint-current-next49.sqlite',
+    'database_path' => '/tmp/wp-schema-json-savepoint.sqlite',
     'page_size' => 1024,
     'journal_mode' => 'wal',
     'sync_mode' => 'normal',
 ]);
 
 echo json_encode([
-    'scenario' => 'wordpress-schema-json-savepoint-wal-current-next49',
+    'scenario' => 'wordpress-schema-json-savepoint-wal',
     'status' => $plan['status'],
     'released_batches' => $plan['released_batches'],
     'rolled_back_batches' => $plan['rolled_back_batches'],

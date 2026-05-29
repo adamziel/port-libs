@@ -35,7 +35,7 @@ final class SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan
         $requiresReparse = $schemaCookieChanged && $changedFields !== [];
 
         return [
-            'operation' => 'schema-generated-check-reparse-current-source-next116',
+            'operation' => 'schema-generated-check-reparse-current-source',
             'table' => $next['table'],
             'schema_version_before' => $schemaVersionBefore,
             'schema_version_after' => $schemaVersionAfter,

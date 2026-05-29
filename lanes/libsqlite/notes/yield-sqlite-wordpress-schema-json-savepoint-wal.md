@@ -1,4 +1,4 @@
-# yield-sqlite-wordpress-schema-json-savepoint-wal-current-next49
+# yield-sqlite-wordpress-schema-json-savepoint-wal
 
 Status: focused PHP behavior growth for schema-aware WordPress JSON imports staged through SQLite savepoints while tracking the current/next WAL frame.
 
@@ -7,12 +7,12 @@ Implementation:
 - Added `SQLiteWordPressSchemaJsonSavepointWalPlan`, a bounded native PHP planner layered over the accepted JSON import WAL savepoint path.
 - It validates extracted JSON/JSONB/subtype rows against a WordPress option schema before row import, including required fields, unknown-field rejection, autoload enum checks, and JSON-text enforcement for `theme_mods_*`, `*_settings`, and `widget_*` options.
 - Schema failures roll back the current savepoint without advancing WAL frames, while released earlier batches remain visible and later open batches remain unreleased.
-- Added `wordpress-schema-json-savepoint-wal-current-next49.php` as a copied `wp_options` smoke showing one released theme schema batch and one rejected widget batch.
+- Added `wordpress-schema-json-savepoint-wal.php` as a copied `wp_options` smoke showing one released theme schema batch and one rejected widget batch.
 
 Focused verification:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressSchemaJsonSavepointWalCurrentNext49Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteWordPressSchemaJsonSavepointWalTest.php
 Focused test run: 1 selected test files (root lock skipped)
 54 PASS lines
 1 test files, 153 assertions, 0 failures

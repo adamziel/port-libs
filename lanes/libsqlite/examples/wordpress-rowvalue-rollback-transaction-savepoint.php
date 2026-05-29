@@ -18,7 +18,7 @@ $rows = [
     ['option_id' => 9, 'blog_id' => 3, 'option_name' => 'orphaned_cache', 'autoload' => 'no', 'status' => null, 'bytes' => 6, 'option_value' => 'cache'],
 ];
 
-$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeNext178(
+$plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeValuesRetrySavepointBatch(
     ['wp_options' => $rows],
     [
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, blog_id, option_name ORDER BY option_id",
@@ -36,7 +36,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-rollback-transaction-current-source-next178',
+    'scenario' => 'wordpress-rowvalue-rollback-transaction-savepoint',
     'wordpressUse' => 'A copied wp_options import that hits UPDATE OR ROLLBACK inside a cleanup savepoint discards outer and savepoint RETURNING rows, restores the transaction image, and retries UPDATE/DELETE RETURNING from the restored current source.',
     'status' => $plan['status'],
     'rollbackReason' => $plan['rollback_reason'],
@@ -55,11 +55,11 @@ if (
     || $summary['retryReturningIds'] !== [8, 9, 3, 4, 7]
     || $summary['finalOptionIds'] !== [1, 2, 5, 6, 8, 9]
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-rollback-transaction-current-source-next178 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-rollback-transaction-savepoint self-test failed\n");
     exit(1);
 }
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    echo "wordpress-rowvalue-rollback-transaction-current-source-next178 self-test passed\n";
+    echo "wordpress-rowvalue-rollback-transaction-savepoint self-test passed\n";
     echo json_encode($summary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 }

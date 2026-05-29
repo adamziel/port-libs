@@ -14,6 +14,11 @@
   `executeCurrentGenerationDepthFence()`, renamed its direct private helpers to
   descriptive non-numbered names, and migrated the direct test, WordPress
   example, and yield note to descriptive unsuffixed paths.
+- Fifty-first pass follow-up: consolidated the direct numbered sealed
+  next-source publication entry method into
+  `executeSealedNextSourcePublication()`, renamed its direct private helpers to
+  descriptive non-numbered names, and migrated the direct focused test and
+  WordPress smoke to descriptive unsuffixed filenames.
 
 ## Verification
 
@@ -44,6 +49,13 @@
   - Result: `1 test files, 77 assertions, 0 failures`
 - `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-generation-depth-fence.php --self-test`
   - Result: `wordpress-trigger-recursive-view-returning-current-source-generation-depth-fence self-test passed`
+- `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSealedNextSourcePublicationTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-sealed-next-source-publication.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningSealedNextSourcePublicationTest.php`
+  - Result: `1 test files, 78 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-sealed-next-source-publication.php --self-test`
+  - Result: `wordpress-trigger-recursive-view-returning-sealed-next-source-publication self-test passed`
 - `git diff --check -- lanes/libsqlite`
 - `rg -n "function\s+\w*(?:CurrentSource|Current)?Next[0-9]+|function\s+\w*Next[0-9]+" lanes/libsqlite/src | wc -l`
   - Result: `5728` remaining numbered production method lines.

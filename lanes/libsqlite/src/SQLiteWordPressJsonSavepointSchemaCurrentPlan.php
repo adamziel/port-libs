@@ -139,8 +139,8 @@ final class SQLiteWordPressJsonSavepointSchemaCurrentPlan
 
         return [
             'status' => 'planned',
-            'current_next52' => true,
-            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current-next52.sqlite'),
+            'schema_current' => true,
+            'database_path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current.sqlite'),
             'batch_count' => count($plans),
             'released_batches' => $released,
             'rolled_back_batches' => $rolledBack,
@@ -160,16 +160,16 @@ final class SQLiteWordPressJsonSavepointSchemaCurrentPlan
             'schema_names' => array_keys($visibleSchema),
             'released_schema_names' => array_keys($releasedSchema),
             'wal' => [
-                'path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current-next52.sqlite') . '-wal',
+                'path' => (string) ($options['database_path'] ?? '/tmp/wp-json-schema-current.sqlite') . '-wal',
                 'current_frame' => $currentWalFrame,
                 'frame_count' => count($walFrames),
                 'frames' => $walFrames,
-                'current_next52' => true,
+                'schema_current' => true,
             ],
             'dependencies' => [
-                'sqlite-wordpress-json-savepoint-schema-current-next52',
-                'sqlite-wordpress-schema-json-savepoint-wal-current-next49',
-                'sqlite-wordpress-json-import-wal-savepoint-current-next35',
+                'sqlite-wordpress-json-savepoint-schema-current',
+                'sqlite-wordpress-schema-json-savepoint-wal',
+                'sqlite-wordpress-json-import-wal-savepoint',
                 'sqlite-schema-cookie-current-source',
             ],
         ];

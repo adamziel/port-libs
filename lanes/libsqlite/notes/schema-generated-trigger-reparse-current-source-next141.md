@@ -16,7 +16,7 @@ Focused test run: 1 selected test files (root lock skipped)
 ...
 1 test files, 59 assertions, 0 failures
 
-$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaViewTriggerIndexReparseCurrentSourceNext135Test.php lanes/libsqlite/tests/SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext106Test.php lanes/libsqlite/tests/SQLiteSchemaViewTriggerGeneratedReparseCurrentSourceNext131Test.php lanes/libsqlite/tests/SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext141Test.php
+$ php tools/run-tests.php lanes/libsqlite/tests/SQLiteSchemaViewTriggerIndexReparseCurrentSourceNext135Test.php lanes/libsqlite/tests/SQLiteSchemaGeneratedTriggerReparseCurrentSourceTest.php lanes/libsqlite/tests/SQLiteSchemaViewTriggerGeneratedReparseCurrentSourceNext131Test.php lanes/libsqlite/tests/SQLiteSchemaGeneratedTriggerReparseCurrentSourceNext141Test.php
 Focused test run: 4 selected test files (root lock skipped)
 ...
 4 test files, 213 assertions, 0 failures

@@ -20,7 +20,7 @@ $plan = static fn (array $batches, array $options = []) => SQLiteWordPressJsonSa
     $currentRows(),
     $batches,
     $options + [
-        'database_path' => '/tmp/wp-json-savepoint-schema-current-next52.sqlite',
+        'database_path' => '/tmp/wp-json-savepoint-schema-current.sqlite',
         'page_size' => 1024,
         'schema_version' => 41,
         'data_version' => 300,
@@ -29,7 +29,7 @@ $plan = static fn (array $batches, array $options = []) => SQLiteWordPressJsonSa
 );
 
 $tests = [
-    'json schema current next52 creates schema row and advances schema cookie' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current creates schema row and advances schema cookie' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             [
                 'name' => 'create_import_table',
@@ -48,13 +48,13 @@ $tests = [
         ]);
 
         $t->same('planned', $result['status']);
-        $t->same(true, $result['current_next52']);
+        $t->same(true, $result['schema_current']);
         $t->same(42, $result['schema_version']);
         $t->same(302, $result['data_version']);
         $t->same(42, $result['batches'][0]['schema_cookie_frame']['schema_cookie']);
         $t->same(['option_name', 'wp_import_batch', 'wp_options'], $result['schema_names']);
     },
-    'json schema current next52 rolls back duplicate schema name at current frame' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current rolls back duplicate schema name at current frame' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             [
                 'name' => 'duplicate_schema',
@@ -79,7 +79,7 @@ $tests = [
         $t->same(0, $result['wal']['current_frame']);
         $t->same('duplicate_schema_name', $result['batches'][0]['schema']['violations'][0]['rule']);
     },
-    'json schema current next52 preserves released schema before later rollback' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current preserves released schema before later rollback' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             [
                 'name' => 'release_table',
@@ -117,7 +117,7 @@ $tests = [
         $t->same(['siteurl', 'active_plugins', 'theme_mods_old', 'plugin_release_settings'], $result['released_option_names']);
         $t->same(42, $result['schema_version']);
     },
-    'json schema current next52 keeps open schema visible but unreleased' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current keeps open schema visible but unreleased' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             [
                 'name' => 'open_schema',
@@ -141,7 +141,7 @@ $tests = [
         $t->same(['option_name', 'wp_options'], $result['released_schema_names']);
         $t->same(['siteurl', 'active_plugins', 'theme_mods_old'], $result['released_option_names']);
     },
-    'json schema current next52 drop schema row increments cookie' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current drop schema row increments cookie' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             [
                 'name' => 'drop_index',
@@ -158,7 +158,7 @@ $tests = [
         $t->same(42, $result['schema_version']);
         $t->same(302, $result['data_version']);
     },
-    'json schema current next52 rejects malformed JSON without schema cookie write' => static function (TestRunner $t) use ($plan): void {
+    'json schema current rejects malformed JSON without schema cookie write' => static function (TestRunner $t) use ($plan): void {
         $result = $plan([
             [
                 'name' => 'bad_json',
@@ -179,21 +179,21 @@ $tests = [
         $t->same(null, $result['batches'][0]['schema_cookie_frame']);
         $t->same(['option_name', 'wp_options'], $result['schema_names']);
     },
-    'json schema current next52 dependency marker is present' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current dependency marker is present' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $result = $plan([
             ['name' => 'deps', 'json' => $jsonRows([
                 ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}', 'autoload' => 'no'],
             ]), 'path' => '$.rows'],
         ]);
 
-        $t->same(true, in_array('sqlite-wordpress-json-savepoint-schema-current-next52', $result['dependencies'], true));
+        $t->same(true, in_array('sqlite-wordpress-json-savepoint-schema-current', $result['dependencies'], true));
     },
-    'json schema current next52 rejects empty batch list' => static function (TestRunner $t) use ($currentRows, $schemaRows): void {
+    'json schema current rejects empty batch list' => static function (TestRunner $t) use ($currentRows, $schemaRows): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows(), [], [
             'schema' => ['rows' => $schemaRows()],
         ]));
     },
-    'json schema current next52 rejects unsafe savepoint names' => static function (TestRunner $t) use ($plan, $jsonRows): void {
+    'json schema current rejects unsafe savepoint names' => static function (TestRunner $t) use ($plan, $jsonRows): void {
         $t->throws(InvalidArgumentException::class, static fn () => $plan([
             ['name' => 'bad-name', 'json' => $jsonRows([
                 ['option_name' => 'bad_name_settings', 'option_value' => '{"ok":true}', 'autoload' => 'no'],
@@ -203,7 +203,7 @@ $tests = [
 ];
 
 foreach (range(1, 20) as $index) {
-    $tests["json schema current next52 generated create batch {$index}"] = static function (TestRunner $t) use ($plan, $jsonRows, $index): void {
+    $tests["json schema current generated create batch {$index}"] = static function (TestRunner $t) use ($plan, $jsonRows, $index): void {
         $result = $plan([
             [
                 'name' => 'create_' . $index,
@@ -235,7 +235,7 @@ foreach ([
     'invalid create sql' => [['type' => 'view', 'name' => 'wp_bad_view', 'tbl_name' => 'wp_bad_view', 'rootpage' => 0, 'sql' => 'SELECT 1'], 'schema_row'],
     'invalid row type' => [['type' => 'virtual', 'name' => 'wp_virtual', 'tbl_name' => 'wp_virtual', 'rootpage' => 15, 'sql' => 'CREATE VIRTUAL TABLE wp_virtual USING fts5(body)'], 'schema_row'],
 ] as $label => [$change, $rule]) {
-    $tests["json schema current next52 rolls back {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $change, $rule): void {
+    $tests["json schema current rolls back {$label}"] = static function (TestRunner $t) use ($plan, $jsonRows, $label, $change, $rule): void {
         $result = $plan([
             [
                 'name' => 'reject_' . preg_replace('/[^a-z0-9]+/', '_', $label),
@@ -255,7 +255,7 @@ foreach ([
 }
 
 foreach ([0, 1, 7, 99] as $dataVersion) {
-    $tests["json schema current next52 preserves rolled back data version {$dataVersion}"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $dataVersion): void {
+    $tests["json schema current preserves rolled back data version {$dataVersion}"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $dataVersion): void {
         $result = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows(), [
             [
                 'name' => 'reject_data_' . $dataVersion,
@@ -278,7 +278,7 @@ foreach ([0, 1, 7, 99] as $dataVersion) {
 }
 
 foreach ([['trigger', 0], ['view', 0], ['table', 44], ['index', 45]] as [$type, $rootpage]) {
-    $tests["json schema current next52 accepts {$type} schema change"] = static function (TestRunner $t) use ($plan, $jsonRows, $type, $rootpage): void {
+    $tests["json schema current accepts {$type} schema change"] = static function (TestRunner $t) use ($plan, $jsonRows, $type, $rootpage): void {
         $name = 'wp_' . $type . '_change';
         $sql = match ($type) {
             'trigger' => 'CREATE TRIGGER wp_trigger_change AFTER INSERT ON wp_options BEGIN SELECT 1; END',
@@ -310,7 +310,7 @@ foreach ([['trigger', 0], ['view', 0], ['table', 44], ['index', 45]] as [$type, 
 }
 
 foreach ([2 => 2, 70 => 3, 129 => 4, 193 => 5, 257 => 6] as $optionId => $expectedRowPage) {
-    $tests["json schema current next52 update option {$optionId} keeps schema frame after row page"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $optionId, $expectedRowPage): void {
+    $tests["json schema current update option {$optionId} keeps schema frame after row page"] = static function (TestRunner $t) use ($currentRows, $schemaRows, $jsonRows, $optionId, $expectedRowPage): void {
         $rows = $currentRows();
         $rows[] = ['option_id' => $optionId, 'option_name' => 'option_' . $optionId . '_settings', 'option_value' => '{"old":true}', 'autoload' => 'no'];
         $result = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($rows, [

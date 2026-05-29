@@ -37,7 +37,7 @@ $plan = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows, [
         ]],
     ],
 ], [
-    'database_path' => '/tmp/wp-json-savepoint-schema-current-next52.sqlite',
+    'database_path' => '/tmp/wp-json-savepoint-schema-current.sqlite',
     'schema_version' => 41,
     'data_version' => 300,
     'schema' => ['rows' => [
@@ -47,7 +47,7 @@ $plan = SQLiteWordPressJsonSavepointSchemaCurrentPlan::plan($currentRows, [
 ]);
 
 echo json_encode([
-    'scenario' => 'wordpress-json-savepoint-schema-current-next52',
+    'scenario' => 'wordpress-json-savepoint-schema-current',
     'status' => $plan['status'],
     'released_batches' => $plan['released_batches'],
     'rolled_back_batches' => $plan['rolled_back_batches'],

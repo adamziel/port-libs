@@ -42,7 +42,7 @@ final class SQLiteSchemaGeneratedTriggerReparseCurrentSourceNextPlan
         $requiresReparse = $schemaCookieChanged && $changedFields !== [];
 
         return [
-            'operation' => 'schema-ddl-reparse-generated-trigger-current-source-next106',
+            'operation' => 'schema-ddl-reparse-generated-trigger-current-source',
             'trigger' => $current['trigger'],
             'target' => $next['target'],
             'schema_version_before' => $schemaVersionBefore,

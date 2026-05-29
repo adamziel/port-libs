@@ -41,7 +41,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['requiresReparse'] === true);
     assert($plan['status'] === 'reparse-required');
     assert(array_column($plan['generatedChecksAdded'], 'column') === ['option_slug', 'option_value_len']);
-    echo "wordpress-schema-generated-check-reparse-current-source-next116 self-test passed\n";
+    echo "wordpress-schema-generated-check-reparse-current-source self-test passed\n";
     return;
 }
 

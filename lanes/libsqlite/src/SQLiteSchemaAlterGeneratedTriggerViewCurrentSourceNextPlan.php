@@ -61,7 +61,7 @@ final class SQLiteSchemaAlterGeneratedTriggerViewCurrentSourceNextPlan
         $resolvedTriggers = array_values(array_filter($triggers, static fn (array $trigger): bool => $trigger['current']['status'] !== $trigger['next']['status']));
 
         return [
-            'operation' => 'schema-alter-generated-trigger-view-current-source-next117',
+            'operation' => 'schema-alter-generated-trigger-view-current-source',
             'table' => $table->name,
             'alterSql' => $alterSql,
             'schema_version_before' => $schemaVersionBefore,

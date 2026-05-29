@@ -8164,7 +8164,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext193(
+    public static function executeSealedNextSourcePublication(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -8183,27 +8183,27 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $options,
         );
 
-        $nextRows = self::rowsNext193($base['next_source_rows_next189'] ?? [], 'next source rows');
-        $handoffToken = self::tokenNext193((string) ($options['handoff_token'] ?? 'wp.recursive.view.returning.handoff.193'), 'handoff token');
-        $expectedHandoffToken = self::tokenNext193((string) ($options['expected_handoff_token'] ?? $handoffToken), 'expected handoff token');
-        $sequenceToken = self::tokenNext193((string) ($options['source_sequence_token'] ?? self::sequenceTokenNext193($nextRows)), 'source sequence token');
-        $expectedSequenceToken = self::tokenNext193((string) ($options['expected_source_sequence_token'] ?? self::sequenceTokenNext193($nextRows)), 'expected source sequence token');
-        $expectedRows = self::nonNegativeIntNext193($options['expected_next_row_count'] ?? count($nextRows), 'expected next row count');
-        $expectedSignature = (string) ($options['expected_next_source_signature'] ?? self::sourceSignatureNext193($nextRows));
+        $nextRows = self::sealedNextSourceRows($base['next_source_rows_next189'] ?? [], 'next source rows');
+        $handoffToken = self::sealedNextSourceToken((string) ($options['handoff_token'] ?? 'wp.recursive.view.returning.handoff.193'), 'handoff token');
+        $expectedHandoffToken = self::sealedNextSourceToken((string) ($options['expected_handoff_token'] ?? $handoffToken), 'expected handoff token');
+        $sequenceToken = self::sealedNextSourceToken((string) ($options['source_sequence_token'] ?? self::sealedNextSourceSequenceToken($nextRows)), 'source sequence token');
+        $expectedSequenceToken = self::sealedNextSourceToken((string) ($options['expected_source_sequence_token'] ?? self::sealedNextSourceSequenceToken($nextRows)), 'expected source sequence token');
+        $expectedRows = self::sealedNextSourceNonNegativeInt($options['expected_next_row_count'] ?? count($nextRows), 'expected next row count');
+        $expectedSignature = (string) ($options['expected_next_source_signature'] ?? self::sealedNextSourceSignature($nextRows));
         if ($expectedSignature === '' || preg_match('/\s/', $expectedSignature) === 1) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next193 expected signature is malformed');
         }
 
         $baseAdmitted = $base['blocked_reasons_next189'] === [] && $nextRows !== [];
         $rowCountMatches = count($nextRows) === $expectedRows;
-        $signatureMatches = hash_equals($expectedSignature, self::sourceSignatureNext193($nextRows));
+        $signatureMatches = hash_equals($expectedSignature, self::sealedNextSourceSignature($nextRows));
         $handoffTokenMatches = hash_equals($handoffToken, $expectedHandoffToken);
         $sequenceMatches = hash_equals($sequenceToken, $expectedSequenceToken);
         $canPublish = $baseAdmitted && $rowCountMatches && $signatureMatches && $handoffTokenMatches && $sequenceMatches;
-        $publishedRows = $canPublish ? self::publishRowsNext193($nextRows, $handoffToken, $sequenceToken) : [];
+        $publishedRows = $canPublish ? self::publishSealedNextSourceRows($nextRows, $handoffToken, $sequenceToken) : [];
 
         return [
-            'status_next193' => self::statusNext193($canPublish, $baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches),
+            'status_next193' => self::sealedNextSourceStatus($canPublish, $baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches),
             'savepoint' => $base['savepoint'],
             'base' => $base,
             'handoff_token_next193' => $handoffToken,
@@ -8212,7 +8212,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'source_sequence_token_next193' => $sequenceToken,
             'expected_source_sequence_token_next193' => $expectedSequenceToken,
             'source_sequence_matches_next193' => $sequenceMatches,
-            'next_source_signature_next193' => self::sourceSignatureNext193($nextRows),
+            'next_source_signature_next193' => self::sealedNextSourceSignature($nextRows),
             'expected_next_source_signature_next193' => $expectedSignature,
             'next_source_signature_matches_next193' => $signatureMatches,
             'expected_next_row_count_next193' => $expectedRows,
@@ -8221,15 +8221,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'published_next_source_rows_next193' => $publishedRows,
             'published_next_source_payloads_next193' => array_column($publishedRows, 'returning'),
             'published_next_source_row_count_next193' => count($publishedRows),
-            'blocked_reasons_next193' => self::blockedReasonsNext193($baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches, $base),
+            'blocked_reasons_next193' => self::sealedNextSourceBlockedReasons($baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches, $base),
             'current_source_returning_handoff_next193' => [
                 'fresh_current_rows_required' => $base['handoff_plan_next189']['fresh_rows_required'] ?? 0,
                 'fresh_current_rows_acknowledged' => $base['handoff_plan_next189']['fresh_rows_acknowledged'] ?? 0,
                 'candidate_next_rows' => count($nextRows),
                 'published_next_rows' => count($publishedRows),
-                'source_signature' => self::sourceSignatureNext193($nextRows),
+                'source_signature' => self::sealedNextSourceSignature($nextRows),
                 'source_sequence_token' => $sequenceToken,
-                'decision' => self::decisionNext193($canPublish, $baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches),
+                'decision' => self::sealedNextSourceDecision($canPublish, $baseAdmitted, $rowCountMatches, $signatureMatches, $handoffTokenMatches, $sequenceMatches),
             ],
             'yield_boundary_next193' => $canPublish
                 ? 'recursive-view-returning-next193-next-source-sealed-after-current-drain'
@@ -8248,7 +8248,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function publishRowsNext193(array $rows, string $handoffToken, string $sequenceToken): array
+    private static function publishSealedNextSourceRows(array $rows, string $handoffToken, string $sequenceToken): array
     {
         $out = [];
         foreach ($rows as $index => $row) {
@@ -8266,7 +8266,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function sourceSignatureNext193(array $rows): string
+    private static function sealedNextSourceSignature(array $rows): string
     {
         if ($rows === []) {
             return 'empty-next-source';
@@ -8288,7 +8288,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function sequenceTokenNext193(array $rows): string
+    private static function sealedNextSourceSequenceToken(array $rows): string
     {
         if ($rows === []) {
             return 'empty-next-source';
@@ -8303,7 +8303,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext193(mixed $rows, string $label): array
+    private static function sealedNextSourceRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next193 {$label} must be a list");
@@ -8317,7 +8317,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $rows;
     }
 
-    private static function nonNegativeIntNext193(mixed $value, string $label): int
+    private static function sealedNextSourceNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next193 {$label} must be a non-negative integer");
@@ -8326,7 +8326,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext193(string $token, string $label): string
+    private static function sealedNextSourceToken(string $token, string $label): string
     {
         if ($token === '' || preg_match('/\s/', $token) === 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next193 {$label} is malformed");
@@ -8335,7 +8335,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $token;
     }
 
-    private static function statusNext193(bool $canPublish, bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches): string
+    private static function sealedNextSourceStatus(bool $canPublish, bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches): string
     {
         if ($canPublish) {
             return 'trigger-recursive-view-returning-current-source-next193-published';
@@ -8362,7 +8362,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function blockedReasonsNext193(bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches, array $base): array
+    private static function sealedNextSourceBlockedReasons(bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches, array $base): array
     {
         $reasons = $base['blocked_reasons_next189'];
         if (!$baseAdmitted) {
@@ -8384,7 +8384,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function decisionNext193(bool $canPublish, bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches): string
+    private static function sealedNextSourceDecision(bool $canPublish, bool $baseAdmitted, bool $rowCountMatches, bool $signatureMatches, bool $handoffTokenMatches, bool $sequenceMatches): string
     {
         if ($canPublish) {
             return 'publish-sealed-next-source-after-current-drain';

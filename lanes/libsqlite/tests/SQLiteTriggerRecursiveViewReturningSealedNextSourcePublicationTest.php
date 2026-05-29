@@ -46,7 +46,7 @@ $returning193 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$plan193 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext193(
+$plan193 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeSealedNextSourcePublication(
     $rows193,
     $currentInput193,
     $nextInput193,
@@ -168,7 +168,7 @@ $cases193 = [
 
 $tests = [];
 foreach ($cases193 as $name => [$callback, $expected]) {
-    $tests['trigger recursive view returning current source next193 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger recursive view returning sealed next source publication ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

@@ -87,7 +87,7 @@ $value116 = static function (array $value, string $path): mixed {
 $tests = [];
 
 foreach ([
-    'operation' => ['operation', 'schema-generated-check-reparse-current-source-next116'],
+    'operation' => ['operation', 'schema-generated-check-reparse-current-source'],
     'table' => ['table', 'wp_options'],
     'schema version before' => ['schema_version_before', 116],
     'schema version after' => ['schema_version_after', 117],
@@ -137,7 +137,7 @@ foreach ([
     'dependency generated catalog' => ['dependencies.1', 'sqlite-generated-column-catalog'],
     'dependency check catalog' => ['dependencies.2', 'sqlite-check-constraint-catalog'],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source next116 ' . $name] = static function (TestRunner $t) use ($plan116, $value116, $path, $expected): void {
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($plan116, $value116, $path, $expected): void {
         $t->same($expected, $value116($plan116(), $path));
     };
 }
@@ -153,7 +153,7 @@ foreach ([
     'stable generated check removed empty' => ['generatedChecksRemoved', []],
     'stable changed fields empty' => ['changedFields', []],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source next116 ' . $name] = static function (TestRunner $t) use ($stable116, $value116, $path, $expected): void {
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($stable116, $value116, $path, $expected): void {
         $t->same($expected, $value116($stable116(), $path));
     };
 }
@@ -166,19 +166,19 @@ foreach ([
     'quoted backtick check reference' => ['current.generatedChecks.1.references.0', 'option-len'],
     'quoted stored code' => ['current.generatedChecks.1.storage', 'STORED'],
 ] as $name => [$path, $expected]) {
-    $tests['schema generated check reparse current source next116 ' . $name] = static function (TestRunner $t) use ($quoted116, $value116, $path, $expected): void {
+    $tests['schema generated check reparse current source ' . $name] = static function (TestRunner $t) use ($quoted116, $value116, $path, $expected): void {
         $t->same($expected, $value116($quoted116(), $path));
     };
 }
 
-$tests['schema generated check reparse current source next116 cookie unchanged keeps stable despite ddl diff'] = static function (TestRunner $t) use ($plan116): void {
+$tests['schema generated check reparse current source cookie unchanged keeps stable despite ddl diff'] = static function (TestRunner $t) use ($plan116): void {
     $result = $plan116(null, null, ['schema_version_before' => 9, 'schema_version_after' => 9]);
     $t->same(true, $result['changed']);
     $t->same(false, $result['requiresReparse']);
     $t->same('stable', $result['status']);
 };
 
-$tests['schema generated check reparse current source next116 rejects missing table'] = static function (TestRunner $t) use ($record116, $currentSql116): void {
+$tests['schema generated check reparse current source rejects missing table'] = static function (TestRunner $t) use ($record116, $currentSql116): void {
     try {
         SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([$record116($currentSql116)], [$record116($currentSql116)], 'missing');
     } catch (InvalidArgumentException) {
@@ -188,7 +188,7 @@ $tests['schema generated check reparse current source next116 rejects missing ta
     $t->same('rejected', 'missed');
 };
 
-$tests['schema generated check reparse current source next116 rejects missing SQL'] = static function (TestRunner $t): void {
+$tests['schema generated check reparse current source rejects missing SQL'] = static function (TestRunner $t): void {
     try {
         SQLiteSchemaGeneratedCheckReparseCurrentSourceNextPlan::currentNext([
             new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, null, 1),
@@ -202,7 +202,7 @@ $tests['schema generated check reparse current source next116 rejects missing SQ
     $t->same('rejected', 'missed');
 };
 
-$tests['schema generated check reparse current source next116 rejects bad schema version'] = static function (TestRunner $t) use ($plan116): void {
+$tests['schema generated check reparse current source rejects bad schema version'] = static function (TestRunner $t) use ($plan116): void {
     try {
         $plan116(null, null, ['schema_version_before' => -1]);
     } catch (InvalidArgumentException) {
