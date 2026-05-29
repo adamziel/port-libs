@@ -21,14 +21,14 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next334 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext334(...$args);
-$next335 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext335(...$args);
-$next336 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext336(...$args);
-$next337 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext337(...$args);
-$next338 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext338(...$args);
-$next339 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext339(...$args);
-$next340 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext340(...$args);
-$next341 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext341(...$args);
+$next334 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(334, ...$args);
+$next335 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(335, ...$args);
+$next336 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(336, ...$args);
+$next337 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(337, ...$args);
+$next338 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(338, ...$args);
+$next339 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(339, ...$args);
+$next340 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(340, ...$args);
+$next341 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(341, ...$args);
 
 $statuses = [
     $next334['status'],

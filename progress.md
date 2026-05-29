@@ -43,10 +43,29 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 148G available, 68% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current sample reports `/` at 452G size with about 112G available, 76% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-29 supervisor continuation (shell samples 16:19 UTC):
+  Fifty-first reduced consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 7 ready-marked BK
+  handoffs on top of `9f750898` while excluding stale worker status/progress
+  edits: compound SELECT union/except recursive-window cleanup, JSON table
+  generated rowid batch/cursor/xcolumn cleanup, pager-master checkpoint-branch
+  handoff cleanup, rowvalue returning-window current-source cleanup,
+  upstream-suite veryquick shard helper cleanup, trigger returning done-gate
+  cleanup, and JSON table production suffix cleanup. B-tree vacuum BK is
+  deferred because it references an already-removed current-source example
+  `959-974`; planner STAT4 BK is deferred because it targets files already
+  renamed or removed. Validation passed `31` PHP lints, changed tests
+  `12 test files / 5049 assertions / 0 failures`, `13` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan clean
+  in `src`/`tests`/`examples`, production `CurrentSourceNextNNN` file/class
+  audits at `0`, and broad numbered production helper-method audit `2635`.
+  Public pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589`
+  because this is another suffix/helper consolidation slice.
 
 - 2026-05-29 supervisor continuation (shell samples 16:12 UTC):
   Fiftieth reduced consolidation follow-up is staged and validated in the

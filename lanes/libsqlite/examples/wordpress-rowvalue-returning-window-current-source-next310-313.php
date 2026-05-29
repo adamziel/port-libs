@@ -21,10 +21,10 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next310 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext310(...$args);
-$next311 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext311(...$args);
-$next312 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext312(...$args);
-$next313 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext313(...$args);
+$next310 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(310, ...$args);
+$next311 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(311, ...$args);
+$next312 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(312, ...$args);
+$next313 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourcePrePublicationStep(313, ...$args);
 
 $statuses = [$next310['status'], $next311['status'], $next312['status'], $next313['status']];
 assert($statuses === [

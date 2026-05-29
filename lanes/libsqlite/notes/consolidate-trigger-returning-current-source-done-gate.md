@@ -14,14 +14,14 @@ Micro-slice: `consolidate-final-numbered-methods-trigger-returning-ninth-pass`
 
 - `php -l lanes/libsqlite/src/SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext194Test.php`
+- `php -l lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceDoneGateTest.php`
   - `No syntax errors detected`
-- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next194.php`
+- `php -l lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-done-gate.php`
   - `No syntax errors detected`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceNext194Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerRecursiveViewReturningCurrentSourceDoneGateTest.php`
   - `1 test files, 86 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-next194.php --self-test`
-  - `wordpress-trigger-recursive-view-returning-current-source-next194 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-trigger-recursive-view-returning-current-source-done-gate.php --self-test`
+  - `wordpress-trigger-recursive-view-returning-current-source-done-gate self-test passed`
 
 ## Dependency Closure
 

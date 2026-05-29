@@ -14,17 +14,17 @@ use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
 $currentView = [
     'name' => 'wp_recursive_option_import',
-    'source' => 'main@view-cookie-194-current',
+    'source' => 'main@view-cookie-done_gate-current',
     'trigger' => 'wp_recursive_option_import_io_insert',
-    'trigger_source' => 'main@trigger-cookie-194-current',
+    'trigger_source' => 'main@trigger-cookie-done_gate-current',
     'columns' => ['import_id', 'name', 'value', 'autoload_flag', 'spawn_child'],
     'mapping' => ['import_id' => 'option_id', 'name' => 'option_name', 'value' => 'option_value', 'autoload_flag' => 'autoload'],
-    'audit_label' => 'current-recursive-view-trigger-194',
+    'audit_label' => 'current-recursive-view-trigger-done_gate',
 ];
 $nextView = $currentView;
-$nextView['source'] = 'main@view-cookie-194-next';
-$nextView['trigger_source'] = 'main@trigger-cookie-194-next';
-$nextView['audit_label'] = 'next-recursive-view-trigger-194';
+$nextView['source'] = 'main@view-cookie-done_gate-next';
+$nextView['trigger_source'] = 'main@trigger-cookie-done_gate-next';
+$nextView['audit_label'] = 'next-recursive-view-trigger-done_gate';
 
 $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentSourceDoneGate(
     [
@@ -48,23 +48,23 @@ $summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurr
         ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
     ],
     [
-        'savepoint' => 'wp_recursive_view_194',
-        'cursor_name' => 'wp_recursive_view_returning_cursor_194',
-        'checkpoint_name' => 'wp_recursive_view_checkpoint_194',
+        'savepoint' => 'wp_recursive_view_done_gate',
+        'cursor_name' => 'wp_recursive_view_returning_cursor_done_gate',
+        'checkpoint_name' => 'wp_recursive_view_checkpoint_done_gate',
         'page_size' => 3,
     ],
 );
 
 if (
-    $summary['status'] !== 'trigger-recursive-view-returning-current-source-next194-next-exposed'
-    || $summary['current_result_code_next194'] !== 'SQLITE_DONE'
-    || $summary['next_source_exposed_after_current_done_next194'] !== true
-    || $summary['current_done_plan_next194']['decision'] !== 'admit-next-source-after-current-done'
+    $summary['status'] !== 'trigger-recursive-view-returning-current-source-done-gate-next-exposed'
+    || $summary['current_result_code_done_gate'] !== 'SQLITE_DONE'
+    || $summary['next_source_exposed_after_current_done_done_gate'] !== true
+    || $summary['current_done_plan_done_gate']['decision'] !== 'admit-next-source-after-current-done'
     || count($summary['visible_returning_rows']) !== 10
     || $summary['held_rows'] !== []
 ) {
-    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-next194 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-recursive-view-returning-current-source-done-gate self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-trigger-recursive-view-returning-current-source-next194 self-test passed\n";
+echo "wordpress-trigger-recursive-view-returning-current-source-done-gate self-test passed\n";

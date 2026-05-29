@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-active-plugins',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext183(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidBatch(
     'json_tree',
     $current,
     $next,
@@ -43,12 +43,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['currentGeneratedPathRowidCurrentSourceBatch183']['remainingRowids'] === [6]);
     assert($plan['nextGeneratedPathRowidCurrentSourceBatch183']['batchOpcode'] === 'restart-next-source-generated-path-rowid-batch-next183');
     assert(in_array('json-table-generated-path-rowid-batch-next183-rowset-changed', $plan['next183ReplanReasons'], true));
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next183 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-batch self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next183',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-batch',
     'wordpressUse' => 'Copied wp_options active_plugins JSON diagnostics can emit a bounded current-source json_tree batch after generated-path/rowid materialization while preserving the next-source replan fence.',
     'currentOpcode' => $plan['currentGeneratedPathRowidCurrentSourceBatch183']['batchOpcode'],
     'currentBatchRowids' => $plan['currentGeneratedPathRowidCurrentSourceBatch183']['batchRowids'],

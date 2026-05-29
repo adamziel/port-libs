@@ -65,7 +65,7 @@ $missing184 = static fn (): array => $plan184($current184, $current184, null, nu
 
 $tests = [
     'records next184 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next184', $resume184()['dependencies'], true)),
-    'preserves next181 dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next181', $resume184()['dependencies'], true)),
+    'preserves xcolumn snapshot dependency' => static fn (TestRunner $t) => $t->true(in_array('sqlite-json-table-generated-path-rowid-xcolumn-snapshot', $resume184()['dependencies'], true)),
     'current reader admits final cost' => static fn (TestRunner $t) => $t->same('admit-current-json-table-generated-path-rowid-final-cost-next184', $resume184()['currentReaderPolicy']),
     'next changed source reparses final cost' => static fn (TestRunner $t) => $t->same('reprepare-next-json-table-generated-path-rowid-final-cost-next184', $resume184()['nextReaderPolicy']),
     'stable reuses final cost' => static fn (TestRunner $t) => $t->same('reuse-current-json-table-generated-path-rowid-final-cost-next184', $stable184()['nextReaderPolicy']),

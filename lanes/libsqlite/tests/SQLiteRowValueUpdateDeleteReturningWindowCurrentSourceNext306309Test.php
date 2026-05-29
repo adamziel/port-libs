@@ -17,10 +17,10 @@ $cases = [
         ], $result['candidateStatuses']);
         $t->same(64, strlen($result['next306Handoff']));
         $t->same('next302-305', $result['next306AfterReadyRange']);
-        $t->same(64, strlen($result['next307SourceReceipt']));
+        $t->same(64, strlen($result['next307SourceAudit']));
         $t->same(true, $result['next307PreservesCurrentSource']);
         $t->same(64, strlen($result['next308Preflight']));
-        $t->same(true, $result['next308IndependentPreflight']);
+        $t->same(true, $result['next308KeepsThroughputHigh']);
         $t->same(64, strlen($result['next309Final']));
         $t->same(true, $result['next309Ready']);
     },
