@@ -39,7 +39,7 @@ $plan216 = static fn (
     $constraints ?? [
         ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
         ['column' => 'rowid', 'operator' => 'IN', 'value' => [5, 6, 7, 8, 9]],
-        ['column' => '_rowid_', 'operator' => 'BETWEEN', 'value' => [6, 9]],
+        ['column' => '_rowid_', 'operator' => 'BETWEEN', 'value' => [6, 8]],
     ],
     'scan_root',
     $orderBy ?? [['column' => 'rowid', 'direction' => 'ASC']],
@@ -64,7 +64,7 @@ $externalOrder216 = static fn (): array => $plan216($current216, $current216, nu
 $unusableRange216 = static fn (): array => $plan216($current216, $current216, [
     ['column' => 'path', 'operator' => 'LIKE', 'value' => '$.rules%'],
     ['column' => 'rowid', 'operator' => 'IN', 'value' => [5, 6, 7, 8, 9]],
-    ['column' => 'rowid', 'operator' => 'BETWEEN', 'value' => [6, 9], 'usable' => false],
+    ['column' => 'rowid', 'operator' => 'BETWEEN', 'value' => [6, 8], 'usable' => false],
 ]);
 
 $tests = [
