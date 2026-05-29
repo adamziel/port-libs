@@ -77,12 +77,12 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['active_current_snapshot_statements'] === ['active-options-reader']);
     assert($plan['retryable_read_statements'] === ['active-options-reader', 'network-reader', 'plugin-state-reader']);
     assert($plan['write_statements_blocked_before_retry'] === []);
-    echo "wordpress-attach-wal-temp-schema-cache-current-next77 self-test passed\n";
+    echo "wordpress-attach-wal-temp-schema-cache-current self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'copied wp_options attach WAL temp schema-cache current next77',
+    'scenario' => 'copied wp_options attach WAL temp schema-cache current',
     'wordpressUse' => 'During plugin import, active copied wp_options readers keep their current snapshot while committed main/network schema writes expire the next prepared-statement cache; rolled-back temp/archive savepoint DDL does not add committed schema-cookie changes.',
     'status' => $plan['status'],
     'changedSchemas' => $plan['changed_schemas'],

@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteOverflowVacuumTruncatePlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
-$makeFirstPage87 = static function (int $pageSize, int $pageCount): string {
+$makeFirstPage = static function (int $pageSize, int $pageCount): string {
     $page = str_repeat("\0", $pageSize);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', $pageSize), 16, 2);
@@ -23,7 +23,7 @@ $makeFirstPage87 = static function (int $pageSize, int $pageCount): string {
     return $page;
 };
 
-$putPointerMapEntry87 = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber, int $pageSize = 512): void {
+$putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber, int $pageSize = 512): void {
     $stride = intdiv($pageSize, 5) + 1;
     $pointerMapPage = (intdiv($pageNumber - 2, $stride) * $stride) + 2;
     if ($pointerMapPage === $pageNumber) {
@@ -38,21 +38,21 @@ $putPointerMapEntry87 = static function (array &$pages, int $pageNumber, int $ty
     );
 };
 
-$fixture87 = static function (int $maxTruncatedPages = 4, bool $secureDelete = true) use ($makeFirstPage87, $putPointerMapEntry87): SQLiteOverflowVacuumTruncatePlan {
+$fixture = static function (int $maxTruncatedPages = 4, bool $secureDelete = true) use ($makeFirstPage, $putPointerMapEntry): SQLiteOverflowVacuumTruncatePlan {
     $pageSize = 512;
     $pageCount = 412;
     $releasedPages = [406, 407, 408, 409, 410, 411, 412];
     $pages = array_fill(1, $pageCount, str_repeat("\0", $pageSize));
-    $pages[1] = $makeFirstPage87($pageSize, $pageCount);
+    $pages[1] = $makeFirstPage($pageSize, $pageCount);
 
     foreach ([4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 44 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 45 => [SQLitePointerMapEntry::BTREE_PAGE, 4]] as $pageNumber => [$type, $parent]) {
-        $putPointerMapEntry87($pages, $pageNumber, $type, $parent, $pageSize);
+        $putPointerMapEntry($pages, $pageNumber, $type, $parent, $pageSize);
     }
 
     foreach ($releasedPages as $index => $pageNumber) {
         $isFirst = $index === 0 || $index === 3;
         $parent = $isFirst ? ($index === 0 ? 44 : 45) : $releasedPages[$index - 1];
-        $putPointerMapEntry87(
+        $putPointerMapEntry(
             $pages,
             $pageNumber,
             $isFirst ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE : SQLitePointerMapEntry::OVERFLOW_PAGE,
@@ -74,7 +74,7 @@ $fixture87 = static function (int $maxTruncatedPages = 4, bool $secureDelete = t
             [
                 'source' => 'wp_options-option-name-index-overflow-freeblock-delete',
                 'obsolete_overflow_page_numbers' => [409, 410, 411, 412],
-                'record_values' => [['_transient_timeout_next87', 701]],
+                'record_values' => [['_transient_timeout_overflow_rows', 701]],
             ],
         ],
         $maxTruncatedPages,
@@ -85,19 +85,19 @@ $fixture87 = static function (int $maxTruncatedPages = 4, bool $secureDelete = t
 $tests = [];
 
 $cases = [
-    'released source labels are preserved' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'source'),
-    'released page numbers stay delete-result order' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'page_number'),
-    'current statuses are obsolete overflow' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'current_status'))),
-    'next statuses split survivor and truncated tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'next_status'),
-    'current overflow next pointers follow both chains' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'current_next_page'),
-    'next overflow next pointers are freelist shape for survivors' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'next_next_page'),
-    'current pointer map types show first and chained overflow' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'current_pointer_map_type'),
-    'next pointer map types remain only for survivors' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'next_pointer_map_type'),
-    'truncated pointer map types capture omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'truncated_pointer_map_type'),
-    'materialized flags split at tail boundary' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'materialized'),
-    'truncated flags split at tail boundary' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'truncated'),
-    'secure delete marks surviving free pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateCurrentSourceNext87(), 'secure_deleted'),
-    'summary is exposed through toArray' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_freeblock_truncate_current_source_next87'], 'page_number'),
+    'released source labels are preserved' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'source'),
+    'released page numbers stay delete-result order' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'page_number'),
+    'current statuses are obsolete overflow' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowFreeblockTruncateRows(), 'current_status'))),
+    'next statuses split survivor and truncated tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'next_status'),
+    'current overflow next pointers follow both chains' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'current_next_page'),
+    'next overflow next pointers are freelist shape for survivors' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'next_next_page'),
+    'current pointer map types show first and chained overflow' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'current_pointer_map_type'),
+    'next pointer map types remain only for survivors' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'next_pointer_map_type'),
+    'truncated pointer map types capture omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'truncated_pointer_map_type'),
+    'materialized flags split at tail boundary' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'materialized'),
+    'truncated flags split at tail boundary' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'truncated'),
+    'secure delete marks surviving free pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowFreeblockTruncateRows(), 'secure_deleted'),
+    'summary is exposed through toArray' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_freeblock_truncate_rows'], 'page_number'),
     'materialized apply omits truncated pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->materializedApplySummary()['omitted_truncated_page_numbers'],
     'final database page count is survivor boundary' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->finalDatabasePageCount(),
     'final freelist contains surviving released pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->nextFreelistPageNumbers(),
@@ -165,17 +165,17 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['btree overflow freeblock truncate current source next87 ' . $name] = static function (TestRunner $t) use ($fixture87, $callback, $expected, $name): void {
-        $t->same($expected[$name], $callback($fixture87()));
+    $tests['btree overflow freeblock truncate overflow rows ' . $name] = static function (TestRunner $t) use ($fixture, $callback, $expected, $name): void {
+        $t->same($expected[$name], $callback($fixture()));
     };
 }
 
 foreach (range(1, 35) as $index) {
-    $tests['btree overflow freeblock truncate current source next87 invariant ' . $index] = static function (TestRunner $t) use ($fixture87, $index): void {
+    $tests['btree overflow freeblock truncate overflow rows invariant ' . $index] = static function (TestRunner $t) use ($fixture, $index): void {
         $limit = $index % 3 === 0 ? 5 : 4;
         $secureDelete = $index % 5 !== 0;
-        $plan = $fixture87($limit, $secureDelete);
-        $rows = $plan->overflowFreeblockTruncateCurrentSourceNext87();
+        $plan = $fixture($limit, $secureDelete);
+        $rows = $plan->overflowFreeblockTruncateRows();
         $survivors = array_values(array_filter($rows, static fn (array $row): bool => $row['materialized']));
         $truncated = array_values(array_filter($rows, static fn (array $row): bool => $row['truncated']));
 
@@ -183,14 +183,14 @@ foreach (range(1, 35) as $index) {
         $t->same(array_column($truncated, 'page_number'), $plan->truncatedFreedPointerMapPages());
         $t->same(max(array_column($survivors, 'page_number')), $plan->finalDatabasePageCount());
         $t->same($plan->finalDatabasePageCount() * 512, strlen($plan->materializedBytes()));
-        $t->same(array_column($rows, 'page_number'), array_column($plan->toArray()['overflow_freeblock_truncate_current_source_next87'], 'page_number'));
+        $t->same(array_column($rows, 'page_number'), array_column($plan->toArray()['overflow_freeblock_truncate_rows'], 'page_number'));
         $t->same(count($survivors), $plan->finalFreelistPageCount());
     };
 }
 
-$tests['btree overflow freeblock truncate current source next87 preserves payload bytes without secure delete'] = static function (TestRunner $t) use ($fixture87): void {
-    $plan = $fixture87(4, false);
-    $rows = $plan->overflowFreeblockTruncateCurrentSourceNext87();
+$tests['btree overflow freeblock truncate overflow rows preserves payload bytes without secure delete'] = static function (TestRunner $t) use ($fixture): void {
+    $plan = $fixture(4, false);
+    $rows = $plan->overflowFreeblockTruncateRows();
     $t->same([true, false, false], array_slice(array_column($rows, 'secure_deleted'), 0, 3));
     $t->same(str_repeat('Q', 8), substr($plan->materializedDatabase()->page(407), 4, 8));
 };

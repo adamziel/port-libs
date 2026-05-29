@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteOverflowVacuumTruncatePlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 
-$makeFirstPage92 = static function (int $pageSize, int $pageCount): string {
+$makeFirstPage = static function (int $pageSize, int $pageCount): string {
     $page = str_repeat("\0", $pageSize);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', $pageSize), 16, 2);
@@ -23,7 +23,7 @@ $makeFirstPage92 = static function (int $pageSize, int $pageCount): string {
     return $page;
 };
 
-$putPointerMapEntry92 = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber, int $pageSize = 512): void {
+$putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber, int $pageSize = 512): void {
     $stride = intdiv($pageSize, 5) + 1;
     $pointerMapPage = (intdiv($pageNumber - 2, $stride) * $stride) + 2;
     if ($pointerMapPage === $pageNumber) {
@@ -38,21 +38,21 @@ $putPointerMapEntry92 = static function (array &$pages, int $pageNumber, int $ty
     );
 };
 
-$fixture92 = static function (int $maxTruncatedPages = 5, bool $secureDelete = true) use ($makeFirstPage92, $putPointerMapEntry92): SQLiteOverflowVacuumTruncatePlan {
+$fixture = static function (int $maxTruncatedPages = 5, bool $secureDelete = true) use ($makeFirstPage, $putPointerMapEntry): SQLiteOverflowVacuumTruncatePlan {
     $pageSize = 512;
     $pageCount = 416;
     $pages = array_fill(1, $pageCount, str_repeat("\0", $pageSize));
-    $pages[1] = $makeFirstPage92($pageSize, $pageCount);
+    $pages[1] = $makeFirstPage($pageSize, $pageCount);
 
     foreach ([4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 55 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 56 => [SQLitePointerMapEntry::BTREE_PAGE, 4]] as $pageNumber => [$type, $parent]) {
-        $putPointerMapEntry92($pages, $pageNumber, $type, $parent, $pageSize);
+        $putPointerMapEntry($pages, $pageNumber, $type, $parent, $pageSize);
     }
 
     $releasedPages = [412, 413, 415, 416];
     foreach ($releasedPages as $index => $pageNumber) {
         $first = $index === 0 || $index === 2;
         $parent = $first ? ($index === 0 ? 55 : 56) : $releasedPages[$index - 1];
-        $putPointerMapEntry92(
+        $putPointerMapEntry(
             $pages,
             $pageNumber,
             $first ? SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE : SQLitePointerMapEntry::OVERFLOW_PAGE,
@@ -74,7 +74,7 @@ $fixture92 = static function (int $maxTruncatedPages = 5, bool $secureDelete = t
             [
                 'source' => 'wp_options-option-name-index-overflow-vacuum-tail',
                 'obsolete_overflow_page_numbers' => [415, 416],
-                'record_values' => [['_transient_next92', 9201]],
+                'record_values' => [['_transient_vacuum_rows', 9201]],
             ],
         ],
         $maxTruncatedPages,
@@ -85,18 +85,18 @@ $fixture92 = static function (int $maxTruncatedPages = 5, bool $secureDelete = t
 $tests = [];
 
 $cases = [
-    'truncated window includes pointer-map page between overflow tails' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'page_number'),
-    'pointer-map page has no delete source' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'source'),
-    'current statuses distinguish pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'current_status'),
-    'every row is omitted from next image' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'next_status'))),
-    'released overflow flags skip pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'released_overflow'),
-    'pointer-map flag marks only page 414' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'pointer_map_page'),
-    'current next pointers are omitted for pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'current_next_page'),
-    'freelist roles record released pages only' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'freelist_role'),
-    'current pointer-map types keep original overflow ownership' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'current_pointer_map_type'),
-    'truncated pointer-map types only exist for non pointer-map pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'truncated_pointer_map_type'),
-    'materialized flags are false across omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'materialized'))),
-    'truncated flags are true across omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'truncated'))),
+    'truncated window includes pointer-map page between overflow tails' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'page_number'),
+    'pointer-map page has no delete source' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'source'),
+    'current statuses distinguish pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'current_status'),
+    'every row is omitted from next image' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateRows(), 'next_status'))),
+    'released overflow flags skip pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'released_overflow'),
+    'pointer-map flag marks only page 414' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'pointer_map_page'),
+    'current next pointers are omitted for pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'current_next_page'),
+    'freelist roles record released pages only' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'freelist_role'),
+    'current pointer-map types keep original overflow ownership' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'current_pointer_map_type'),
+    'truncated pointer-map types only exist for non pointer-map pages' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->overflowVacuumTruncateRows(), 'truncated_pointer_map_type'),
+    'materialized flags are false across omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateRows(), 'materialized'))),
+    'truncated flags are true across omitted tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_values(array_unique(array_column($plan->overflowVacuumTruncateRows(), 'truncated'))),
     'released pages preserve source order' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->releasedOverflowPages(),
     'truncation order descends from database tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->truncatedPageNumbers(),
     'final database page count stops before pointer-map page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->finalDatabasePageCount(),
@@ -110,8 +110,8 @@ $cases = [
     'materialized apply first trunk cleared' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->materializedApplySummary()['first_freelist_trunk_page'],
     'materialized apply freelist count cleared' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->materializedApplySummary()['freelist_page_count'],
     'materialized apply updated pages omit truncated pointer-map page image' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->materializedApplySummary()['updated_page_numbers'],
-    'summary exposes current source next92 rows' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_vacuum_truncate_current_source_next92'], 'page_number'),
-    'summary exposes pointer-map marker' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_vacuum_truncate_current_source_next92'], 'pointer_map_page'),
+    'summary exposes vacuum rows rows' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_vacuum_truncate_rows'], 'page_number'),
+    'summary exposes pointer-map marker' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->toArray()['overflow_vacuum_truncate_rows'], 'pointer_map_page'),
     'truncate plan records no pointer-map entry for pointer-map page itself' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => array_column($plan->truncatePlan->truncatedPointerMapEntries, 'page_number'),
     'boundary pointer-map entry records final database page' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->truncatePlan->boundaryPointerMapEntry['page_number'] ?? null,
     'boundary pointer-map entry keeps page type before final tail' => static fn (SQLiteOverflowVacuumTruncatePlan $plan): mixed => $plan->truncatePlan->boundaryPointerMapEntry['type_name'] ?? null,
@@ -169,7 +169,7 @@ $expected = [
     'materialized apply first trunk cleared' => 0,
     'materialized apply freelist count cleared' => 0,
     'materialized apply updated pages omit truncated pointer-map page image' => [1, 311],
-    'summary exposes current source next92 rows' => [416, 415, 414, 413, 412],
+    'summary exposes vacuum rows rows' => [416, 415, 414, 413, 412],
     'summary exposes pointer-map marker' => [false, false, true, false, false],
     'truncate plan records no pointer-map entry for pointer-map page itself' => [416, 415, 413, 412],
     'boundary pointer-map entry records final database page' => null,
@@ -183,30 +183,30 @@ $expected = [
 ];
 
 foreach ($cases as $name => $callback) {
-    $tests['btree overflow vacuum truncate current source next92 ' . $name] = static function (TestRunner $t) use ($fixture92, $callback, $expected, $name): void {
-        $t->same($expected[$name], $callback($fixture92()));
+    $tests['btree overflow vacuum truncate vacuum rows ' . $name] = static function (TestRunner $t) use ($fixture, $callback, $expected, $name): void {
+        $t->same($expected[$name], $callback($fixture()));
     };
 }
 
 foreach (range(1, 30) as $index) {
-    $tests['btree overflow vacuum truncate current source next92 invariant ' . $index] = static function (TestRunner $t) use ($fixture92, $index): void {
-        $plan = $fixture92(5, $index % 4 !== 0);
-        $rows = $plan->overflowVacuumTruncateCurrentSourceNext92();
+    $tests['btree overflow vacuum truncate vacuum rows invariant ' . $index] = static function (TestRunner $t) use ($fixture, $index): void {
+        $plan = $fixture(5, $index % 4 !== 0);
+        $rows = $plan->overflowVacuumTruncateRows();
 
         $t->same($plan->truncatedPageNumbers(), array_column($rows, 'page_number'));
         $t->same([414], array_values(array_column(array_filter($rows, static fn (array $row): bool => $row['pointer_map_page']), 'page_number')));
         $t->same([], $plan->nextFreelistPageNumbers());
         $t->same(411, $plan->materializedDatabase()->pageCount());
         $t->same(411 * 512, strlen($plan->materializedBytes()));
-        $t->same($plan->toArray()['overflow_vacuum_truncate_current_source_next92'], $rows);
+        $t->same($plan->toArray()['overflow_vacuum_truncate_rows'], $rows);
     };
 }
 
-$tests['btree overflow vacuum truncate current source next92 partial limit leaves pointer-map page materialized'] = static function (TestRunner $t) use ($fixture92): void {
-    $plan = $fixture92(2);
+$tests['btree overflow vacuum truncate vacuum rows partial limit leaves pointer-map page materialized'] = static function (TestRunner $t) use ($fixture): void {
+    $plan = $fixture(2);
 
     $t->same([416, 415], $plan->truncatedPageNumbers());
-    $t->same([416, 415], array_column($plan->overflowVacuumTruncateCurrentSourceNext92(), 'page_number'));
+    $t->same([416, 415], array_column($plan->overflowVacuumTruncateRows(), 'page_number'));
     $t->same(412, $plan->finalFirstFreelistTrunkPage());
     $t->same(2, $plan->finalFreelistPageCount());
     $t->same(414 * 512, strlen($plan->materializedBytes()));

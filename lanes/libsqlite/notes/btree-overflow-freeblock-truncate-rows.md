@@ -1,6 +1,7 @@
-# B-tree overflow freeblock truncate current-source next87
+# B-tree Overflow Freeblock Truncate Rows
 
-This slice adds `SQLiteOverflowVacuumTruncatePlan::overflowFreeblockTruncateCurrentSourceNext87()`.
+This consolidation replaces the former numbered truncate helper with the stable
+`SQLiteOverflowVacuumTruncatePlan::overflowFreeblockTruncateRows()`.
 It records each obsolete overflow page by delete-result source, captures the
 source database overflow next-pointer and pointer-map type before freelist
 release, and compares that with the materialized next database after
@@ -9,15 +10,15 @@ pages; omitted tail pages are reported as truncated.
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockTruncateCurrentSourceNext87Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowFreeblockTruncateRowsTest.php`
   - `1 test files, 237 assertions, 0 failures`
   - 61 focused PASS lines
 
 WordPress smoke:
 
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-truncate-current-source-next87.php`
+- `php lanes/libsqlite/examples/wordpress-btree-overflow-freeblock-truncate-rows.php`
   - emits copied `wp_options` overflow/freeblock release and truncate
-    current-source evidence without `ext/sqlite`.
+    row evidence without `ext/sqlite`.
 
 Non-overlap:
 

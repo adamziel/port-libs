@@ -27325,7 +27325,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projectedColumns
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceSlice(int $slice, string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
+    public static function currentSourceGeneratedPathRowidCostSelectionVariant(int $slice, string $function, array $currentSource, array $nextSource, string $jsonColumn, string $generatedPathColumn, array $constraints = [], ?string $rootColumn = null, array $orderBy = [], ?int $limit = null, ?int $lastYieldedRowid = null, ?int $yieldBatchSize = null, array $projectedColumns = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], ?string $observedFingerprint = null, ?int $observedRowid = null): array
     {
         if ($jsonColumn === '' || $generatedPathColumn === '') {
             throw new \InvalidArgumentException('SQLite JSON table generated-path rowid cost planner requires source columns');

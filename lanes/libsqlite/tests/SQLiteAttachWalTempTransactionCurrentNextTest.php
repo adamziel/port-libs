@@ -47,7 +47,7 @@ $value = static function (array $data, string $path): mixed {
 
 $cases = [
     'status committed' => ['status', 'committed'],
-    'operation marker' => ['operation', 'attach-wal-temp-transaction-current-next69'],
+    'operation marker' => ['operation', 'attach-wal-temp-transaction-current'],
     'outcome commit' => ['outcome', 'commit'],
     'schema count' => ['schema_count', 4],
     'operation count' => ['operation_count', 7],
@@ -93,13 +93,13 @@ $cases = [
     'rollback restores archive cookie' => ['steps.4.next_cookies.archive', 11],
     'network write action' => ['steps.5.action', 'wal'],
     'release step action' => ['steps.6.action', 'savepoint_release'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-current-next69'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-transaction-current'],
     'dependency visibility' => ['dependencies.1', 'sqlite-attach-wal-temp-transaction-schema-cookie-visibility'],
     'dependency rollback' => ['dependencies.2', 'sqlite-savepoint-rollback-restores-uncommitted-schema-cookies'],
 ];
 
 foreach ($cases as $name => [$path, $expected]) {
-    $tests['attach wal temp current next69 ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
+    $tests['attach wal temp current transaction ' . $name] = static function (TestRunner $t) use ($plan, $value, $path, $expected): void {
         $t->same($expected, $value($plan(), $path));
     };
 }
@@ -217,7 +217,7 @@ $predicateCases = [
 ];
 
 foreach ($predicateCases as $name => $callback) {
-    $tests['attach wal temp current next69 ' . $name] = static function (TestRunner $t) use ($callback): void {
+    $tests['attach wal temp current transaction ' . $name] = static function (TestRunner $t) use ($callback): void {
         $t->true($callback());
     };
 }

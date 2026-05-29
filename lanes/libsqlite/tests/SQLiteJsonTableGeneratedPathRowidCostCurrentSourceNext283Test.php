@@ -28,7 +28,7 @@ $plan283 = static fn (
     ?array $orderBy = null,
     ?string $observedFingerprint = null,
     ?int $observedRowid = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceSlice(283,
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionVariant(283,
     'json_tree',
     $current ?? $current283,
     $next ?? $next283,

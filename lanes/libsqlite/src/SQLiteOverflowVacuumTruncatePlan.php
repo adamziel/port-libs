@@ -128,7 +128,7 @@ final class SQLiteOverflowVacuumTruncatePlan
     /**
      * @return list<array{source:string,page_number:int,current_status:string,next_status:string,current_next_page:int|null,next_next_page:int|null,current_pointer_map_type:string|null,next_pointer_map_type:string|null,truncated_pointer_map_type:string|null,materialized:bool,truncated:bool,secure_deleted:bool}>
      */
-    public function overflowFreeblockTruncateCurrentSourceNext87(): array
+    public function overflowFreeblockTruncateRows(): array
     {
         $truncatedEntries = [];
         foreach ($this->truncatePlan->truncatedPointerMapEntries as $entry) {
@@ -171,7 +171,7 @@ final class SQLiteOverflowVacuumTruncatePlan
     /**
      * @return list<array{page_number:int,source:string|null,current_status:string,next_status:string,released_overflow:bool,pointer_map_page:bool,current_next_page:int|null,freelist_role:string|null,current_pointer_map_type:string|null,truncated_pointer_map_type:string|null,materialized:bool,truncated:bool}>
      */
-    public function overflowVacuumTruncateCurrentSourceNext92(): array
+    public function overflowVacuumTruncateRows(): array
     {
         $sourceByPage = [];
         foreach ($this->releasePlan->sources as $source) {
@@ -345,8 +345,8 @@ final class SQLiteOverflowVacuumTruncatePlan
             'surviving_freed_pointer_map_pages' => $this->survivingFreedPointerMapPages(),
             'truncated_freed_pointer_map_pages' => $this->truncatedFreedPointerMapPages(),
             'materialized_apply' => $this->materializedApplySummary(),
-            'overflow_freeblock_truncate_current_source_next87' => $this->overflowFreeblockTruncateCurrentSourceNext87(),
-            'overflow_vacuum_truncate_current_source_next92' => $this->overflowVacuumTruncateCurrentSourceNext92(),
+            'overflow_freeblock_truncate_rows' => $this->overflowFreeblockTruncateRows(),
+            'overflow_vacuum_truncate_rows' => $this->overflowVacuumTruncateRows(),
             'updated_page_numbers' => array_keys($this->pageImages),
             'release_plan' => $this->releasePlan->toArray(),
             'truncate_plan' => $this->truncatePlan->toArray(),

@@ -63,7 +63,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext218(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafWriteReceiptAuditFromDeleteResult(
     $database,
     3,
     [

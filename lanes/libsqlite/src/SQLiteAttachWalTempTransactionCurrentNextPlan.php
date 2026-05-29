@@ -99,7 +99,7 @@ final class SQLiteAttachWalTempTransactionCurrentNextPlan
 
         return [
             'status' => $outcome === 'commit' ? 'committed' : 'rolled_back',
-            'operation' => 'attach-wal-temp-transaction-current-next69',
+            'operation' => 'attach-wal-temp-transaction-current',
             'outcome' => $outcome,
             'schema_count' => count($state),
             'operation_count' => count($operations),
@@ -114,7 +114,7 @@ final class SQLiteAttachWalTempTransactionCurrentNextPlan
             'requires_reprepare' => $outcome === 'commit' && $changedSchemas !== [],
             'reprepare_schemas' => $outcome === 'commit' ? $changedSchemas : [],
             'dependencies' => [
-                'sqlite-attach-wal-temp-current-next69',
+                'sqlite-attach-wal-temp-transaction-current',
                 'sqlite-attach-wal-temp-transaction-schema-cookie-visibility',
                 'sqlite-savepoint-rollback-restores-uncommitted-schema-cookies',
             ],

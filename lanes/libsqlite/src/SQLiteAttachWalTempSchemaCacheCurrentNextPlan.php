@@ -15,7 +15,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
     public static function plan(array $schemas, array $operations, array $statements, string $outcome = 'commit', string $sourceSchema = 'main'): array
     {
         if ($statements === []) {
-            throw new \InvalidArgumentException('SQLite attach WAL temp schema-cache current-next77 requires statements');
+            throw new \InvalidArgumentException('SQLite attach WAL temp schema-cache current source requires statements');
         }
 
         $transaction = SQLiteAttachWalTempTransactionCurrentNextPlan::plan($schemas, $operations, $outcome);
@@ -39,7 +39,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
 
         return [
             'status' => $lifecycle['requires_reprepare'] ? 'schema_cache_expired' : 'schema_cache_stable',
-            'operation' => 'attach-wal-temp-schema-cache-current-next77',
+            'operation' => 'attach-wal-temp-schema-cache-current',
             'outcome' => $outcome,
             'source' => $lifecycle['source'],
             'transaction_status' => $transaction['status'],
@@ -57,8 +57,8 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
             'statements' => $lifecycle['statements'],
             'requires_reprepare' => $lifecycle['requires_reprepare'],
             'dependencies' => [
-                'sqlite-attach-wal-temp-schema-cache-current-next77',
-                'sqlite-attach-wal-temp-transaction-current-next69',
+                'sqlite-attach-wal-temp-schema-cache-current',
+                'sqlite-attach-wal-temp-transaction-current',
                 'sqlite-schema-cookie-expire-prepared-statements',
             ],
         ];
@@ -76,7 +76,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentNextPlan
             $name = self::schemaName((string) $schema);
             $schemaState = $transaction['schemas'][$name] ?? null;
             if (!is_array($schemaState)) {
-                throw new \InvalidArgumentException("SQLite attach WAL temp schema-cache current-next77 missing transaction schema {$name}");
+                throw new \InvalidArgumentException("SQLite attach WAL temp schema-cache current source missing transaction schema {$name}");
             }
 
             $copy = $entry;

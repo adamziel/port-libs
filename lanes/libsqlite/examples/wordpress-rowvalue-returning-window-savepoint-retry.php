@@ -21,7 +21,7 @@ $attempt = "UPDATE wp_options SET status = 'attempt289' WHERE (blog_id, option_n
 $retryUpdate = "UPDATE wp_options SET status = 'retry289' WHERE (blog_id, option_name) IN ((1, 'home'), (2, 'pending_theme')) RETURNING option_id, option_name, status ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (3, 'rewrite_rules')) RETURNING option_id, option_name, status ORDER BY option_id";
 
-$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext289(
+$plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningWindowSavepointRetry(
     ['wp_options' => $rows],
     [$attempt],
     [$retryUpdate, $retryDelete],

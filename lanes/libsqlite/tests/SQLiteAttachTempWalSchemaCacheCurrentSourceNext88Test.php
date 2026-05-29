@@ -85,7 +85,7 @@ $value = static function (array $data, string $path): mixed {
 
 $cases = [
     'status expired' => ['status', 'schema_cache_expired'],
-    'operation remains current next77 engine' => ['operation', 'attach-wal-temp-schema-cache-current-next77'],
+    'operation remains current engine' => ['operation', 'attach-wal-temp-schema-cache-current'],
     'source remains main' => ['source', 'main'],
     'statement count' => ['statement_count', 8],
     'changed schemas follow sqlite search order' => ['changed_schemas', ['temp', 'main', 'archive']],
@@ -135,7 +135,7 @@ $cases = [
     'analytics table parsed with bracket schema' => ['statements.7.tables', ['analytics.wp_events']],
     'analytics stable action' => ['statements.7.next_step_action', 'reuse_prepared_statement'],
     'analytics sqlite ok' => ['statements.7.sqlite_result', 'SQLITE_OK'],
-    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current-next77'],
+    'dependency marker' => ['dependencies.0', 'sqlite-attach-wal-temp-schema-cache-current'],
 ];
 
 $tests = [];

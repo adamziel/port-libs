@@ -1,23 +1,23 @@
-# SQLite B-tree Overflow Vacuum Truncate Current-Source Next92
+# SQLite B-tree Overflow Vacuum Truncate Rows
 
 ## Behavior
 
-This slice extends `SQLiteOverflowVacuumTruncatePlan` with
-`overflowVacuumTruncateCurrentSourceNext92()`, a current/source/next summary for
+This consolidation replaces the former numbered truncate helper with the stable
+`SQLiteOverflowVacuumTruncatePlan::overflowVacuumTruncateRows()`, a summary for
 incremental-vacuum tail truncation where an auto-vacuum pointer-map page is
 removed between released overflow tail pages.
 
-The existing next87 coverage summarized released overflow pages only. This
-next92 slice records the omitted pointer-map page itself as
+The related freeblock truncate rows summarize released overflow pages only. This
+summary records the omitted pointer-map page itself as
 `auto-vacuum-pointer-map-page`, with no delete source, no freelist role, no
 overflow next pointer, and no materialized next image.
 
 ## Evidence
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumTruncateCurrentSourceNext92Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeOverflowVacuumTruncateRowsTest.php`
   - `1 test files, 221 assertions, 0 failures`
   - `67` PASS lines
-- `php lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-truncate-current-source-next92.php`
+- `php lanes/libsqlite/examples/wordpress-btree-overflow-vacuum-truncate-rows.php`
   - Reports copied `wp_options` overflow vacuum truncating pages
     `416, 415, 414, 413, 412`, including pointer-map page `414`.
 

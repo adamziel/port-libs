@@ -14802,7 +14802,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated as executeNext289. */
+    /* Variant consolidated as executeReturningWindowSavepointRetry. */
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -14810,7 +14810,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext289(
+    public static function executeReturningWindowSavepointRetry(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -14831,8 +14831,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source next289 savepoint must be an identifier');
         }
 
-        $savepointImage = self::normalizeTablesNext289($tables);
-        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runStatementsNext289(
+        $savepointImage = self::normalizeReturningWindowSavepointTables($tables);
+        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runReturningWindowSavepointStatements(
             $savepointImage,
             $attemptStatements,
             $uniqueConstraints,
@@ -14841,7 +14841,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         );
 
         $rollbackCurrent = $savepointImage;
-        [$retryCurrent, $retrySummaries, $retryReturning] = self::runStatementsNext289(
+        [$retryCurrent, $retrySummaries, $retryReturning] = self::runReturningWindowSavepointStatements(
             $rollbackCurrent,
             $retryStatements,
             $uniqueConstraints,
@@ -14849,8 +14849,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry-after-window-rollback-next289',
         );
 
-        $attemptWindow = self::windowRowsNext289(self::flattenReturningNext289($attemptReturning), $rowIdColumn);
-        $retryWindow = self::windowRowsNext289(self::flattenReturningNext289($retryReturning), $rowIdColumn);
+        $attemptWindow = self::returningWindowRows(self::flattenReturningWindowStreams($attemptReturning), $rowIdColumn);
+        $retryWindow = self::returningWindowRows(self::flattenReturningWindowStreams($retryReturning), $rowIdColumn);
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next289',
@@ -14871,12 +14871,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'yielded_after_retry_returning' => $retryReturning,
             'discarded_attempt_window_rows' => $attemptWindow,
             'yielded_retry_window_rows' => $retryWindow,
-            'discarded_attempt_returning_count' => self::returningCountNext289($attemptReturning),
-            'yielded_after_retry_count' => self::returningCountNext289($retryReturning),
-            'attempt_changes_before_rollback' => self::changeCountNext289($attemptSummaries),
-            'retry_changes_after_rollback' => self::changeCountNext289($retrySummaries),
-            'changed_tables_after_retry' => self::changedTablesNext289($savepointImage, $retryCurrent),
-            'row_counts' => self::rowCountsNext289($retryCurrent),
+            'discarded_attempt_returning_count' => self::returningWindowStreamCount($attemptReturning),
+            'yielded_after_retry_count' => self::returningWindowStreamCount($retryReturning),
+            'attempt_changes_before_rollback' => self::returningWindowChangeCount($attemptSummaries),
+            'retry_changes_after_rollback' => self::returningWindowChangeCount($retrySummaries),
+            'changed_tables_after_retry' => self::returningWindowChangedTables($savepointImage, $retryCurrent),
+            'row_counts' => self::returningWindowRowCounts($retryCurrent),
             'dependency_closure_next289' => 'no new support component needed; next289 reuses native row-value UPDATE/DELETE RETURNING execution and adds current-source RETURNING window receipts after savepoint retry',
             'non_overlap_next289' => 'adds row_number/lag/lead style receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next224/230 nested savepoints, next231 compound tuple sources, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
             'dependencies' => [
@@ -14891,7 +14891,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext289(array $tables): array
+    private static function normalizeReturningWindowSavepointTables(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -14913,7 +14913,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext289(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runReturningWindowSavepointStatements(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $summaries = [];
@@ -14923,7 +14923,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $summaries[] = self::statementSummaryNext289($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $summaries[] = self::returningWindowSavepointStatementSummary($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -14941,7 +14941,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext289(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function returningWindowSavepointStatementSummary(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -14952,7 +14952,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext289($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::returningWindowRowsByIds($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -14966,7 +14966,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext289(array $rows, array $ids, string $rowIdColumn): array
+    private static function returningWindowRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -14994,7 +14994,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function flattenReturningNext289(array $yielded): array
+    private static function flattenReturningWindowStreams(array $yielded): array
     {
         $rows = [];
         foreach ($yielded as $stream) {
@@ -15010,7 +15010,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext289(array $rows, string $rowIdColumn): array
+    private static function returningWindowRows(array $rows, string $rowIdColumn): array
     {
         usort($rows, static fn (array $left, array $right): int => ($left[$rowIdColumn] ?? 0) <=> ($right[$rowIdColumn] ?? 0));
         $windowRows = [];
@@ -15035,7 +15035,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext289(array $yielded): int
+    private static function returningWindowStreamCount(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -15048,7 +15048,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $summaries
      */
-    private static function changeCountNext289(array $summaries): int
+    private static function returningWindowChangeCount(array $summaries): int
     {
         $count = 0;
         foreach ($summaries as $summary) {
@@ -15063,7 +15063,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext289(array $before, array $after): array
+    private static function returningWindowChangedTables(array $before, array $after): array
     {
         $changed = [];
         foreach ($after as $table => $rows) {
@@ -15080,7 +15080,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext289(array $tables): array
+    private static function returningWindowRowCounts(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {
@@ -15092,7 +15092,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     }
 
 
-    /* Variant consolidated as executeNext290293. */
+    /* Variant consolidated as executeStatementPartitionedReturningWindowSavepointRetry. */
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<string> $attemptStatements
@@ -15100,7 +15100,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNext290293(
+    public static function executeStatementPartitionedReturningWindowSavepointRetry(
         array $tables,
         array $attemptStatements,
         array $retryStatements,
@@ -15121,8 +15121,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite row-value window current-source next290293 savepoint must be an identifier');
         }
 
-        $savepointImage = self::normalizeTablesNext290293($tables);
-        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runStatementsNext290293(
+        $savepointImage = self::normalizeStatementPartitionedReturningWindowTables($tables);
+        [$attemptCurrent, $attemptSummaries, $attemptReturning] = self::runStatementPartitionedReturningWindowStatements(
             $savepointImage,
             $attemptStatements,
             $uniqueConstraints,
@@ -15131,7 +15131,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         );
 
         $rollbackCurrent = $savepointImage;
-        [$retryCurrent, $retrySummaries, $retryReturning] = self::runStatementsNext290293(
+        [$retryCurrent, $retrySummaries, $retryReturning] = self::runStatementPartitionedReturningWindowStatements(
             $rollbackCurrent,
             $retryStatements,
             $uniqueConstraints,
@@ -15139,9 +15139,9 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'retry-after-window-rollback-next290293',
         );
 
-        $attemptWindow = self::windowRowsNext290293(self::flattenReturningNext290293($attemptReturning), $rowIdColumn, 'attempt-all-next290293');
-        $retryWindow = self::windowRowsNext290293(self::flattenReturningNext290293($retryReturning), $rowIdColumn, 'retry-all-next290293');
-        $retryStatementWindows = self::statementWindowRowsNext290293($retryReturning, $rowIdColumn);
+        $attemptWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($attemptReturning), $rowIdColumn, 'attempt-all-next290293');
+        $retryWindow = self::statementPartitionedReturningWindowRows(self::flattenStatementPartitionedReturningStreams($retryReturning), $rowIdColumn, 'retry-all-next290293');
+        $retryStatementWindows = self::statementPartitionedReturningStatementWindowRows($retryReturning, $rowIdColumn);
 
         return [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next290293',
@@ -15163,13 +15163,13 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'discarded_attempt_window_rows' => $attemptWindow,
             'yielded_retry_window_rows' => $retryWindow,
             'yielded_retry_statement_window_rows' => $retryStatementWindows,
-            'discarded_attempt_returning_count' => self::returningCountNext290293($attemptReturning),
-            'yielded_after_retry_count' => self::returningCountNext290293($retryReturning),
+            'discarded_attempt_returning_count' => self::statementPartitionedReturningCount($attemptReturning),
+            'yielded_after_retry_count' => self::statementPartitionedReturningCount($retryReturning),
             'yielded_retry_statement_window_count' => count($retryStatementWindows),
-            'attempt_changes_before_rollback' => self::changeCountNext290293($attemptSummaries),
-            'retry_changes_after_rollback' => self::changeCountNext290293($retrySummaries),
-            'changed_tables_after_retry' => self::changedTablesNext290293($savepointImage, $retryCurrent),
-            'row_counts' => self::rowCountsNext290293($retryCurrent),
+            'attempt_changes_before_rollback' => self::statementPartitionedReturningChangeCount($attemptSummaries),
+            'retry_changes_after_rollback' => self::statementPartitionedReturningChangeCount($retrySummaries),
+            'changed_tables_after_retry' => self::statementPartitionedReturningChangedTables($savepointImage, $retryCurrent),
+            'row_counts' => self::statementPartitionedReturningRowCounts($retryCurrent),
             'dependency_closure_next290293' => 'no new support component needed; next290-293 reuses native row-value UPDATE/DELETE RETURNING execution and adds statement-partitioned current-source RETURNING window receipts after savepoint retry',
             'non_overlap_next290293' => 'adds statement-partitioned row_number/lag/lead receipts over UPDATE/DELETE RETURNING rows after rollback and retry; avoids accepted next219 negative LIMIT/OFFSET, next224/230 nested savepoints, next231 compound tuple sources, next289 all-stream windows, JSON table, WAL/VFS, planner, trigger, and B-tree clusters',
             'dependencies' => [
@@ -15184,7 +15184,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,list<array<string,mixed>>>
      */
-    private static function normalizeTablesNext290293(array $tables): array
+    private static function normalizeStatementPartitionedReturningWindowTables(array $tables): array
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
@@ -15206,7 +15206,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array{0:array<string,list<array<string,mixed>>>,1:list<array<string,mixed>>,2:list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}>}
      */
-    private static function runStatementsNext290293(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
+    private static function runStatementPartitionedReturningWindowStatements(array $tables, array $statements, array $uniqueConstraints, string $rowIdColumn, string $phase): array
     {
         $current = $tables;
         $summaries = [];
@@ -15216,7 +15216,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $before = $current;
             $result = SQLiteUpdateDeleteReturningSql::execute($sql, $current, $rowIdColumn, $uniqueConstraints);
             $current = $result['tables'];
-            $summaries[] = self::statementSummaryNext290293($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
+            $summaries[] = self::statementPartitionedReturningWindowSummary($phase, $ordinal, $sql, $result, $before, $rowIdColumn);
             $yielded[] = [
                 'phase' => $phase,
                 'ordinal' => $ordinal,
@@ -15234,7 +15234,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $before
      * @return array<string,mixed>
      */
-    private static function statementSummaryNext290293(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
+    private static function statementPartitionedReturningWindowSummary(string $phase, int $ordinal, string $sql, array $result, array $before, string $rowIdColumn): array
     {
         return [
             'phase' => $phase,
@@ -15245,7 +15245,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'table' => $result['table'],
             'selected_ids' => $result['plan']->selectedIds,
             'mutation_ids' => $result['plan']->mutationIds,
-            'source_rows' => self::rowsByIdsNext290293($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
+            'source_rows' => self::statementPartitionedReturningRowsByIds($before[$result['table']] ?? [], $result['plan']->selectedIds, $rowIdColumn),
             'returning_rows' => $result['returning'],
             'ignored_rows' => $result['ignored_rows'],
             'deleted_conflict_rows' => $result['deleted_conflict_rows'],
@@ -15259,7 +15259,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<int|string> $ids
      * @return list<array<string,mixed>>
      */
-    private static function rowsByIdsNext290293(array $rows, array $ids, string $rowIdColumn): array
+    private static function statementPartitionedReturningRowsByIds(array $rows, array $ids, string $rowIdColumn): array
     {
         $wanted = [];
         foreach ($ids as $id) {
@@ -15287,7 +15287,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function flattenReturningNext290293(array $yielded): array
+    private static function flattenStatementPartitionedReturningStreams(array $yielded): array
     {
         $rows = [];
         foreach ($yielded as $stream) {
@@ -15303,7 +15303,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext290293(array $rows, string $rowIdColumn, string $source): array
+    private static function statementPartitionedReturningWindowRows(array $rows, string $rowIdColumn, string $source): array
     {
         usort($rows, static fn (array $left, array $right): int => ($left[$rowIdColumn] ?? 0) <=> ($right[$rowIdColumn] ?? 0));
         $windowRows = [];
@@ -15329,7 +15329,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array{phase:string,ordinal:int,action:string,conflict_action:string,rows:list<array<string,mixed>>}> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function statementWindowRowsNext290293(array $yielded, string $rowIdColumn): array
+    private static function statementPartitionedReturningStatementWindowRows(array $yielded, string $rowIdColumn): array
     {
         $windows = [];
         foreach ($yielded as $stream) {
@@ -15360,7 +15360,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array{rows:list<array<string,mixed>>}> $yielded
      */
-    private static function returningCountNext290293(array $yielded): int
+    private static function statementPartitionedReturningCount(array $yielded): int
     {
         $count = 0;
         foreach ($yielded as $stream) {
@@ -15373,7 +15373,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $summaries
      */
-    private static function changeCountNext290293(array $summaries): int
+    private static function statementPartitionedReturningChangeCount(array $summaries): int
     {
         $count = 0;
         foreach ($summaries as $summary) {
@@ -15388,7 +15388,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $after
      * @return list<string>
      */
-    private static function changedTablesNext290293(array $before, array $after): array
+    private static function statementPartitionedReturningChangedTables(array $before, array $after): array
     {
         $changed = [];
         foreach ($after as $table => $rows) {
@@ -15405,7 +15405,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,int>
      */
-    private static function rowCountsNext290293(array $tables): array
+    private static function statementPartitionedReturningRowCounts(array $tables): array
     {
         $counts = [];
         foreach ($tables as $table => $rows) {

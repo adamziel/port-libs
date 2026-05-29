@@ -41,17 +41,18 @@ $putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type
 };
 
 $pageSize = 512;
-$pageCount = 416;
+$pageCount = 412;
+$releasedPages = [406, 407, 408, 409, 410, 411, 412];
 $pages = array_fill(1, $pageCount, str_repeat("\0", $pageSize));
 $pages[1] = $makeFirstPage($pageSize, $pageCount);
 
-foreach ([4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 55 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 56 => [SQLitePointerMapEntry::BTREE_PAGE, 4]] as $pageNumber => [$type, $parent]) {
+foreach ([4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 44 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 45 => [SQLitePointerMapEntry::BTREE_PAGE, 4]] as $pageNumber => [$type, $parent]) {
     $putPointerMapEntry($pages, $pageNumber, $type, $parent, $pageSize);
 }
 
-foreach ([412, 413, 415, 416] as $index => $pageNumber) {
-    $first = $index === 0 || $index === 2;
-    $parent = $first ? ($index === 0 ? 55 : 56) : [412, 413, 415, 416][$index - 1];
+foreach ($releasedPages as $index => $pageNumber) {
+    $first = $index === 0 || $index === 3;
+    $parent = $first ? ($index === 0 ? 44 : 45) : $releasedPages[$index - 1];
     $putPointerMapEntry(
         $pages,
         $pageNumber,
@@ -59,34 +60,33 @@ foreach ([412, 413, 415, 416] as $index => $pageNumber) {
         $parent,
         $pageSize,
     );
-    $pages[$pageNumber] = pack('N', in_array($pageNumber, [412, 415], true) ? $pageNumber + 1 : 0)
-        . str_repeat(chr(88 + $index), $pageSize - 4);
+    $next = in_array($pageNumber, [406, 407, 409, 410, 411], true) ? $pageNumber + 1 : 0;
+    $pages[$pageNumber] = pack('N', $next) . str_repeat(chr(80 + $index), $pageSize - 4);
 }
 
 $plan = SQLiteOverflowVacuumTruncatePlan::fromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [
-            'source' => 'wp_options table overflow vacuum tail',
-            'obsolete_overflow_page_numbers' => [412, 413],
-            'rowids' => [9201],
+            'source' => 'wp_options table overflow freeblock delete',
+            'obsolete_overflow_page_numbers' => [406, 407, 408],
+            'rowids' => [701, 702],
         ],
         [
-            'source' => 'wp_options option_name index overflow vacuum tail',
-            'obsolete_overflow_page_numbers' => [415, 416],
-            'record_values' => [['_transient_next92', 9201]],
+            'source' => 'wp_options option_name index overflow freeblock delete',
+            'obsolete_overflow_page_numbers' => [409, 410, 411, 412],
+            'record_values' => [['_transient_timeout_overflow_rows', 701]],
         ],
     ],
-    5,
+    4,
     true,
 );
 
 echo json_encode([
-    'scenario' => 'copied wp_options overflow vacuum truncates through auto-vacuum pointer-map page current-source-next92',
+    'scenario' => 'copied wp_options overflow/freeblock release with incremental vacuum truncate',
     'released_overflow_pages' => $plan->releasedOverflowPages(),
-    'truncated_page_numbers' => $plan->truncatedPageNumbers(),
     'final_page_count' => $plan->finalDatabasePageCount(),
-    'current_source_next92' => $plan->overflowVacuumTruncateCurrentSourceNext92(),
+    'overflow_freeblock_truncate_rows' => $plan->overflowFreeblockTruncateRows(),
     'materialized_apply' => $plan->materializedApplySummary(),
     'materialized_sha1' => sha1($plan->materializedBytes()),
 ], JSON_PRETTY_PRINT) . PHP_EOL;
