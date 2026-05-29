@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 
-$makeFirstPageForFreelistHandoff = static function (int $pageCount): string {
+$makeFirstPage = static function (int $pageCount): string {
     $page = str_repeat("\0", 512);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', 512), 16, 2);
@@ -25,7 +25,7 @@ $makeFirstPageForFreelistHandoff = static function (int $pageCount): string {
     return $page;
 };
 
-$putPointerMapEntryForFreelistHandoff = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
+$putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
     if ($pageNumber === 2 || $pageNumber === 105) {
         return;
     }
@@ -34,9 +34,9 @@ $putPointerMapEntryForFreelistHandoff = static function (array &$pages, int $pag
     $pages[$pointerMapPage] = substr_replace($pages[$pointerMapPage], chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - $pointerMapPage - 1), 5);
 };
 
-$databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirstPageForFreelistHandoff, $putPointerMapEntryForFreelistHandoff): SQLiteDatabase {
+$databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
-    $pages[1] = $makeFirstPageForFreelistHandoff(110);
+    $pages[1] = $makeFirstPage(110);
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'home', 'https://example.test'])),
@@ -56,13 +56,13 @@ $databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirst
         109 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 108],
         110 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 109],
     ] as $pageNumber => [$type, $parent]) {
-        $putPointerMapEntryForFreelistHandoff($pages, $pageNumber, $type, $parent);
+        $putPointerMapEntry($pages, $pageNumber, $type, $parent);
     }
 
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$planForFreelistHandoff = static function (int $sliceNumber, int $batchSize = 2) use ($databaseForFreelistHandoff): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+$freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) use ($databaseForFreelistHandoff): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
     $database = $databaseForFreelistHandoff($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
     return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultForCurrentSourceFreelistHandoff(
@@ -84,9 +84,9 @@ $planForFreelistHandoff = static function (int $sliceNumber, int $batchSize = 2)
 
 $tests = [];
 
-foreach (range(1151, 1182) as $sliceNumber) {
-    $tests["btree vacuum pointermap freeblock current source freelist handoff slice {$sliceNumber} publishes handoff receipts"] = static function (TestRunner $t) use ($planForFreelistHandoff, $sliceNumber): void {
-        $plan = $planForFreelistHandoff($sliceNumber);
+foreach (range(1135, 1182) as $sliceNumber) {
+    $tests["btree vacuum pointermap freeblock current source freelist handoff slice {$sliceNumber} preserves receipts"] = static function (TestRunner $t) use ($freelistHandoffPlan, $sliceNumber): void {
+        $plan = $freelistHandoffPlan($sliceNumber);
         $summary = $plan->currentSourceSummary();
         $rows = $plan->currentSourceRows();
 
@@ -110,7 +110,7 @@ foreach (range(1151, 1182) as $sliceNumber) {
         $t->same(true, isset($summary["current_source_next{$sliceNumber}_token"]));
         $t->contains('next431-446 freelist splice shape', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
-        $t->same(6, $planForFreelistHandoff($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
+        $t->same(6, $freelistHandoffPlan($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
     };
 }
 

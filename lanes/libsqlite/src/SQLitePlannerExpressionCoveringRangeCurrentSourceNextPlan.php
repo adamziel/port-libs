@@ -32,7 +32,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
             array $neededColumns,
             array $neededExpressions = []
         ): array {
-            $base = SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan::materializeNext134(
+            $base = SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan::materializeDescendingCurrentRange(
                 $preparedSource,
                 $currentSource,
                 $preparedPredicate,
@@ -46,7 +46,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
             $currentSignature = self::sourceSignature($currentSource, $currentRows);
             $nextSummary = $nextSource === null ? null : self::nextSourceSummary($currentSource, $nextSource, $currentRows);
             $nextAdmitted = $nextSummary === null || $nextSummary['replanReasons'] === [];
-            $ready = ($base['status'] ?? null) === 'covering-expression-range-current-source-next134-ready'
+            $ready = ($base['status'] ?? null) === 'covering-expression-range-current-source-descending-ready'
                 && ($base['tableLookupElided'] ?? false) === true
                 && $nextAdmitted;
 
@@ -94,7 +94,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next146 reuses native expression covering range materialization and adds current/next source fencing',
-                'non_overlap' => 'avoids accepted next128 range recheck, next134 descending range stream, next138 non-expression STAT4 range, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, and B-tree clusters; this slice fences the current covering expression range payload against an optional next source before table seeks remain elided',
+                'non_overlap' => 'avoids accepted next128 range recheck, descending current-source range stream, next138 non-expression STAT4 range, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, and B-tree clusters; this slice fences the current covering expression range payload against an optional next source before table seeks remain elided',
             ]);
         }
 

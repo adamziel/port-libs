@@ -20,7 +20,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext134(
+        public static function materializeDescendingCurrentRange(
             array $preparedSource,
             array $currentSource,
             array $preparedPredicate,
@@ -44,36 +44,36 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
             $selected = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
             $descending = (bool) ($selected['descending'] ?? false);
             $currentNextRows = is_array($base['currentNextRows'] ?? null) ? $base['currentNextRows'] : [];
-            $streamRows = self::streamRowsNext134($currentNextRows);
+            $streamRows = self::streamCurrentRows($currentNextRows);
             if ($descending) {
                 $streamRows = array_reverse($streamRows);
             }
-            $streamPairs = self::currentNextNext134($streamRows);
+            $streamPairs = self::pairCurrentRows($streamRows);
             $ready = ($base['status'] ?? '') === 'stat4-expression-covering-range-current-source-next128-ready'
                 && $descending
                 && ($base['tableLookupElided'] ?? false) === true
                 && ($base['tempSorterElided'] ?? false) === true
                 && $streamPairs !== [];
 
-            $cursorTape = self::descendingCursorTapeNext134($base, $streamPairs, $neededColumns, $ready);
+            $cursorTape = self::descendingCursorTape($base, $streamPairs, $neededColumns, $ready);
 
             return array_replace($base, [
-                'status' => $ready ? 'covering-expression-range-current-source-next134-ready' : 'requires-next-stage',
+                'status' => $ready ? 'covering-expression-range-current-source-descending-ready' : 'requires-next-stage',
                 'currentNextRows' => $streamPairs,
                 'descendingCurrentSourceRange' => $descending,
                 'currentSourceRangeCursor' => $descending ? 'descending-covering-expression-range' : 'forward-covering-expression-range',
                 'rangeDirection' => $descending ? 'DESC' : 'ASC',
-                'rangeSeekOpcode' => $descending ? self::descendingSeekOpcodeNext134($base) : ($base['cursorTape']['seekOpcode'] ?? null),
-                'rangeStopOpcode' => $descending ? self::descendingStopOpcodeNext134($base) : ($base['cursorTape']['stopOpcode'] ?? null),
+                'rangeSeekOpcode' => $descending ? self::descendingSeekOpcode($base) : ($base['cursorTape']['seekOpcode'] ?? null),
+                'rangeStopOpcode' => $descending ? self::descendingStopOpcode($base) : ($base['cursorTape']['stopOpcode'] ?? null),
                 'currentSourceNextRowids' => array_map(static fn (array $pair): mixed => $pair['current']['rowid'] ?? null, $streamPairs),
                 'currentSourceNextKeys' => array_map(static fn (array $pair): mixed => $pair['current']['key'] ?? null, $streamPairs),
                 'cursorTape' => $cursorTape,
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan bounded range STAT4 planner',
                     'SQLitePlannerStat4ExpressionCoveringRangeCurrentSourceNextPlan',
-                    'sqlite-planner-covering-expression-range-current-source-next134',
+                    'sqlite-planner-covering-expression-range-current-source-descending',
                 ],
-                'dependency_closure' => 'no new support component needed; next134 reuses native expression-index STAT4 range planning and covering cursor current/next diagnostics',
+                'dependency_closure' => 'no new support component needed; descending reuses native expression-index STAT4 range planning and covering cursor current/next diagnostics',
                 'non_overlap' => 'avoids accepted next128 forward range recheck, next132 expression skip-scan, expression ORDER BY, and range-cost ranking by proving descending covering expression range current/next cursor materialization',
             ]);
         }
@@ -82,7 +82,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $currentNextRows
          * @return list<array<string,mixed>>
          */
-        private static function streamRowsNext134(array $currentNextRows): array
+        private static function streamCurrentRows(array $currentNextRows): array
         {
             $rows = [];
             foreach ($currentNextRows as $pair) {
@@ -99,7 +99,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
          */
-        private static function currentNextNext134(array $rows): array
+        private static function pairCurrentRows(array $rows): array
         {
             $pairs = [];
             foreach ($rows as $offset => $row) {
@@ -115,7 +115,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function descendingCursorTapeNext134(array $base, array $streamPairs, array $neededColumns, bool $ready): array
+        private static function descendingCursorTape(array $base, array $streamPairs, array $neededColumns, bool $ready): array
         {
             $tape = is_array($base['cursorTape'] ?? null) ? $base['cursorTape'] : [];
             $selected = is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [];
@@ -127,8 +127,8 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
                     'prepared' => $base['preparedRangeValues'] ?? null,
                     'current' => $base['currentRangeValues'] ?? null,
                 ],
-                ['opcode' => self::descendingSeekOpcodeNext134($base), 'source' => 'index', 'key' => ($base['currentRangeValues']['upper'] ?? null)],
-                ['opcode' => self::descendingStopOpcodeNext134($base), 'source' => 'index', 'key' => ($base['currentRangeValues']['lower'] ?? null)],
+                ['opcode' => self::descendingSeekOpcode($base), 'source' => 'index', 'key' => ($base['currentRangeValues']['upper'] ?? null)],
+                ['opcode' => self::descendingStopOpcode($base), 'source' => 'index', 'key' => ($base['currentRangeValues']['lower'] ?? null)],
             ];
             foreach ($neededColumns as $column) {
                 $program[] = ['opcode' => 'Column', 'source' => $ready ? 'index' : 'table', 'column' => $column];
@@ -139,8 +139,8 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
             return array_replace($tape, [
                 'source' => 'current',
                 'direction' => (bool) ($selected['descending'] ?? false) ? 'DESC' : 'ASC',
-                'seekOpcode' => self::descendingSeekOpcodeNext134($base),
-                'stopOpcode' => self::descendingStopOpcodeNext134($base),
+                'seekOpcode' => self::descendingSeekOpcode($base),
+                'stopOpcode' => self::descendingStopOpcode($base),
                 'rangeUpper' => $base['currentRangeValues']['upper'] ?? null,
                 'rangeLower' => $base['currentRangeValues']['lower'] ?? null,
                 'matchedKeys' => array_map(static fn (array $pair): mixed => $pair['current']['key'] ?? null, $streamPairs),
@@ -156,7 +156,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $base
          */
-        private static function descendingSeekOpcodeNext134(array $base): string
+        private static function descendingSeekOpcode(array $base): string
         {
             return (bool) ($base['currentRangeValues']['upperInclusive'] ?? false) ? 'SeekLE' : 'SeekLT';
         }
@@ -164,7 +164,7 @@ final class SQLitePlannerCoveringExpressionRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $base
          */
-        private static function descendingStopOpcodeNext134(array $base): string
+        private static function descendingStopOpcode(array $base): string
         {
             return (bool) ($base['currentRangeValues']['lowerInclusive'] ?? false) ? 'IdxLT' : 'IdxLE';
         }

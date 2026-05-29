@@ -49,7 +49,7 @@ $terms = [
     ['operator' => '<', 'left' => ['expression' => 'lower(option_name)'], 'right' => 'plugin_t'],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext159(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4YieldCoveringRows(
     $prepared,
     $current,
     $partial,

@@ -9091,20 +9091,20 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $failStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_next207',
+        string $savepoint = 'wp_options_rowvalue_fail_or_fail_savepoint_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry needs outer statements');
         }
         if ($failStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 needs failing statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry needs failing statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry needs unique constraints');
         }
         self::assertOrFailSavepointRetryIdentifier($savepoint, 'savepoint');
 
@@ -9114,7 +9114,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $outerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'outer-before-fail-savepoint-next207',
+            'outer-before-fail-savepoint-or-fail-savepoint-retry',
             false,
         );
 
@@ -9124,7 +9124,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $failStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'fail-prefix-before-rollback-next207',
+            'fail-prefix-before-rollback-or-fail-savepoint-retry',
             true,
         );
 
@@ -9134,14 +9134,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-fail-rollback-next207',
+            'retry-after-fail-rollback-or-fail-savepoint-retry',
             false,
         );
 
         return [
-            'status' => 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-next207',
+            'status' => 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-or-fail-savepoint-retry',
             'savepoint' => $savepoint,
-            'statement_fail_preserved_prefix_next207' => true,
+            'statement_fail_preserved_prefix_or-fail-savepoint-retry' => true,
             'rolled_back_to_savepoint' => true,
             'savepoint_preserved_after_rollback_to' => true,
             'savepoint_released_after_retry' => true,
@@ -9168,13 +9168,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changes_after_retry' => self::orFailSavepointRetryChangeCount($retrySummaries),
             'changed_tables_after_retry' => self::orFailSavepointRetryChangedTables($initial, $retryCurrent),
             'row_counts' => self::orFailSavepointRetryRowCounts($retryCurrent),
-            'dependency_closure_next207' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution, OR FAIL conflict prefix handling, and savepoint current-source images',
+            'dependency_closure_or-fail-savepoint-retry' => 'no new support component needed; reuses native row-value UPDATE/DELETE RETURNING execution, OR FAIL conflict prefix handling, and savepoint current-source images',
             'dependencies' => [
-                'sqlite-rowvalue-update-or-fail-returning-prefix-next207',
-                'sqlite-rowvalue-savepoint-rollback-discards-or-fail-prefix-next207',
-                'wordpress-rowvalue-fail-retry-current-source-next207',
+                'sqlite-rowvalue-update-or-fail-returning-prefix-or-fail-savepoint-retry',
+                'sqlite-rowvalue-savepoint-rollback-discards-or-fail-prefix-or-fail-savepoint-retry',
+                'wordpress-rowvalue-fail-retry-current-source-or-fail-savepoint-retry',
             ],
-            'non_overlap_next207' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT next200, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_or-fail-savepoint-retry' => 'adds OR FAIL prefix-preservation plus ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted OR ABORT next200, release release_followup_read, parenthesized next202, OR ROLLBACK next178, OR REPLACE/IGNORE conflict, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -9240,11 +9240,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value OR FAIL next207 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value OR FAIL or-fail-savepoint-retry rows must be arrays');
                 }
             }
         }
@@ -9267,11 +9267,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next207 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL or-fail-savepoint-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next207 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL or-fail-savepoint-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -9357,7 +9357,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertOrFailSavepointRetryIdentifier(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value OR FAIL next207 {$label} must be an identifier");
+            throw new \InvalidArgumentException("SQLite row-value OR FAIL or-fail-savepoint-retry {$label} must be an identifier");
         }
     }
 
@@ -9378,23 +9378,23 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_statement_next208',
+        string $savepoint = 'wp_options_rowvalue_fail_statement_pre_fail_rollback_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs outer statements');
         }
         if ($preFailStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 needs pre-fail statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs pre-fail statements');
         }
         if (trim($failStatement) === '') {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 needs a fail statement');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs a fail statement');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry needs unique constraints');
         }
         self::assertPreFailRollbackRetryIdentifier($savepoint);
 
@@ -9404,7 +9404,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $outerStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'outer-before-fail-savepoint-next208',
+            'outer-before-fail-savepoint-pre-fail-rollback-retry',
             false,
         );
 
@@ -9414,7 +9414,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $preFailStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'savepoint-before-or-fail-next208',
+            'savepoint-before-or-fail-pre-fail-rollback-retry',
             false,
         );
 
@@ -9422,7 +9422,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $failResult = SQLiteUpdateDeleteReturningSql::execute($failStatement, $beforeFail, $rowIdColumn, $uniqueConstraints, true);
         $failCurrent = $failResult['tables'];
         $failSummary = self::preFailRollbackRetryStatementSummary(
-            'or-fail-partial-current-source-next208',
+            'or-fail-partial-current-source-pre-fail-rollback-retry',
             0,
             $failStatement,
             $failResult,
@@ -9435,14 +9435,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-before-savepoint-rollback-next208',
+            'retry-before-savepoint-rollback-pre-fail-rollback-retry',
             false,
         );
 
         $afterRollbackToSavepoint = $savepointImage;
 
         return [
-            'status' => 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-next208',
+            'status' => 'rowvalue-update-delete-returning-or-fail-savepoint-current-source-pre-fail-rollback-retry',
             'savepoint' => $savepoint,
             'or_fail_statement_preserved_prior_rows' => true,
             'or_fail_statement_stopped_at_conflict' => $failResult['failed_conflict'] !== null,
@@ -9466,7 +9466,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'outer_yielded_returning' => $outerReturning,
             'pre_fail_yielded_returning' => $preFailReturning,
             'or_fail_yielded_returning' => [[
-                'phase' => 'or-fail-partial-current-source-next208',
+                'phase' => 'or-fail-partial-current-source-pre-fail-rollback-retry',
                 'ordinal' => 0,
                 'action' => $failResult['action'],
                 'conflict_action' => $failResult['conflict_action'],
@@ -9483,9 +9483,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_rollback' => self::preFailRollbackRetryChangedTables($initial, $afterRollbackToSavepoint),
             'row_counts' => self::preFailRollbackRetryRowCounts($afterRollbackToSavepoint),
             'dependencies' => [
-                'sqlite-update-or-fail-rowvalue-returning-preserves-prior-rows-next208',
-                'sqlite-rowvalue-retry-reads-partial-or-fail-current-source-next208',
-                'sqlite-rollback-to-savepoint-discards-or-fail-returning-current-source-next208',
+                'sqlite-update-or-fail-rowvalue-returning-preserves-prior-rows-pre-fail-rollback-retry',
+                'sqlite-rowvalue-retry-reads-partial-or-fail-current-source-pre-fail-rollback-retry',
+                'sqlite-rollback-to-savepoint-discards-or-fail-returning-current-source-pre-fail-rollback-retry',
             ],
         ];
     }
@@ -9552,11 +9552,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry rows must be arrays');
                 }
             }
         }
@@ -9579,11 +9579,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next208 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL pre-fail-rollback-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next208 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL pre-fail-rollback-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -9654,7 +9654,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     private static function assertPreFailRollbackRetryIdentifier(string $value): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next208 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL pre-fail-rollback-retry savepoint must be an identifier');
         }
     }
 
@@ -9674,23 +9674,23 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $failStatement,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_fail_next209',
+        string $savepoint = 'wp_options_rowvalue_fail_fail_statement_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($beforeFailStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 needs pre-fail statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry needs pre-fail statements');
         }
         if (trim($failStatement) === '') {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 needs a fail statement');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry needs a fail statement');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeFailStatementRetryTables($tables);
@@ -9699,7 +9699,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $beforeFailStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'before-fail-next209',
+            'before-fail-fail-statement-retry',
         );
 
         [$afterFailCurrent, $failSummary, $failReturning] = self::runFailStatementRetryFailure(
@@ -9707,7 +9707,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $failStatement,
             $uniqueConstraints,
             $rowIdColumn,
-            'or-fail-next209',
+            'or-fail-fail-statement-retry',
         );
 
         [$afterRetry, $retryExecuted, $retryReturning] = self::runFailStatementRetryStatements(
@@ -9715,11 +9715,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-after-fail-next209',
+            'retry-after-fail-fail-statement-retry',
         );
 
         return [
-            'status' => 'rowvalue-update-delete-returning-or-fail-current-source-next209',
+            'status' => 'rowvalue-update-delete-returning-or-fail-current-source-fail-statement-retry',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'pre_fail_current_source_tables' => $beforeFailCurrent,
@@ -9750,9 +9750,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_retry' => self::failStatementRetryChangedTables($savepointImage, $afterRetry),
             'row_counts' => self::failStatementRetryRowCounts($afterRetry),
             'dependencies' => [
-                'sqlite-rowvalue-update-or-fail-preserves-prior-returning-next209',
-                'sqlite-rowvalue-update-or-fail-suppresses-conflicting-returning-next209',
-                'sqlite-rowvalue-delete-returning-retry-after-fail-next209',
+                'sqlite-rowvalue-update-or-fail-preserves-prior-returning-fail-statement-retry',
+                'sqlite-rowvalue-update-or-fail-suppresses-conflicting-returning-fail-statement-retry',
+                'sqlite-rowvalue-delete-returning-retry-after-fail-fail-statement-retry',
             ],
         ];
     }
@@ -9795,7 +9795,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         $parsed = SQLiteUpdateDeleteReturningSql::parse($sql);
         if ($parsed['action'] !== 'update' || $parsed['conflict_action'] !== 'fail') {
-            throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 fail statement must be UPDATE OR FAIL');
+            throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry fail statement must be UPDATE OR FAIL');
         }
 
         $probe = SQLiteUpdateDeleteReturningSql::execute($sql, $tables, $rowIdColumn, [], true);
@@ -9854,11 +9854,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value OR FAIL next209 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value OR FAIL fail-statement-retry rows must be arrays');
                 }
             }
         }
@@ -9881,11 +9881,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next209 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL fail-statement-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value OR FAIL next209 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value OR FAIL fail-statement-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -10034,7 +10034,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rollback-to-savepoint-discards-ignore-returning-stream-next210',
                 'sqlite-rowvalue-retry-after-ignore-rollback-reads-savepoint-image-next210',
             ],
-            'non_overlap_next210' => 'adds OR IGNORE row-value RETURNING rollback-to-savepoint suppression; avoids next209/next208 OR FAIL, ignore_replace_delete IGNORE/REPLACE release flow, release_followup_read RELEASE admission, released_inner_retry released-inner rollback, next178 OR ROLLBACK, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
+            'non_overlap_next210' => 'adds OR IGNORE row-value RETURNING rollback-to-savepoint suppression; avoids fail-statement-retry/pre-fail-rollback-retry OR FAIL, ignore_replace_delete IGNORE/REPLACE release flow, release_followup_read RELEASE admission, released_inner_retry released-inner rollback, next178 OR ROLLBACK, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
         ];
     }
 
@@ -10326,7 +10326,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_release' => self::orIgnoreSavepointReleaseChangedTables($savepointImage, $afterCurrent),
             'row_counts' => self::orIgnoreSavepointReleaseRowCounts($afterCurrent),
             'dependency_closure' => 'no-new-support-component-reuses-native-update-delete-returning-rowvalue-conflict-and-savepoint-current-source',
-            'non_overlap' => 'next211 covers UPDATE OR IGNORE row-value RETURNING suppression and savepoint release current-source chaining; avoids accepted next209 OR FAIL, release_followup_read release, next202 parenthesized rollback, trigger RETURNING, WAL/VFS, JSON, B-tree, planner, and encoding clusters',
+            'non_overlap' => 'next211 covers UPDATE OR IGNORE row-value RETURNING suppression and savepoint release current-source chaining; avoids accepted fail-statement-retry OR FAIL, release_followup_read release, next202 parenthesized rollback, trigger RETURNING, WAL/VFS, JSON, B-tree, planner, and encoding clusters',
             'dependencies' => [
                 'sqlite-rowvalue-update-or-ignore-suppresses-conflict-returning-next211',
                 'sqlite-rowvalue-ignore-preserves-preceding-savepoint-current-source-next211',
@@ -10918,7 +10918,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_retry' => self::changedTablesRollbackToConflict($transactionImage, $afterRetry),
             'row_counts' => self::rowCountsRollbackToConflict($afterRetry),
             'dependency_closure_next217' => 'no new support component needed; next217 reuses native row-value UPDATE/DELETE RETURNING execution and current-source savepoint row images',
-            'non_overlap_next217' => 'adds transaction-level UPDATE OR ROLLBACK row-value RETURNING suppression and retry after transaction rollback; avoids accepted next210/next211 OR IGNORE rollback, next209/next207 OR FAIL, next192 statement-only OR ABORT, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
+            'non_overlap_next217' => 'adds transaction-level UPDATE OR ROLLBACK row-value RETURNING suppression and retry after transaction rollback; avoids accepted next210/next211 OR IGNORE rollback, fail-statement-retry/or-fail-savepoint-retry OR FAIL, next192 statement-only OR ABORT, trigger RETURNING, WAL/VFS, JSON, planner, and B-tree clusters',
             'dependencies' => [
                 'sqlite-rowvalue-update-or-rollback-suppresses-returning-next217',
                 'sqlite-rowvalue-or-rollback-discards-savepoint-current-source-next217',
@@ -11548,7 +11548,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_retry' => self::changedTablesAbortConflictRetry($savepointImage, $afterRetry),
             'row_counts' => self::rowCountsAbortConflictRetry($afterRetry),
             'dependency_closure_next220' => 'no new support component needed; next220 reuses native row-value UPDATE/DELETE RETURNING execution, unique conflict checks, and savepoint current-source row images',
-            'non_overlap_next220' => 'adds statement-level UPDATE OR ABORT row-value RETURNING suppression inside a preserved savepoint; avoids accepted next217 transaction OR ROLLBACK, next210/next211 OR IGNORE, next209 OR FAIL, next212 subquery rollback, trigger RETURNING, WAL/VFS, JSON, planner, encoding, PRAGMA, and B-tree clusters',
+            'non_overlap_next220' => 'adds statement-level UPDATE OR ABORT row-value RETURNING suppression inside a preserved savepoint; avoids accepted next217 transaction OR ROLLBACK, next210/next211 OR IGNORE, fail-statement-retry OR FAIL, next212 subquery rollback, trigger RETURNING, WAL/VFS, JSON, planner, encoding, PRAGMA, and B-tree clusters',
             'dependencies' => [
                 'sqlite-rowvalue-update-or-abort-suppresses-failing-returning-next220',
                 'sqlite-rowvalue-or-abort-preserves-savepoint-current-source-next220',
@@ -12294,7 +12294,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-update-or-fail-prior-rows-rolled-back-by-savepoint-next228',
                 'wordpress-rowvalue-savepoint-retry-reads-outer-current-source-next228',
             ],
-            'non_overlap_next228' => 'adds inner ROLLBACK TO after UPDATE OR FAIL so preserved FAIL rows and earlier inner RETURNING are suppressed while outer savepoint changes remain current; avoids accepted next209 preserved FAIL retry source, next224 released inner discarded by outer rollback, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap_next228' => 'adds inner ROLLBACK TO after UPDATE OR FAIL so preserved FAIL rows and earlier inner RETURNING are suppressed while outer savepoint changes remain current; avoids accepted fail-statement-retry preserved FAIL retry source, next224 released inner discarded by outer rollback, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -12912,7 +12912,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'sqlite-rowvalue-update-delete-returning-retry-after-outer-rollback-next230',
                 'wordpress-rowvalue-nested-savepoint-current-source-next230',
             ],
-            'non_overlap_next230' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback next212, OR FAIL next207, OR ABORT next200, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
+            'non_overlap_next230' => 'adds nested inner RELEASE plus outer ROLLBACK TO suppression for row-value UPDATE/DELETE RETURNING; avoids accepted simple rollback next212, OR FAIL or-fail-savepoint-retry, OR ABORT next200, OR ROLLBACK/RELEASE variants, WAL/VFS, JSON table, planner, trigger, and B-tree clusters',
         ];
     }
 

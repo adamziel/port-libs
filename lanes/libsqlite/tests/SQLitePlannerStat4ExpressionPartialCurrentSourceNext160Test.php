@@ -63,7 +63,7 @@ $armRange160 = static fn () => $and160($point160('autoload', 'yes'), $exprRange1
 $predicate160 = static fn () => $or160($armPoint160('plugin_beta'), $armRange160());
 $order160 = [$expr160, ['column' => 'site_id']];
 $needed160 = ['option_name', 'option_value', 'site_id'];
-$plan160 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext160(
+$plan160 = static fn (?array $prepared = null, ?array $current = null, ?array $predicate = null, ?array $needed = null): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4OrRowidUnion(
     $prepared ?? $source160(),
     $current ?? $currentSource160(),
     $predicate ?? $predicate160(),

@@ -6,7 +6,7 @@ $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
     'next249 chunked yield candidate' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next249.php';
+        $result = require $examplesDir . '/wordpress-rowvalue-chunked-yield-resume-window.php';
 
         $t->same('rowvalue-update-delete-returning-window-current-source-next249', $result['status']);
         $t->same(2, $result['yieldChunks']);

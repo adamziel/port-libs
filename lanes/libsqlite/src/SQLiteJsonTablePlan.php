@@ -1037,7 +1037,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourcePathOrderByCostNext131(
+    public static function currentSourcePathOrderByCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1046,7 +1046,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourcePathConstraintPushdownNext123(
+        $plan = self::currentSourcePathConstraintPushdown(
             $function,
             $currentSource,
             $nextSource,
@@ -1090,7 +1090,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
      */
-    public static function currentSourcePathGeneratedOrderNext137(
+    public static function currentSourcePathGeneratedOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1104,7 +1104,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table path generated order requires generated order terms');
         }
 
-        $plan = self::currentSourcePathOrderByCostNext131(
+        $plan = self::currentSourcePathOrderByCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1143,7 +1143,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathCostNext134(
+    public static function currentSourceGeneratedPathCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1157,7 +1157,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated-path cost planner requires a generated path source column');
         }
 
-        $plan = self::currentSourcePathOrderByCostNext131(
+        $plan = self::currentSourcePathOrderByCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1207,7 +1207,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceNestedPathPlannerNext121(
+    public static function currentSourceNestedPathPlanner(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1299,7 +1299,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceNestedConstraintCostNext125(
+    public static function currentSourceNestedConstraintCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1309,7 +1309,7 @@ final class SQLiteJsonTablePlan
         array $constraints = [],
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceNestedPathPlannerNext121(
+        $plan = self::currentSourceNestedPathPlanner(
             $function,
             $currentSource,
             $nextSource,
@@ -1409,7 +1409,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourcePathConstraintPushdownNext123(
+    public static function currentSourcePathConstraintPushdown(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1418,7 +1418,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceIndexedConstraintCostNext119(
+        $plan = self::currentSourceIndexedConstraintCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1456,7 +1456,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceNestedConstraintOrderNext127(
+    public static function currentSourceNestedConstraintOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1481,7 +1481,7 @@ final class SQLiteJsonTablePlan
         $current = $currentSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $currentRoot['root']];
         $next = $nextSource + ['__sqlite_json_table_nested_constraint_order_root_next127' => $nextRoot['root']];
 
-        $plan = self::currentSourceConstraintOrderByCostNext124(
+        $plan = self::currentSourceConstraintOrderByCost(
             $function,
             $current,
             $next,
@@ -1573,7 +1573,7 @@ final class SQLiteJsonTablePlan
         array $constraints = [],
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceNestedPathRowidNext133(
+        $plan = self::currentSourceNestedPathRowid(
             $function,
             $currentSource,
             $nextSource,
@@ -1687,7 +1687,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated order cost planner requires generated order terms');
         }
 
-        $plan = self::currentSourceGeneratedHiddenCostNext136(
+        $plan = self::currentSourceGeneratedHiddenCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1755,7 +1755,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated hidden residual cost planner requires generated constraints');
         }
 
-        $plan = self::currentSourceGeneratedHiddenCostNext136(
+        $plan = self::currentSourceGeneratedHiddenCost(
             $function,
             $currentSource,
             $nextSource,
@@ -1941,7 +1941,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceNestedPathRowidNext133(
+    public static function currentSourceNestedPathRowid(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -1951,7 +1951,7 @@ final class SQLiteJsonTablePlan
         array $constraints = [],
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceNestedHiddenCostNext129(
+        $plan = self::currentSourceNestedHiddenCost(
             $function,
             $currentSource,
             $nextSource,
@@ -2062,7 +2062,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathCostNext134(
+        $plan = self::currentSourceGeneratedPathCost(
             $function,
             $currentSource,
             $nextSource,
@@ -6533,7 +6533,7 @@ final class SQLiteJsonTablePlan
         array $orderBy = [],
         array $generatedConstraints = [],
     ): array {
-        $plan = self::currentSourceGeneratedHiddenCostNext136(
+        $plan = self::currentSourceGeneratedHiddenCost(
             $function,
             $currentSource,
             $nextSource,
@@ -6578,7 +6578,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,operator?:string,value?:mixed,usable?:bool}> $generatedConstraints
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedHiddenCostNext136(
+    public static function currentSourceGeneratedHiddenCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6593,7 +6593,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table generated hidden cost planner requires generated constraints');
         }
 
-        $plan = self::currentSourceNestedHiddenCostNext129(
+        $plan = self::currentSourceNestedHiddenCost(
             $function,
             $currentSource,
             $nextSource,
@@ -6754,7 +6754,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenRowidOrderNext135(
+    public static function currentSourceHiddenRowidOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6803,7 +6803,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{name:string,source?:string,path:string,direction?:string}> $generatedOrder
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenGeneratedOrderNext132(
+    public static function currentSourceHiddenGeneratedOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6817,7 +6817,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('SQLite JSON table hidden generated order requires generated order terms');
         }
 
-        $plan = self::currentSourceIndexedHiddenOrderNext122(
+        $plan = self::currentSourceIndexedHiddenOrder(
             $function,
             $currentSource,
             $nextSource,
@@ -6918,7 +6918,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceNestedHiddenCostNext129(
+    public static function currentSourceNestedHiddenCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -6944,7 +6944,7 @@ final class SQLiteJsonTablePlan
         $current = $currentSource + [$rootColumn => $currentRoot['root']];
         $next = $nextSource + [$rootColumn => $nextRoot['root']];
 
-        $plan = self::currentSourcePathHiddenRowidCostNext126(
+        $plan = self::currentSourcePathHiddenRowidCost(
             $function,
             $current,
             $next,
@@ -6995,7 +6995,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourcePathHiddenRowidCostNext126(
+        $plan = self::currentSourcePathHiddenRowidCost(
             $function,
             $currentSource,
             $nextSource,
@@ -7040,7 +7040,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceHiddenPathOrderByNext128(
+    public static function currentSourceHiddenPathOrderBy(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7049,7 +7049,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourcePathHiddenRowidCostNext126(
+        $plan = self::currentSourcePathHiddenRowidCost(
             $function,
             $currentSource,
             $nextSource,
@@ -7105,7 +7105,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourcePathHiddenRowidCostNext126(
+    public static function currentSourcePathHiddenRowidCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7114,7 +7114,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourcePathConstraintPushdownNext123(
+        $plan = self::currentSourcePathConstraintPushdown(
             $function,
             $currentSource,
             $nextSource,
@@ -7160,7 +7160,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceIndexedHiddenOrderNext122(
+    public static function currentSourceIndexedHiddenOrder(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7169,7 +7169,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceIndexedConstraintCostNext119(
+        $plan = self::currentSourceIndexedConstraintCost(
             $function,
             $currentSource,
             $nextSource,
@@ -7207,7 +7207,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceConstraintOrderByCostNext124(
+    public static function currentSourceConstraintOrderByCost(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7216,7 +7216,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceOrderByConstraintNext120(
+        $plan = self::currentSourceOrderByConstraint(
             $function,
             $currentSource,
             $nextSource,
@@ -7262,7 +7262,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceOrderByConstraintNext120(
+    public static function currentSourceOrderByConstraint(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -7305,7 +7305,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceIndexedConstraintCostNext119(
+    public static function currentSourceIndexedConstraintCost(
         string $function,
         array $currentSource,
         array $nextSource,

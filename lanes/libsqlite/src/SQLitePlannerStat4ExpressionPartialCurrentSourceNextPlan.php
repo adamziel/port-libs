@@ -25687,7 +25687,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,string>> $neededExpressions
      * @return array<string,mixed>
      */
-    public static function materializeNext155(
+    public static function materializeStat4PartialPredicateDrift(
         array $preparedSource,
         array $currentSource,
         array $predicate,
@@ -25695,21 +25695,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         array $neededColumns,
         array $neededExpressions = []
     ): array {
-        self::validateNeededColumnsNext155($neededColumns);
+        self::validateNeededColumnsStat4PartialPredicateDrift($neededColumns);
 
-        $preparedPlan = self::sourcePlanNext155($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-        $currentPlan = self::sourcePlanNext155($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-        $preparedSignature = self::sourceSignatureNext155($preparedSource);
-        $currentSignature = self::sourceSignatureNext155($currentSource);
-        $preparedRows = self::coveredRowsNext155($preparedSource, $preparedPlan, $predicate, $neededColumns, $neededExpressions);
-        $currentRows = self::coveredRowsNext155($currentSource, $currentPlan, $predicate, $neededColumns, $neededExpressions);
+        $preparedPlan = self::sourcePlanStat4PartialPredicateDrift($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+        $currentPlan = self::sourcePlanStat4PartialPredicateDrift($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+        $preparedSignature = self::sourceSignatureStat4PartialPredicateDrift($preparedSource);
+        $currentSignature = self::sourceSignatureStat4PartialPredicateDrift($currentSource);
+        $preparedRows = self::coveredRowsStat4PartialPredicateDrift($preparedSource, $preparedPlan, $predicate, $neededColumns, $neededExpressions);
+        $currentRows = self::coveredRowsStat4PartialPredicateDrift($currentSource, $currentPlan, $predicate, $neededColumns, $neededExpressions);
         $stale = $preparedSignature !== $currentSignature
-            || self::sourceIntNext155($preparedSource, 'schemaCookie') !== self::sourceIntNext155($currentSource, 'schemaCookie')
-            || self::sourceIntNext155($preparedSource, 'stat4Generation') !== self::sourceIntNext155($currentSource, 'stat4Generation')
-            || self::sourceIntNext155($preparedSource, 'rowGeneration') !== self::sourceIntNext155($currentSource, 'rowGeneration');
+            || self::sourceIntStat4PartialPredicateDrift($preparedSource, 'schemaCookie') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'schemaCookie')
+            || self::sourceIntStat4PartialPredicateDrift($preparedSource, 'stat4Generation') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'stat4Generation')
+            || self::sourceIntStat4PartialPredicateDrift($preparedSource, 'rowGeneration') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'rowGeneration');
         $selectedPlan = $stale ? $currentPlan : $preparedPlan;
         $selectedRows = $stale ? $currentRows : $preparedRows;
-        $delta = self::rowDeltaNext155($preparedRows, $currentRows);
+        $delta = self::rowDeltaStat4PartialPredicateDrift($preparedRows, $currentRows);
         $ready = ($selectedPlan['usable'] ?? false) === true
             && ($selectedPlan['partial'] ?? false) === true
             && (($selectedPlan['partialPredicateImplied'] ?? null) !== false)
@@ -25722,13 +25722,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'selectedSource' => $stale ? 'current' : 'prepared',
             'stalePreparedStatement' => $stale,
             'reprepareRequired' => $stale,
-            'schemaCookieChanged' => self::sourceIntNext155($preparedSource, 'schemaCookie') !== self::sourceIntNext155($currentSource, 'schemaCookie'),
-            'stat4GenerationChanged' => self::sourceIntNext155($preparedSource, 'stat4Generation') !== self::sourceIntNext155($currentSource, 'stat4Generation'),
-            'rowGenerationChanged' => self::sourceIntNext155($preparedSource, 'rowGeneration') !== self::sourceIntNext155($currentSource, 'rowGeneration'),
+            'schemaCookieChanged' => self::sourceIntStat4PartialPredicateDrift($preparedSource, 'schemaCookie') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::sourceIntStat4PartialPredicateDrift($preparedSource, 'stat4Generation') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'stat4Generation'),
+            'rowGenerationChanged' => self::sourceIntStat4PartialPredicateDrift($preparedSource, 'rowGeneration') !== self::sourceIntStat4PartialPredicateDrift($currentSource, 'rowGeneration'),
             'indexSignatureChanged' => $preparedSignature !== $currentSignature,
             'partialPredicateChanged' => ($preparedPlan['partialPredicateSignature'] ?? null) !== ($currentPlan['partialPredicateSignature'] ?? null),
-            'preparedSource' => self::sourceSummaryNext155($preparedSource, $preparedPlan, $preparedSignature, $preparedRows),
-            'currentSource' => self::sourceSummaryNext155($currentSource, $currentPlan, $currentSignature, $currentRows),
+            'preparedSource' => self::sourceSummaryStat4PartialPredicateDrift($preparedSource, $preparedPlan, $preparedSignature, $preparedRows),
+            'currentSource' => self::sourceSummaryStat4PartialPredicateDrift($currentSource, $currentPlan, $currentSignature, $currentRows),
             'selectedPlan' => $selectedPlan + [
                 'coveredRowCount' => count($selectedRows),
                 'coveredRowids' => array_column($selectedRows, 'rowid'),
@@ -25745,15 +25745,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'currentCoveringAdmittedRowids' => $delta['insertedRowids'],
             'currentCoveringUpdatedRowids' => $delta['updatedRowids'],
             'stableCoveringRowids' => $delta['unchangedRowids'],
-            'currentNextRows' => self::currentNextRowsNext155($selectedRows),
-            'cursorTape' => self::cursorTapeNext155($selectedPlan, $selectedRows, $delta, $neededColumns, $ready),
+            'currentNextRows' => self::currentNextRowsStat4PartialPredicateDrift($selectedRows),
+            'cursorTape' => self::cursorTapeStat4PartialPredicateDrift($selectedPlan, $selectedRows, $delta, $neededColumns, $ready),
             'currentSourceFence' => [
-                'schemaCookie' => self::sourceIntNext155($currentSource, 'schemaCookie'),
-                'stat4Generation' => self::sourceIntNext155($currentSource, 'stat4Generation'),
-                'rowGeneration' => self::sourceIntNext155($currentSource, 'rowGeneration'),
+                'schemaCookie' => self::sourceIntStat4PartialPredicateDrift($currentSource, 'schemaCookie'),
+                'stat4Generation' => self::sourceIntStat4PartialPredicateDrift($currentSource, 'stat4Generation'),
+                'rowGeneration' => self::sourceIntStat4PartialPredicateDrift($currentSource, 'rowGeneration'),
                 'indexSignature' => $currentSignature,
                 'partialPredicateSignature' => $currentPlan['partialPredicateSignature'] ?? null,
-                'rowStreamSignature' => self::rowStreamSignatureNext155($currentRows),
+                'rowStreamSignature' => self::rowStreamSignatureStat4PartialPredicateDrift($currentRows),
             ],
             'tableLookupElided' => $ready,
             'deferredTableSeekOpcode' => $ready ? null : 'DeferredSeek',
@@ -25777,9 +25777,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,string>> $neededExpressions
      * @return array<string,mixed>
      */
-    private static function sourcePlanNext155(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): array
+    private static function sourcePlanStat4PartialPredicateDrift(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): array
     {
-        $indexes = self::indexesNext155($source);
+        $indexes = self::indexesStat4PartialPredicateDrift($source);
         $plan = SQLiteSelectExpressionIndexPlan::chooseBoundedRangeCost($indexes, $predicate, $orderBy, $neededColumns, $neededExpressions);
         if ($plan === null) {
             return [
@@ -25792,7 +25792,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ];
         }
 
-        $partialSignature = self::partialPredicateSignatureNext155($indexes, (string) ($plan['name'] ?? ''));
+        $partialSignature = self::partialPredicateSignatureStat4PartialPredicateDrift($indexes, (string) ($plan['name'] ?? ''));
 
         return $plan + [
             'partialPredicateSignature' => $partialSignature,
@@ -25804,7 +25804,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $source
      * @return list<array<string,mixed>>
      */
-    private static function indexesNext155(array $source): array
+    private static function indexesStat4PartialPredicateDrift(array $source): array
     {
         $indexes = $source['indexes'] ?? null;
         if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
@@ -25830,7 +25830,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,string>> $neededExpressions
      * @return list<array<string,mixed>>
      */
-    private static function coveredRowsNext155(array $source, array $plan, array $predicate, array $neededColumns, array $neededExpressions): array
+    private static function coveredRowsStat4PartialPredicateDrift(array $source, array $plan, array $predicate, array $neededColumns, array $neededExpressions): array
     {
         if (($plan['usable'] ?? false) !== true || ($plan['covering'] ?? false) !== true || ($plan['stat4Used'] ?? false) !== true) {
             return [];
@@ -25845,25 +25845,25 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source row must be an array');
             }
-            if (!self::rowSatisfiesPredicateNext155($predicate, $row)) {
+            if (!self::rowSatisfiesPredicateStat4PartialPredicateDrift($predicate, $row)) {
                 continue;
             }
-            $key = self::expressionValueNext155((string) ($plan['type'] ?? ''), (string) ($plan['column'] ?? ''), $row);
-            if (!self::valueInRangeNext155($key, $plan['values'] ?? [])) {
+            $key = self::expressionValueStat4PartialPredicateDrift((string) ($plan['type'] ?? ''), (string) ($plan['column'] ?? ''), $row);
+            if (!self::valueInRangeStat4PartialPredicateDrift($key, $plan['values'] ?? [])) {
                 continue;
             }
 
             $out[] = [
                 'sourceOffset' => $offset,
-                'rowid' => self::rowidNext155($row),
+                'rowid' => self::rowidStat4PartialPredicateDrift($row),
                 'key' => $key,
-                'covering' => self::payloadNext155($row, $neededColumns),
-                'coveringExpressions' => self::expressionPayloadNext155($row, $neededExpressions),
+                'covering' => self::payloadStat4PartialPredicateDrift($row, $neededColumns),
+                'coveringExpressions' => self::expressionPayloadStat4PartialPredicateDrift($row, $neededExpressions),
             ];
         }
 
         usort($out, static function (array $left, array $right) use ($plan): int {
-            $comparison = self::compareValuesNext155($left['key'] ?? null, $right['key'] ?? null);
+            $comparison = self::compareValuesStat4PartialPredicateDrift($left['key'] ?? null, $right['key'] ?? null);
             if ((bool) ($plan['descending'] ?? false)) {
                 $comparison *= -1;
             }
@@ -25882,10 +25882,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $currentRows
      * @return array{insertedRowids:list<int>,deletedRowids:list<int>,updatedRowids:list<int>,unchangedRowids:list<int>}
      */
-    private static function rowDeltaNext155(array $preparedRows, array $currentRows): array
+    private static function rowDeltaStat4PartialPredicateDrift(array $preparedRows, array $currentRows): array
     {
-        $prepared = self::rowsByRowidNext155($preparedRows);
-        $current = self::rowsByRowidNext155($currentRows);
+        $prepared = self::rowsByRowidStat4PartialPredicateDrift($preparedRows);
+        $current = self::rowsByRowidStat4PartialPredicateDrift($currentRows);
         $inserted = [];
         $deleted = [];
         $updated = [];
@@ -25896,7 +25896,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $inserted[] = $rowid;
                 continue;
             }
-            if (self::rowPayloadSignatureNext155($row) !== self::rowPayloadSignatureNext155($prepared[$rowid])) {
+            if (self::rowPayloadSignatureStat4PartialPredicateDrift($row) !== self::rowPayloadSignatureStat4PartialPredicateDrift($prepared[$rowid])) {
                 $updated[] = $rowid;
                 continue;
             }
@@ -25925,7 +25925,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext155(array $rows): array
+    private static function rowsByRowidStat4PartialPredicateDrift(array $rows): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -25943,7 +25943,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function cursorTapeNext155(array $plan, array $rows, array $delta, array $neededColumns, bool $ready): array
+    private static function cursorTapeStat4PartialPredicateDrift(array $plan, array $rows, array $delta, array $neededColumns, bool $ready): array
     {
         $program = [
             ['opcode' => 'OpenRead', 'source' => 'partial-expression-stat4-index', 'rootPage' => $plan['rootPage'] ?? null],
@@ -25976,7 +25976,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
      */
-    private static function currentNextRowsNext155(array $rows): array
+    private static function currentNextRowsStat4PartialPredicateDrift(array $rows): array
     {
         $pairs = [];
         foreach ($rows as $offset => $row) {
@@ -25989,7 +25989,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $indexes
      */
-    private static function partialPredicateSignatureNext155(array $indexes, string $name): string
+    private static function partialPredicateSignatureStat4PartialPredicateDrift(array $indexes, string $name): string
     {
         foreach ($indexes as $index) {
             if (($index['name'] ?? '') !== $name) {
@@ -26011,12 +26011,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $predicate
      * @param array<string,mixed> $row
      */
-    private static function rowSatisfiesPredicateNext155(array $predicate, array $row): bool
+    private static function rowSatisfiesPredicateStat4PartialPredicateDrift(array $predicate, array $row): bool
     {
         $operator = strtoupper((string) ($predicate['operator'] ?? ''));
         if ($operator === 'AND') {
-            foreach (self::listNext155($predicate['terms'] ?? []) as $term) {
-                if (!is_array($term) || !self::rowSatisfiesPredicateNext155($term, $row)) {
+            foreach (self::listStat4PartialPredicateDrift($predicate['terms'] ?? []) as $term) {
+                if (!is_array($term) || !self::rowSatisfiesPredicateStat4PartialPredicateDrift($term, $row)) {
                     return false;
                 }
             }
@@ -26024,22 +26024,22 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
         if ($operator === '=') {
-            return self::termValueNext155($predicate['left'] ?? null, $row) === ($predicate['right'] ?? null);
+            return self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row) === ($predicate['right'] ?? null);
         }
         if ($operator === '>=') {
-            return self::compareValuesNext155(self::termValueNext155($predicate['left'] ?? null, $row), $predicate['right'] ?? null) >= 0;
+            return self::compareValuesStat4PartialPredicateDrift(self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row), $predicate['right'] ?? null) >= 0;
         }
         if ($operator === '>') {
-            return self::compareValuesNext155(self::termValueNext155($predicate['left'] ?? null, $row), $predicate['right'] ?? null) > 0;
+            return self::compareValuesStat4PartialPredicateDrift(self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row), $predicate['right'] ?? null) > 0;
         }
         if ($operator === '<=') {
-            return self::compareValuesNext155(self::termValueNext155($predicate['left'] ?? null, $row), $predicate['right'] ?? null) <= 0;
+            return self::compareValuesStat4PartialPredicateDrift(self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row), $predicate['right'] ?? null) <= 0;
         }
         if ($operator === '<') {
-            return self::compareValuesNext155(self::termValueNext155($predicate['left'] ?? null, $row), $predicate['right'] ?? null) < 0;
+            return self::compareValuesStat4PartialPredicateDrift(self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row), $predicate['right'] ?? null) < 0;
         }
         if ($operator === 'IS NOT NULL') {
-            return self::termValueNext155($predicate['left'] ?? null, $row) !== null;
+            return self::termValueStat4PartialPredicateDrift($predicate['left'] ?? null, $row) !== null;
         }
 
         return false;
@@ -26049,7 +26049,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param mixed $term
      * @param array<string,mixed> $row
      */
-    private static function termValueNext155(mixed $term, array $row): mixed
+    private static function termValueStat4PartialPredicateDrift(mixed $term, array $row): mixed
     {
         if (!is_array($term)) {
             return null;
@@ -26069,16 +26069,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $range
      */
-    private static function valueInRangeNext155(mixed $value, array $range): bool
+    private static function valueInRangeStat4PartialPredicateDrift(mixed $value, array $range): bool
     {
         if (array_key_exists('lower', $range) && $range['lower'] !== null) {
-            $comparison = self::compareValuesNext155($value, $range['lower']);
+            $comparison = self::compareValuesStat4PartialPredicateDrift($value, $range['lower']);
             if ($comparison < 0 || ($comparison === 0 && ($range['lowerInclusive'] ?? true) !== true)) {
                 return false;
             }
         }
         if (array_key_exists('upper', $range) && $range['upper'] !== null) {
-            $comparison = self::compareValuesNext155($value, $range['upper']);
+            $comparison = self::compareValuesStat4PartialPredicateDrift($value, $range['upper']);
             if ($comparison > 0 || ($comparison === 0 && ($range['upperInclusive'] ?? false) !== true)) {
                 return false;
             }
@@ -26090,7 +26090,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function expressionValueNext155(string $type, string $column, array $row): mixed
+    private static function expressionValueStat4PartialPredicateDrift(string $type, string $column, array $row): mixed
     {
         $value = $row[$column] ?? null;
         if ($type === 'lower' && is_string($value)) {
@@ -26108,7 +26108,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $columns
      * @return array<string,mixed>
      */
-    private static function payloadNext155(array $row, array $columns): array
+    private static function payloadStat4PartialPredicateDrift(array $row, array $columns): array
     {
         $payload = [];
         foreach ($columns as $column) {
@@ -26123,7 +26123,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,string>> $expressions
      * @return array<string,mixed>
      */
-    private static function expressionPayloadNext155(array $row, array $expressions): array
+    private static function expressionPayloadStat4PartialPredicateDrift(array $row, array $expressions): array
     {
         $payload = [];
         foreach ($expressions as $expression) {
@@ -26132,7 +26132,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if ($function === '' || $column === '') {
                 continue;
             }
-            $payload[$function . '(' . $column . ')'] = self::expressionValueNext155($function, $column, $row);
+            $payload[$function . '(' . $column . ')'] = self::expressionValueStat4PartialPredicateDrift($function, $column, $row);
         }
 
         return $payload;
@@ -26141,7 +26141,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowidNext155(array $row): int
+    private static function rowidStat4PartialPredicateDrift(array $row): int
     {
         $rowid = $row['rowid'] ?? $row['_rowid_'] ?? null;
         if (!is_int($rowid) || $rowid < 0) {
@@ -26151,7 +26151,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $rowid;
     }
 
-    private static function compareValuesNext155(mixed $left, mixed $right): int
+    private static function compareValuesStat4PartialPredicateDrift(mixed $left, mixed $right): int
     {
         if (is_numeric($left) && is_numeric($right)) {
             return (float) $left <=> (float) $right;
@@ -26163,7 +26163,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowPayloadSignatureNext155(array $row): string
+    private static function rowPayloadSignatureStat4PartialPredicateDrift(array $row): string
     {
         return hash('sha256', json_encode($row, JSON_THROW_ON_ERROR));
     }
@@ -26171,7 +26171,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function rowStreamSignatureNext155(array $rows): string
+    private static function rowStreamSignatureStat4PartialPredicateDrift(array $rows): string
     {
         return hash('sha256', json_encode(array_column($rows, 'rowid'), JSON_THROW_ON_ERROR));
     }
@@ -26179,20 +26179,20 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceSignatureNext155(array $source): string
+    private static function sourceSignatureStat4PartialPredicateDrift(array $source): string
     {
         return hash('sha256', json_encode([
-            'schemaCookie' => self::sourceIntNext155($source, 'schemaCookie'),
-            'stat4Generation' => self::sourceIntNext155($source, 'stat4Generation'),
-            'rowGeneration' => self::sourceIntNext155($source, 'rowGeneration'),
-            'indexes' => self::indexesNext155($source),
+            'schemaCookie' => self::sourceIntStat4PartialPredicateDrift($source, 'schemaCookie'),
+            'stat4Generation' => self::sourceIntStat4PartialPredicateDrift($source, 'stat4Generation'),
+            'rowGeneration' => self::sourceIntStat4PartialPredicateDrift($source, 'rowGeneration'),
+            'indexes' => self::indexesStat4PartialPredicateDrift($source),
         ], JSON_THROW_ON_ERROR));
     }
 
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceIntNext155(array $source, string $key): int
+    private static function sourceIntStat4PartialPredicateDrift(array $source, string $key): int
     {
         $value = $source[$key] ?? null;
         if (!is_int($value) || $value < 0) {
@@ -26208,13 +26208,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function sourceSummaryNext155(array $source, array $plan, string $signature, array $rows): array
+    private static function sourceSummaryStat4PartialPredicateDrift(array $source, array $plan, string $signature, array $rows): array
     {
         return [
             'name' => (string) ($source['name'] ?? ''),
-            'schemaCookie' => self::sourceIntNext155($source, 'schemaCookie'),
-            'stat4Generation' => self::sourceIntNext155($source, 'stat4Generation'),
-            'rowGeneration' => self::sourceIntNext155($source, 'rowGeneration'),
+            'schemaCookie' => self::sourceIntStat4PartialPredicateDrift($source, 'schemaCookie'),
+            'stat4Generation' => self::sourceIntStat4PartialPredicateDrift($source, 'stat4Generation'),
+            'rowGeneration' => self::sourceIntStat4PartialPredicateDrift($source, 'rowGeneration'),
             'signature' => $signature,
             'usable' => (bool) ($plan['usable'] ?? false),
             'indexName' => $plan['name'] ?? null,
@@ -26227,7 +26227,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param mixed $value
      * @return list<mixed>
      */
-    private static function listNext155(mixed $value): array
+    private static function listStat4PartialPredicateDrift(mixed $value): array
     {
         if (!is_array($value) || !array_is_list($value)) {
             return [];
@@ -26239,7 +26239,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<string> $neededColumns
      */
-    private static function validateNeededColumnsNext155(array $neededColumns): void
+    private static function validateNeededColumnsStat4PartialPredicateDrift(array $neededColumns): void
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source needs covering columns');
@@ -26261,7 +26261,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed>|null $nextSource
      * @return array<string,mixed>
      */
-    public static function materializeNext159(
+    public static function materializeStat4YieldCoveringRows(
         array $preparedSource,
         array $currentSource,
         SQLiteIndexPredicate $partialPredicate,
@@ -26269,18 +26269,18 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         array $neededColumns,
         ?array $nextSource = null,
     ): array {
-        self::validateTermsNext159($queryTerms);
-        self::validateNeededColumnsNext159($neededColumns);
+        self::validateTermsStat4YieldCoveringRows($queryTerms);
+        self::validateNeededColumnsStat4YieldCoveringRows($neededColumns);
 
-        $preparedPlan = self::sourcePlanNext159($preparedSource, $partialPredicate, $queryTerms, $neededColumns);
-        $currentPlan = self::sourcePlanNext159($currentSource, $partialPredicate, $queryTerms, $neededColumns);
-        $preparedSignature = self::sourceSignatureNext159($preparedSource);
-        $currentSignature = self::sourceSignatureNext159($currentSource);
+        $preparedPlan = self::sourcePlanStat4YieldCoveringRows($preparedSource, $partialPredicate, $queryTerms, $neededColumns);
+        $currentPlan = self::sourcePlanStat4YieldCoveringRows($currentSource, $partialPredicate, $queryTerms, $neededColumns);
+        $preparedSignature = self::sourceSignatureStat4YieldCoveringRows($preparedSource);
+        $currentSignature = self::sourceSignatureStat4YieldCoveringRows($currentSource);
         $stale = $preparedSignature !== $currentSignature;
         $selectedSource = $stale ? $currentSource : $preparedSource;
         $selectedPlan = $stale ? $currentPlan : $preparedPlan;
-        $nextPlan = $nextSource === null ? null : self::sourcePlanNext159($nextSource, $partialPredicate, $queryTerms, $neededColumns);
-        $nextAdmitted = $nextSource === null || self::sourceSignatureNext159($nextSource) === self::sourceSignatureNext159($selectedSource);
+        $nextPlan = $nextSource === null ? null : self::sourcePlanStat4YieldCoveringRows($nextSource, $partialPredicate, $queryTerms, $neededColumns);
+        $nextAdmitted = $nextSource === null || self::sourceSignatureStat4YieldCoveringRows($nextSource) === self::sourceSignatureStat4YieldCoveringRows($selectedSource);
         $ready = $selectedPlan['usable'] === true && $selectedPlan['partialPredicateImplied'] === true;
 
         return [
@@ -26290,25 +26290,25 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'selectedSource' => $stale ? 'current' : 'prepared',
             'stalePreparedStatement' => $stale,
             'reprepareRequired' => $stale || !$nextAdmitted || !$ready,
-            'schemaCookieChanged' => self::intValueNext159($preparedSource, 'schemaCookie') !== self::intValueNext159($currentSource, 'schemaCookie'),
-            'stat4GenerationChanged' => self::intValueNext159($preparedSource, 'stat4Generation') !== self::intValueNext159($currentSource, 'stat4Generation'),
-            'indexSignatureChanged' => self::indexSignatureNext159($preparedSource) !== self::indexSignatureNext159($currentSource),
+            'schemaCookieChanged' => self::intValueStat4YieldCoveringRows($preparedSource, 'schemaCookie') !== self::intValueStat4YieldCoveringRows($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::intValueStat4YieldCoveringRows($preparedSource, 'stat4Generation') !== self::intValueStat4YieldCoveringRows($currentSource, 'stat4Generation'),
+            'indexSignatureChanged' => self::indexSignatureStat4YieldCoveringRows($preparedSource) !== self::indexSignatureStat4YieldCoveringRows($currentSource),
             'preparedPlan' => $preparedPlan,
             'currentPlan' => $currentPlan,
             'nextPlan' => $nextPlan,
             'nextSourceAdmitted' => $nextAdmitted,
             'selectedPlan' => $selectedPlan,
-            'yieldProgram' => self::yieldProgramNext159($selectedPlan, $selectedSource),
-            'coveringRows' => self::coveringRowsNext159($selectedPlan, $neededColumns),
-            'tableLookupRows' => self::tableLookupRowsNext159($selectedPlan, $neededColumns),
-            'stat4YieldPairs' => self::stat4YieldPairsNext159($selectedPlan),
+            'yieldProgram' => self::yieldProgramStat4YieldCoveringRows($selectedPlan, $selectedSource),
+            'coveringRows' => self::coveringRowsStat4YieldCoveringRows($selectedPlan, $neededColumns),
+            'tableLookupRows' => self::tableLookupRowsStat4YieldCoveringRows($selectedPlan, $neededColumns),
+            'stat4YieldPairs' => self::stat4YieldPairsStat4YieldCoveringRows($selectedPlan),
             'currentSourceFence' => [
-                'schemaCookie' => self::intValueNext159($currentSource, 'schemaCookie'),
-                'stat4Generation' => self::intValueNext159($currentSource, 'stat4Generation'),
-                'indexSignature' => self::indexSignatureNext159($currentSource),
-                'rowsetSignature' => self::signatureNext159($currentPlan['rowids']),
-                'stat4Signature' => self::signatureNext159($currentPlan['stat4Samples']),
-                'programSignature' => self::signatureNext159(self::yieldProgramNext159($currentPlan, $currentSource)),
+                'schemaCookie' => self::intValueStat4YieldCoveringRows($currentSource, 'schemaCookie'),
+                'stat4Generation' => self::intValueStat4YieldCoveringRows($currentSource, 'stat4Generation'),
+                'indexSignature' => self::indexSignatureStat4YieldCoveringRows($currentSource),
+                'rowsetSignature' => self::signatureStat4YieldCoveringRows($currentPlan['rowids']),
+                'stat4Signature' => self::signatureStat4YieldCoveringRows($currentPlan['stat4Samples']),
+                'programSignature' => self::signatureStat4YieldCoveringRows(self::yieldProgramStat4YieldCoveringRows($currentPlan, $currentSource)),
             ],
             'detail' => ($stale ? 'REPREPARE' : 'REUSE')
                 . ' STAT4 PARTIAL EXPRESSION CURRENT-SOURCE YIELD next159',
@@ -26324,24 +26324,24 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function sourcePlanNext159(
+    private static function sourcePlanStat4YieldCoveringRows(
         array $source,
         SQLiteIndexPredicate $partialPredicate,
         array $queryTerms,
         array $neededColumns,
     ): array {
-        $expression = self::stringValueNext159($source, 'expression');
-        $expressionColumn = self::stringValueNext159($source, 'expressionColumn');
-        $lower = self::rangeBoundNext159($queryTerms, $expression, 'lower');
-        $upper = self::rangeBoundNext159($queryTerms, $expression, 'upper');
-        $partialImplied = self::partialImpliedNext159($partialPredicate, $queryTerms);
+        $expression = self::stringValueStat4YieldCoveringRows($source, 'expression');
+        $expressionColumn = self::stringValueStat4YieldCoveringRows($source, 'expressionColumn');
+        $lower = self::rangeBoundStat4YieldCoveringRows($queryTerms, $expression, 'lower');
+        $upper = self::rangeBoundStat4YieldCoveringRows($queryTerms, $expression, 'upper');
+        $partialImplied = self::partialImpliedStat4YieldCoveringRows($partialPredicate, $queryTerms);
         $rows = [];
-        foreach (self::listValueNext159($source, 'rows') as $row) {
+        foreach (self::listValueStat4YieldCoveringRows($source, 'rows') as $row) {
             $expressionValue = $row[$expressionColumn] ?? null;
-            if (!$partialImplied || !self::rowMatchesPartialNext159($partialPredicate, $row)) {
+            if (!$partialImplied || !self::rowMatchesPartialStat4YieldCoveringRows($partialPredicate, $row)) {
                 continue;
             }
-            if (!self::withinRangeNext159($expressionValue, $lower, $upper)) {
+            if (!self::withinRangeStat4YieldCoveringRows($expressionValue, $lower, $upper)) {
                 continue;
             }
             $rows[] = $row;
@@ -26355,15 +26355,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             (int) ($right['rowid'] ?? 0),
         ]);
 
-        $coveringColumns = self::stringListNext159($source, 'coveringColumns');
+        $coveringColumns = self::stringListStat4YieldCoveringRows($source, 'coveringColumns');
         $missingColumns = array_values(array_diff($neededColumns, $coveringColumns));
-        $samples = self::matchedStat4SamplesNext159($source, $lower, $upper);
+        $samples = self::matchedStat4SamplesStat4YieldCoveringRows($source, $lower, $upper);
 
         return [
             'usable' => $partialImplied && ($lower !== null || $upper !== null),
-            'sourceName' => self::stringValueNext159($source, 'name'),
-            'indexName' => self::stringValueNext159($source, 'indexName'),
-            'rootPage' => self::intValueNext159($source, 'rootPage'),
+            'sourceName' => self::stringValueStat4YieldCoveringRows($source, 'name'),
+            'indexName' => self::stringValueStat4YieldCoveringRows($source, 'indexName'),
+            'rootPage' => self::intValueStat4YieldCoveringRows($source, 'rootPage'),
             'expression' => $expression,
             'expressionColumn' => $expressionColumn,
             'partialPredicateImplied' => $partialImplied,
@@ -26380,7 +26380,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'rows' => $rows,
             'stat4Samples' => $samples,
             'stat4SampleCount' => count($samples),
-            'detail' => 'SEARCH ' . self::stringValueNext159($source, 'indexName') . ' USING STAT4 PARTIAL EXPRESSION RANGE',
+            'detail' => 'SEARCH ' . self::stringValueStat4YieldCoveringRows($source, 'indexName') . ' USING STAT4 PARTIAL EXPRESSION RANGE',
         ];
     }
 
@@ -26388,11 +26388,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $queryTerms
      * @return array{value:mixed,inclusive:bool}|null
      */
-    private static function rangeBoundNext159(array $queryTerms, string $expression, string $side): ?array
+    private static function rangeBoundStat4YieldCoveringRows(array $queryTerms, string $expression, string $side): ?array
     {
         $candidate = null;
         foreach ($queryTerms as $term) {
-            if (self::termExpressionNext159($term) !== strtolower($expression)) {
+            if (self::termExpressionStat4YieldCoveringRows($term) !== strtolower($expression)) {
                 continue;
             }
             $operator = strtoupper((string) ($term['operator'] ?? ''));
@@ -26413,7 +26413,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $candidate;
     }
 
-    private static function termExpressionNext159(array $term): ?string
+    private static function termExpressionStat4YieldCoveringRows(array $term): ?string
     {
         $left = $term['left'] ?? null;
         if (is_array($left) && is_string($left['expression'] ?? null)) {
@@ -26426,10 +26426,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $queryTerms
      */
-    private static function partialImpliedNext159(SQLiteIndexPredicate $predicate, array $queryTerms): bool
+    private static function partialImpliedStat4YieldCoveringRows(SQLiteIndexPredicate $predicate, array $queryTerms): bool
     {
-        foreach (self::predicateChildrenNext159($predicate) as $child) {
-            if (!self::singlePredicateImpliedNext159($child, $queryTerms)) {
+        foreach (self::predicateChildrenStat4YieldCoveringRows($predicate) as $child) {
+            if (!self::singlePredicateImpliedStat4YieldCoveringRows($child, $queryTerms)) {
                 return false;
             }
         }
@@ -26440,7 +26440,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $queryTerms
      */
-    private static function singlePredicateImpliedNext159(SQLiteIndexPredicate $predicate, array $queryTerms): bool
+    private static function singlePredicateImpliedStat4YieldCoveringRows(SQLiteIndexPredicate $predicate, array $queryTerms): bool
     {
         if ($predicate->operator === SQLiteIndexPredicate::EQUALS) {
             foreach ($queryTerms as $term) {
@@ -26465,9 +26465,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $row
      */
-    private static function rowMatchesPartialNext159(SQLiteIndexPredicate $predicate, array $row): bool
+    private static function rowMatchesPartialStat4YieldCoveringRows(SQLiteIndexPredicate $predicate, array $row): bool
     {
-        foreach (self::predicateChildrenNext159($predicate) as $child) {
+        foreach (self::predicateChildrenStat4YieldCoveringRows($predicate) as $child) {
             if ($child->operator === SQLiteIndexPredicate::EQUALS && ($row[$child->columnName] ?? null) !== $child->value) {
                 return false;
             }
@@ -26482,7 +26482,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<SQLiteIndexPredicate>
      */
-    private static function predicateChildrenNext159(SQLiteIndexPredicate $predicate): array
+    private static function predicateChildrenStat4YieldCoveringRows(SQLiteIndexPredicate $predicate): array
     {
         if ($predicate->operator !== SQLiteIndexPredicate::AND) {
             return [$predicate];
@@ -26503,7 +26503,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array{value:mixed,inclusive:bool}|null $lower
      * @param array{value:mixed,inclusive:bool}|null $upper
      */
-    private static function withinRangeNext159(mixed $value, ?array $lower, ?array $upper): bool
+    private static function withinRangeStat4YieldCoveringRows(mixed $value, ?array $lower, ?array $upper): bool
     {
         if (!is_string($value)) {
             return false;
@@ -26533,12 +26533,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array{value:mixed,inclusive:bool}|null $upper
      * @return list<array<string,mixed>>
      */
-    private static function matchedStat4SamplesNext159(array $source, ?array $lower, ?array $upper): array
+    private static function matchedStat4SamplesStat4YieldCoveringRows(array $source, ?array $lower, ?array $upper): array
     {
         $matched = [];
-        foreach (self::listValueNext159($source, 'stat4Samples') as $sample) {
+        foreach (self::listValueStat4YieldCoveringRows($source, 'stat4Samples') as $sample) {
             $key = $sample['key'] ?? null;
-            if (!self::withinRangeNext159(is_string($key) ? $key : null, $lower, $upper)) {
+            if (!self::withinRangeStat4YieldCoveringRows(is_string($key) ? $key : null, $lower, $upper)) {
                 continue;
             }
             $matched[] = [
@@ -26558,7 +26558,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $source
      * @return list<array<string,mixed>>
      */
-    private static function yieldProgramNext159(array $plan, array $source): array
+    private static function yieldProgramStat4YieldCoveringRows(array $plan, array $source): array
     {
         if ($plan['usable'] !== true) {
             return [];
@@ -26568,7 +26568,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             ['opcode' => 'OpenRead', 'rootPage' => $plan['rootPage'], 'indexName' => $plan['indexName']],
             ['opcode' => ($plan['lowerInclusive'] ?? false) ? 'SeekGE' : 'SeekGT', 'column' => $plan['expressionColumn'], 'value' => $plan['rangeLower']],
             ['opcode' => ($plan['upperInclusive'] ?? false) ? 'IdxGT' : 'IdxGE', 'column' => $plan['expressionColumn'], 'value' => $plan['rangeUpper']],
-            ['opcode' => 'Column', 'columns' => self::stringListNext159($source, 'coveringColumns')],
+            ['opcode' => 'Column', 'columns' => self::stringListStat4YieldCoveringRows($source, 'coveringColumns')],
             ['opcode' => $plan['tableLookupRequired'] ? 'DeferredSeek' : 'NoTableSeek', 'columns' => $plan['missingCoveringColumns']],
             ['opcode' => 'Next', 'rowids' => $plan['rowids']],
         ];
@@ -26579,7 +26579,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
-    private static function coveringRowsNext159(array $plan, array $neededColumns): array
+    private static function coveringRowsStat4YieldCoveringRows(array $plan, array $neededColumns): array
     {
         $rows = [];
         foreach ($plan['rows'] as $row) {
@@ -26600,7 +26600,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
-    private static function tableLookupRowsNext159(array $plan, array $neededColumns): array
+    private static function tableLookupRowsStat4YieldCoveringRows(array $plan, array $neededColumns): array
     {
         if ($plan['missingCoveringColumns'] === []) {
             return [];
@@ -26621,7 +26621,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $plan
      * @return list<array<string,mixed>>
      */
-    private static function stat4YieldPairsNext159(array $plan): array
+    private static function stat4YieldPairsStat4YieldCoveringRows(array $plan): array
     {
         $pairs = [];
         $samples = $plan['stat4Samples'];
@@ -26639,7 +26639,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function listValueNext159(array $source, string $key): array
+    private static function listValueStat4YieldCoveringRows(array $source, string $key): array
     {
         $value = $source[$key] ?? null;
         if (!is_array($value) || !array_is_list($value)) {
@@ -26654,7 +26654,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $value;
     }
 
-    private static function stringValueNext159(array $source, string $key): string
+    private static function stringValueStat4YieldCoveringRows(array $source, string $key): string
     {
         $value = $source[$key] ?? null;
         if (!is_string($value) || $value === '') {
@@ -26667,7 +26667,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<string>
      */
-    private static function stringListNext159(array $source, string $key): array
+    private static function stringListStat4YieldCoveringRows(array $source, string $key): array
     {
         $value = $source[$key] ?? null;
         if (!is_array($value) || !array_is_list($value)) {
@@ -26682,7 +26682,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return array_values($value);
     }
 
-    private static function intValueNext159(array $source, string $key): int
+    private static function intValueStat4YieldCoveringRows(array $source, string $key): int
     {
         $value = $source[$key] ?? null;
         if (!is_int($value) || $value < 0) {
@@ -26695,7 +26695,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $terms
      */
-    private static function validateTermsNext159(array $terms): void
+    private static function validateTermsStat4YieldCoveringRows(array $terms): void
     {
         foreach ($terms as $term) {
             if (!isset($term['operator']) || !is_string($term['operator'])) {
@@ -26707,7 +26707,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<string> $columns
      */
-    private static function validateNeededColumnsNext159(array $columns): void
+    private static function validateNeededColumnsStat4YieldCoveringRows(array $columns): void
     {
         foreach ($columns as $column) {
             if (!is_string($column) || $column === '') {
@@ -26719,29 +26719,29 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceSignatureNext159(array $source): string
+    private static function sourceSignatureStat4YieldCoveringRows(array $source): string
     {
-        return self::signatureNext159([
-            self::intValueNext159($source, 'schemaCookie'),
-            self::intValueNext159($source, 'stat4Generation'),
-            self::indexSignatureNext159($source),
+        return self::signatureStat4YieldCoveringRows([
+            self::intValueStat4YieldCoveringRows($source, 'schemaCookie'),
+            self::intValueStat4YieldCoveringRows($source, 'stat4Generation'),
+            self::indexSignatureStat4YieldCoveringRows($source),
         ]);
     }
 
     /**
      * @param array<string,mixed> $source
      */
-    private static function indexSignatureNext159(array $source): string
+    private static function indexSignatureStat4YieldCoveringRows(array $source): string
     {
-        return self::signatureNext159([
-            self::stringValueNext159($source, 'indexName'),
-            self::intValueNext159($source, 'rootPage'),
-            self::stringValueNext159($source, 'expression'),
-            self::stringListNext159($source, 'coveringColumns'),
+        return self::signatureStat4YieldCoveringRows([
+            self::stringValueStat4YieldCoveringRows($source, 'indexName'),
+            self::intValueStat4YieldCoveringRows($source, 'rootPage'),
+            self::stringValueStat4YieldCoveringRows($source, 'expression'),
+            self::stringListStat4YieldCoveringRows($source, 'coveringColumns'),
         ]);
     }
 
-    private static function signatureNext159(mixed $value): string
+    private static function signatureStat4YieldCoveringRows(mixed $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
     }
@@ -26756,23 +26756,23 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext160(
+    public static function materializeStat4OrRowidUnion(
         array $preparedSource,
         array $currentSource,
         array $predicate,
         array $orderBy,
         array $neededColumns
     ): array {
-        self::validateNeededColumnsNext160($neededColumns);
+        self::validateNeededColumnsStat4OrRowidUnion($neededColumns);
 
-        $preparedPlan = self::sourcePlanNext160($preparedSource, $predicate, $orderBy, $neededColumns);
-        $currentPlan = self::sourcePlanNext160($currentSource, $predicate, $orderBy, $neededColumns);
-        $preparedSignature = self::sourceSignatureNext160($preparedSource);
-        $currentSignature = self::sourceSignatureNext160($currentSource);
+        $preparedPlan = self::sourcePlanStat4OrRowidUnion($preparedSource, $predicate, $orderBy, $neededColumns);
+        $currentPlan = self::sourcePlanStat4OrRowidUnion($currentSource, $predicate, $orderBy, $neededColumns);
+        $preparedSignature = self::sourceSignatureStat4OrRowidUnion($preparedSource);
+        $currentSignature = self::sourceSignatureStat4OrRowidUnion($currentSource);
         $stale = $preparedSignature !== $currentSignature;
         $selectedPlan = $stale ? $currentPlan : $preparedPlan;
         $selectedSource = $stale ? $currentSource : $preparedSource;
-        $rows = $selectedPlan === null ? [] : self::rowUnionNext160($selectedSource, $selectedPlan, $predicate, $neededColumns);
+        $rows = $selectedPlan === null ? [] : self::rowUnionStat4OrRowidUnion($selectedSource, $selectedPlan, $predicate, $neededColumns);
         $ready = $selectedPlan !== null
             && ($selectedPlan['partial'] ?? false) === true
             && ($selectedPlan['stat4Used'] ?? false) === true
@@ -26784,12 +26784,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             'selectedSource' => $stale ? 'current' : 'prepared',
             'stalePreparedStatement' => $stale,
             'reprepareRequired' => $stale,
-            'schemaCookieChanged' => self::sourceIntNext160($preparedSource, 'schemaCookie') !== self::sourceIntNext160($currentSource, 'schemaCookie'),
-            'stat4GenerationChanged' => self::sourceIntNext160($preparedSource, 'stat4Generation') !== self::sourceIntNext160($currentSource, 'stat4Generation'),
-            'indexSignatureChanged' => self::indexSignatureNext160($preparedSource) !== self::indexSignatureNext160($currentSource),
-            'rowSignatureChanged' => self::rowSignatureNext160(self::sourceRowsNext160($preparedSource)) !== self::rowSignatureNext160(self::sourceRowsNext160($currentSource)),
-            'preparedSource' => self::sourceSummaryNext160($preparedSource, $preparedPlan, $preparedSignature),
-            'currentSource' => self::sourceSummaryNext160($currentSource, $currentPlan, $currentSignature),
+            'schemaCookieChanged' => self::sourceIntStat4OrRowidUnion($preparedSource, 'schemaCookie') !== self::sourceIntStat4OrRowidUnion($currentSource, 'schemaCookie'),
+            'stat4GenerationChanged' => self::sourceIntStat4OrRowidUnion($preparedSource, 'stat4Generation') !== self::sourceIntStat4OrRowidUnion($currentSource, 'stat4Generation'),
+            'indexSignatureChanged' => self::indexSignatureStat4OrRowidUnion($preparedSource) !== self::indexSignatureStat4OrRowidUnion($currentSource),
+            'rowSignatureChanged' => self::rowSignatureStat4OrRowidUnion(self::sourceRowsStat4OrRowidUnion($preparedSource)) !== self::rowSignatureStat4OrRowidUnion(self::sourceRowsStat4OrRowidUnion($currentSource)),
+            'preparedSource' => self::sourceSummaryStat4OrRowidUnion($preparedSource, $preparedPlan, $preparedSignature),
+            'currentSource' => self::sourceSummaryStat4OrRowidUnion($currentSource, $currentPlan, $currentSignature),
             'selectedPlan' => $selectedPlan === null ? null : array_replace($selectedPlan, [
                 'currentSourceRowCount' => count($rows),
                 'currentSourceRowids' => array_column($rows, 'rowid'),
@@ -26798,16 +26798,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'next160Ready' => $ready,
             ]),
             'unionRows' => $rows,
-            'currentNextRows' => self::currentNextRowsNext160($rows),
-            'cursorTape' => self::cursorTapeNext160($selectedPlan, $rows, $neededColumns, $stale ? 'current' : 'prepared'),
+            'currentNextRows' => self::currentNextRowsStat4OrRowidUnion($rows),
+            'cursorTape' => self::cursorTapeStat4OrRowidUnion($selectedPlan, $rows, $neededColumns, $stale ? 'current' : 'prepared'),
             'currentSourceFence' => [
-                'name' => self::sourceStringNext160($selectedSource, 'name'),
-                'schemaCookie' => self::sourceIntNext160($selectedSource, 'schemaCookie'),
-                'stat4Generation' => self::sourceIntNext160($selectedSource, 'stat4Generation'),
+                'name' => self::sourceStringStat4OrRowidUnion($selectedSource, 'name'),
+                'schemaCookie' => self::sourceIntStat4OrRowidUnion($selectedSource, 'schemaCookie'),
+                'stat4Generation' => self::sourceIntStat4OrRowidUnion($selectedSource, 'stat4Generation'),
                 'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
-                'indexSignature' => self::indexSignatureNext160($selectedSource),
-                'rowStreamSignature' => self::signatureNext160(array_column($rows, 'rowid')),
-                'armSignature' => self::signatureNext160($selectedPlan['arms'] ?? []),
+                'indexSignature' => self::indexSignatureStat4OrRowidUnion($selectedSource),
+                'rowStreamSignature' => self::signatureStat4OrRowidUnion(array_column($rows, 'rowid')),
+                'armSignature' => self::signatureStat4OrRowidUnion($selectedPlan['arms'] ?? []),
             ],
             'detail' => ($stale ? 'REPREPARE' : 'REUSE')
                 . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT160 '
@@ -26829,10 +26829,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>|null
      */
-    private static function sourcePlanNext160(array $source, array $predicate, array $orderBy, array $neededColumns): ?array
+    private static function sourcePlanStat4OrRowidUnion(array $source, array $predicate, array $orderBy, array $neededColumns): ?array
     {
         return SQLiteSelectExpressionIndexPlan::partialCoveringOrPlan(
-            self::sourceIndexesNext160($source),
+            self::sourceIndexesStat4OrRowidUnion($source),
             $predicate,
             $orderBy,
             $neededColumns,
@@ -26846,7 +26846,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
-    private static function rowUnionNext160(array $source, array $plan, array $predicate, array $neededColumns): array
+    private static function rowUnionStat4OrRowidUnion(array $source, array $plan, array $predicate, array $neededColumns): array
     {
         if (($plan['strategy'] ?? null) !== 'or-rowid-union') {
             return [];
@@ -26858,13 +26858,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         $rows = [];
         $seen = [];
-        foreach (self::sourceRowsNext160($source) as $offset => $row) {
+        foreach (self::sourceRowsStat4OrRowidUnion($source) as $offset => $row) {
             $rowid = (int) ($row['rowid'] ?? $row['_rowid_'] ?? $offset + 1);
             foreach ($arms as $position => $arm) {
                 if (!is_array($arm)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial next160 OR arm must be a predicate');
                 }
-                if (!self::rowMatchesNext160($row, $arm)) {
+                if (!self::rowMatchesStat4OrRowidUnion($row, $arm)) {
                     continue;
                 }
                 if (isset($seen[$rowid])) {
@@ -26876,8 +26876,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $rows[] = [
                     'sourceOffset' => $offset,
                     'rowid' => $rowid,
-                    'key' => self::primaryExpressionKeyNext160($row, $arm),
-                    'payload' => self::payloadNext160($row, $neededColumns),
+                    'key' => self::primaryExpressionKeyStat4OrRowidUnion($row, $arm),
+                    'payload' => self::payloadStat4OrRowidUnion($row, $neededColumns),
                     'matchedArms' => [$position],
                     'dedupedByRowid' => false,
                 ];
@@ -26885,7 +26885,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         usort($rows, static function (array $left, array $right): int {
-            return self::compareNext160($left['key'] ?? null, $right['key'] ?? null)
+            return self::compareStat4OrRowidUnion($left['key'] ?? null, $right['key'] ?? null)
                 ?: ((int) ($left['rowid'] ?? 0) <=> (int) ($right['rowid'] ?? 0));
         });
 
@@ -26896,7 +26896,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
      */
-    private static function currentNextRowsNext160(array $rows): array
+    private static function currentNextRowsStat4OrRowidUnion(array $rows): array
     {
         $pairs = [];
         foreach ($rows as $offset => $row) {
@@ -26912,7 +26912,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function cursorTapeNext160(?array $plan, array $rows, array $neededColumns, string $source): array
+    private static function cursorTapeStat4OrRowidUnion(?array $plan, array $rows, array $neededColumns, string $source): array
     {
         if ($plan === null || $rows === []) {
             return [
@@ -26959,12 +26959,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $predicate
      */
-    private static function rowMatchesNext160(array $row, array $predicate): bool
+    private static function rowMatchesStat4OrRowidUnion(array $row, array $predicate): bool
     {
-        $operator = strtoupper(self::requiredStringNext160($predicate, 'operator'));
+        $operator = strtoupper(self::requiredStringStat4OrRowidUnion($predicate, 'operator'));
         if ($operator === 'AND') {
-            foreach (self::termsNext160($predicate) as $term) {
-                if (!self::rowMatchesNext160($row, $term)) {
+            foreach (self::termsStat4OrRowidUnion($predicate) as $term) {
+                if (!self::rowMatchesStat4OrRowidUnion($row, $term)) {
                     return false;
                 }
             }
@@ -26972,8 +26972,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return true;
         }
         if ($operator === 'OR') {
-            foreach (self::termsNext160($predicate) as $term) {
-                if (self::rowMatchesNext160($row, $term)) {
+            foreach (self::termsStat4OrRowidUnion($predicate) as $term) {
+                if (self::rowMatchesStat4OrRowidUnion($row, $term)) {
                     return true;
                 }
             }
@@ -26985,21 +26985,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         if (!is_array($left)) {
             throw new \InvalidArgumentException('SQLite STAT4 expression partial next160 predicate needs left operand');
         }
-        $value = self::operandValueNext160($left, $row);
+        $value = self::operandValueStat4OrRowidUnion($left, $row);
         if ($operator === '=') {
-            return self::compareNext160($value, $predicate['right'] ?? null) === 0;
+            return self::compareStat4OrRowidUnion($value, $predicate['right'] ?? null) === 0;
         }
         if ($operator === '>=') {
-            return self::compareNext160($value, $predicate['right'] ?? null) >= 0;
+            return self::compareStat4OrRowidUnion($value, $predicate['right'] ?? null) >= 0;
         }
         if ($operator === '>') {
-            return self::compareNext160($value, $predicate['right'] ?? null) > 0;
+            return self::compareStat4OrRowidUnion($value, $predicate['right'] ?? null) > 0;
         }
         if ($operator === '<=') {
-            return self::compareNext160($value, $predicate['right'] ?? null) <= 0;
+            return self::compareStat4OrRowidUnion($value, $predicate['right'] ?? null) <= 0;
         }
         if ($operator === '<') {
-            return self::compareNext160($value, $predicate['right'] ?? null) < 0;
+            return self::compareStat4OrRowidUnion($value, $predicate['right'] ?? null) < 0;
         }
 
         throw new \InvalidArgumentException("SQLite STAT4 expression partial next160 unsupported operator {$operator}");
@@ -27009,7 +27009,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $predicate
      * @return list<array<string,mixed>>
      */
-    private static function termsNext160(array $predicate): array
+    private static function termsStat4OrRowidUnion(array $predicate): array
     {
         $terms = $predicate['terms'] ?? null;
         if (!is_array($terms) || !array_is_list($terms) || $terms === []) {
@@ -27027,12 +27027,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $predicate
      */
-    private static function primaryExpressionKeyNext160(array $row, array $predicate): mixed
+    private static function primaryExpressionKeyStat4OrRowidUnion(array $row, array $predicate): mixed
     {
-        foreach (self::termsNext160($predicate) as $term) {
+        foreach (self::termsStat4OrRowidUnion($predicate) as $term) {
             $left = $term['left'] ?? null;
             if (is_array($left) && isset($left['function'])) {
-                return self::operandValueNext160($left, $row);
+                return self::operandValueStat4OrRowidUnion($left, $row);
             }
         }
 
@@ -27042,7 +27042,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $operand
      */
-    private static function operandValueNext160(array $operand, array $row): mixed
+    private static function operandValueStat4OrRowidUnion(array $operand, array $row): mixed
     {
         if (isset($operand['column'])) {
             $value = $row[(string) $operand['column']] ?? null;
@@ -27067,7 +27067,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function payloadNext160(array $row, array $neededColumns): array
+    private static function payloadStat4OrRowidUnion(array $row, array $neededColumns): array
     {
         $payload = [];
         foreach ($neededColumns as $column) {
@@ -27077,7 +27077,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $payload;
     }
 
-    private static function compareNext160(mixed $left, mixed $right): int
+    private static function compareStat4OrRowidUnion(mixed $left, mixed $right): int
     {
         if (is_numeric($left) && is_numeric($right)) {
             return (float) $left <=> (float) $right;
@@ -27090,12 +27090,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed>|null $plan
      * @return array<string,mixed>
      */
-    private static function sourceSummaryNext160(array $source, ?array $plan, string $signature): array
+    private static function sourceSummaryStat4OrRowidUnion(array $source, ?array $plan, string $signature): array
     {
         return [
-            'name' => self::sourceStringNext160($source, 'name'),
-            'schemaCookie' => self::sourceIntNext160($source, 'schemaCookie'),
-            'stat4Generation' => self::sourceIntNext160($source, 'stat4Generation'),
+            'name' => self::sourceStringStat4OrRowidUnion($source, 'name'),
+            'schemaCookie' => self::sourceIntStat4OrRowidUnion($source, 'schemaCookie'),
+            'stat4Generation' => self::sourceIntStat4OrRowidUnion($source, 'stat4Generation'),
             'sourceSignature' => $signature,
             'strategy' => $plan['strategy'] ?? null,
             'armCount' => $plan['armCount'] ?? 0,
@@ -27109,7 +27109,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $source
      * @return list<array<string,mixed>>
      */
-    private static function sourceIndexesNext160(array $source): array
+    private static function sourceIndexesStat4OrRowidUnion(array $source): array
     {
         $indexes = $source['indexes'] ?? null;
         if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
@@ -27128,7 +27128,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $source
      * @return list<array<string,mixed>>
      */
-    private static function sourceRowsNext160(array $source): array
+    private static function sourceRowsStat4OrRowidUnion(array $source): array
     {
         $rows = $source['rows'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
@@ -27146,34 +27146,34 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceSignatureNext160(array $source): string
+    private static function sourceSignatureStat4OrRowidUnion(array $source): string
     {
-        return self::signatureNext160([
-            self::sourceStringNext160($source, 'name'),
-            self::sourceIntNext160($source, 'schemaCookie'),
-            self::sourceIntNext160($source, 'stat4Generation'),
-            self::sourceIndexesNext160($source),
-            self::sourceRowsNext160($source),
+        return self::signatureStat4OrRowidUnion([
+            self::sourceStringStat4OrRowidUnion($source, 'name'),
+            self::sourceIntStat4OrRowidUnion($source, 'schemaCookie'),
+            self::sourceIntStat4OrRowidUnion($source, 'stat4Generation'),
+            self::sourceIndexesStat4OrRowidUnion($source),
+            self::sourceRowsStat4OrRowidUnion($source),
         ]);
     }
 
     /**
      * @param array<string,mixed> $source
      */
-    private static function indexSignatureNext160(array $source): string
+    private static function indexSignatureStat4OrRowidUnion(array $source): string
     {
-        return self::signatureNext160(self::sourceIndexesNext160($source));
+        return self::signatureStat4OrRowidUnion(self::sourceIndexesStat4OrRowidUnion($source));
     }
 
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function rowSignatureNext160(array $rows): string
+    private static function rowSignatureStat4OrRowidUnion(array $rows): string
     {
-        return self::signatureNext160($rows);
+        return self::signatureStat4OrRowidUnion($rows);
     }
 
-    private static function signatureNext160(mixed $value): string
+    private static function signatureStat4OrRowidUnion(mixed $value): string
     {
         return hash('sha256', json_encode($value, JSON_THROW_ON_ERROR));
     }
@@ -27181,7 +27181,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceStringNext160(array $source, string $key): string
+    private static function sourceStringStat4OrRowidUnion(array $source, string $key): string
     {
         $value = $source[$key] ?? null;
         if (!is_string($value) || $value === '') {
@@ -27194,7 +27194,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $source
      */
-    private static function sourceIntNext160(array $source, string $key): int
+    private static function sourceIntStat4OrRowidUnion(array $source, string $key): int
     {
         $value = $source[$key] ?? null;
         if (!is_int($value) || $value < 0) {
@@ -27204,7 +27204,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         return $value;
     }
 
-    private static function requiredStringNext160(array $value, string $key): string
+    private static function requiredStringStat4OrRowidUnion(array $value, string $key): string
     {
         $found = $value[$key] ?? null;
         if (!is_string($found) || $found === '') {
@@ -27217,7 +27217,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @param list<string> $neededColumns
      */
-    private static function validateNeededColumnsNext160(array $neededColumns): void
+    private static function validateNeededColumnsStat4OrRowidUnion(array $neededColumns): void
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException('SQLite STAT4 expression partial next160 needs output columns');

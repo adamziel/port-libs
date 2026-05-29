@@ -36,7 +36,7 @@ $returning184 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$run184 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext184(
+$run184 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointHandoff(
     $rows184,
     $currentInput184,
     $nextInput184,

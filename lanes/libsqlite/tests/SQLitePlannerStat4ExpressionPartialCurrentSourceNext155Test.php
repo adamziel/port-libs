@@ -86,7 +86,7 @@ $plan155 = static fn (
     ?array $current = null,
     ?array $predicate = null,
     ?array $needed = null,
-): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext155(
+): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PartialPredicateDrift(
     $prepared ?? $preparedSource155(),
     $current ?? $currentSource155(),
     $predicate ?? $predicate155,

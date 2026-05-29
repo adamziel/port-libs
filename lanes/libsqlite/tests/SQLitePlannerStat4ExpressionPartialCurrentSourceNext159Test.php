@@ -86,7 +86,7 @@ $plan159 = static fn (
     ?array $query = null,
     ?array $needed = null,
     ?array $next = null,
-): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext159(
+): array => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4YieldCoveringRows(
     $prepared ?? $source159(),
     $current ?? $currentSource159(),
     $partial159,
@@ -184,7 +184,7 @@ $tests['planner stat4 expression partial current source next159 validates needed
     $t->throws(InvalidArgumentException::class, static fn () => $plan159(null, null, null, ['option_name', '']));
 };
 $tests['planner stat4 expression partial current source next159 validates schema cookie'] = static function (TestRunner $t) use ($source159, $currentSource159, $partial159, $query159, $needed159): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext159($source159(['schemaCookie' => -1]), $currentSource159(), $partial159, $query159, $needed159));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4YieldCoveringRows($source159(['schemaCookie' => -1]), $currentSource159(), $partial159, $query159, $needed159));
 };
 $tests['planner stat4 expression partial current source next159 validates query term operator'] = static function (TestRunner $t) use ($plan159): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan159(null, null, [['left' => ['expression' => 'lower(option_name)']]]));

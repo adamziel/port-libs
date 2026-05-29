@@ -7,10 +7,10 @@ The new behavior requires a per-row receipt keyed to the handoff ticket, source 
 Verification:
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next254.php`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext254Test.php`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next254.php --self-test`
+- `php -l lanes/libsqlite/tests/SQLiteRowValueRowReceiptAdmissionWindowTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-rowvalue-row-receipt-admission-window.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueRowReceiptAdmissionWindowTest.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-row-receipt-admission-window.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Expected dashboard movement: `phpPass +52` from the new focused test file. Mapped upstream coverage is unchanged; this is current-source PHP behavior over already mapped row-value DML, RETURNING, savepoint retry, source handoff, and window inventory.

@@ -32,7 +32,7 @@ $next = [
     'scan_root' => '$.rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourcePathOrderByCostNext131(
+$plan = SQLiteJsonTablePlan::currentSourcePathOrderByCost(
     'json_tree',
     $current,
     $next,

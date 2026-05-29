@@ -51,7 +51,7 @@ $predicate = $or(
     $and($point('autoload', 'yes'), $exprRange('>=', 'plugin_delta'), $exprRange('<=', 'plugin_forms')),
 );
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext160(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4OrRowidUnion(
     $source('prepared-main.wp_options@next160', 1600, 80, $preparedRows, array_slice($samples, 0, 4), 16001),
     $source('current-main.wp_options@next160', 1603, 83, $currentRows, $samples, 16031),
     $predicate,

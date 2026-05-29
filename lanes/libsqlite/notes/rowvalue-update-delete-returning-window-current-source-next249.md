@@ -19,15 +19,15 @@
 
 - `php -l lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Plan.php`
   - `No syntax errors detected in lanes/libsqlite/src/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Plan.php`
-- `php -l lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Test.php`
-  - `No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Test.php`
-- `php -l lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next249.php`
-  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next249.php`
+- `php -l lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
+  - `No syntax errors detected in lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
+  - `No syntax errors detected in lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
 - `php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane-status json ok\n";'`
   - `lane-status json ok`
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNext249Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueChunkedYieldResumeWindowTest.php`
   - `1 test files, 60 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-rowvalue-returning-window-current-source-next249.php`
+- `php lanes/libsqlite/examples/wordpress-rowvalue-chunked-yield-resume-window.php`
   - exited `0`
 - `git diff --check -- lanes/libsqlite`
   - exited `0`

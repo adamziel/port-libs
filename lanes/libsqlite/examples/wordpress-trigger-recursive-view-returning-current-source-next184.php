@@ -27,7 +27,7 @@ $nextView['source'] = 'main@view-cookie-184-next';
 $nextView['trigger_source'] = 'main@trigger-cookie-184-next';
 $nextView['audit_label'] = 'next-recursive-view-trigger-184';
 
-$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext184(
+$summary = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeCurrentCheckpointHandoff(
     $base,
     [
         ['import_id' => 10, 'name' => 'siteurl', 'value' => 'https://current.test', 'autoload_flag' => 'yes', 'spawn_child' => true],

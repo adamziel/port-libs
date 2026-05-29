@@ -64,7 +64,7 @@ $current['rows'] = [
     ['rowid' => 203, 'option_id' => 203, 'option_name' => 'plugin_cache', 'autoload' => 'yes', 'option_value' => null, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext155(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4PartialPredicateDrift(
     $prepared,
     $current,
     $and(

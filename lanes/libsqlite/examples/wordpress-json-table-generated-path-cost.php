@@ -34,7 +34,7 @@ $next = [
     'generated_path' => '$.rules[2]',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathCostNext134(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathCost(
     'json_tree',
     $current,
     $next,

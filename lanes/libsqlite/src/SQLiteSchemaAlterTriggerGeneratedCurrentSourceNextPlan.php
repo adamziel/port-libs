@@ -43,7 +43,7 @@ final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
         $generatedAdded = array_values(array_diff(self::generatedNames($afterColumns), self::generatedNames($beforeColumns)));
 
         return [
-            'operation' => 'schema-alter-trigger-generated-current-source-next133',
+            'operation' => 'schema-alter-trigger-generated-current-source',
             'status' => $transitions === [] ? 'stable' : 'trigger-reparse-required',
             'schema' => $reparse['schema'],
             'table_before' => $beforeTable,
@@ -60,10 +60,10 @@ final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
             'invalidated_prepared' => $reparse['invalidated_prepared'],
             'current_source_required' => ($reparse['schema_changed'] && $transitions !== []) || $reparse['invalidated_prepared'] !== [],
             'table_xinfo_after' => $reparse['pragma_samples']['table_xinfo:' . $afterTable]['rows'] ?? [],
-            'dependency_closure' => 'no new support component needed; next133 composes native schema DDL reparse, generated-column metadata, and trigger current-source dependency analysis',
-            'non_overlap' => 'avoids accepted next106 generated-trigger reparse snapshots, next117 standalone ALTER generated view/trigger helper, next125 rename reparse, next128 ADD COLUMN dependent record listing, and next130 generated-index reparse; this slice tracks trigger current-source dependencies across ALTER-generated schema changes',
+            'dependency_closure' => 'no new support component needed; generated-trigger schema reparse composes native schema DDL reparse, generated-column metadata, and trigger current-source dependency analysis',
+            'non_overlap' => 'avoids accepted generated-trigger reparse snapshots, standalone ALTER generated view/trigger helper, rename reparse, ADD COLUMN dependent record listing, and generated-index reparse; this slice tracks trigger current-source dependencies across ALTER-generated schema changes',
             'dependencies' => array_values(array_unique(array_merge($reparse['dependencies'], [
-                'sqlite-trigger-generated-current-source-next133',
+                'sqlite-trigger-generated-current-source',
                 'sqlite-alter-table-generated-column-current-source',
             ]))),
         ];
@@ -87,7 +87,7 @@ final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
             }
         }
 
-        throw new InvalidArgumentException('SQLite next133 trigger generated reparse requires a target table');
+        throw new InvalidArgumentException('SQLite trigger generated reparse requires a target table');
     }
 
     /**
@@ -105,7 +105,7 @@ final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
             }
         }
 
-        throw new InvalidArgumentException("SQLite next133 trigger generated reparse cannot find table SQL for {$table}");
+        throw new InvalidArgumentException("SQLite trigger generated reparse cannot find table SQL for {$table}");
     }
 
     /**
@@ -129,7 +129,7 @@ final class SQLiteSchemaAlterTriggerGeneratedCurrentSourceNextPlan
     private static function tableColumns(string $sql): array
     {
         if (!preg_match('/\bcreate\s+(?:temp(?:orary)?\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)(?:\s*\.\s*(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+))?\s*\((?<body>.*)\)/is', $sql, $matches)) {
-            throw new InvalidArgumentException('SQLite next133 trigger generated reparse requires CREATE TABLE SQL');
+            throw new InvalidArgumentException('SQLite trigger generated reparse requires CREATE TABLE SQL');
         }
 
         $columns = [];

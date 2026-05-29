@@ -4132,7 +4132,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedYieldTickets
      * @return array<string,mixed>
      */
-    public static function executeNext249(
+    public static function executeChunkedYieldResumeWindow(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -4158,10 +4158,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             $acknowledgedYieldTickets,
         );
 
-        $yieldRows = self::windowRowsNext249($base['yield_phase_tickets_next245'], $rowIdColumn);
-        $retryRows = self::windowRowsNext249($base['retry_phase_tickets_next245'], $rowIdColumn);
-        $chunks = self::ackChunksNext249($yieldRows, $chunkSize, $rowIdColumn);
-        $resume = self::resumeGateNext249($chunks, $retryRows, $base['yield_current_source_gate_next245'], $rowIdColumn);
+        $yieldRows = self::chunkedYieldResumeWindowRows($base['yield_phase_tickets_next245'], $rowIdColumn);
+        $retryRows = self::chunkedYieldResumeWindowRows($base['retry_phase_tickets_next245'], $rowIdColumn);
+        $chunks = self::chunkedYieldResumeAckChunks($yieldRows, $chunkSize, $rowIdColumn);
+        $resume = self::chunkedYieldResumeGate($chunks, $retryRows, $base['yield_current_source_gate_next245'], $rowIdColumn);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next249',
@@ -4188,7 +4188,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $tickets
      * @return list<array<string,mixed>>
      */
-    private static function windowRowsNext249(array $tickets, string $rowIdColumn): array
+    private static function chunkedYieldResumeWindowRows(array $tickets, string $rowIdColumn): array
     {
         $rows = [];
         $totalRunning = 0;
@@ -4201,8 +4201,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite row-value returning window next249 rowid column {$rowIdColumn} must be int or string");
             }
 
-            $running = self::intValueNext249($ticket['running_bytes'] ?? null);
-            $following = self::intValueNext249($ticket['following_bytes'] ?? null);
+            $running = self::chunkedYieldResumeIntValue($ticket['running_bytes'] ?? null);
+            $following = self::chunkedYieldResumeIntValue($ticket['following_bytes'] ?? null);
             $totalRunning += $running;
             $ordinal = $index + 1;
             $phase = (string) ($ticket['phase'] ?? '');
@@ -4232,7 +4232,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $yieldRows
      * @return list<array<string,mixed>>
      */
-    private static function ackChunksNext249(array $yieldRows, int $chunkSize, string $rowIdColumn): array
+    private static function chunkedYieldResumeAckChunks(array $yieldRows, int $chunkSize, string $rowIdColumn): array
     {
         $chunks = [];
         foreach (array_chunk($yieldRows, $chunkSize) as $chunkIndex => $rows) {
@@ -4258,7 +4258,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $gate
      * @return array<string,mixed>
      */
-    private static function resumeGateNext249(array $chunks, array $retryRows, array $gate, string $rowIdColumn): array
+    private static function chunkedYieldResumeGate(array $chunks, array $retryRows, array $gate, string $rowIdColumn): array
     {
         $complete = (bool) ($gate['current_source_complete'] ?? false);
         $missing = $gate['missing_tickets'] ?? [];
@@ -4286,7 +4286,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ];
     }
 
-    private static function intValueNext249(mixed $value): int
+    private static function chunkedYieldResumeIntValue(mixed $value): int
     {
         if (is_int($value)) {
             return $value;
@@ -4942,7 +4942,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedChunkTokens
      * @return array<string,mixed>
      */
-    public static function executeNext253(
+    public static function executeChunkCursorReleaseWindow(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -4954,7 +4954,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         int $chunkSize = 2,
         ?array $acknowledgedChunkTokens = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext249(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChunkedYieldResumeWindow(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -4968,7 +4968,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 
         $chunkTokens = array_column($base['yield_ack_chunks_next249'], 'resume_token');
         $acknowledged = $acknowledgedChunkTokens ?? $chunkTokens;
-        $gate = self::chunkGateNext253($chunkTokens, $acknowledged);
+        $gate = self::chunkCursorReleaseGate($chunkTokens, $acknowledged);
         $yieldTicketsComplete = (bool) $base['current_source_yield_complete_next249'];
         $retryExposed = $yieldTicketsComplete && (bool) $gate['chunk_source_complete'];
         $gate['yield_tickets_complete'] = $yieldTicketsComplete;
@@ -4976,7 +4976,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         $gate['source_boundary'] = $retryExposed
             ? 'current-source-window-chunks-complete-next253'
             : 'next-source-retry-held-for-current-window-chunks-next253';
-        $cursorRows = self::cursorRowsNext253(
+        $cursorRows = self::chunkCursorReleaseRows(
             $base['yield_ack_chunks_next249'],
             $base['retry_window_rows_next249'],
             $yieldTicketsComplete,
@@ -4998,7 +4998,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 ? array_column($base['retry_window_rows_next249'], $rowIdColumn)
                 : [],
             'window_current_source_release_token_next253' => $retryExposed
-                ? self::releaseTokenNext253($savepoint, $chunkTokens, $base['retry_window_sequence_next249'])
+                ? self::chunkCursorReleaseToken($savepoint, $chunkTokens, $base['retry_window_sequence_next249'])
                 : null,
             'dependency_closure_next253' => 'no new support component needed; next253 reuses native PHP row-value UPDATE/DELETE RETURNING execution, next249 chunked current-source windows, and retry window rows while adding chunk-token source admission before next-source retry publication',
             'dependencies_next253' => [
@@ -5015,7 +5015,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string> $acknowledged
      * @return array<string,mixed>
      */
-    private static function chunkGateNext253(array $required, array $acknowledged): array
+    private static function chunkCursorReleaseGate(array $required, array $acknowledged): array
     {
         $requiredSet = array_fill_keys($required, true);
         $ackSet = array_fill_keys($acknowledged, true);
@@ -5053,7 +5053,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $retryRows
      * @return list<array<string,mixed>>
      */
-    private static function cursorRowsNext253(
+    private static function chunkCursorReleaseRows(
         array $chunks,
         array $retryRows,
         bool $yieldTicketsComplete,
@@ -5112,7 +5112,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string> $chunkTokens
      * @param list<string> $retrySequence
      */
-    private static function releaseTokenNext253(string $savepoint, array $chunkTokens, array $retrySequence): string
+    private static function chunkCursorReleaseToken(string $savepoint, array $chunkTokens, array $retrySequence): string
     {
         return hash('sha256', json_encode([
             'savepoint' => $savepoint,
@@ -5132,7 +5132,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>>|null $rowReceipts
      * @return array<string,mixed>
      */
-    public static function executeNext254(
+    public static function executeRowReceiptAdmissionWindow(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -5166,15 +5166,15 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         );
 
         $handoffRows = $base['source_handoff_rows_next251'];
-        $expectedReceipts = self::expectedReceiptsNext254($handoffRows, $rowIdColumn);
+        $expectedReceipts = self::rowReceiptAdmissionExpectedReceipts($handoffRows, $rowIdColumn);
         $receipts = $rowReceipts ?? $expectedReceipts;
-        $receiptIndex = self::receiptIndexNext254($receipts);
-        $admissionRows = self::admissionRowsNext254($handoffRows, $receiptIndex, $rowIdColumn, $nextSourceEpoch, $requireNextReceipts);
-        $blocked = self::blockedReasonsNext254($base, $admissionRows, $requireNextReceipts);
+        $receiptIndex = self::rowReceiptAdmissionReceiptIndex($receipts);
+        $admissionRows = self::rowReceiptAdmissionRows($handoffRows, $receiptIndex, $rowIdColumn, $nextSourceEpoch, $requireNextReceipts);
+        $blocked = self::rowReceiptAdmissionBlockedReasons($base, $admissionRows, $requireNextReceipts);
         $readyRows = array_values(array_filter($admissionRows, static fn (array $row): bool => (bool) $row['admitted_next254']));
         $nextRows = array_values(array_filter($readyRows, static fn (array $row): bool => ($row['source_epoch_next251'] ?? null) === $nextSourceEpoch));
         $currentRows = array_values(array_filter($readyRows, static fn (array $row): bool => ($row['source_epoch_next251'] ?? null) !== $nextSourceEpoch));
-        $resume = self::resumeNext254($readyRows, $resumeAfterTicket);
+        $resume = self::rowReceiptAdmissionResume($readyRows, $resumeAfterTicket);
 
         return array_merge($base, [
             'status' => 'rowvalue-update-delete-returning-window-current-source-next254',
@@ -5191,7 +5191,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 'admitted_current_row_count' => count($currentRows),
                 'admitted_next_row_count' => count($nextRows),
                 'blocked_reasons' => $blocked,
-                'admission_token' => self::admissionTokenNext254($base, $admissionRows, $blocked),
+                'admission_token' => self::rowReceiptAdmissionToken($base, $admissionRows, $blocked),
             ],
             'expected_row_receipts_next254' => $expectedReceipts,
             'provided_row_receipts_next254' => array_values($receipts),
@@ -5220,20 +5220,20 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function expectedReceiptsNext254(array $rows, string $rowIdColumn): array
+    private static function rowReceiptAdmissionExpectedReceipts(array $rows, string $rowIdColumn): array
     {
         $receipts = [];
         foreach ($rows as $row) {
-            $ticket = self::stringValueNext254($row['ticket'] ?? null, 'ticket');
-            $epoch = self::stringValueNext254($row['source_epoch_next251'] ?? null, 'source epoch');
-            $frameToken = self::stringValueNext254($row['frame_token'] ?? null, 'frame token');
+            $ticket = self::rowReceiptAdmissionStringValue($row['ticket'] ?? null, 'ticket');
+            $epoch = self::rowReceiptAdmissionStringValue($row['source_epoch_next251'] ?? null, 'source epoch');
+            $frameToken = self::rowReceiptAdmissionStringValue($row['frame_token'] ?? null, 'frame token');
             $rowId = $row[$rowIdColumn] ?? null;
             if (!is_int($rowId) && !is_string($rowId)) {
                 throw new \InvalidArgumentException("SQLite row-value returning window next254 rowid column {$rowIdColumn} must be int or string");
             }
-            $runningBytes = self::intValueNext254($row['running_bytes'] ?? null, 'running bytes');
-            $followingBytes = self::intValueNext254($row['following_bytes'] ?? null, 'following bytes');
-            $receiptToken = self::receiptTokenNext254($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
+            $runningBytes = self::rowReceiptAdmissionIntValue($row['running_bytes'] ?? null, 'running bytes');
+            $followingBytes = self::rowReceiptAdmissionIntValue($row['following_bytes'] ?? null, 'following bytes');
+            $receiptToken = self::rowReceiptAdmissionReceiptToken($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
             $receipts[] = [
                 'ticket' => $ticket,
                 'source_epoch' => $epoch,
@@ -5252,11 +5252,11 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $receipts
      * @return array<string,array<string,mixed>>
      */
-    private static function receiptIndexNext254(array $receipts): array
+    private static function rowReceiptAdmissionReceiptIndex(array $receipts): array
     {
         $indexed = [];
         foreach ($receipts as $receipt) {
-            $ticket = self::stringValueNext254($receipt['ticket'] ?? null, 'receipt ticket');
+            $ticket = self::rowReceiptAdmissionStringValue($receipt['ticket'] ?? null, 'receipt ticket');
             $indexed[$ticket] = $receipt;
         }
 
@@ -5268,22 +5268,22 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,array<string,mixed>> $receiptIndex
      * @return list<array<string,mixed>>
      */
-    private static function admissionRowsNext254(array $rows, array $receiptIndex, string $rowIdColumn, string $nextSourceEpoch, bool $requireNextReceipts): array
+    private static function rowReceiptAdmissionRows(array $rows, array $receiptIndex, string $rowIdColumn, string $nextSourceEpoch, bool $requireNextReceipts): array
     {
         $admitted = [];
         foreach ($rows as $index => $row) {
-            $ticket = self::stringValueNext254($row['ticket'] ?? null, 'ticket');
-            $epoch = self::stringValueNext254($row['source_epoch_next251'] ?? null, 'source epoch');
+            $ticket = self::rowReceiptAdmissionStringValue($row['ticket'] ?? null, 'ticket');
+            $epoch = self::rowReceiptAdmissionStringValue($row['source_epoch_next251'] ?? null, 'source epoch');
             $rowId = $row[$rowIdColumn] ?? null;
             if (!is_int($rowId) && !is_string($rowId)) {
                 throw new \InvalidArgumentException("SQLite row-value returning window next254 rowid column {$rowIdColumn} must be int or string");
             }
-            $frameToken = self::stringValueNext254($row['frame_token'] ?? null, 'frame token');
-            $runningBytes = self::intValueNext254($row['running_bytes'] ?? null, 'running bytes');
-            $followingBytes = self::intValueNext254($row['following_bytes'] ?? null, 'following bytes');
-            $expected = self::receiptTokenNext254($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
+            $frameToken = self::rowReceiptAdmissionStringValue($row['frame_token'] ?? null, 'frame token');
+            $runningBytes = self::rowReceiptAdmissionIntValue($row['running_bytes'] ?? null, 'running bytes');
+            $followingBytes = self::rowReceiptAdmissionIntValue($row['following_bytes'] ?? null, 'following bytes');
+            $expected = self::rowReceiptAdmissionReceiptToken($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
             $receipt = $receiptIndex[$ticket] ?? null;
-            $reasons = self::rowReasonsNext254($receipt, $expected, $epoch, $frameToken, $rowIdColumn, $rowId, $runningBytes, $followingBytes);
+            $reasons = self::rowReceiptAdmissionReasons($receipt, $expected, $epoch, $frameToken, $rowIdColumn, $rowId, $runningBytes, $followingBytes);
             if (!$requireNextReceipts && $epoch === $nextSourceEpoch && in_array('missing-row-receipt-next254', $reasons, true)) {
                 $reasons = [];
             }
@@ -5303,14 +5303,14 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed>|null $receipt
      * @return list<string>
      */
-    private static function rowReasonsNext254(?array $receipt, string $expected, string $epoch, string $frameToken, string $rowIdColumn, int|string $rowId, int $runningBytes, int $followingBytes): array
+    private static function rowReceiptAdmissionReasons(?array $receipt, string $expected, string $epoch, string $frameToken, string $rowIdColumn, int|string $rowId, int $runningBytes, int $followingBytes): array
     {
         if ($receipt === null) {
             return ['missing-row-receipt-next254'];
         }
 
         $reasons = [];
-        if (($receipt['receipt_token'] ?? null) !== $expected || !self::receiptSelfTokenMatchesNext254($receipt, $rowIdColumn)) {
+        if (($receipt['receipt_token'] ?? null) !== $expected || !self::rowReceiptAdmissionTokenMatches($receipt, $rowIdColumn)) {
             $reasons[] = 'row-receipt-token-mismatch-next254';
         }
         if (($receipt['source_epoch'] ?? null) !== $epoch) {
@@ -5335,7 +5335,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
     /**
      * @param array<string,mixed> $receipt
      */
-    private static function receiptSelfTokenMatchesNext254(array $receipt, string $rowIdColumn): bool
+    private static function rowReceiptAdmissionTokenMatches(array $receipt, string $rowIdColumn): bool
     {
         $ticket = $receipt['ticket'] ?? null;
         $epoch = $receipt['source_epoch'] ?? null;
@@ -5353,7 +5353,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             return false;
         }
 
-        return ($receipt['receipt_token'] ?? null) === self::receiptTokenNext254($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
+        return ($receipt['receipt_token'] ?? null) === self::rowReceiptAdmissionReceiptToken($ticket, $epoch, $frameToken, $rowId, $runningBytes, $followingBytes);
     }
 
     /**
@@ -5361,7 +5361,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<string>
      */
-    private static function blockedReasonsNext254(array $base, array $rows, bool $requireNextReceipts): array
+    private static function rowReceiptAdmissionBlockedReasons(array $base, array $rows, bool $requireNextReceipts): array
     {
         $reasons = [];
         if (!(bool) ($base['source_handoff_barrier_next251']['next_source_ready'] ?? false)) {
@@ -5383,7 +5383,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return array<string,mixed>
      */
-    private static function resumeNext254(array $rows, ?string $resumeAfterTicket): array
+    private static function rowReceiptAdmissionResume(array $rows, ?string $resumeAfterTicket): array
     {
         if ($resumeAfterTicket === null) {
             return [
@@ -5422,7 +5422,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @param list<string> $blocked
      */
-    private static function admissionTokenNext254(array $base, array $rows, array $blocked): string
+    private static function rowReceiptAdmissionToken(array $base, array $rows, array $blocked): string
     {
         return hash('sha256', json_encode([
             'handoff' => $base['source_handoff_barrier_next251']['handoff_token'] ?? '',
@@ -5431,12 +5431,12 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ], JSON_THROW_ON_ERROR));
     }
 
-    private static function receiptTokenNext254(string $ticket, string $epoch, string $frameToken, int|string $rowId, int $runningBytes, int $followingBytes): string
+    private static function rowReceiptAdmissionReceiptToken(string $ticket, string $epoch, string $frameToken, int|string $rowId, int $runningBytes, int $followingBytes): string
     {
         return hash('sha256', $ticket . '|' . $epoch . '|' . $frameToken . '|' . (string) $rowId . '|' . $runningBytes . '|' . $followingBytes);
     }
 
-    private static function stringValueNext254(mixed $value, string $label): string
+    private static function rowReceiptAdmissionStringValue(mixed $value, string $label): string
     {
         if (!is_string($value) || $value === '') {
             throw new \InvalidArgumentException("SQLite row-value returning window next254 {$label} is missing");
@@ -5445,7 +5445,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         return $value;
     }
 
-    private static function intValueNext254(mixed $value, string $label): int
+    private static function rowReceiptAdmissionIntValue(mixed $value, string $label): int
     {
         if (!is_int($value)) {
             throw new \InvalidArgumentException("SQLite row-value returning window next254 {$label} must be an integer");
@@ -5754,7 +5754,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedChunkTokens = null,
         ?array $acknowledgedCommitTokens = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext253(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChunkCursorReleaseWindow(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -5940,7 +5940,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         int $chunkSize = 2,
         ?array $acknowledgedChunkTokens = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext253(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeChunkCursorReleaseWindow(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -7019,7 +7019,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $segmentWatermarks = null,
         bool $requireNextSegmentWatermark = true,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNext254(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeRowReceiptAdmissionWindow(
             $tables,
             $yieldStatements,
             $attemptStatements,

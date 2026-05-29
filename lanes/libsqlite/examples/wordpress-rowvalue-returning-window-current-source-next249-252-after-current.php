@@ -4,13 +4,21 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../../tools/bootstrap.php';
 
-$next249 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next249.php';
+$selfTest = in_array('--self-test', $argv ?? [], true);
+$outerArgv = $argv ?? [];
+
+$argv = [];
+$next249 = require __DIR__ . '/wordpress-rowvalue-chunked-yield-resume-window.php';
 ob_start();
+$argv = [];
 $next250 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next250.php';
 $next250Output = ob_get_clean();
 $next250Decoded = json_decode((string) $next250Output, true, 512, JSON_THROW_ON_ERROR);
+$argv = [];
 $next251 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next251.php';
+$argv = [];
 $next252 = require __DIR__ . '/wordpress-rowvalue-returning-window-current-source-next252.php';
+$argv = $outerArgv;
 
 $statuses = [
     $next249['status'],
@@ -32,7 +40,7 @@ assert($next250Decoded['excludeTiesCount'] === 9);
 assert($next251['handoffState'] === 'current-source-drained-next-source-digest-ready-next251');
 assert($next252['nextSourceFirstOrdinal'] === 4);
 
-return [
+$summary = [
     'status' => 'rowvalue-update-delete-returning-window-current-source-next249-252-after-current',
     'candidateStatuses' => $statuses,
     'next249RetryIds' => $next249['retryIds'],
@@ -41,3 +49,9 @@ return [
     'next252FirstRetryOrdinal' => $next252['nextSourceFirstOrdinal'],
     'wordpressUse' => 'Copied wp_options imports can validate the prepared next249-252 current-source row-value UPDATE/DELETE RETURNING handoff as chunked yield windows, EXCLUDE TIES frames, source digest handoff, and high-water window fence coverage.',
 ];
+
+if ($selfTest) {
+    echo "wordpress-rowvalue-returning-window-current-source-next249-252-after-current self-test passed\n";
+}
+
+return $summary;
