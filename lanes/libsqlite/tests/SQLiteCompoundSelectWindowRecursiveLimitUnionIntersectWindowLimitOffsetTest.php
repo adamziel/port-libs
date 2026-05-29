@@ -5,21 +5,21 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
-$currentOptions175 = [
+$currentOptionsUnionIntersect = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 90],
     ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'score' => 75],
     ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'score' => 60],
     ['option_id' => 4, 'option_name' => 'cache_seed', 'autoload' => 'no', 'score' => 20],
 ];
-$nextOptions175 = [
-    ...$currentOptions175,
+$nextOptionsUnionIntersect = [
+    ...$currentOptionsUnionIntersect,
     ['option_id' => 5, 'option_name' => 'plugin_alpha', 'autoload' => 'yes', 'score' => 85],
     ['option_id' => 6, 'option_name' => 'theme_mods', 'autoload' => 'yes', 'score' => 65],
 ];
-$currentTables175 = ['wp_options' => $currentOptions175];
-$nextTables175 = ['wp_options' => $nextOptions175];
+$currentTablesUnionIntersect = ['wp_options' => $currentOptionsUnionIntersect];
+$nextTablesUnionIntersect = ['wp_options' => $nextOptionsUnionIntersect];
 
-$sql175 = <<<'SQL'
+$sqlUnionIntersect = <<<'SQL'
 WITH RECURSIVE q(id, label, score) AS (
     VALUES (1, 'seed', 100)
     UNION ALL
@@ -59,23 +59,23 @@ SELECT id,
  LIMIT 4 OFFSET 1
 SQL;
 
-$summary175 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext175($sql175, $currentTables175, $nextTables175);
+$summaryUnionIntersect = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectWindowLimitOffset($sqlUnionIntersect, $currentTablesUnionIntersect, $nextTablesUnionIntersect);
 $tests = [];
 
-$tests['compound select window recursive limit next175 status dependencies'] = static function (TestRunner $t) use ($summary175): void {
-    $plan = $summary175();
-    $t->same('compound-select-window-recursive-limit-current-source-next175-ready', $plan['status']);
+$tests['compound select window recursive limit union-intersect-window-limit-offset status dependencies'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $plan = $summaryUnionIntersect();
+    $t->same('compound-select-window-recursive-limit-current-source-union-intersect-window-limit-offset-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-limit-offset-next175',
-        'sqlite-select-sql-compound-union-intersect-next175',
-        'sqlite-select-sql-window-row-number-dense-rank-next175',
-        'sqlite-current-source-next175',
+        'sqlite-select-sql-recursive-limit-offset-union-intersect-window-limit-offset',
+        'sqlite-select-sql-compound-union-intersect-union-intersect-window-limit-offset',
+        'sqlite-select-sql-window-row-number-dense-rank-union-intersect-window-limit-offset',
+        'sqlite-current-source-union-intersect-window-limit-offset',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit next175 compound metadata'] = static function (TestRunner $t) use ($summary175): void {
-    $compound = $summary175()['compound'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset compound metadata'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $compound = $summaryUnionIntersect()['compound'];
     $t->same(['UNION', 'INTERSECT'], $compound['operators']);
     $t->same(3, $compound['currentArms']);
     $t->same(3, $compound['nextArms']);
@@ -87,29 +87,29 @@ $tests['compound select window recursive limit next175 compound metadata'] = sta
     $t->same(2, $compound['intersectArmIndex']);
 };
 
-$tests['compound select window recursive limit next175 current rows'] = static function (TestRunner $t) use ($summary175): void {
-    $rows = $summary175()['currentRows'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset current rows'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $rows = $summaryUnionIntersect()['currentRows'];
     $t->same([2, 3], array_column($rows, 'id'));
     $t->same(['home', 'rewrite_rules'], array_column($rows, 'label'));
     $t->same([2, 3], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next175 next rows'] = static function (TestRunner $t) use ($summary175): void {
-    $rows = $summary175()['nextRows'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset next rows'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $rows = $summaryUnionIntersect()['nextRows'];
     $t->same([5, 2, 6, 3], array_column($rows, 'id'));
     $t->same(['plugin_alpha', 'home', 'theme_mods', 'rewrite_rules'], array_column($rows, 'label'));
     $t->same([2, 3, 4, 5], array_column($rows, 'metric'));
 };
 
-$tests['compound select window recursive limit next175 prelimit captures intersect source shift'] = static function (TestRunner $t) use ($summary175): void {
-    $plan = $summary175();
+$tests['compound select window recursive limit union-intersect-window-limit-offset prelimit captures intersect source shift'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $plan = $summaryUnionIntersect();
     $t->same(['siteurl', 'home', 'rewrite_rules'], array_column($plan['currentPreLimitRows'], 'label'));
     $t->same(['siteurl', 'plugin_alpha', 'home', 'theme_mods', 'rewrite_rules'], array_column($plan['nextPreLimitRows'], 'label'));
     $t->true(in_array('theme_mods', $plan['intersect']['changedSurvivors'], true));
 };
 
-$tests['compound select window recursive limit next175 recursive trace'] = static function (TestRunner $t) use ($summary175): void {
-    $recursive = $summary175()['recursive'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset recursive trace'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $recursive = $summaryUnionIntersect()['recursive'];
     $t->same('q', $recursive['name']);
     $t->same(['id', 'label', 'score'], $recursive['columns']);
     $t->same('UNION ALL', $recursive['operator']);
@@ -119,24 +119,24 @@ $tests['compound select window recursive limit next175 recursive trace'] = stati
     $t->same(0, $recursive['currentFinalOffsetRemaining']);
 };
 
-$tests['compound select window recursive limit next175 window metadata'] = static function (TestRunner $t) use ($summary175): void {
-    $windows = $summary175()['windows'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset window metadata'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $windows = $summaryUnionIntersect()['windows'];
     $t->same(['row_number', 'dense_rank'], $windows['functions']);
     $t->same(['metric', 'metric'], array_column($windows['current'], 'alias'));
     $t->same([0, 0], array_column($windows['current'], 'argumentCount'));
     $t->same([2, 1], array_column($windows['current'], 'orderCount'));
 };
 
-$tests['compound select window recursive limit next175 intersect diagnostics'] = static function (TestRunner $t) use ($summary175): void {
-    $intersect = $summary175()['intersect'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset intersect diagnostics'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $intersect = $summaryUnionIntersect()['intersect'];
     $t->same(['siteurl', 'home', 'rewrite_rules', 'seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'seed:2:3:4:5:6'], $intersect['currentFilterLabels']);
     $t->same(['siteurl', 'home', 'rewrite_rules', 'plugin_alpha', 'theme_mods', 'seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5', 'seed:2:3:4:5:6'], $intersect['nextFilterLabels']);
     $t->true(in_array('plugin_alpha', $intersect['changedSurvivors'], true));
     $t->true(in_array('theme_mods', $intersect['changedSurvivors'], true));
 };
 
-$tests['compound select window recursive limit next175 limit trace'] = static function (TestRunner $t) use ($summary175): void {
-    $trace = $summary175()['limitTrace'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset limit trace'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $trace = $summaryUnionIntersect()['limitTrace'];
     $t->same(3, $trace['current']['preLimitCount']);
     $t->same(5, $trace['next']['preLimitCount']);
     $t->same(['siteurl'], array_column($trace['current']['skippedBeforeOffset'], 'label'));
@@ -145,14 +145,14 @@ $tests['compound select window recursive limit next175 limit trace'] = static fu
     $t->same([], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit next175 source classes'] = static function (TestRunner $t) use ($summary175): void {
-    $classes = $summary175()['sourceClasses'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset source classes'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $classes = $summaryUnionIntersect()['sourceClasses'];
     $t->same(['table' => 2], $classes['current']);
     $t->same(['table' => 4], $classes['next']);
 };
 
-$tests['compound select window recursive limit next175 boundary delta'] = static function (TestRunner $t) use ($summary175): void {
-    $boundary = $summary175()['boundary'];
+$tests['compound select window recursive limit union-intersect-window-limit-offset boundary delta'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $boundary = $summaryUnionIntersect()['boundary'];
     $t->same('home', $boundary['currentFirst']['label']);
     $t->same('plugin_alpha', $boundary['nextFirst']['label']);
     $t->same('rewrite_rules', $boundary['currentLast']['label']);
@@ -161,8 +161,8 @@ $tests['compound select window recursive limit next175 boundary delta'] = static
     $t->contains('"label":"theme_mods"', implode("\n", $boundary['gainedRows']));
 };
 
-$tests['compound select window recursive limit next175 replan reasons'] = static function (TestRunner $t) use ($summary175): void {
-    $plan = $summary175();
+$tests['compound select window recursive limit union-intersect-window-limit-offset replan reasons'] = static function (TestRunner $t) use ($summaryUnionIntersect): void {
+    $plan = $summaryUnionIntersect();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->contains('"label":"plugin_alpha"', $changed);
     $t->contains('"label":"theme_mods"', $changed);
@@ -175,32 +175,32 @@ $tests['compound select window recursive limit next175 replan reasons'] = static
     $t->true(in_array('compound-tail-limit-offset', $plan['replanReasons'], true));
 };
 
-$tests['compound select window recursive limit next175 rejects union all'] = static function (TestRunner $t) use ($currentTables175): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext175(
+$tests['compound select window recursive limit union-intersect-window-limit-offset rejects union all'] = static function (TestRunner $t) use ($currentTablesUnionIntersect): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectWindowLimitOffset(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 6 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score) AS metric FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score) FROM wp_options INTERSECT SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 3 OFFSET 1",
-        $currentTables175,
-        $currentTables175,
+        $currentTablesUnionIntersect,
+        $currentTablesUnionIntersect,
     ));
 };
 
-$tests['compound select window recursive limit next175 rejects missing intersect'] = static function (TestRunner $t) use ($currentTables175): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext175(
+$tests['compound select window recursive limit union-intersect-window-limit-offset rejects missing intersect'] = static function (TestRunner $t) use ($currentTablesUnionIntersect): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectWindowLimitOffset(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 6 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score) AS metric FROM q UNION SELECT option_id, option_name, dense_rank() OVER (ORDER BY score) FROM wp_options ORDER BY metric LIMIT 3 OFFSET 1",
-        $currentTables175,
-        $currentTables175,
+        $currentTablesUnionIntersect,
+        $currentTablesUnionIntersect,
     ));
 };
 
-$tests['compound select window recursive limit next175 rejects missing final offset'] = static function (TestRunner $t) use ($currentTables175): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext175(
+$tests['compound select window recursive limit union-intersect-window-limit-offset rejects missing final offset'] = static function (TestRunner $t) use ($currentTablesUnionIntersect): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectWindowLimitOffset(
         "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 100) UNION ALL SELECT id + 1, label, score - 10 FROM q WHERE id < 6 LIMIT 5 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score) AS metric FROM q UNION SELECT option_id, option_name, dense_rank() OVER (ORDER BY score) FROM wp_options INTERSECT SELECT option_id, option_name, score FROM wp_options ORDER BY metric LIMIT 3",
-        $currentTables175,
-        $currentTables175,
+        $currentTablesUnionIntersect,
+        $currentTablesUnionIntersect,
     ));
 };
 
 foreach (range(1, 50) as $case) {
-    $tests['compound select window recursive limit next175 generated intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit union-intersect-window-limit-offset generated intersect boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $recursiveLimit = 4 + ($case % 4);
         $finalLimit = 2;
         $tables = [

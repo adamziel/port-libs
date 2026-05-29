@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerReturningSavepointCurrentNextPlan
+final class SQLiteTriggerReturningSavepointPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
@@ -48,7 +48,7 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
 
             try {
                 $before = self::fireTriggers('before', 'update', $old, $next, $triggers, $ordinal);
-            } catch (SQLiteTriggerReturningSavepointCurrentNextSignal $signal) {
+            } catch (SQLiteTriggerReturningSavepointSignal $signal) {
                 if ($signal->action === 'ignore') {
                     $skipped[] = self::skip($ordinal, $index, $old, $next, 'before', $signal->reason);
                     continue;
@@ -69,7 +69,7 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
 
             try {
                 $after = self::fireTriggers('after', 'update', $old, $next, $triggers, $ordinal);
-            } catch (SQLiteTriggerReturningSavepointCurrentNextSignal $signal) {
+            } catch (SQLiteTriggerReturningSavepointSignal $signal) {
                 $yield = self::yieldRow($ordinal, $index, $old, $next, $returning, 'changed-before-trigger-rollback');
                 $yieldStream[] = $yield;
                 $returningRows[] = $yield['returning'];
@@ -127,7 +127,7 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
             'rollback_at_ordinal' => $rollbackAt,
             'savepoint_preserved' => self::rowsEqual($working, $baseRows),
             'dependencies' => [
-                'sqlite-trigger-returning-current-next65',
+                'sqlite-trigger-returning-savepoint',
                 'sqlite-trigger-raise-ignore-yield',
                 'sqlite-savepoint-rollback-yield-suppression',
             ],
@@ -140,7 +140,7 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
     private static function validateAssignments(array $assignments): void
     {
         if ($assignments === []) {
-            throw new \InvalidArgumentException('SQLite trigger RETURNING savepoint current-next UPDATE requires assignments');
+            throw new \InvalidArgumentException('SQLite trigger RETURNING savepoint UPDATE requires assignments');
         }
         foreach (array_keys($assignments) as $column) {
             self::identifier((string) $column, 'assignment column');
@@ -182,7 +182,7 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
                 if (!in_array($raise, ['ignore', 'rollback'], true)) {
                     throw new \InvalidArgumentException('SQLite trigger RETURNING savepoint RAISE action is unsupported');
                 }
-                throw new SQLiteTriggerReturningSavepointCurrentNextSignal($raise, (string) ($trigger['reason'] ?? 'trigger-raise'));
+                throw new SQLiteTriggerReturningSavepointSignal($raise, (string) ($trigger['reason'] ?? 'trigger-raise'));
             }
             if ($action === 'set-new') {
                 foreach ((array) ($trigger['set'] ?? []) as $column => $value) {
@@ -372,14 +372,14 @@ final class SQLiteTriggerReturningSavepointCurrentNextPlan
     private static function identifier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite trigger RETURNING savepoint current-next {$label} is malformed");
+            throw new \InvalidArgumentException("SQLite trigger RETURNING savepoint {$label} is malformed");
         }
 
         return $value;
     }
 }
 
-final class SQLiteTriggerReturningSavepointCurrentNextSignal extends \RuntimeException
+final class SQLiteTriggerReturningSavepointSignal extends \RuntimeException
 {
     public function __construct(public readonly string $action, public readonly string $reason)
     {

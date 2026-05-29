@@ -18,4 +18,4 @@ Validation:
 - `php lanes/libsqlite/examples/wordpress-sqlplanner-stat4-expression-partial-current-source-next846-861.php --self-test`
 - `git diff --check`
 
-Next slice: continue with planner862-877 from the next846-861 handoff fence.
+Next slice: continue with the prepared handoff resume-window from the next846-861 handoff fence.

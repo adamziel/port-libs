@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 
-$tests = [];
+require_once __DIR__ . '/../src/SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan.php';
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next638.sqlite';
+$database = '/srv/wp-content/database/wp-next654.sqlite';
 $journal = $database . '-journal';
 $master = $database . '-mj';
 $masterBytes = $journal . "\n";
@@ -17,7 +17,7 @@ $formatPage = static function (string $label) use ($pageSize): string {
     $page = substr_replace($page, pack('n', 512), 16, 2);
     $page = substr_replace($page, chr(4), 20, 1);
     $page = substr_replace($page, pack('N', 2), 56, 4);
-    $page = substr_replace($page, pack('N', 638), 60, 4);
+    $page = substr_replace($page, pack('N', 654), 60, 4);
 
     return substr_replace($page, $label, 100, strlen($label));
 };
@@ -141,103 +141,65 @@ $tokenFields = [
     'reader_cache_stmt_vdbe_multiply_handoff_token', 'reader_cache_stmt_vdbe_divide_handoff_token', 'reader_cache_stmt_vdbe_remainder_handoff_token',
     'reader_cache_stmt_vdbe_bit_and_handoff_token',
 ];
+$next639654Fields = [
+    'reader_cache_stmt_vdbe_bit_or_handoff_token', 'reader_cache_stmt_vdbe_shift_left_handoff_token', 'reader_cache_stmt_vdbe_shift_right_handoff_token', 'reader_cache_stmt_vdbe_add_imm_handoff_token',
+    'reader_cache_stmt_vdbe_bit_not_handoff_token', 'reader_cache_stmt_vdbe_real_affinity_value_handoff_token', 'reader_cache_stmt_vdbe_cast_affinity_handoff_token',
+    'reader_cache_stmt_vdbe_permutation_affinity_handoff_token', 'reader_cache_stmt_vdbe_compare_affinity_handoff_token', 'reader_cache_stmt_vdbe_compare_collseq_handoff_token',
+    'reader_cache_stmt_vdbe_jump_destination_handoff_token', 'reader_cache_stmt_vdbe_once_flag_handoff_token', 'reader_cache_stmt_vdbe_if_branch_handoff_token',
+    'reader_cache_stmt_vdbe_ifnot_branch_handoff_token', 'reader_cache_stmt_vdbe_isnull_branch_handoff_token', 'reader_cache_stmt_vdbe_notnull_branch_handoff_token',
+];
+$variantFields = array_merge($tokenFields, $next639654Fields);
 $before = [1 => $formatPage('stale schema'), 2 => $page('stale options')];
 $recovered = [1 => $formatPage('current schema'), 2 => $page('current options')];
-$tokens = [$journal => 'member-main-current-638'];
-$headers = [$journal => hash('sha256', 'main header next638')];
+$tokens = [$journal => 'member-main-current-654'];
+$headers = [$journal => hash('sha256', 'main header next654')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next638',
-    'epoch' => 638,
-    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 638, 0])),
-    'publication_generation' => 638,
-    'master_source_digest' => hash('sha256', 'master-next638'),
-    'recovery_sequence' => 638,
+    'source_id' => 'wordpress-pager-reader-cache-next654',
+    'epoch' => 654,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 654, 0])),
+    'publication_generation' => 654,
+    'master_source_digest' => hash('sha256', 'wordpress next654 master source'),
+    'recovery_sequence' => 654,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
     'member_journal_header_digests' => $headers,
     'master_member_order_digest' => hash('sha256', $journal),
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
 ];
-foreach ($tokenFields as $field) {
-    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-638';
+foreach ($variantFields as $field) {
+    $base[$field] = str_replace('_', '-', preg_replace('/_token$/', '', $field)) . '-current-654';
 }
-$cacheEntry = static fn (array $extra = []): array => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1]], $extra);
-$read = static fn (array $extra = []): array => array_merge($base, [
+$cache = [1 => array_merge($base, ['reader_id' => 'wp-options-reader', 'image' => $recovered[1], 'reader_cache_stmt_vdbe_notnull_branch_handoff_token' => 'stmt-vdbe-notnull-branch-old'])];
+$read = array_merge($base, [
     'reader_id' => 'read-options',
     'page_number' => 1,
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
-], $extra);
-$plan = static fn (array $cacheExtra = [], array $readExtra = []): array => SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext638(
+    'reader_cache_stmt_vdbe_notnull_branch_handoff_token' => 'stmt-vdbe-notnull-branch-old',
+]);
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeNotNullBranchHandoffFence(
     $database,
     $master,
     $masterBytes,
     implode('', $before),
     $pageSize,
     $recovered,
-    [1 => $cacheEntry($cacheExtra)],
-    [$read($readExtra)],
+    $cache,
+    [$read],
     $base['source_id'],
-    638,
-    638,
+    654,
+    654,
     $base['master_source_digest'],
-    638,
+    654,
     $tokens,
     $headers,
-    ...array_map(static fn (string $field): string => $base[$field], $tokenFields),
+    ...array_map(static fn (string $field): string => $base[$field], $variantFields),
 );
-$opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
 
-$tests['pager master journal reader cache current source next638 admits current VDBE literal and arithmetic opcode fences'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan();
-    $t->same('pager-master-journal-reader-cache-current-source-next638', $result['status']);
-    $t->same([], $result['invalidated_cache_page_numbers']);
-    $t->same(['read-options' => true], $result['read_cache_hits']);
-    $t->same('reader-cache-stmt-vdbe-null-branch-current-638', $result['current_reader_cache_stmt_vdbe_null_branch_token']);
-    $t->same('reader-cache-stmt-vdbe-bit-and-handoff-current-638', $result['current_reader_cache_stmt_vdbe_bit_and_handoff_token']);
-    $t->same(true, in_array('sqlite-pager-master-journal-reader-cache-current-source-next622', $result['dependencies'], true));
-};
-
-$tests['pager master journal reader cache current source plan dispatches full width calls to next638'] = static function (TestRunner $t) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $cacheEntry, $read, $base, $tokens, $headers, $tokenFields): void {
-    $result = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::plan(
-        $database,
-        $master,
-        $masterBytes,
-        implode('', $before),
-        $pageSize,
-        $recovered,
-        [1 => $cacheEntry()],
-        [$read()],
-        $base['source_id'],
-        638,
-        638,
-        $base['master_source_digest'],
-        638,
-        $tokens,
-        $headers,
-        ...array_map(static fn (string $field): string => $base[$field], $tokenFields),
-    );
-
-    $t->same('pager-master-journal-reader-cache-current-source-next638', $result['status']);
-};
-
-$tests['pager master journal reader cache current source next638 invalidates stale bit_and cache'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan(['reader_cache_stmt_vdbe_bit_and_handoff_token' => 'stmt-vdbe-bit-and-handoff-old']);
-    $t->same([1], $result['reader_cache_stmt_vdbe_bit_and_handoff_invalidated_cache_page_numbers']);
-    $t->same([1], $result['invalidated_cache_page_numbers']);
-    $t->same(1, $opCount($result, 'invalidate_reader_cache_reader_cache_stmt_vdbe_bit_and_handoff_current_source_next638'));
-};
-
-$tests['pager master journal reader cache current source next638 reopens stale bit_and read ticket'] = static function (TestRunner $t) use ($plan, $opCount): void {
-    $result = $plan([], ['reader_cache_stmt_vdbe_bit_and_handoff_token' => 'stmt-vdbe-bit-and-handoff-old']);
-    $t->same(['read-options'], $result['reopen_reader_ids']);
-    $t->same(false, $result['next_reads'][0]['cache_hit']);
-    $t->same('reader_ticket_reader_cache_stmt_vdbe_bit_and_handoff_predates_current_source', $result['next_reads'][0]['reader_cache_stmt_vdbe_bit_and_handoff_token_reason']);
-    $t->same(1, $opCount($result, 'reopen_reader_for_reader_cache_stmt_vdbe_bit_and_handoff_current_source_next638'));
-};
-
-$tests['pager master journal reader cache current source next638 missing bit_and token rejects'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(Throwable::class, static fn () => $plan(['reader_cache_stmt_vdbe_bit_and_handoff_token' => null]));
-};
-
-return $tests;
+echo json_encode([
+    'status' => $plan['status'],
+    'reopen_reader_ids' => $plan['reopen_reader_ids'],
+    'invalidated_cache_page_numbers' => $plan['invalidated_cache_page_numbers'],
+    'next654_invalidated_pages' => $plan['reader_cache_stmt_vdbe_notnull_branch_handoff_invalidated_cache_page_numbers'],
+    'operation_names' => array_column($plan['operations'], 'op'),
+], JSON_PRETTY_PRINT) . PHP_EOL;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
+final class SQLiteRowValueNestedSavepointReturningPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -20,26 +20,26 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
         array $outerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_outer_import_next175',
-        string $innerSavepoint = 'wp_inner_plugin_next175',
+        string $outerSavepoint = 'wp_outer_import',
+        string $innerSavepoint = 'wp_inner_plugin',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($innerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 needs inner statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint needs inner statements');
         }
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint needs outer statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint needs unique constraints');
         }
         self::identifier($outerSavepoint, 'outer savepoint');
         self::identifier($innerSavepoint, 'inner savepoint');
         if ($outerSavepoint === $innerSavepoint) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 savepoint names must differ');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint savepoint names must differ');
         }
 
         $outerImage = self::normalizeTables($tables);
@@ -71,7 +71,7 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
         $attempted = array_merge($innerExecuted, $outerExecuted);
 
         return [
-            'status' => 'nested-release-rolled-back-retried-current-source-next175',
+            'status' => 'nested-release-rolled-back-retried-current-source',
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
             'inner_released_into_outer' => true,
@@ -101,9 +101,9 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
             'row_counts' => self::rowCounts($retryCurrent),
             'changed_tables_after_retry' => self::changedTables($outerImage, $retryCurrent),
             'dependencies' => [
-                'sqlite-release-nested-savepoint-merges-rowvalue-returning-next175',
-                'sqlite-rollback-to-outer-discards-released-inner-returning-next175',
-                'sqlite-rowvalue-update-delete-returning-retry-after-nested-rollback-current-source-next175',
+                'sqlite-release-nested-savepoint-merges-rowvalue-returning',
+                'sqlite-rollback-to-outer-discards-released-inner-returning',
+                'sqlite-rowvalue-update-delete-returning-retry-after-nested-rollback-current-source',
             ],
         ];
     }
@@ -170,11 +170,11 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value nested savepoint tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value nested savepoint next175 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value nested savepoint rows must be arrays');
                 }
             }
         }
@@ -185,7 +185,7 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
     private static function identifier(string $value, string $label): void
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
-            throw new \InvalidArgumentException("SQLite row-value nested savepoint next175 {$label} is malformed");
+            throw new \InvalidArgumentException("SQLite row-value nested savepoint {$label} is malformed");
         }
     }
 
@@ -204,11 +204,11 @@ final class SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next175 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next175 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

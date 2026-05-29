@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerReturningSavepointCurrentNextPlan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerReturningSavepointPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
@@ -12,7 +12,7 @@ $rows = [
     ['option_id' => 3, 'option_name' => 'plugin_abort', 'option_value' => 'bad', 'autoload' => 'no', 'revision' => 1],
 ];
 
-$plan = SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows(
+$plan = SQLiteTriggerReturningSavepointPlan::updateRows(
     'wp_option_import',
     $rows,
     [
@@ -48,17 +48,17 @@ $plan = SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows(
 );
 
 if ($plan['status'] !== 'rolled-back' || $plan['rows'] !== $rows || count($plan['yield_stream']) !== 2 || count($plan['skipped']) !== 1) {
-    fwrite(STDERR, "wordpress-trigger-returning-savepoint-current-next65 self-test failed\n");
+    fwrite(STDERR, "wordpress-trigger-returning-savepoint self-test failed\n");
     exit(1);
 }
 
-fwrite(STDOUT, "wordpress-trigger-returning-savepoint-current-next65 self-test passed\n");
+fwrite(STDOUT, "wordpress-trigger-returning-savepoint self-test passed\n");
 fwrite(STDOUT, json_encode([
-    'scenario' => 'wordpress-trigger-returning-savepoint-current-next65',
+    'scenario' => 'wordpress-trigger-returning-savepoint',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
     'diagnostic_yields' => array_column(array_column($plan['yield_stream'], 'returning'), 'option_name'),
     'skipped_options' => array_column(array_column($plan['skipped'], 'current_row'), 'option_name'),
     'rollback_reason' => $plan['rollback_reason'],
-    'wordpressUse' => 'Preview wp_options trigger RETURNING current/next diagnostics when RAISE(IGNORE) skips plugin-owned rows and a later trigger RAISE(ROLLBACK) restores the import savepoint.',
+    'wordpressUse' => 'Preview wp_options trigger RETURNING diagnostics when RAISE(IGNORE) skips plugin-owned rows and a later trigger RAISE(ROLLBACK) restores the import savepoint.',
 ], JSON_PRETTY_PRINT) . PHP_EOL);

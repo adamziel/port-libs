@@ -150,11 +150,11 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         if (count($args) < 409) {
-            return self::variantNext638(...$args);
+            return self::currentSourceVdbeBitAndHandoffFence(...$args);
         }
 
         if (count($args) < 425) {
-            return self::variantNext654(...$args);
+            return self::currentSourceVdbeNotNullBranchHandoffFence(...$args);
         }
 
         if (count($args) < 441) {
@@ -30922,7 +30922,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext638(mixed ...$args): array
+    public static function currentSourceVdbeBitAndHandoffFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
@@ -30940,7 +30940,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next639 requires stmt-vdbe-bit-or-handoff token');
         }
-        $base = self::variantNext638(...$args);
+        $base = self::currentSourceVdbeBitAndHandoffFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_handoff_token', $currentToken, 639, 'reader_cache_stmt_vdbe_bit_or_handoff', 'reader_cache_stmt_vdbe_bit_or_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
     }
@@ -31114,7 +31114,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext654(mixed ...$args): array
+    public static function currentSourceVdbeNotNullBranchHandoffFence(mixed ...$args): array
     {
         $currentToken = array_pop($args);
         if (!is_string($currentToken)) {
@@ -31132,7 +31132,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         if (!is_string($currentToken)) {
             throw new \InvalidArgumentException('SQLite pager master-journal reader-cache not-equal branch handoff requires stmt-vdbe-ne-branch-handoff token');
         }
-        $base = self::variantNext654(...$args);
+        $base = self::currentSourceVdbeNotNullBranchHandoffFence(...$args);
 
         return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 655, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
     }

@@ -5,20 +5,20 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
-$currentOptions177 = [
+$currentOptionsUnionAllBoundary = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'weight' => 60],
     ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 55],
     ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'weight' => 50],
     ['option_id' => 4, 'option_name' => 'transient_cache', 'autoload' => 'no', 'weight' => 99],
 ];
-$nextOptions177 = [
-    ...$currentOptions177,
+$nextOptionsUnionAllBoundary = [
+    ...$currentOptionsUnionAllBoundary,
     ['option_id' => 5, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'weight' => 68],
 ];
-$currentTables177 = ['wp_options' => $currentOptions177];
-$nextTables177 = ['wp_options' => $nextOptions177];
+$currentTablesUnionAllBoundary = ['wp_options' => $currentOptionsUnionAllBoundary];
+$nextTablesUnionAllBoundary = ['wp_options' => $nextOptionsUnionAllBoundary];
 
-$sql177 = <<<'SQL'
+$sqlUnionAllBoundary = <<<'SQL'
 WITH RECURSIVE q(id, label, weight) AS (
     VALUES (1, 'seed', 70)
     UNION ALL
@@ -41,23 +41,23 @@ SELECT option_id AS id,
  LIMIT 8
 SQL;
 
-$summary177 = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext177($sql177, $currentTables177, $nextTables177);
+$summaryUnionAllBoundary = static fn (): array => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllWindowFinalLimitBoundary($sqlUnionAllBoundary, $currentTablesUnionAllBoundary, $nextTablesUnionAllBoundary);
 $tests = [];
 
-$tests['compound select window recursive limit current source next177 status dependencies'] = static function (TestRunner $t) use ($summary177): void {
-    $plan = $summary177();
-    $t->same('compound-select-window-recursive-limit-current-source-next177-ready', $plan['status']);
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary status dependencies'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $plan = $summaryUnionAllBoundary();
+    $t->same('compound-select-window-recursive-limit-current-source-union-all-window-final-limit-boundary-ready', $plan['status']);
     $t->same([
-        'sqlite-select-sql-recursive-cte-limit-next177',
-        'sqlite-select-sql-compound-union-all-window-next177',
-        'sqlite-select-sql-final-limit-current-next-boundary-next177',
-        'sqlite-current-source-next177',
+        'sqlite-select-sql-recursive-cte-limit-union-all-window-final-limit-boundary',
+        'sqlite-select-sql-compound-union-all-window-union-all-window-final-limit-boundary',
+        'sqlite-select-sql-final-limit-current-next-boundary-union-all-window-final-limit-boundary',
+        'sqlite-current-source-union-all-window-final-limit-boundary',
     ], $plan['dependencies']);
     $t->contains('no new support component needed', $plan['dependency_closure']);
 };
 
-$tests['compound select window recursive limit current source next177 compound metadata'] = static function (TestRunner $t) use ($summary177): void {
-    $compound = $summary177()['compound'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary compound metadata'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $compound = $summaryUnionAllBoundary()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
     $t->same(2, $compound['nextArms']);
@@ -68,22 +68,22 @@ $tests['compound select window recursive limit current source next177 compound m
     $t->true($compound['nextPreLimitOverflowsFinalLimit']);
 };
 
-$tests['compound select window recursive limit current source next177 current rows'] = static function (TestRunner $t) use ($summary177): void {
-    $rows = $summary177()['currentRows'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary current rows'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $rows = $summaryUnionAllBoundary()['currentRows'];
     $t->same([1, 1, 2, 2, 3, 3, 4, 5], array_column($rows, 'id'));
     $t->same(['seed', 'siteurl', 'seed:2', 'home', 'seed:2:3', 'blogname', 'seed:2:3:4', 'seed:2:3:4:5'], array_column($rows, 'label'));
     $t->same([1, 1, 2, 2, 3, 3, 4, 5], array_column($rows, 'bucket'));
 };
 
-$tests['compound select window recursive limit current source next177 next rows'] = static function (TestRunner $t) use ($summary177): void {
-    $rows = $summary177()['nextRows'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary next rows'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $rows = $summaryUnionAllBoundary()['nextRows'];
     $t->same([1, 5, 1, 2, 2, 3, 3, 4], array_column($rows, 'id'));
     $t->same(['seed', 'rewrite_rules', 'siteurl', 'seed:2', 'home', 'seed:2:3', 'blogname', 'seed:2:3:4'], array_column($rows, 'label'));
     $t->same([1, 1, 2, 2, 3, 3, 4, 4], array_column($rows, 'bucket'));
 };
 
-$tests['compound select window recursive limit current source next177 prelimit and trace'] = static function (TestRunner $t) use ($summary177): void {
-    $plan = $summary177();
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary prelimit and trace'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $plan = $summaryUnionAllBoundary();
     $t->same(8, count($plan['currentPreLimitRows']));
     $t->same(9, count($plan['nextPreLimitRows']));
     $t->same('seed:2:3:4:5', $plan['limitTrace']['next']['firstTruncated']['label']);
@@ -93,16 +93,16 @@ $tests['compound select window recursive limit current source next177 prelimit a
     $t->same(['seed', 'seed:2', 'seed:2:3', 'seed:2:3:4', 'seed:2:3:4:5'], array_column($plan['recursive']['currentRows'], 'label'));
 };
 
-$tests['compound select window recursive limit current source next177 window metadata'] = static function (TestRunner $t) use ($summary177): void {
-    $windows = $summary177()['windows'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary window metadata'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $windows = $summaryUnionAllBoundary()['windows'];
     $t->same(['row_number', 'dense_rank'], $windows['functions']);
     $t->same(['bucket', 'bucket'], array_column($windows['current'], 'alias'));
     $t->same([2, 2], array_column($windows['current'], 'orderCount'));
     $t->same([0, 0], array_column($windows['current'], 'partitionCount'));
 };
 
-$tests['compound select window recursive limit current source next177 boundary delta'] = static function (TestRunner $t) use ($summary177): void {
-    $boundary = $summary177()['boundary'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary boundary delta'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $boundary = $summaryUnionAllBoundary()['boundary'];
     $t->same('seed', $boundary['currentFirst']['label']);
     $t->same('seed', $boundary['nextFirst']['label']);
     $t->same('seed:2:3:4:5', $boundary['currentLast']['label']);
@@ -111,8 +111,8 @@ $tests['compound select window recursive limit current source next177 boundary d
     $t->contains('"label":"seed:2:3:4:5"', implode("\n", $boundary['lostRows']));
 };
 
-$tests['compound select window recursive limit current source next177 rank delta'] = static function (TestRunner $t) use ($summary177): void {
-    $rank = $summary177()['rankDelta'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary rank delta'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $rank = $summaryUnionAllBoundary()['rankDelta'];
     $t->same(1, $rank['currentBucketsByLabel']['siteurl']);
     $t->same(2, $rank['nextBucketsByLabel']['siteurl']);
     $t->same(2, $rank['currentBucketsByLabel']['home']);
@@ -121,8 +121,8 @@ $tests['compound select window recursive limit current source next177 rank delta
     $t->true(in_array('blogname', $rank['changedLabels'], true));
 };
 
-$tests['compound select window recursive limit current source next177 limit trace'] = static function (TestRunner $t) use ($summary177): void {
-    $trace = $summary177()['limitTrace'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary limit trace'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $trace = $summaryUnionAllBoundary()['limitTrace'];
     $t->same(8, $trace['current']['preLimitCount']);
     $t->same(8, $trace['current']['acceptedCount']);
     $t->same([], $trace['current']['truncatedAfterLimit']);
@@ -131,8 +131,8 @@ $tests['compound select window recursive limit current source next177 limit trac
     $t->same(['seed:2:3:4:5'], array_column($trace['next']['truncatedAfterLimit'], 'label'));
 };
 
-$tests['compound select window recursive limit current source next177 replan reasons'] = static function (TestRunner $t) use ($summary177): void {
-    $reasons = $summary177()['replanReasons'];
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary replan reasons'] = static function (TestRunner $t) use ($summaryUnionAllBoundary): void {
+    $reasons = $summaryUnionAllBoundary()['replanReasons'];
     $t->true(in_array('compound-final-limit-current-next-boundary', $reasons, true));
     $t->true(in_array('current-rowset-exactly-fills-final-limit', $reasons, true));
     $t->true(in_array('next-source-rowset-truncated-after-final-limit', $reasons, true));
@@ -141,32 +141,32 @@ $tests['compound select window recursive limit current source next177 replan rea
     $t->true(in_array('window-evaluated-before-compound-final-limit', $reasons, true));
 };
 
-$tests['compound select window recursive limit current source next177 rejects union distinct'] = static function (TestRunner $t) use ($currentTables177): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext177(
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary rejects union distinct'] = static function (TestRunner $t) use ($currentTablesUnionAllBoundary): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllWindowFinalLimitBoundary(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 70) UNION ALL SELECT id + 1, label, weight - 5 FROM q WHERE id < 6 LIMIT 5) SELECT id, label, row_number() OVER (ORDER BY weight) AS bucket FROM q UNION SELECT option_id, option_name, dense_rank() OVER (ORDER BY weight) FROM wp_options ORDER BY bucket LIMIT 8",
-        $currentTables177,
-        $currentTables177,
+        $currentTablesUnionAllBoundary,
+        $currentTablesUnionAllBoundary,
     ));
 };
 
-$tests['compound select window recursive limit current source next177 rejects missing recursive limit'] = static function (TestRunner $t) use ($currentTables177): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext177(
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary rejects missing recursive limit'] = static function (TestRunner $t) use ($currentTablesUnionAllBoundary): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllWindowFinalLimitBoundary(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 70) UNION ALL SELECT id + 1, label, weight - 5 FROM q WHERE id < 6) SELECT id, label, row_number() OVER (ORDER BY weight) AS bucket FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY weight) FROM wp_options ORDER BY bucket LIMIT 8",
-        $currentTables177,
-        $currentTables177,
+        $currentTablesUnionAllBoundary,
+        $currentTablesUnionAllBoundary,
     ));
 };
 
-$tests['compound select window recursive limit current source next177 rejects missing window'] = static function (TestRunner $t) use ($currentTables177): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext177(
+$tests['compound select window recursive limit current-source union-all-window-final-limit-boundary rejects missing window'] = static function (TestRunner $t) use ($currentTablesUnionAllBoundary): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllWindowFinalLimitBoundary(
         "WITH RECURSIVE q(id, label, weight) AS (VALUES (1, 'seed', 70) UNION ALL SELECT id + 1, label, weight - 5 FROM q WHERE id < 6 LIMIT 5) SELECT id, label, weight AS bucket FROM q UNION ALL SELECT option_id, option_name, weight FROM wp_options ORDER BY bucket LIMIT 8",
-        $currentTables177,
-        $currentTables177,
+        $currentTablesUnionAllBoundary,
+        $currentTablesUnionAllBoundary,
     ));
 };
 
 foreach (range(1, 50) as $case) {
-    $tests['compound select window recursive limit current source next177 generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select window recursive limit current-source union-all-window-final-limit-boundary generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
             'wp_options' => [
                 ['option_id' => 1, 'option_name' => 'siteurl_' . $case, 'autoload' => 'yes', 'weight' => 60 + $case],

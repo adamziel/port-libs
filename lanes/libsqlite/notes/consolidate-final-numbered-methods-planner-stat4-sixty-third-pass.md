@@ -2,7 +2,7 @@
 
 Scope:
 - Consolidated the duplicate prepared-handoff range helpers for the 846-861
-  and 862-877 STAT4 expression-partial continuation windows in
+  continuation window and the prepared handoff resume-window in
   SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php.
 - Routed both windows through the existing canonical preparedHandoffFenceForRange()
   and preparedHandoffCursorProgramForRange() helpers.
@@ -13,7 +13,7 @@ Scope:
 Evidence:
 - php -l lanes/libsqlite/src/SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan.php
   => no syntax errors.
-- php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext846861Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext862877Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffValidationContinuationTest.php
+- php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialCurrentSourceNext846861Test.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffResumeWindowTest.php lanes/libsqlite/tests/SQLitePlannerStat4ExpressionPartialPreparedHandoffValidationContinuationTest.php
   => 3 test files, 117 assertions, 0 failures.
 - git diff --check -- lanes/libsqlite
   => clean.

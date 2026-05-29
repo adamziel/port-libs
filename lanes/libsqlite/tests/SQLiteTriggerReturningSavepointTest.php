@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointCurrentNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointPlan;
 
 $rows = [
     ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 1],
@@ -52,7 +52,7 @@ $baseTriggers = [
     ],
 ];
 
-$commit = static fn (): array => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows(
+$commit = static fn (): array => SQLiteTriggerReturningSavepointPlan::updateRows(
     'wp_import_current',
     $rows,
     $assignments,
@@ -72,7 +72,7 @@ $rollbackTriggers[] = [
     'reason' => 'bad plugin option aborts import',
 ];
 
-$rollback = static fn (): array => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows(
+$rollback = static fn (): array => SQLiteTriggerReturningSavepointPlan::updateRows(
     'wp_import_current',
     $rows,
     $assignments,
@@ -81,7 +81,7 @@ $rollback = static fn (): array => SQLiteTriggerReturningSavepointCurrentNextPla
     $returning,
 );
 
-$star = static fn (): array => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows(
+$star = static fn (): array => SQLiteTriggerReturningSavepointPlan::updateRows(
     'wp_import_current',
     $rows,
     ['option_value' => 'star'],
@@ -131,7 +131,7 @@ $cases = [
     'commit trigger effect ordinals' => [static fn (): mixed => array_column($commit()['trigger_effects'], 'ordinal'), [0, 0, 1, 1, 3]],
     'commit trigger effect projection names' => [static fn (): mixed => array_column(array_column($commit()['trigger_effects'], 'row'), 'name'), ['siteurl', 'siteurl', 'home', 'home', 'bad_plugin']],
     'commit discarded empty' => [static fn (): mixed => $commit()['discarded'], []],
-    'commit dependencies include current next marker' => [static fn (): mixed => in_array('sqlite-trigger-returning-current-next65', $commit()['dependencies'], true), true],
+    'commit dependencies include trigger returning savepoint marker' => [static fn (): mixed => in_array('sqlite-trigger-returning-savepoint', $commit()['dependencies'], true), true],
     'commit dependencies include ignore marker' => [static fn (): mixed => in_array('sqlite-trigger-raise-ignore-yield', $commit()['dependencies'], true), true],
     'commit dependencies include rollback marker' => [static fn (): mixed => in_array('sqlite-savepoint-rollback-yield-suppression', $commit()['dependencies'], true), true],
 
@@ -157,15 +157,15 @@ $cases = [
     'rollback final trigger effect reason' => [static fn (): mixed => $rollback()['trigger_effects'][array_key_last($rollback()['trigger_effects'])]['reason'], 'bad plugin option aborts import'],
 
     'star projection returns complete next row' => [static fn (): mixed => $star()['returning_rows'][0]['*']['option_value'], 'star'],
-    'bad savepoint throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows('bad-name', $rows, $assignments, static fn (): bool => true), InvalidArgumentException::class],
-    'missing assignments throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows('ok_name', $rows, [], static fn (): bool => true), InvalidArgumentException::class],
-    'bad trigger raise throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows('ok_name', $rows, $assignments, static fn (): bool => true, [['timing' => 'before', 'event' => 'update', 'action' => 'raise', 'raise' => 'abort']]), InvalidArgumentException::class],
-    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointCurrentNextPlan::updateRows('ok_name', $rows, $assignments, static fn (): bool => true, [], [['expr' => 'new.option_name', 'as' => 'bad-alias']]), InvalidArgumentException::class],
+    'bad savepoint throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointPlan::updateRows('bad-name', $rows, $assignments, static fn (): bool => true), InvalidArgumentException::class],
+    'missing assignments throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointPlan::updateRows('ok_name', $rows, [], static fn (): bool => true), InvalidArgumentException::class],
+    'bad trigger raise throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointPlan::updateRows('ok_name', $rows, $assignments, static fn (): bool => true, [['timing' => 'before', 'event' => 'update', 'action' => 'raise', 'raise' => 'abort']]), InvalidArgumentException::class],
+    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningSavepointPlan::updateRows('ok_name', $rows, $assignments, static fn (): bool => true, [], [['expr' => 'new.option_name', 'as' => 'bad-alias']]), InvalidArgumentException::class],
 ];
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['trigger returning savepoint current next65 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['trigger returning savepoint ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

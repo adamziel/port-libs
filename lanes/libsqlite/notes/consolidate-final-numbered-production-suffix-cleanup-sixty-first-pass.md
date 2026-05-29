@@ -20,5 +20,5 @@ Dependency closure: no new support component is needed; this pass only renames
 the existing native PHP cursor-paging helper surface.
 
 Non-overlap: this is a suffix consolidation slice only. It does not change
-compound SELECT behavior and keeps the exact user-named `Next150` suffix absent
+compound SELECT behavior and keeps the exact user-named suffix absent
 from the touched production/test/example family.

@@ -28,12 +28,12 @@ $pages[1] = $firstPage;
 $pages[2] = str_repeat("\0", 512);
 $pages[3] = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_next256', str_repeat('cache:', 42)])),
+    SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_publication', str_repeat('cache:', 42)])),
     SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
 ]);
 $pages[105] = str_repeat("\0", 512);
 foreach ([106 => 107, 107 => 108, 108 => 109, 109 => 110, 110 => 0] as $pageNumber => $nextPage) {
-    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(70 + ($pageNumber - 105)), 508);
+    $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(74 + ($pageNumber - 105)), 508);
 }
 
 $putPointerMapEntry = static function (int $pageNumber, int $type, int $parentPageNumber) use (&$pages): void {
@@ -63,7 +63,7 @@ foreach ([
 
 $database = SQLiteDatabase::fromBytes(implode('', $pages));
 $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafReceiptPublicationFromDeleteResult(
+$plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafPublicationFromDeleteResult(
     $database,
     3,
     [
@@ -72,7 +72,7 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafRece
         'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
     ],
     2,
-    str_repeat('next256-current-source-', 50),
+    str_repeat('publication-current-source-', 50),
     3,
     true,
     2,
@@ -80,33 +80,29 @@ $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafRece
 $summary = $plan->publicationSummary();
 
 echo json_encode([
-    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-next256',
-    'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient, publish reusable current-source pages only after pointer-map generations and freeblock receipts are commit-ready.',
+    'scenario' => 'wordpress-btree-vacuum-pointermap-freeblock-current-source-publication',
+    'wordpressUse' => 'After deleting an overflow-backed copied wp_options transient, publish current-source next pages only after pointer-map and freeblock visibility make payload reuse safe.',
     'status' => $summary['status'],
     'published_pages' => $summary['published_pages'],
+    'next_published_pages' => $summary['next_published_pages'],
     'pointer_map_publication_pages' => $summary['pointer_map_publication_pages'],
-    'freeblock_receipt_pages' => $summary['freeblock_receipt_pages'],
-    'reusable_payload_pages' => $summary['reusable_payload_pages'],
-    'duplicate_pointer_map_pages' => $summary['duplicate_pointer_map_pages'],
+    'freeblock_payload_publication_pages' => $summary['freeblock_payload_publication_pages'],
+    'duplicate_pointer_map_publication_pages' => $summary['duplicate_pointer_map_publication_pages'],
     'published_pages_match_admitted_pages' => $summary['published_pages_match_admitted_pages'],
-    'all_pointer_maps_publish_before_payload_reuse' => $summary['all_pointer_maps_publish_before_payload_reuse'],
-    'all_freeblock_receipts_visible_before_reuse' => $summary['all_freeblock_receipts_visible_before_reuse'],
-    'all_payload_reuse_has_cursor_advance' => $summary['all_payload_reuse_has_cursor_advance'],
-    'all_tail_pages_remain_fenced' => $summary['all_tail_pages_remain_fenced'],
+    'all_payload_publications_wait_for_pointer_maps' => $summary['all_payload_publications_wait_for_pointer_maps'],
+    'all_tail_pages_remain_fenced_for_publication' => $summary['all_tail_pages_remain_fenced_for_publication'],
 ], JSON_PRETTY_PRINT) . PHP_EOL;
 
 if (
-    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-next256-ready'
+    $summary['status'] === 'btree-vacuum-pointermap-freeblock-current-source-publication-ready'
     && $summary['published_pages'] === [2, 3, 105, 106, 105, 107, 108]
+    && $summary['next_published_pages'] === [3, 105, 106, 105, 107, 108, null]
     && $summary['pointer_map_publication_pages'] === [2, 105]
-    && $summary['freeblock_receipt_pages'] === [2, 3, 105, 106, 107, 108]
-    && $summary['reusable_payload_pages'] === [3, 106, 107, 108]
-    && $summary['duplicate_pointer_map_pages'] === [105]
+    && $summary['freeblock_payload_publication_pages'] === [3, 106, 107, 108]
+    && $summary['duplicate_pointer_map_publication_pages'] === [105]
     && $summary['published_pages_match_admitted_pages'] === true
-    && $summary['all_pointer_maps_publish_before_payload_reuse'] === true
-    && $summary['all_freeblock_receipts_visible_before_reuse'] === true
-    && $summary['all_payload_reuse_has_cursor_advance'] === true
-    && $summary['all_tail_pages_remain_fenced'] === true
+    && $summary['all_payload_publications_wait_for_pointer_maps'] === true
+    && $summary['all_tail_pages_remain_fenced_for_publication'] === true
 ) {
-    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-next256 self-test passed\n";
+    echo "wordpress-btree-vacuum-pointermap-freeblock-current-source-publication self-test passed\n";
 }

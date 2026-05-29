@@ -43,14 +43,14 @@ SELECT option_id AS id,
  LIMIT 8
 SQL;
 
-$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext177($sql, $current, $next);
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionAllWindowFinalLimitBoundary($sql, $current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['compound']['currentLimitExactlyFilled'] === true);
     assert($plan['compound']['nextPreLimitOverflowsFinalLimit'] === true);
     assert($plan['limitTrace']['next']['firstTruncated']['label'] === 'seed:2:3:4:5');
     assert(array_key_exists('rewrite_rules', $plan['rankDelta']['nextBucketsByLabel']));
-    echo "wordpress-compound-select-window-recursive-limit-current-source-next177 self-test passed\n";
+    echo "wordpress-compound-select-window-recursive-limit-union-all-window-final-limit-boundary self-test passed\n";
     return;
 }
 

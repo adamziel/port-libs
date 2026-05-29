@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueNestedSavepointReturningPlan;
 
 $rows = [
     ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'status' => 'live', 'bytes' => 20, 'option_value' => 'https://site.test'],
@@ -24,7 +24,7 @@ $outerDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) = (3, 're
 $retryUpdateSql = "UPDATE wp_options SET (status, option_value, bytes) = ('retry-after-outer', option_value || ':retry', bytes + 1) WHERE (blog_id, status) IS NOT DISTINCT FROM (3, 'queued') RETURNING option_id, blog_id, option_name, status, option_value, bytes, (blog_id, status) IS (3, 'retry-after-outer') AS retry_tuple ORDER BY option_id";
 $retryDeleteSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name, (blog_id, option_name) IS DISTINCT FROM (1, 'siteurl') AS retry_delete_match ORDER BY option_id LIMIT 1";
 
-$plan = SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute(
+$plan = SQLiteRowValueNestedSavepointReturningPlan::execute(
     ['wp_options' => $rows],
     [$innerUpdateSql, $innerDeleteSql],
     [$outerDeleteSql],
@@ -33,7 +33,7 @@ $plan = SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute(
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'nested-release-rolled-back-retried-current-source-next175');
+    assert($plan['status'] === 'nested-release-rolled-back-retried-current-source');
     assert($plan['inner_released_returning_count'] === 5);
     assert($plan['discarded_by_outer_rollback_count'] === 6);
     assert($plan['yielded_after_retry_count'] === 3);

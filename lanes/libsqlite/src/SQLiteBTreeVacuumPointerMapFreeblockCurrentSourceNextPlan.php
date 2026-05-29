@@ -5532,7 +5532,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
         $rows = self::buildPublicationRows($admissionPlan);
         $errors = self::publicationErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next255 publication failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source publication failed: ' . implode('; ', $errors));
         }
 
         return new self($admissionPlan, $rows);
@@ -5610,7 +5610,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
         $admissionSummary = $this->admissionPlan->admissionSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next255-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-publication-ready',
             'publication_row_count' => count($this->publicationRows),
             'published_pages' => $this->publishedPages(),
             'next_published_pages' => $this->nextPublishedPages(),
@@ -5626,17 +5626,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
             'all_tail_pages_remain_fenced_for_publication' => !in_array(false, array_column($this->publicationRows, 'tail_pages_remain_fenced_for_publication'), true),
             'publication_errors' => $this->publicationErrors(),
             'publication_signature' => self::signature($this->publicationTokens()),
-            'current_source_next255_token' => self::signature(array_merge(
-                ['next255', $admissionSummary['current_source_next251_token']],
+            'current_source_publication_token' => self::signature(array_merge(
+                ['publication', $admissionSummary['current_source_next251_token']],
                 $this->publishedPages(),
                 $this->publicationTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next251',
-                'sqlite-current-source-next255',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-admission',
+                'sqlite-current-source-publication',
             ],
-            'dependency_closure' => 'no new support component needed; next255 reuses next251 admission rows and publishes current-source next-page order for pointer-map/freeblock visibility',
-            'non_overlap' => 'adds current-source next-page publication after next251 cursor admission; does not repeat next251 admission, next248 sealing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; current-source publication reuses cursor-admission rows and publishes current-source next-page order for pointer-map/freeblock visibility',
+            'non_overlap' => 'adds current-source next-page publication after cursor admission; does not repeat cursor admission, next248 sealing, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -5646,7 +5646,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next255',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-publication',
             'publication_summary' => $this->publicationSummary(),
             'publication_errors' => $this->publicationErrors(),
             'publication_rows' => $this->publicationRows,
@@ -5702,7 +5702,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
 
             $nextPage = $admissionRows[$index + 1]['admitted_page'] ?? null;
             $token = self::signature(array_merge(
-                ['next255', $previousPublicationToken ?? 'initial', $admissionRow['admission_token']],
+                ['publication', $previousPublicationToken ?? 'initial', $admissionRow['admission_token']],
                 [$ordinal, $pageNumber, $nextPage ?? 'eof', $channel, $payloadPublished],
                 self::generationParts($publishedPointerMaps),
                 self::sortedIntKeys($publishedPayloads),
@@ -5725,7 +5725,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourcePublicationVariant
                 'freeblock_payload_published' => $channel !== 'payload' || $payloadPublished,
                 'duplicate_pointer_map_generation_carried' => $channel === 'pointer-map' && ($publishedPointerMaps[$pageNumber] ?? 0) > 1,
                 'tail_pages_remain_fenced_for_publication' => $admissionRow['tail_pages_remain_fenced'] === true && !in_array($pageNumber, [109, 110], true),
-                'publication_state' => $payloadPublished ? 'current-source-next255-payload-published' : 'current-source-next255-pointer-map-published',
+                'publication_state' => $payloadPublished ? 'current-source-payload-published' : 'current-source-pointer-map-published',
                 'publication_token' => $token,
             ];
 
@@ -5862,7 +5862,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
         $rows = self::buildPublicationRows($admissionPlan);
         $errors = self::publicationErrorsForRows($rows);
         if ($errors !== []) {
-            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next256 publication failed: ' . implode('; ', $errors));
+            throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source receipt publication failed: ' . implode('; ', $errors));
         }
 
         return new self($admissionPlan, $rows);
@@ -5940,7 +5940,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
         $admissionSummary = $this->admissionPlan->admissionSummary();
 
         return [
-            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next256-ready',
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-receipt-publication-ready',
             'publication_row_count' => count($this->publicationRows),
             'published_pages' => $this->publishedPages(),
             'admitted_pages' => $admissionSummary['admitted_pages'],
@@ -5957,17 +5957,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
             'all_tail_pages_remain_fenced' => !in_array(false, array_column($this->publicationRows, 'tail_pages_remain_fenced'), true),
             'publication_errors' => $this->publicationErrors(),
             'publication_signature' => self::signature($this->publicationTokens()),
-            'current_source_next256_token' => self::signature(array_merge(
-                ['next256', $admissionSummary['current_source_next251_token']],
+            'current_source_receipt_publication_token' => self::signature(array_merge(
+                ['receipt-publication', $admissionSummary['current_source_next251_token']],
                 $this->publishedPages(),
                 $this->publicationTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next251',
-                'sqlite-current-source-next256',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-admission',
+                'sqlite-current-source-receipt-publication',
             ],
-            'dependency_closure' => 'no new support component needed; next256 reuses next251 admission rows and adds commit-ready publication ordering for pointer-map generations, freeblock receipts, and reusable payload pages',
-            'non_overlap' => 'adds the current-source next256 publication fence after next251 cursor admission; does not repeat next251 admission, next248 sealing, next235 checkpoints, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+            'dependency_closure' => 'no new support component needed; current-source receipt publication reuses cursor-admission rows and adds commit-ready publication ordering for pointer-map generations, freeblock receipts, and reusable payload pages',
+            'non_overlap' => 'adds the current-source receipt publication fence after cursor admission; does not repeat cursor admission, next248 sealing, next235 checkpoints, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
         ];
     }
 
@@ -5977,7 +5977,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
     public function toArray(): array
     {
         return [
-            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next256',
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-receipt-publication',
             'publication_summary' => $this->publicationSummary(),
             'publication_errors' => $this->publicationErrors(),
             'publication_rows' => $this->publicationRows,
@@ -6039,7 +6039,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
             $hasPointerMap = $publishedPointerMaps !== [];
             $hasFreeblockReceipt = $visibleFreeblockReceipts !== [];
             $token = self::signature(array_merge(
-                ['next256', $previousToken ?? 'initial', $admissionRow['admission_token']],
+                ['receipt-publication', $previousToken ?? 'initial', $admissionRow['admission_token']],
                 [$ordinal, $pageNumber, $publicationChannel, $duplicatePointerMap, $hasPointerMap, $hasFreeblockReceipt],
                 self::generationParts($pointerMapGenerations),
                 self::sortedIntKeys($visibleFreeblockReceipts),
@@ -6067,7 +6067,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
                 'payload_reuse_has_cursor_advance' => !$isPayload || $admissionRow['source_cursor_can_advance'] === true,
                 'duplicate_pointer_map_keeps_generation' => !$duplicatePointerMap || ($pointerMapGenerations[$pageNumber] ?? 0) > 1,
                 'tail_pages_remain_fenced' => $admissionRow['tail_pages_remain_fenced'] === true && !in_array($pageNumber, [109, 110], true),
-                'publication_state' => 'current-source-next256-publication-committed',
+                'publication_state' => 'current-source-publication-committed',
                 'publication_token' => $token,
             ];
 
@@ -6088,7 +6088,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReceiptPublicationV
         $previousOrdinal = 0;
 
         foreach ($rows as $row) {
-            if ($row['publication_state'] !== 'current-source-next256-publication-committed') {
+            if ($row['publication_state'] !== 'current-source-publication-committed') {
                 $errors[] = "publication {$row['publication_ordinal']} is not committed";
             }
             if ((int) $row['publication_ordinal'] !== $previousOrdinal + 1) {
@@ -6969,17 +6969,17 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceSourceHandoffVarian
             'source_next_errors' => $this->sourceNextErrors(),
             'source_next_signature' => self::signature($this->sourceNextTokens()),
             'current_source_next259_token' => self::signature(array_merge(
-                ['next259', $publicationSummary['current_source_next255_token']],
+                ['next259', $publicationSummary['current_source_publication_token']],
                 $this->sourcePages(),
                 $this->sourceNextPages(),
                 $this->sourceNextTokens(),
             )),
             'dependencies' => [
-                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next255',
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-publication',
                 'sqlite-current-source-next259',
             ],
-            'dependency_closure' => 'no new support component needed; next259 reuses next255 publication rows and validates current-source next links before freeblock/payload reuse',
-            'non_overlap' => 'adds current-source next-link validation after next255 publication; does not repeat next255 publication, next251 admission, next254 write slots, overflow freelist release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
+            'dependency_closure' => 'no new support component needed; current-source next-link validation reuses publication rows and validates current-source next links before freeblock/payload reuse',
+            'non_overlap' => 'adds current-source next-link validation after publication; does not repeat publication, next251 admission, next254 write slots, overflow freelist release, page relocation, root collapse, VFS, WAL, JSON, SQL, or encoding behavior',
         ];
     }
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteRowValueNestedSavepointReturningPlan;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteReturningSql;
 
 $rows = [
@@ -33,21 +33,21 @@ $innerReleasedOnly = static function () use ($innerUpdateSql, $innerDeleteSql, $
 
     return SQLiteUpdateDeleteReturningSql::execute($innerDeleteSql, $updated['tables'], 'option_id', $unique);
 };
-$plan = static fn (): array => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute(
+$plan = static fn (): array => SQLiteRowValueNestedSavepointReturningPlan::execute(
     $tables,
     [$innerUpdateSql, $innerDeleteSql],
     [$outerDeleteSql],
     [$retryUpdateSql, $retryDeleteSql],
     $unique,
 );
-$customPlan = static fn (): array => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute(
+$customPlan = static fn (): array => SQLiteRowValueNestedSavepointReturningPlan::execute(
     $tables,
     [$innerUpdateSql],
     [$outerDeleteSql],
     [$retryUpdateSql],
     $unique,
-    'wp_outer_custom_next175',
-    'wp_inner_custom_next175',
+    'wp_outer_custom',
+    'wp_inner_custom',
 );
 
 $cases = [
@@ -62,9 +62,9 @@ $cases = [
     'inner released only deletes transient ids' => [static fn (): mixed => $innerReleasedOnly()['plan']->selectedIds, [3, 4]],
     'inner released only current ids omit transients' => [static fn (): mixed => array_column($innerReleasedOnly()['tables']['wp_options'], 'option_id'), [1, 2, 5, 6, 7, 8, 9]],
 
-    'plan status' => [static fn (): mixed => $plan()['status'], 'nested-release-rolled-back-retried-current-source-next175'],
-    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_outer_import_next175'],
-    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_inner_plugin_next175'],
+    'plan status' => [static fn (): mixed => $plan()['status'], 'nested-release-rolled-back-retried-current-source'],
+    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_outer_import'],
+    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_inner_plugin'],
     'plan inner released into outer' => [static fn (): mixed => $plan()['inner_released_into_outer'], true],
     'plan rolled back to outer' => [static fn (): mixed => $plan()['rolled_back_to_outer_savepoint'], true],
     'plan inner inactive after release' => [static fn (): mixed => $plan()['inner_savepoint_no_longer_active_after_release'], true],
@@ -114,25 +114,25 @@ $cases = [
     'plan row count eight' => [static fn (): mixed => $plan()['row_counts']['wp_options'], 8],
     'plan changed tables wp options' => [static fn (): mixed => $plan()['changed_tables_after_retry'], ['wp_options']],
     'plan savepoint image unchanged' => [static fn (): mixed => $plan()['outer_savepoint_image_tables'], $tables],
-    'plan dependency release nested' => [static fn (): mixed => in_array('sqlite-release-nested-savepoint-merges-rowvalue-returning-next175', $plan()['dependencies'], true), true],
-    'plan dependency outer rollback discards inner' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-discards-released-inner-returning-next175', $plan()['dependencies'], true), true],
-    'plan dependency retry current source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-after-nested-rollback-current-source-next175', $plan()['dependencies'], true), true],
-    'custom outer savepoint accepted' => [static fn (): mixed => $customPlan()['outer_savepoint'], 'wp_outer_custom_next175'],
-    'custom inner savepoint accepted' => [static fn (): mixed => $customPlan()['inner_savepoint'], 'wp_inner_custom_next175'],
+    'plan dependency release nested' => [static fn (): mixed => in_array('sqlite-release-nested-savepoint-merges-rowvalue-returning', $plan()['dependencies'], true), true],
+    'plan dependency outer rollback discards inner' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-discards-released-inner-returning', $plan()['dependencies'], true), true],
+    'plan dependency retry current source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-returning-retry-after-nested-rollback-current-source', $plan()['dependencies'], true), true],
+    'custom outer savepoint accepted' => [static fn (): mixed => $customPlan()['outer_savepoint'], 'wp_outer_custom'],
+    'custom inner savepoint accepted' => [static fn (): mixed => $customPlan()['inner_savepoint'], 'wp_inner_custom'],
     'custom plan yielded retry count' => [static fn (): mixed => $customPlan()['yielded_after_retry_count'], 2],
     'custom plan final retains transients without retry delete' => [static fn (): mixed => array_column($customPlan()['current_source_tables']['wp_options'], 'option_id'), [1, 2, 3, 4, 5, 6, 7, 8, 9]],
-    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [], [$outerDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [$innerUpdateSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
-    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [], $unique), InvalidArgumentException::class],
-    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], []), InvalidArgumentException::class],
-    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
-    'malformed duplicate savepoint rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique, 'same_name', 'same_name'), InvalidArgumentException::class],
-    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty inner rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [], [$outerDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty outer rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [$innerUpdateSql], [], [$retryUpdateSql], $unique), InvalidArgumentException::class],
+    'malformed empty retry rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [], $unique), InvalidArgumentException::class],
+    'malformed empty unique rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], []), InvalidArgumentException::class],
+    'malformed outer savepoint rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique, 'bad-name'), InvalidArgumentException::class],
+    'malformed duplicate savepoint rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute($tables, [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique, 'same_name', 'same_name'), InvalidArgumentException::class],
+    'malformed row list rejected' => [static fn (): mixed => SQLiteRowValueNestedSavepointReturningPlan::execute(['wp_options' => ['bad']], [$innerUpdateSql], [$outerDeleteSql], [$retryUpdateSql], $unique), InvalidArgumentException::class],
 ];
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue nested savepoint returning current source next175 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue nested savepoint returning current source ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

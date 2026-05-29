@@ -62,7 +62,16 @@ SELECT id,
  LIMIT 4 OFFSET 1
 SQL;
 
-echo json_encode(
-    SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareNext175($sql, $currentTables, $nextTables),
-    JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR,
-) . PHP_EOL;
+$plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareUnionIntersectWindowLimitOffset($sql, $currentTables, $nextTables);
+
+if (($argv[1] ?? null) === '--self-test') {
+    assert($plan['status'] === 'compound-select-window-recursive-limit-current-source-union-intersect-window-limit-offset-ready');
+    assert($plan['compound']['hasUnionDistinct'] === true);
+    assert($plan['compound']['hasIntersect'] === true);
+    assert($plan['nextRows'][0]['label'] === 'plugin_alpha');
+    assert(in_array('theme_mods', $plan['intersect']['changedSurvivors'], true));
+    echo "wordpress-compound-select-window-recursive-limit-union-intersect-window-limit-offset self-test passed\n";
+    return;
+}
+
+echo json_encode($plan, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
