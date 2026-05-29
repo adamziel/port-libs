@@ -69,8 +69,8 @@ foreach (range(369, 376) as $next) {
     };
 }
 
-$tests['json table generated path rowid cost current source next384 no later alias yet'] = static function (TestRunner $t): void {
-    $t->throws(Error::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext385([], [], '', ''));
+$tests['json table generated path rowid cost current source next384 hands off to next385 alias'] = static function (TestRunner $t): void {
+    $t->true(method_exists(SQLiteJsonTablePlan::class, 'currentSourceGeneratedPathRowidCostCurrentSourceNext385'));
 };
 
 return $tests;
