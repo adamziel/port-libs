@@ -14353,6 +14353,54 @@ final class SQLiteUpstreamSuiteEvidence
     /** @return array<string, mixed> */
     public function upstreamVeryquickShardCurrentSourceNext708(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(708, ...$args); }
 
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext709(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(709, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext710(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(710, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext711(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(711, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext712(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(712, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext713(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(713, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext714(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(714, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext715(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(715, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext716(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(716, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext717(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(717, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext718(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(718, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext719(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(719, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext720(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(720, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext721(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(721, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext722(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(722, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext723(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(723, ...$args); }
+
+    /** @return array<string, mixed> */
+    public function upstreamVeryquickShardCurrentSourceNext724(mixed ...$args): array { return $this->upstreamVeryquickShardCurrentSourceNextEvidence(724, ...$args); }
+
 
     /**
      * @param list<array<string, mixed>> $rows
@@ -14395,7 +14443,7 @@ final class SQLiteUpstreamSuiteEvidence
         $record['status'] = str_replace('next116-full-suite-countability', $statusLabel, (string) $record['status']);
         $record['counts_upstream_veryquick_shard_current_source_' . $label] = $record['status'] !== 'blocked'
             && ($record['admitted_count'] ?? 0) > 0;
-        foreach (array_merge(range(692, 432), [398, 397, 396, 395, 394, 393, 392, 391, 390, 389, 388, 387, 386, 385, 384, 383, 382, 381, 380, 379, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155]) as $priorShard) {
+        foreach (array_merge(range($next - 1, 432), [398, 397, 396, 395, 394, 393, 392, 391, 390, 389, 388, 387, 386, 385, 384, 383, 382, 381, 380, 379, 378, 377, 376, 375, 374, 373, 372, 371, 370, 369, 368, 367, 366, 365, 364, 363, 362, 361, 360, 359, 358, 357, 356, 355, 354, 353, 352, 351, 350, 349, 348, 347, 346, 345, 344, 343, 342, 341, 340, 339, 338, 337, 336, 335, 334, 333, 332, 331, 330, 329, 328, 327, 326, 325, 324, 323, 322, 321, 320, 319, 318, 317, 316, 315, 314, 313, 312, 311, 309, 308, 307, 306, 305, 304, 303, 302, 301, 300, 299, 298, 297, 296, 295, 294, 293, 292, 291, 290, 289, 288, 287, 286, 285, 284, 283, 282, 281, 280, 279, 278, 277, 276, 275, 274, 273, 272, 271, 270, 269, 268, 267, 266, 265, 264, 263, 262, 261, 260, 259, 258, 257, 256, 255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240, 239, 238, 237, 236, 235, 234, 233, 232, 231, 230, 229, 228, 227, 226, 225, 224, 222, 220, 219, 213, 212, 209, 202, 200, 194, 192, 190, 187, 184, 181, 178, 177, 176, 175, 174, 173, 172, 171, 169, 167, 166, 164, 161, 159, 157, 155]) as $priorShard) {
             if ($priorShard === $next) {
                 continue;
             }
