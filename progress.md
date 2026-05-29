@@ -70,6 +70,11 @@
   numbered production helper occurrence audit `224`. Public pass/mapped
   counters remain `154019 pass / 0 fail` and `830 / 1589` because this is
   another suffix/helper consolidation slice.
+  After the dashboard deploy, the worker pool had collapsed to only the shell
+  and supervisor windows; a bounded BT refill launched 11 current-base
+  libsqlite workers on dashboard head `2c0d2980` with no long sleepers observed.
+  Next triage target is BT ready output plus targeted retirement/rebase of
+  deferred BR/BQ overlaps.
 
 - 2026-05-29 supervisor continuation (shell samples 16:47 UTC):
   Fifty-sixth reduced consolidation follow-up is staged and validated in the
