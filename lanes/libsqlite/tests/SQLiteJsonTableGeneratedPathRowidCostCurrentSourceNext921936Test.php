@@ -73,8 +73,8 @@ $tests['json table generated path rowid cost current source next936 leaves next9
     $t->same('cost-select-current-json-table-generated-path-rowid-next937', $plan921936(937)['currentReaderPolicy']);
 };
 
-$tests['json table generated path rowid cost current source next936 rejects next953 alias'] = static function (TestRunner $t) use ($plan921936): void {
-    $t->throws(Error::class, static fn () => $plan921936(953));
+$tests['json table generated path rowid cost current source next936 leaves next953 alias to follow-on'] = static function (TestRunner $t) use ($plan921936): void {
+    $t->same('cost-select-current-json-table-generated-path-rowid-next953', $plan921936(953)['currentReaderPolicy']);
 };
 
 return $tests;
