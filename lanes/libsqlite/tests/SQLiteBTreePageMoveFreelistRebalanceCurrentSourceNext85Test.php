@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan;
+use PortLibs\LibSqlite\SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -125,7 +125,7 @@ $fixture = static function (bool $secureDelete = true) use ($makeFirstPage, $put
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan::deleteRebalanceFreeAndMoveLastIndexLeaf(
+    $plan = SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
         $database,
         3,
         4,
@@ -198,7 +198,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan::class,
+    'plan class' => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::class,
     'action label' => 'btree-page-move-freelist-rebalance-current-source-next85',
     'obsolete overflow pages' => [7, 8, 9, 10],
     'freed pages before move' => [7, 8, 9, 10],
@@ -271,7 +271,7 @@ $tests['btree page move freelist rebalance current source next85 can skip secure
 $tests['btree page move freelist rebalance current source next85 rejects non-last source'] = static function (TestRunner $t) use ($fixture): void {
     [$database, , $deletedValues] = $fixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan::deleteRebalanceFreeAndMoveLastIndexLeaf(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan::deleteRebalanceFreeAndMoveLastIndexLeaf(
         $database,
         3,
         4,

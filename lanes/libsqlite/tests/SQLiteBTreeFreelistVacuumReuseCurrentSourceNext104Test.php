@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
@@ -106,8 +106,8 @@ $allocatedImages104 = static fn (): array => [
     ]),
 ];
 
-$fixture104 = static function (int $allocationCount = 2) use ($databaseFixture104, $deleteResults104, $allocatedImages104): SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan {
-    return SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+$fixture104 = static function (int $allocationCount = 2) use ($databaseFixture104, $deleteResults104, $allocatedImages104): SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
         $databaseFixture104(),
         $deleteResults104(),
         3,
@@ -128,7 +128,7 @@ $throwsMessage104 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$rows104 = static fn (SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan $plan): array => $plan->btreeFreelistVacuumReuseRows();
+$rows104 = static fn (SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan $plan): array => $plan->btreeFreelistVacuumReuseRows();
 
 $cases104 = [
     'action label' => static fn (): mixed => $fixture104()->toArray()['action'],
@@ -253,7 +253,7 @@ $tests['btree freelist pointermap vacuum reuse current source next104 leaves one
 
 $tests['btree freelist pointermap vacuum reuse current source next104 rejects allocation beyond vacuum survivors without append'] = static function (TestRunner $t) use ($databaseFixture104, $deleteResults104, $allocatedImages104): void {
     $t->throws(InvalidArgumentException::class, static function () use ($databaseFixture104, $deleteResults104, $allocatedImages104): void {
-        SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+        SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
             $databaseFixture104(),
             $deleteResults104(),
             3,
@@ -270,7 +270,7 @@ $tests['btree freelist pointermap vacuum reuse current source next104 rejects no
     $images[305] = SQLiteTableLeafPage::assemble([]);
 
     $t->throws(InvalidArgumentException::class, static function () use ($databaseFixture104, $deleteResults104, $images): void {
-        SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+        SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
             $databaseFixture104(),
             $deleteResults104(),
             3,

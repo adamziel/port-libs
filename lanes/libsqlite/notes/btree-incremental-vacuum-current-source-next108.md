@@ -18,7 +18,7 @@ Behavior covered:
 
 Verification:
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeIncrementalVacuumCurrentSourceNext108Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-incremental-vacuum-current-source-next108.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeIncrementalVacuumCurrentSourceNext108Test.php`

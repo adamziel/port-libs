@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Added `SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNext85Plan`.
+- Added `SQLiteBTreePageMoveFreelistRebalanceCurrentSourceNextPlan`.
 - The planner deletes an overflow-backed index cell, applies index leaf rebalance,
   releases obsolete overflow pages into the freelist, then moves the last index
   leaf into the newly available freelist slot in one current-source database

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan
+final class SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $pointerMapTransitions

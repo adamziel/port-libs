@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan
+final class SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $reuseRows

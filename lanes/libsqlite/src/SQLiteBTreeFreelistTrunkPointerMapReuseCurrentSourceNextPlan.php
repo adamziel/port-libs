@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan
+final class SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan
 {
     /**
      * @param list<array<string, mixed>> $trunkReuseRows

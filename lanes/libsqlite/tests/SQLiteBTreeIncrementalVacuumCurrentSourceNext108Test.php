@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -101,8 +101,8 @@ $allocatedImages108 = static fn (): array => [
     ]),
 ];
 
-$fixture108 = static function (int $allocationCount = 2) use ($databaseFixture108, $deleteResults108, $allocatedImages108): SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan {
-    return SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+$fixture108 = static function (int $allocationCount = 2) use ($databaseFixture108, $deleteResults108, $allocatedImages108): SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
         $databaseFixture108(),
         $deleteResults108(),
         3,
@@ -113,7 +113,7 @@ $fixture108 = static function (int $allocationCount = 2) use ($databaseFixture10
     );
 };
 
-$rows108 = static fn (SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan $plan): array => $plan->incrementalVacuumCurrentSourceNext108Rows();
+$rows108 = static fn (SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan $plan): array => $plan->incrementalVacuumCurrentSourceNext108Rows();
 
 $cases108 = [
     'summary includes next108 rows' => static fn (): mixed => array_column($fixture108()->toArray()['incremental_vacuum_current_source_next108'], 'page_number'),

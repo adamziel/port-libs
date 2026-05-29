@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -64,7 +64,7 @@ foreach ([309, 310] as $index => $pageNumber) {
     );
 }
 
-$plan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+$plan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
-use PortLibs\LibSqlite\SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan;
+use PortLibs\LibSqlite\SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -119,7 +119,7 @@ $fixture = static function (bool $secureDelete = true) use ($makeFirstPage, $put
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan::indexDeleteRebalanceCurrentSource(
+    $plan = SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan::indexDeleteRebalanceCurrentSource(
         $database,
         3,
         4,
@@ -209,7 +209,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan::class,
+    'plan class' => SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan::class,
     'action label' => 'btree-rebalance-pointermap-current-source-next88',
     'parent page' => 3,
     'left page' => 4,
@@ -312,7 +312,7 @@ $tests['btree rebalance pointermap current source next88 rejects non autovacuum 
     }
     $nonAutoVacuum = SQLiteDatabase::fromBytes(implode('', $pages));
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan::indexDeleteRebalanceCurrentSource(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan::indexDeleteRebalanceCurrentSource(
         $nonAutoVacuum,
         3,
         4,
@@ -326,7 +326,7 @@ $tests['btree rebalance pointermap current source next88 rejects non autovacuum 
 $tests['btree rebalance pointermap current source next88 rejects missing overflow reader'] = static function (TestRunner $t) use ($fixture): void {
     [$database, , $deletedValues] = $fixture();
 
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan::indexDeleteRebalanceCurrentSource(
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan::indexDeleteRebalanceCurrentSource(
         $database,
         3,
         4,

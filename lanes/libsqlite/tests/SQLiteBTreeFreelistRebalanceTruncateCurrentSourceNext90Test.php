@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -128,7 +128,7 @@ $fixture90 = static function (int $maxTruncatedPages = 4, bool $secureDelete = t
     }
 
     $database = SQLiteDatabase::fromBytes(implode('', $pages));
-    $plan = SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan::indexDeleteRebalanceAndTruncate(
+    $plan = SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan::indexDeleteRebalanceAndTruncate(
         $database,
         3,
         4,
@@ -154,7 +154,7 @@ $indexRecords90 = static function (SQLiteDatabase $database, int $pageNumber): a
     );
 };
 
-$rowFor90 = static function (SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan $plan, int $pageNumber): array {
+$rowFor90 = static function (SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan $plan, int $pageNumber): array {
     foreach ($plan->overflowRebalanceTruncateRows() as $row) {
         if ($row['page_number'] === $pageNumber) {
             return $row;
@@ -204,7 +204,7 @@ $cases = [
 ];
 
 $expected = [
-    'plan class' => SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan::class,
+    'plan class' => SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan::class,
     'action label' => 'btree-freelist-rebalance-truncate-current-source-next90',
     'nested rebalance action' => 'btree-index-overflow-rebalance-freelist-current-source-next82',
     'obsolete overflow pages' => [406, 407, 408, 409, 410, 411, 412],

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
@@ -109,7 +109,7 @@ $overflowNumbers = static function (int $firstOverflowPage, int $byteCount) use 
     return $pageNumbers;
 };
 
-$plan = SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan::indexDeleteRebalanceAndTruncate(
+$plan = SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan::indexDeleteRebalanceAndTruncate(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     4,

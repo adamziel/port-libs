@@ -19,7 +19,7 @@ are consumed:
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-freelist-trunk-pointermap-reuse-current-source-next113.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Test.php`

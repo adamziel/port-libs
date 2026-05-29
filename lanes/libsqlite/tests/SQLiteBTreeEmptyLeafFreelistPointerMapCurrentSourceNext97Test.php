@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan;
+use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -38,7 +38,7 @@ $putPointerMapEntry97 = static function (array &$pages, int $pageNumber, int $ty
     );
 };
 
-$fixture97 = static function (bool $secureDelete = true, ?int $allocationLimit = null) use ($makeFirstPage97, $putPointerMapEntry97): SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan {
+$fixture97 = static function (bool $secureDelete = true, ?int $allocationLimit = null) use ($makeFirstPage97, $putPointerMapEntry97): SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan {
     $pages = array_fill(1, 12, str_repeat("\0", 512));
     $pages[1] = $makeFirstPage97(12);
     $pages[2] = str_repeat("\0", 512);
@@ -61,7 +61,7 @@ $fixture97 = static function (bool $secureDelete = true, ?int $allocationLimit =
         $putPointerMapEntry97($pages, $pageNumber, $type, $parentPage);
     }
 
-    return SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan::fromDeleteResults(
+    return SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan::fromDeleteResults(
         SQLiteDatabase::fromBytes(implode('', $pages)),
         [
             [
@@ -91,39 +91,39 @@ $fixture97 = static function (bool $secureDelete = true, ?int $allocationLimit =
     );
 };
 
-$rows97 = static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): array => $plan->emptyLeafFreelistPointerMapRows();
+$rows97 = static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): array => $plan->emptyLeafFreelistPointerMapRows();
 
 $cases = [
-    'action label' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['action'],
-    'leaf delete count' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['leaf_delete_count'],
-    'released pages include empty leaves then overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->batchPlan->freedPageNumbers,
-    'current freelist pages' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['current_freelist_pages'],
-    'allocation order follows SQLite trunk leaf ordering' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['current_freelist_allocation_order'],
-    'source labels separate leaves and overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'source'),
-    'leaf pages are carried only for deleted leaves' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'leaf_page'),
-    'leaf types are carried only for deleted leaves' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'leaf_page_type'),
-    'table rowids are preserved on table leaf row' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $rows97($plan)[0]['deleted_rowids'],
-    'index records are preserved on index leaf row' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $rows97($plan)[3]['deleted_record_values'],
-    'current pointer map types' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'current_type_name'),
-    'current pointer map parents' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'current_parent_page_number'),
-    'next pointer map types become free' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'next_type_name'),
-    'next pointer map parents are zero' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'next_parent_page_number'),
-    'freelist roles' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'freelist_role'),
-    'freelist positions' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'freelist_position'),
-    'next allocation positions' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'next_allocation_position'),
-    'all rows use pointer map page two' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_values(array_unique(array_column($rows97($plan), 'pointer_map_page'))),
-    'secure delete clears non trunk released pages' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'secure_deleted'),
-    'materialized flags are exposed' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($rows97($plan), 'materialized'),
-    'first trunk page is empty table leaf page' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['current_first_freelist_trunk_page'],
-    'freelist count covers leaves and overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['current_freelist_page_count'],
-    'updated page numbers include header pointer map and freelist' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['updated_page_numbers'],
-    'updated pointer map page numbers' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['updated_pointer_map_page_numbers'],
-    'secure delete page list' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->toArray()['secure_delete_cleared_pages'],
-    'summary embeds rows' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => array_column($plan->toArray()['empty_leaf_freelist_pointermap_current_source_next97'], 'page_number'),
-    'table leaf is now freelist trunk page shape' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => unpack('N', substr($plan->currentDatabase->page(3), 4, 4))[1],
-    'index leaf was secure deleted as freelist leaf' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => $plan->currentDatabase->page(4) === str_repeat("\0", 512),
-    'source table leaf was empty before release' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => SQLiteBTreePageHeader::parsePage($plan->sourceDatabase->page(3), 512)->cellCount,
-    'source index leaf was empty before release' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan $plan): mixed => SQLiteBTreePageHeader::parsePage($plan->sourceDatabase->page(4), 512)->cellCount,
+    'action label' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['action'],
+    'leaf delete count' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['leaf_delete_count'],
+    'released pages include empty leaves then overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->batchPlan->freedPageNumbers,
+    'current freelist pages' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['current_freelist_pages'],
+    'allocation order follows SQLite trunk leaf ordering' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['current_freelist_allocation_order'],
+    'source labels separate leaves and overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'source'),
+    'leaf pages are carried only for deleted leaves' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'leaf_page'),
+    'leaf types are carried only for deleted leaves' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'leaf_page_type'),
+    'table rowids are preserved on table leaf row' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $rows97($plan)[0]['deleted_rowids'],
+    'index records are preserved on index leaf row' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $rows97($plan)[3]['deleted_record_values'],
+    'current pointer map types' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'current_type_name'),
+    'current pointer map parents' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'current_parent_page_number'),
+    'next pointer map types become free' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'next_type_name'),
+    'next pointer map parents are zero' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'next_parent_page_number'),
+    'freelist roles' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'freelist_role'),
+    'freelist positions' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'freelist_position'),
+    'next allocation positions' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'next_allocation_position'),
+    'all rows use pointer map page two' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_values(array_unique(array_column($rows97($plan), 'pointer_map_page'))),
+    'secure delete clears non trunk released pages' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'secure_deleted'),
+    'materialized flags are exposed' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($rows97($plan), 'materialized'),
+    'first trunk page is empty table leaf page' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['current_first_freelist_trunk_page'],
+    'freelist count covers leaves and overflow' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['current_freelist_page_count'],
+    'updated page numbers include header pointer map and freelist' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['updated_page_numbers'],
+    'updated pointer map page numbers' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['updated_pointer_map_page_numbers'],
+    'secure delete page list' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->toArray()['secure_delete_cleared_pages'],
+    'summary embeds rows' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => array_column($plan->toArray()['empty_leaf_freelist_pointermap_current_source_next97'], 'page_number'),
+    'table leaf is now freelist trunk page shape' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => unpack('N', substr($plan->currentDatabase->page(3), 4, 4))[1],
+    'index leaf was secure deleted as freelist leaf' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => $plan->currentDatabase->page(4) === str_repeat("\0", 512),
+    'source table leaf was empty before release' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => SQLiteBTreePageHeader::parsePage($plan->sourceDatabase->page(3), 512)->cellCount,
+    'source index leaf was empty before release' => static fn (SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan $plan): mixed => SQLiteBTreePageHeader::parsePage($plan->sourceDatabase->page(4), 512)->cellCount,
 ];
 
 $expected = [
@@ -196,7 +196,7 @@ $tests['btree empty leaf freelist pointermap current source next97 limited alloc
 $tests['btree empty leaf freelist pointermap current source next97 rejects repeated released page'] = static function (TestRunner $t) use ($fixture97): void {
     try {
         $plan = $fixture97();
-        SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan::fromDeleteResults(
+        SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan::fromDeleteResults(
             $plan->sourceDatabase,
             [
                 [

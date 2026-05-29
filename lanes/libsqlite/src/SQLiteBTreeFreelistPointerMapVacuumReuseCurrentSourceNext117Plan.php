@@ -11,7 +11,7 @@ final class SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan
      * @param list<array<string, mixed>> $pointerMapPageRows
      */
     private function __construct(
-        public readonly SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan $reusePlan,
+        public readonly SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan $reusePlan,
         public readonly array $reuseRows,
         public readonly array $pointerMapPageRows,
     ) {
@@ -30,7 +30,7 @@ final class SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan
         array $allocatedPageImages = [],
         bool $secureDelete = false,
     ): self {
-        $reusePlan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+        $reusePlan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
             $database,
             $deleteResults,
             $maxTruncatedPages,
@@ -96,7 +96,7 @@ final class SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function reuseRows(SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan $reusePlan): array
+    private static function reuseRows(SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan $reusePlan): array
     {
         $afterEntries = [];
         foreach ($reusePlan->allocationPlan->allocatedPointerMapEntries() as $entry) {
@@ -145,7 +145,7 @@ final class SQLiteBTreeFreelistPointerMapVacuumReuseCurrentSourceNext117Plan
      * @return list<array<string, mixed>>
      */
     private static function pointerMapPageRows(
-        SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan $reusePlan,
+        SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan $reusePlan,
         array $rows,
     ): array {
         $grouped = [];

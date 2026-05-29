@@ -16,7 +16,7 @@ This avoids accepted overflow freelist release, empty-leaf release, pointer-map 
 
 ## Verification
 
-- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-btree-freelist-vacuum-reuse-current-source-next104.php`
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Test.php`

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -69,8 +69,8 @@ $allocatedImages113 = static fn (): array => [
     ]),
 ];
 
-$fixture113 = static function (int $allocationCount = 2, ?int $parentPage = 42) use ($databaseFixture113, $allocatedImages113): SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan {
-    return SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase(
+$fixture113 = static function (int $allocationCount = 2, ?int $parentPage = 42) use ($databaseFixture113, $allocatedImages113): SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan {
+    return SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase(
         $databaseFixture113(),
         $allocationCount,
         $parentPage,
@@ -88,7 +88,7 @@ $throwsMessage113 = static function (callable $callback): string {
     return 'not rejected';
 };
 
-$trunkRows113 = static fn (SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan $plan): array => $plan->trunkPointerMapReuseRows();
+$trunkRows113 = static fn (SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan $plan): array => $plan->trunkPointerMapReuseRows();
 
 $cases113 = [
     'action label' => static fn (): mixed => $fixture113()->toArray()['action'],
@@ -132,10 +132,10 @@ $cases113 = [
     'summary embeds trunk rows' => static fn (): mixed => array_column($fixture113()->toArray()['btree_freelist_trunk_pointermap_reuse_current_source_next113'], 'page_number'),
     'summary final freelist pages' => static fn (): mixed => $fixture113()->toArray()['final_freelist_page_numbers'],
     'summary updated page numbers' => static fn (): mixed => $fixture113()->toArray()['updated_page_numbers'],
-    'zero allocation is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase($databaseFixture113(), 0, 42)),
-    'bad parent is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase($databaseFixture113(), 2, 1)),
-    'over allocation without append is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase($databaseFixture113(), 5, 42)),
-    'non allocated supplied page image is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase($databaseFixture113(), 2, 42, [6 => str_repeat("\0", 512)])),
+    'zero allocation is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase($databaseFixture113(), 0, 42)),
+    'bad parent is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase($databaseFixture113(), 2, 1)),
+    'over allocation without append is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase($databaseFixture113(), 5, 42)),
+    'non allocated supplied page image is rejected' => static fn (): mixed => $throwsMessage113(static fn () => SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase($databaseFixture113(), 2, 42, [6 => str_repeat("\0", 512)])),
 ];
 
 $expected113 = [

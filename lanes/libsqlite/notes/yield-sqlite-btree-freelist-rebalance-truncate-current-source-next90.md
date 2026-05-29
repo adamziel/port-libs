@@ -2,7 +2,7 @@
 
 ## Behavior
 
-Adds `SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNext90Plan` for the combined current-source write path where deleting an overflow-backed `wp_options` index record rebalances adjacent index leaves, releases obsolete overflow pages to the freelist, then immediately truncates a contiguous free tail from the database image.
+Adds `SQLiteBTreeFreelistRebalanceTruncateCurrentSourceNextPlan` for the combined current-source write path where deleting an overflow-backed `wp_options` index record rebalances adjacent index leaves, releases obsolete overflow pages to the freelist, then immediately truncates a contiguous free tail from the database image.
 
 This is intentionally narrower than accepted standalone overflow truncation, overflow freelist release, rebalance pointer-map diagnostics, page relocation, root collapse, and index-interior merge work. The new behavior proves the post-rebalance freelist/truncate materialized database image, surviving free pages, omitted tail pages, pointer-map transition rows, and final byte length.
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeFreeblock.php';
 require_once __DIR__ . '/../src/SQLiteBTreePageHeader.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
@@ -17,7 +17,7 @@ require_once __DIR__ . '/../src/SQLiteTableLeafCell.php';
 require_once __DIR__ . '/../src/SQLiteTableLeafPage.php';
 require_once __DIR__ . '/../src/SQLiteVarint.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -71,7 +71,7 @@ $putPointerMapEntry($pages, 42, SQLitePointerMapEntry::BTREE_PAGE, 3);
 $putPointerMapEntry($pages, 106, SQLitePointerMapEntry::FREE_PAGE, 0);
 $putPointerMapEntry($pages, 107, SQLitePointerMapEntry::FREE_PAGE, 0);
 
-$plan = SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNext113Plan::fromDatabase(
+$plan = SQLiteBTreeFreelistTrunkPointerMapReuseCurrentSourceNextPlan::fromDatabase(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     2,
     42,

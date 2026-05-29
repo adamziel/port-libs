@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan`, a current-source evidence wrapper for multi-page B-tree cleanup after table/index leaf deletes leave pages empty. It composes the existing native empty-leaf batch free primitive, materializes the next database image, and exposes per-page rows showing:
+This slice adds `SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan`, a current-source evidence wrapper for multi-page B-tree cleanup after table/index leaf deletes leave pages empty. It composes the existing native empty-leaf batch free primitive, materializes the next database image, and exposes per-page rows showing:
 
 - the deleted empty table/index leaf pages and obsolete overflow pages released in source order;
 - current pointer-map ownership before release;

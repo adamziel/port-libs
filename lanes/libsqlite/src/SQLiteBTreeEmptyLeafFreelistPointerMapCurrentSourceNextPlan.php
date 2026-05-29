@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan
+final class SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan
 {
     /**
      * @param list<array{leaf_page:int,leaf_page_type:string,deleted_rowids:list<int>,deleted_record_values:list<list<mixed>>,obsolete_overflow_pages:list<int>}> $leafDeletes

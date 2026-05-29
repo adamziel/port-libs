@@ -2,7 +2,7 @@
 
 ## Behavior
 
-This slice adds `SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan` for the
+This slice adds `SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan` for the
 delete/rebalance path where an overflow-backed index cell is removed from the
 left sibling, a cell is redistributed from the right sibling, and obsolete
 overflow pages are released to the freelist only after the rebalance image is

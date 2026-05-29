@@ -13,9 +13,9 @@ require __DIR__ . '/../src/SQLiteFreelistTraversalPlan.php';
 require __DIR__ . '/../src/SQLiteFreelistTrunkPage.php';
 require __DIR__ . '/../src/SQLiteFreelistFreePlan.php';
 require __DIR__ . '/../src/SQLiteBTreeEmptyLeafBatchFreePlan.php';
-require __DIR__ . '/../src/SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan.php';
+require __DIR__ . '/../src/SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan;
+use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -68,7 +68,7 @@ foreach ([
     $putPointerMap($pageNumber, $type, $parentPage);
 }
 
-$plan = SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNext97Plan::fromDeleteResults(
+$plan = SQLiteBTreeEmptyLeafFreelistPointerMapCurrentSourceNextPlan::fromDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [

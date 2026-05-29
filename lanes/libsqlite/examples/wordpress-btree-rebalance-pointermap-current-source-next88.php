@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan;
+use PortLibs\LibSqlite\SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -110,7 +110,7 @@ foreach ([
     $putPointerMapEntry($pages, $pageNumber, $type, $parentPageNumber);
 }
 
-$plan = SQLiteBTreeRebalancePointerMapCurrentSourceNext88Plan::indexDeleteRebalanceCurrentSource(
+$plan = SQLiteBTreeRebalancePointerMapCurrentSourceNextPlan::indexDeleteRebalanceCurrentSource(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     3,
     4,

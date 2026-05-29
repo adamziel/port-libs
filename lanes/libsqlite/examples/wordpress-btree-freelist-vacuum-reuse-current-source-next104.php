@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan.php';
+require_once __DIR__ . '/../src/SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteBTreeFreeblock.php';
 require_once __DIR__ . '/../src/SQLiteBTreePageHeader.php';
 require_once __DIR__ . '/../src/SQLiteDatabase.php';
@@ -21,7 +21,7 @@ require_once __DIR__ . '/../src/SQLiteTableLeafCell.php';
 require_once __DIR__ . '/../src/SQLiteTableLeafPage.php';
 require_once __DIR__ . '/../src/SQLiteVarint.php';
 
-use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan;
+use PortLibs\LibSqlite\SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -86,7 +86,7 @@ foreach ([309, 310] as $index => $pageNumber) {
     );
 }
 
-$plan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNext104Plan::fromOverflowDeleteResults(
+$plan = SQLiteBTreeFreelistVacuumReuseCurrentSourceNextPlan::fromOverflowDeleteResults(
     SQLiteDatabase::fromBytes(implode('', $pages)),
     [
         [
