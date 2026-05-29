@@ -21,14 +21,18 @@ $retryStatements = [
 ];
 
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
-$next342 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadySealHandoff(...$args);
-$next343 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadySealSourceAudit(...$args);
-$next344 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadySealThroughputPreflight(...$args);
-$next345 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadySealFinal(...$args);
-$next346 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalContinuationHandoff(...$args);
-$next347 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalContinuationSourceAudit(...$args);
-$next348 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalContinuationThroughputPreflight(...$args);
-$next349 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeFinalContinuationSeal(...$args);
+$planFor = static fn (int $step): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterReadyPublicationStep(
+    $step,
+    ...array_merge($args, ['wp_options_rowvalue_window_current_next' . $step]),
+);
+$next342 = $planFor(342);
+$next343 = $planFor(343);
+$next344 = $planFor(344);
+$next345 = $planFor(345);
+$next346 = $planFor(346);
+$next347 = $planFor(347);
+$next348 = $planFor(348);
+$next349 = $planFor(349);
 
 $statuses = [
     $next342['status'],

@@ -29405,10 +29405,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite next398-413 needs next382-397 handoff windows');
         }
 
-        $currentRows = self::rowsByRowidNext398413($currentSource);
+        $currentRows = self::rowsByRowidPreparedHandoffBridgeFollowup($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext398413($prior['preparedSlices'] ?? null, 'prior prepared slices');
+        $priorPrepared = self::intListPreparedHandoffBridgeFollowup($prior['preparedSlices'] ?? null, 'prior prepared slices');
 
         foreach (range(398, 413) as $slice) {
             $ordinal = $slice - 398;
@@ -29417,12 +29417,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite next398-413 prior handoff windows must be arrays');
             }
 
-            $rowid = self::intValueNext398413($priorWindow['rowid'] ?? null, 'prior rowid');
+            $rowid = self::intValuePreparedHandoffBridgeFollowup($priorWindow['rowid'] ?? null, 'prior rowid');
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext398413($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsPreparedHandoffBridgeFollowup($row, $neededColumns) : [];
             $priorProjected = $priorWindow['projectedColumns'] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext398413($priorWindow['slice'] ?? null, 'prior slice');
+            $priorSlice = self::intValuePreparedHandoffBridgeFollowup($priorWindow['slice'] ?? null, 'prior slice');
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow['prepared'] ?? null) === true
@@ -29467,7 +29467,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext398413(array $source): array
+    private static function rowsByRowidPreparedHandoffBridgeFollowup(array $source): array
     {
         if (!isset($source['rows']) || !is_array($source['rows'])) {
             throw new \InvalidArgumentException('SQLite next398-413 needs current rows');
@@ -29478,7 +29478,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite next398-413 current rows must be arrays');
             }
-            $rowid = self::intValueNext398413($row['rowid'] ?? null, 'current rowid');
+            $rowid = self::intValuePreparedHandoffBridgeFollowup($row['rowid'] ?? null, 'current rowid');
             $rows[$rowid] = $row;
         }
 
@@ -29488,19 +29488,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function intListNext398413(mixed $value, string $label): array
+    private static function intListPreparedHandoffBridgeFollowup(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException('SQLite next398-413 needs ' . $label);
         }
 
         return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueNext398413($rowid, $label),
+            static fn (mixed $rowid): int => self::intValuePreparedHandoffBridgeFollowup($rowid, $label),
             $value,
         ));
     }
 
-    private static function intValueNext398413(mixed $value, string $label): int
+    private static function intValuePreparedHandoffBridgeFollowup(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -29517,7 +29517,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function projectedColumnsNext398413(array $row, array $neededColumns): array
+    private static function projectedColumnsPreparedHandoffBridgeFollowup(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -29576,10 +29576,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException('SQLite next414-429 needs next398-413 handoff windows');
         }
 
-        $currentRows = self::rowsByRowidNext414429($currentSource);
+        $currentRows = self::rowsByRowidPreparedHandoffBridgePenultimate($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext414429($prior['preparedSlices'] ?? null, 'prior prepared slices');
+        $priorPrepared = self::intListPreparedHandoffBridgePenultimate($prior['preparedSlices'] ?? null, 'prior prepared slices');
 
         foreach (range(414, 429) as $slice) {
             $ordinal = $slice - 414;
@@ -29588,12 +29588,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite next414-429 prior handoff windows must be arrays');
             }
 
-            $rowid = self::intValueNext414429($priorWindow['rowid'] ?? null, 'prior rowid');
+            $rowid = self::intValuePreparedHandoffBridgePenultimate($priorWindow['rowid'] ?? null, 'prior rowid');
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext414429($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsPreparedHandoffBridgePenultimate($row, $neededColumns) : [];
             $priorProjected = $priorWindow['projectedColumns'] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext414429($priorWindow['slice'] ?? null, 'prior slice');
+            $priorSlice = self::intValuePreparedHandoffBridgePenultimate($priorWindow['slice'] ?? null, 'prior slice');
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow['prepared'] ?? null) === true
@@ -29638,7 +29638,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext414429(array $source): array
+    private static function rowsByRowidPreparedHandoffBridgePenultimate(array $source): array
     {
         if (!isset($source['rows']) || !is_array($source['rows'])) {
             throw new \InvalidArgumentException('SQLite next414-429 needs current rows');
@@ -29649,7 +29649,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite next414-429 current rows must be arrays');
             }
-            $rowid = self::intValueNext414429($row['rowid'] ?? null, 'current rowid');
+            $rowid = self::intValuePreparedHandoffBridgePenultimate($row['rowid'] ?? null, 'current rowid');
             $rows[$rowid] = $row;
         }
 
@@ -29659,19 +29659,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function intListNext414429(mixed $value, string $label): array
+    private static function intListPreparedHandoffBridgePenultimate(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException('SQLite next414-429 needs ' . $label);
         }
 
         return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueNext414429($rowid, $label),
+            static fn (mixed $rowid): int => self::intValuePreparedHandoffBridgePenultimate($rowid, $label),
             $value,
         ));
     }
 
-    private static function intValueNext414429(mixed $value, string $label): int
+    private static function intValuePreparedHandoffBridgePenultimate(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -29688,7 +29688,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function projectedColumnsNext414429(array $row, array $neededColumns): array
+    private static function projectedColumnsPreparedHandoffBridgePenultimate(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {

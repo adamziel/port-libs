@@ -14448,7 +14448,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'non_overlap_source_seal' => 'adds current returning source/view/trigger source seals after next218 epoch receipts; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
 
-        return $result + self::currentReturningSourceSealLegacyNextAliases($result);
+        return $result + self::currentReturningSourceSealCompatibilityAliases($result);
     }
 
     /**
@@ -14480,7 +14480,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $result
      * @return array<string,mixed>
      */
-    private static function currentReturningSourceSealLegacyNextAliases(array $result): array
+    private static function currentReturningSourceSealCompatibilityAliases(array $result): array
     {
         return [
             'status_next224' => $result['status_source_seal'],
@@ -15549,7 +15549,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'non_overlap_generation_seal' => 'adds ordered current returning source/view/trigger generation seals after source_seal source seals; avoids accepted next208 cursor close, next212 yield receipts, next218 epoch receipts, source_seal source seals, DML RETURNING conflicts, row-value RETURNING savepoints, schema reparse, WAL/VFS, JSON table, planner, encoding, and B-tree clusters',
         ];
 
-        return $result + self::currentReturningGenerationLegacyNextAliases($result);
+        return $result + self::currentReturningGenerationCompatibilityAliases($result);
     }
 
     /**
@@ -15582,7 +15582,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $result
      * @return array<string,mixed>
      */
-    private static function currentReturningGenerationLegacyNextAliases(array $result): array
+    private static function currentReturningGenerationCompatibilityAliases(array $result): array
     {
         return [
             'status_next229' => self::currentReturningGenerationLegacyStatus((string) $result['status_generation_seal']),
