@@ -96,7 +96,7 @@ function libsqlite_suite_next425_record(
     ?int $expected = 96,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next425_evidence()->upstreamVeryquickShardCurrentSourceNext425(
+    return libsqlite_suite_next425_evidence()->upstreamVeryquickShardEvidenceForSlice(425,
         $rows,
         801,
         151655,

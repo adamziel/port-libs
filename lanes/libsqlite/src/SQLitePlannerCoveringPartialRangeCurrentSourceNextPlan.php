@@ -16,24 +16,24 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext131(array $preparedSource, array $currentSource, array $predicate, array $neededColumns): array
+        public static function materialize(array $preparedSource, array $currentSource, array $predicate, array $neededColumns): array
         {
-            self::validateNeededColumnsNext131($neededColumns);
+            self::validateNeededColumns($neededColumns);
 
-            $prepared = self::sourcePlanNext131($preparedSource, $predicate, $neededColumns);
-            $current = self::sourcePlanNext131($currentSource, $predicate, $neededColumns);
-            $preparedCookie = self::nonNegativeIntNext131($preparedSource, 'schemaCookie');
-            $currentCookie = self::nonNegativeIntNext131($currentSource, 'schemaCookie');
-            $preparedGeneration = self::nonNegativeIntNext131($preparedSource, 'stat4Generation');
-            $currentGeneration = self::nonNegativeIntNext131($currentSource, 'stat4Generation');
-            $preparedSignature = self::indexSignatureNext131($preparedSource);
-            $currentSignature = self::indexSignatureNext131($currentSource);
+            $prepared = self::sourcePlan($preparedSource, $predicate, $neededColumns);
+            $current = self::sourcePlan($currentSource, $predicate, $neededColumns);
+            $preparedCookie = self::nonNegativeInt($preparedSource, 'schemaCookie');
+            $currentCookie = self::nonNegativeInt($currentSource, 'schemaCookie');
+            $preparedGeneration = self::nonNegativeInt($preparedSource, 'stat4Generation');
+            $currentGeneration = self::nonNegativeInt($currentSource, 'stat4Generation');
+            $preparedSignature = self::indexSignature($preparedSource);
+            $currentSignature = self::indexSignature($currentSource);
             $stale = $preparedCookie !== $currentCookie
                 || $preparedGeneration !== $currentGeneration
                 || $preparedSignature !== $currentSignature;
             $selectedSource = $stale ? 'current' : 'prepared';
             $selected = $stale ? $current : $prepared;
-            $ready = self::isReadyNext131($selected);
+            $ready = self::isReady($selected);
 
             return [
                 'status' => $ready ? 'covering-partial-range-current-source-ready' : 'requires-next-stage',
@@ -43,10 +43,10 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 'schemaCookieChanged' => $preparedCookie !== $currentCookie,
                 'stat4GenerationChanged' => $preparedGeneration !== $currentGeneration,
                 'indexSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedSource' => self::sourceSummaryNext131($preparedSource, $prepared, $preparedSignature),
-                'currentSource' => self::sourceSummaryNext131($currentSource, $current, $currentSignature),
+                'preparedSource' => self::sourceSummary($preparedSource, $prepared, $preparedSignature),
+                'currentSource' => self::sourceSummary($currentSource, $current, $currentSignature),
                 'selectedPlan' => $selected,
-                'coveredRows' => self::coveredRowsNext131($selectedSource === 'current' ? $currentSource : $preparedSource, $selected, $neededColumns),
+                'coveredRows' => self::coveredRows($selectedSource === 'current' ? $currentSource : $preparedSource, $selected, $neededColumns),
                 'currentSourceFence' => [
                     'schemaCookie' => $currentCookie,
                     'stat4Generation' => $currentGeneration,
@@ -56,15 +56,15 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 ],
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE')
                     . ' COVERING PARTIAL RANGE USING '
-                    . self::stringValueNext131($selectedSource === 'current' ? $currentSource : $preparedSource, 'name')
+                    . self::stringValue($selectedSource === 'current' ? $currentSource : $preparedSource, 'name')
                     . ' ' . (string) ($selected['detail'] ?? 'NO PLAN'),
                 'dependencies' => [
                     'SQLiteCreateIndex partial predicate parsing',
                     'SQLiteMultiColumnRangePlan',
-                    'sqlite-sqlplanner-covering-partial-range-current-source-next131',
+                    'sqlite-sqlplanner-covering-partial-range-current-source',
                 ],
-                'dependency_closure' => 'no new support component needed; next131 reuses native CREATE INDEX parsing, multicolumn range planning, partial predicate implication, STAT4 current/next metadata, and lane-local row materialization',
-                'non_overlap' => 'avoids accepted partial expression skip-scan next129, raw-column partial covering skip-scan next125/next127, expression ORDER BY, expression-index range-cost ranking, and parser-level JSON table/SELECT source clusters; this slice covers ordinary covering partial range current-source materialization without skip-scan',
+                'dependency_closure' => 'no new support component needed; native covering partial range reuses native CREATE INDEX parsing, multicolumn range planning, partial predicate implication, STAT4 current/next metadata, and lane-local row materialization',
+                'non_overlap' => 'avoids accepted partial expression skip-scan, raw-column partial covering skip-scan, expression ORDER BY, expression-index range-cost ranking, and parser-level JSON table/SELECT source clusters; this slice covers ordinary covering partial range current-source materialization without skip-scan',
             ];
         }
 
@@ -74,9 +74,9 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function sourcePlanNext131(array $source, array $predicate, array $neededColumns): array
+        private static function sourcePlan(array $source, array $predicate, array $neededColumns): array
         {
-            $plan = SQLiteMultiColumnRangePlan::choose(self::indexListNext131($source), $predicate, [], $neededColumns);
+            $plan = SQLiteMultiColumnRangePlan::choose(self::indexList($source), $predicate, [], $neededColumns);
             if ($plan === null) {
                 return [
                     'usable' => false,
@@ -88,8 +88,8 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 ];
             }
 
-            $range = self::combinedRangeForColumnNext131($predicate, (string) ($plan['rangeColumn'] ?? ''))
-                ?? self::rangeSummaryNext131($plan['rangeConstraint'] ?? null);
+            $range = self::combinedRangeForColumn($predicate, (string) ($plan['rangeColumn'] ?? ''))
+                ?? self::rangeSummary($plan['rangeConstraint'] ?? null);
 
             return $plan + [
                 'rangeLower' => $range['lower'],
@@ -98,7 +98,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 'upperInclusive' => $range['upperInclusive'],
                 'partialPredicateImplied' => (bool) ($plan['partial'] ?? false),
                 'tableLookupRequired' => !((bool) ($plan['covering'] ?? false)),
-                'cursorProgram' => self::cursorProgramNext131($plan, $range, $neededColumns),
+                'cursorProgram' => self::cursorProgram($plan, $range, $neededColumns),
                 'detail' => 'SEARCH ' . (string) ($plan['name'] ?? 'index')
                     . ' USING COVERING PARTIAL RANGE '
                     . (string) ($plan['rangeColumn'] ?? 'unknown'),
@@ -108,7 +108,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $selected
          */
-        private static function isReadyNext131(array $selected): bool
+        private static function isReady(array $selected): bool
         {
             return ($selected['usable'] ?? false) === true
                 && ($selected['partial'] ?? false) === true
@@ -123,13 +123,13 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function coveredRowsNext131(array $source, array $plan, array $neededColumns): array
+        private static function coveredRows(array $source, array $plan, array $neededColumns): array
         {
-            if (!self::isReadyNext131($plan)) {
+            if (!self::isReady($plan)) {
                 return [];
             }
 
-            $rows = self::listValueNext131($source, 'rows', false);
+            $rows = self::listValue($source, 'rows', false);
             $rangeColumn = (string) $plan['rangeColumn'];
             $lower = $plan['rangeLower'] ?? null;
             $upper = $plan['rangeUpper'] ?? null;
@@ -140,10 +140,10 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite covering partial range current-source rows must be arrays');
                 }
-                if (!self::rowSatisfiesEqualityConstraintsNext131($row, $plan)) {
+                if (!self::rowSatisfiesEqualityConstraints($row, $plan)) {
                     continue;
                 }
-                if (!array_key_exists($rangeColumn, $row) || !self::valueInRangeNext131($row[$rangeColumn], $lower, $upper, $lowerInclusive, $upperInclusive)) {
+                if (!array_key_exists($rangeColumn, $row) || !self::valueInRange($row[$rangeColumn], $lower, $upper, $lowerInclusive, $upperInclusive)) {
                     continue;
                 }
 
@@ -160,7 +160,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             }
 
             usort($covered, static function (array $left, array $right): int {
-                $comparison = self::compareValuesNext131($left['rangeKey'], $right['rangeKey']);
+                $comparison = self::compareValues($left['rangeKey'], $right['rangeKey']);
                 if ($comparison !== 0) {
                     return $comparison;
                 }
@@ -179,7 +179,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param array<string,mixed> $plan
          */
-        private static function rowSatisfiesEqualityConstraintsNext131(array $row, array $plan): bool
+        private static function rowSatisfiesEqualityConstraints(array $row, array $plan): bool
         {
             $constraints = $plan['equalityConstraints'] ?? [];
             if (!is_array($constraints)) {
@@ -195,13 +195,13 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 }
                 $operator = $constraint['operator'] ?? null;
                 $values = $constraint['values'] ?? null;
-                if ($operator === 'point' && self::compareValuesNext131($row[$column], $values) !== 0) {
+                if ($operator === 'point' && self::compareValues($row[$column], $values) !== 0) {
                     return false;
                 }
                 if ($operator === 'IN' && is_array($values)) {
                     $matched = false;
                     foreach ($values as $value) {
-                        if (self::compareValuesNext131($row[$column], $value) === 0) {
+                        if (self::compareValues($row[$column], $value) === 0) {
                             $matched = true;
                             break;
                         }
@@ -215,16 +215,16 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             return true;
         }
 
-        private static function valueInRangeNext131(mixed $value, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): bool
+        private static function valueInRange(mixed $value, mixed $lower, mixed $upper, bool $lowerInclusive, bool $upperInclusive): bool
         {
             if ($lower !== null) {
-                $comparison = self::compareValuesNext131($value, $lower);
+                $comparison = self::compareValues($value, $lower);
                 if ($comparison < 0 || ($comparison === 0 && !$lowerInclusive)) {
                     return false;
                 }
             }
             if ($upper !== null) {
-                $comparison = self::compareValuesNext131($value, $upper);
+                $comparison = self::compareValues($value, $upper);
                 if ($comparison > 0 || ($comparison === 0 && !$upperInclusive)) {
                     return false;
                 }
@@ -237,7 +237,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param mixed $constraint
          * @return array{lower:mixed,upper:mixed,lowerInclusive:bool,upperInclusive:bool}
          */
-        private static function rangeSummaryNext131(mixed $constraint): array
+        private static function rangeSummary(mixed $constraint): array
         {
             if (!is_array($constraint)) {
                 return ['lower' => null, 'upper' => null, 'lowerInclusive' => false, 'upperInclusive' => false];
@@ -265,7 +265,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @return null|array{lower:mixed,upper:mixed,lowerInclusive:bool,upperInclusive:bool}
          */
-        private static function combinedRangeForColumnNext131(array $predicate, string $column): ?array
+        private static function combinedRangeForColumn(array $predicate, string $column): ?array
         {
             if ($column === '') {
                 return null;
@@ -275,7 +275,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             $upper = null;
             $lowerInclusive = false;
             $upperInclusive = false;
-            foreach (self::flattenAndTermsNext131($predicate) as $term) {
+            foreach (self::flattenAndTerms($predicate) as $term) {
                 $left = $term['left'] ?? null;
                 if (!is_array($left) || strcasecmp((string) ($left['column'] ?? ''), $column) !== 0) {
                     continue;
@@ -291,7 +291,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 }
                 if ($operator === '>' || $operator === '>=') {
                     $candidate = $term['right'] ?? null;
-                    if ($lower === null || self::compareValuesNext131($candidate, $lower) > 0) {
+                    if ($lower === null || self::compareValues($candidate, $lower) > 0) {
                         $lower = $candidate;
                         $lowerInclusive = $operator === '>=';
                     }
@@ -299,7 +299,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
                 }
                 if ($operator === '<' || $operator === '<=') {
                     $candidate = $term['right'] ?? null;
-                    if ($upper === null || self::compareValuesNext131($candidate, $upper) < 0) {
+                    if ($upper === null || self::compareValues($candidate, $upper) < 0) {
                         $upper = $candidate;
                         $upperInclusive = $operator === '<=';
                     }
@@ -321,7 +321,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @return list<array<string,mixed>>
          */
-        private static function flattenAndTermsNext131(array $predicate): array
+        private static function flattenAndTerms(array $predicate): array
         {
             if (strtoupper((string) ($predicate['operator'] ?? '')) !== 'AND') {
                 return [$predicate];
@@ -335,7 +335,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             $flattened = [];
             foreach ($terms as $term) {
                 if (is_array($term)) {
-                    array_push($flattened, ...self::flattenAndTermsNext131($term));
+                    array_push($flattened, ...self::flattenAndTerms($term));
                 }
             }
 
@@ -348,7 +348,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext131(array $plan, array $range, array $neededColumns): array
+        private static function cursorProgram(array $plan, array $range, array $neededColumns): array
         {
             if (($plan['usable'] ?? false) !== true) {
                 return [['opcode' => 'Rewind', 'source' => 'table']];
@@ -390,12 +390,12 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param array<string,mixed> $plan
          * @return array<string,mixed>
          */
-        private static function sourceSummaryNext131(array $source, array $plan, string $signature): array
+        private static function sourceSummary(array $source, array $plan, string $signature): array
         {
             return [
-                'name' => self::stringValueNext131($source, 'name'),
-                'schemaCookie' => self::nonNegativeIntNext131($source, 'schemaCookie'),
-                'stat4Generation' => self::nonNegativeIntNext131($source, 'stat4Generation'),
+                'name' => self::stringValue($source, 'name'),
+                'schemaCookie' => self::nonNegativeInt($source, 'schemaCookie'),
+                'stat4Generation' => self::nonNegativeInt($source, 'stat4Generation'),
                 'indexSignature' => $signature,
                 'indexName' => $plan['name'] ?? null,
                 'rootPage' => $plan['rootPage'] ?? null,
@@ -414,9 +414,9 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function indexListNext131(array $source): array
+        private static function indexList(array $source): array
         {
-            $indexes = self::listValueNext131($source, 'indexes');
+            $indexes = self::listValue($source, 'indexes');
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
                     throw new \InvalidArgumentException('SQLite covering partial range source indexes must be arrays');
@@ -429,10 +429,10 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext131(array $source): string
+        private static function indexSignature(array $source): string
         {
             $parts = [];
-            foreach (self::indexListNext131($source) as $index) {
+            foreach (self::indexList($source) as $index) {
                 $parts[] = [
                     'name' => $index['name'] ?? null,
                     'rootPage' => $index['rootPage'] ?? null,
@@ -448,7 +448,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @param list<string> $columns
          */
-        private static function validateNeededColumnsNext131(array $columns): void
+        private static function validateNeededColumns(array $columns): void
         {
             foreach ($columns as $column) {
                 if (!is_string($column) || $column === '') {
@@ -460,7 +460,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
         /**
          * @return list<mixed>
          */
-        private static function listValueNext131(array $row, string $key, bool $required = true): array
+        private static function listValue(array $row, string $key, bool $required = true): array
         {
             $value = $row[$key] ?? [];
             if (!$required && $value === []) {
@@ -473,7 +473,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             return $value;
         }
 
-        private static function stringValueNext131(array $row, string $key): string
+        private static function stringValue(array $row, string $key): string
         {
             $value = $row[$key] ?? null;
             if (!is_string($value) || $value === '') {
@@ -483,7 +483,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             return $value;
         }
 
-        private static function nonNegativeIntNext131(array $row, string $key): int
+        private static function nonNegativeInt(array $row, string $key): int
         {
             $value = $row[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -493,7 +493,7 @@ final class SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan
             return $value;
         }
 
-        private static function compareValuesNext131(mixed $left, mixed $right): int
+        private static function compareValues(mixed $left, mixed $right): int
         {
             if (is_int($left) || is_float($left) || is_int($right) || is_float($right)) {
                 return $left <=> $right;

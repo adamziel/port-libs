@@ -9299,7 +9299,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext200(
+    public static function executeCurrentHighwaterGate(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -9329,21 +9329,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentRows = self::rowsNext200($base['current_source_rows'] ?? [], 'current source rows');
-        $nextRows = self::rowsNext200($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
+        $currentRows = self::currentHighwaterRows($base['current_source_rows'] ?? [], 'current source rows');
+        $nextRows = self::currentHighwaterRows($base['attempted_next_source_rows'] ?? [], 'attempted next source rows');
         $actualDrainCount = count($currentRows);
-        $expectedDrainCount = self::nonNegativeIntNext200($options['expected_current_drain_count_next200'] ?? $actualDrainCount, 'expected current drain count');
-        $actualHighWater = self::lastResumeTokenNext200($currentRows);
-        $expectedHighWater = self::tokenNext200((string) ($options['expected_current_highwater_token_next200'] ?? $actualHighWater), 'expected current highwater token');
-        $currentGeneration = self::tokenNext200((string) ($base['current_step_epoch_next194'] ?? 'epoch200:missing'), 'current step epoch');
-        $expectedGeneration = self::tokenNext200((string) ($options['expected_current_generation_epoch_next200'] ?? $currentGeneration), 'expected current generation epoch');
+        $expectedDrainCount = self::currentHighwaterNonNegativeInt($options['expected_current_drain_count_next200'] ?? $actualDrainCount, 'expected current drain count');
+        $actualHighWater = self::lastCurrentHighwaterResumeToken($currentRows);
+        $expectedHighWater = self::currentHighwaterToken((string) ($options['expected_current_highwater_token_next200'] ?? $actualHighWater), 'expected current highwater token');
+        $currentGeneration = self::currentHighwaterToken((string) ($base['current_step_epoch_next194'] ?? 'epoch200:missing'), 'current step epoch');
+        $expectedGeneration = self::currentHighwaterToken((string) ($options['expected_current_generation_epoch_next200'] ?? $currentGeneration), 'expected current generation epoch');
 
         $baseAdmitted = (bool) ($base['next_source_exposed_after_current_done_next194'] ?? false);
         $drainCountMatches = $actualDrainCount === $expectedDrainCount;
         $highWaterMatches = hash_equals($expectedHighWater, $actualHighWater);
         $generationMatches = hash_equals($expectedGeneration, $currentGeneration);
         $nextVisible = $baseAdmitted && $drainCountMatches && $highWaterMatches && $generationMatches;
-        $blockReasons = self::blockReasonsNext200(
+        $blockReasons = self::currentHighwaterBlockReasons(
             $base['block_reasons_next194'] ?? [],
             $baseAdmitted,
             $drainCountMatches,
@@ -9351,13 +9351,13 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             $generationMatches,
         );
 
-        $taggedCurrent = self::tagRowsNext200($currentRows, true, [], $actualDrainCount, $actualHighWater, $currentGeneration);
-        $taggedNext = self::tagRowsNext200($nextRows, $nextVisible, $blockReasons, $actualDrainCount, $actualHighWater, $currentGeneration);
+        $taggedCurrent = self::tagCurrentHighwaterRows($currentRows, true, [], $actualDrainCount, $actualHighWater, $currentGeneration);
+        $taggedNext = self::tagCurrentHighwaterRows($nextRows, $nextVisible, $blockReasons, $actualDrainCount, $actualHighWater, $currentGeneration);
         $visibleRows = array_values(array_filter(array_merge($taggedCurrent, $taggedNext), static fn (array $row): bool => $row['visible_after_current_highwater_next200']));
         $heldRows = array_values(array_filter($taggedNext, static fn (array $row): bool => !$row['visible_after_current_highwater_next200']));
 
         return [
-            'status_next200' => self::statusNext200($nextVisible, $baseAdmitted, $drainCountMatches, $highWaterMatches, $generationMatches),
+            'status_next200' => self::currentHighwaterStatus($nextVisible, $baseAdmitted, $drainCountMatches, $highWaterMatches, $generationMatches),
             'base' => $base,
             'current_drain_count_next200' => $actualDrainCount,
             'expected_current_drain_count_next200' => $expectedDrainCount,
@@ -9414,7 +9414,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string> $blockReasons
      * @return list<array<string,mixed>>
      */
-    private static function tagRowsNext200(array $rows, bool $visible, array $blockReasons, int $drainCount, string $highWater, string $generation): array
+    private static function tagCurrentHighwaterRows(array $rows, bool $visible, array $blockReasons, int $drainCount, string $highWater, string $generation): array
     {
         $out = [];
         foreach ($rows as $row) {
@@ -9433,7 +9433,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext200(mixed $rows, string $label): array
+    private static function currentHighwaterRows(mixed $rows, string $label): array
     {
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next200 {$label} must be a list");
@@ -9450,21 +9450,21 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
     /**
      * @param list<array<string,mixed>> $rows
      */
-    private static function lastResumeTokenNext200(array $rows): string
+    private static function lastCurrentHighwaterResumeToken(array $rows): string
     {
         $last = $rows[array_key_last($rows)] ?? null;
         if (!is_array($last) || !isset($last['resume_token'])) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next200 current highwater row is missing');
         }
 
-        return self::tokenNext200((string) $last['resume_token'], 'current highwater token');
+        return self::currentHighwaterToken((string) $last['resume_token'], 'current highwater token');
     }
 
     /**
      * @param mixed $baseReasons
      * @return list<string>
      */
-    private static function blockReasonsNext200(mixed $baseReasons, bool $baseAdmitted, bool $drainCountMatches, bool $highWaterMatches, bool $generationMatches): array
+    private static function currentHighwaterBlockReasons(mixed $baseReasons, bool $baseAdmitted, bool $drainCountMatches, bool $highWaterMatches, bool $generationMatches): array
     {
         if (!is_array($baseReasons) || !array_is_list($baseReasons)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING next200 base block reasons must be a list');
@@ -9487,7 +9487,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return array_values(array_unique($reasons));
     }
 
-    private static function statusNext200(bool $visible, bool $baseAdmitted, bool $drainCountMatches, bool $highWaterMatches, bool $generationMatches): string
+    private static function currentHighwaterStatus(bool $visible, bool $baseAdmitted, bool $drainCountMatches, bool $highWaterMatches, bool $generationMatches): string
     {
         if ($visible) {
             return 'trigger-recursive-view-returning-current-source-next200-next-exposed';
@@ -9508,7 +9508,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return 'trigger-recursive-view-returning-current-source-next200-held';
     }
 
-    private static function nonNegativeIntNext200(mixed $value, string $label): int
+    private static function currentHighwaterNonNegativeInt(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next200 {$label} is malformed");
@@ -9517,7 +9517,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext200(string $value, string $label): string
+    private static function currentHighwaterToken(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING next200 {$label} is malformed");

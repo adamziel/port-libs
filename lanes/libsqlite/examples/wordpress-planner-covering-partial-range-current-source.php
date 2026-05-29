@@ -23,14 +23,14 @@ $currentRows = array_merge($preparedRows, [
     ['rowid' => 4, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'a:4'],
 ]);
 
-$indexSql = "CREATE INDEX idx_wp_options_blog_autoload_plugin_covering_next131 ON wp_options(blog_id, autoload, option_name, option_value, rowid) WHERE autoload = 'yes' AND option_name >= 'plugin_'";
+$indexSql = "CREATE INDEX idx_wp_options_blog_autoload_plugin_covering_current_source ON wp_options(blog_id, autoload, option_name, option_value, rowid) WHERE autoload = 'yes' AND option_name >= 'plugin_'";
 $prepared = [
     'name' => 'prepared-wp-options-copy',
     'schemaCookie' => 1310,
     'stat4Generation' => 7,
     'rows' => $preparedRows,
     'indexes' => [[
-        'name' => 'idx_wp_options_blog_autoload_plugin_covering_next131',
+        'name' => 'idx_wp_options_blog_autoload_plugin_covering_current_source',
         'rootPage' => 91,
         'estimatedRows' => 20,
         'sql' => $indexSql,
@@ -42,14 +42,14 @@ $current = [
     'stat4Generation' => 8,
     'rows' => $currentRows,
     'indexes' => [[
-        'name' => 'idx_wp_options_blog_autoload_plugin_covering_next131',
+        'name' => 'idx_wp_options_blog_autoload_plugin_covering_current_source',
         'rootPage' => 94,
         'estimatedRows' => 12,
         'sql' => $indexSql,
     ]],
 ];
 
-$plan = SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materializeNext131(
+$plan = SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materialize(
     $prepared,
     $current,
     $and(
@@ -66,7 +66,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['selectedSource'] === 'current');
     assert(array_column($plan['coveredRows'], 'rowid') === [1, 2, 4]);
     assert($plan['selectedPlan']['tableLookupRequired'] === false);
-    echo "wordpress-planner-covering-partial-range-current-source-next131 self-test passed\n";
+    echo "wordpress-planner-covering-partial-range-current-source self-test passed\n";
 
     return;
 }

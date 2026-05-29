@@ -32,3 +32,18 @@ Follow-up: the separate high-volume
 cluster remains as a distinct generated-method consolidation target. It encodes
 step-specific transitions and should be collapsed with a dedicated canonical
 step dispatcher rather than hidden compatibility shims.
+
+2026-05-29 thirty-seventh pass:
+
+- Removed the public numbered WAL checkpoint wrappers
+  `next1140AfterCurrentCheckpoint()` through `next1149AfterCurrentCheckpoint()`
+  and `next1151AfterCurrentCheckpoint()` through `next1155AfterCurrentCheckpoint()`.
+- Migrated the direct focused test and WordPress smoke to the stable
+  `afterReadyCheckpointVerification()` dispatcher, while keeping the existing
+  `pageCacheSourceTokenAfterCurrentCheckpoint()` descriptive step helper.
+- Verification: `php -l` passed for the changed production, test, and example
+  PHP files; focused test
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext11401155Test.php`
+  passed with `1 test files, 78 assertions, 0 failures`; example smoke
+  `php lanes/libsqlite/examples/wordpress-wal-hot-journal-savepoint-checkpoint-current-source-next1155.php --self-test`
+  passed; `git diff --check -- lanes/libsqlite` passed.

@@ -36077,18 +36077,18 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             && $cardinalityFence['expressionKeysWithStalePeerCounts'] === [];
 
         return array_replace($base, [
-            'status' => $ready ? 'stat4-expression-partial-current-source-next227-ready' : 'requires-current-source-stat4-peer-cardinality-reprepare',
+            'status' => $ready ? 'stat4-expression-partial-peer-cardinality-ready' : 'requires-current-source-stat4-peer-cardinality-reprepare',
             'stat4PeerCardinalityFence' => $cardinalityFence,
             'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
-                'next227Ready' => $ready,
-                'next227PeerCardinalitySignature' => $cardinalityFence['peerCardinalitySignature'],
-                'next227PeerCardinalityProofSignature' => $cardinalityFence['proofSignature'],
-                'next227StalePeerCountKeys' => $cardinalityFence['expressionKeysWithStalePeerCounts'],
-                'next227SelectedPeerCounts' => $cardinalityFence['selectedPeerCounts'],
+                'peerCardinalityReady' => $ready,
+                'peerCardinalitySignature' => $cardinalityFence['peerCardinalitySignature'],
+                'peerCardinalityProofSignature' => $cardinalityFence['proofSignature'],
+                'peerCardinalityStalePeerCountKeys' => $cardinalityFence['expressionKeysWithStalePeerCounts'],
+                'peerCardinalitySelectedPeerCounts' => $cardinalityFence['selectedPeerCounts'],
             ]),
             'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
-                'next227PeerCardinalitySignature' => $cardinalityFence['peerCardinalitySignature'],
-                'next227PeerCardinalityProofSignature' => $cardinalityFence['proofSignature'],
+                'peerCardinalitySignature' => $cardinalityFence['peerCardinalitySignature'],
+                'peerCardinalityProofSignature' => $cardinalityFence['proofSignature'],
             ]),
             'cursorProgram' => self::cursorProgramForStat4PeerCardinality(
                 is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
@@ -36096,17 +36096,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $cardinalityFence,
             ),
             'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT227 PEER CARDINALITY FENCE '
+                . ' STAT4 EXPRESSION PARTIAL PEER CARDINALITY FENCE '
                 . $selectedName
                 . ($ready ? ' CURRENT STAT4 NEQ MATCHES PAYLOAD PEERS' : ' REQUIRES CURRENT STAT4 PEER CARDINALITY REPREPARE'),
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                 [
                     'SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan',
-                    'sqlite-sqlplanner-stat4-expression-partial-current-source-next227',
+                    'sqlite-sqlplanner-stat4-expression-partial-peer-cardinality',
                 ],
             ))),
-            'dependency_closure' => 'no new support component needed; next227 reuses current-source STAT4 expression partial payloads and validates sqlite_stat4 neq peer cardinality before cursor admission',
+            'dependency_closure' => 'no new support component needed; peer-cardinality reuses current-source STAT4 expression partial payloads and validates sqlite_stat4 neq peer cardinality before cursor admission',
             'non_overlap' => 'adds current sqlite_stat4 neq peer-cardinality validation for selected expression keys after accepted next224 sample-order validation; avoids grouped LIKE/OR, rowid alias, payload coverage, expression ORDER BY, range-cost ranking, JSON, WAL, VFS, B-tree, trigger, and UTF clusters',
         ]);
     }
@@ -36116,18 +36116,18 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     {
         $indexes = $source['indexes'] ?? null;
         if (!is_array($indexes) || !array_is_list($indexes)) {
-            throw new \InvalidArgumentException('SQLite next227 needs source indexes');
+            throw new \InvalidArgumentException('SQLite peerCardinality needs source indexes');
         }
         foreach ($indexes as $index) {
             if (!is_array($index)) {
-                throw new \InvalidArgumentException('SQLite next227 index entries must be arrays');
+                throw new \InvalidArgumentException('SQLite peerCardinality index entries must be arrays');
             }
             if ((string) ($index['name'] ?? '') === $name) {
                 return $index;
             }
         }
 
-        throw new \InvalidArgumentException('SQLite next227 selected index missing from source');
+        throw new \InvalidArgumentException('SQLite peerCardinality selected index missing from source');
     }
 
     /** @param array<string,mixed> $base @return list<array<string,mixed>> */
@@ -36136,11 +36136,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $fence = $base['stat4SampleOrderFence'] ?? null;
         $proofs = is_array($fence) ? ($fence['matchedSampleProofs'] ?? null) : null;
         if (!is_array($proofs) || !array_is_list($proofs)) {
-            throw new \InvalidArgumentException('SQLite next227 needs next224 sample proofs');
+            throw new \InvalidArgumentException('SQLite peerCardinality needs next224 sample proofs');
         }
         foreach ($proofs as $proof) {
             if (!is_array($proof)) {
-                throw new \InvalidArgumentException('SQLite next227 sample proofs must be arrays');
+                throw new \InvalidArgumentException('SQLite peerCardinality sample proofs must be arrays');
             }
         }
 
@@ -36199,12 +36199,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     private static function payloadPeerCountsForStat4PeerCardinality(mixed $payloads): array
     {
         if (!is_array($payloads) || !array_is_list($payloads) || $payloads === []) {
-            throw new \InvalidArgumentException('SQLite next227 needs stat4ExpressionPayloads');
+            throw new \InvalidArgumentException('SQLite peerCardinality needs stat4ExpressionPayloads');
         }
         $counts = [];
         foreach ($payloads as $payload) {
             if (!is_array($payload)) {
-                throw new \InvalidArgumentException('SQLite next227 payload entries must be arrays');
+                throw new \InvalidArgumentException('SQLite peerCardinality payload entries must be arrays');
             }
             $key = self::payloadExpressionKeyForStat4PeerCardinality($payload);
             $counts[$key] = ($counts[$key] ?? 0) + 1;
@@ -36228,14 +36228,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return strtolower((string) $payload['option_name']);
         }
 
-        throw new \InvalidArgumentException('SQLite next227 payload entries need expressionKey or option_name');
+        throw new \InvalidArgumentException('SQLite peerCardinality payload entries need expressionKey or option_name');
     }
 
     /** @param array<string,mixed> $proof */
     private static function proofKeyForStat4PeerCardinality(array $proof): string
     {
         if (!array_key_exists('expressionKey', $proof)) {
-            throw new \InvalidArgumentException('SQLite next227 sample proof needs expressionKey');
+            throw new \InvalidArgumentException('SQLite peerCardinality sample proof needs expressionKey');
         }
 
         return strtolower((string) $proof['expressionKey']);
@@ -36245,7 +36245,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     private static function proofIntForStat4PeerCardinality(array $proof, string $key): int
     {
         if (!array_key_exists($key, $proof) || (!is_int($proof[$key]) && !ctype_digit((string) $proof[$key]))) {
-            throw new \InvalidArgumentException('SQLite next227 sample proof ' . $key . ' must be an integer');
+            throw new \InvalidArgumentException('SQLite peerCardinality sample proof ' . $key . ' must be an integer');
         }
 
         return (int) $proof[$key];
@@ -36273,7 +36273,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
         $program[] = [
             'opcode' => 'RecheckCurrentStat4PeerCardinality',
-            'mode' => 'next227-current-source-stat4-expression-partial-peer-cardinality',
+            'mode' => 'stat4-expression-partial-peer-cardinality',
             'selectedPeerCounts' => $fence['selectedPeerCounts'],
             'signature' => $fence['proofSignature'],
         ];
@@ -36324,19 +36324,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             && $fence['rowidsRejectedBySelectivityFence'] === [];
 
         return array_replace($base, [
-            'status' => $ready ? 'stat4-expression-partial-current-source-next229-ready' : 'requires-current-source-stat4-selectivity-reprepare',
+            'status' => $ready ? 'stat4-expression-partial-selectivity-ready' : 'requires-current-source-stat4-selectivity-reprepare',
             'stat4SelectivityFence' => $fence,
             'selectedPlan' => array_replace(is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [], [
-                'next229Ready' => $ready,
-                'next229EstimatedRows' => $fence['estimatedRows'],
-                'next229MatchedRows' => $fence['matchedRowCount'],
-                'next229PageWindow' => $fence['pageWindow'],
-                'next229SelectivitySignature' => $fence['selectivitySignature'],
-                'next229RowsRejectedBySelectivityFence' => $fence['rowidsRejectedBySelectivityFence'],
+                'selectivityReady' => $ready,
+                'selectivityEstimatedRows' => $fence['estimatedRows'],
+                'selectivityMatchedRows' => $fence['matchedRowCount'],
+                'selectivityPageWindow' => $fence['pageWindow'],
+                'selectivitySignature' => $fence['selectivitySignature'],
+                'selectivityRowsRejectedBySelectivityFence' => $fence['rowidsRejectedBySelectivityFence'],
             ]),
             'stat4Fence' => array_replace(is_array($base['stat4Fence'] ?? null) ? $base['stat4Fence'] : [], [
-                'next229SelectivitySignature' => $fence['selectivitySignature'],
-                'next229ProofSignature' => $fence['proofSignature'],
+                'selectivitySignature' => $fence['selectivitySignature'],
+                'selectivityProofSignature' => $fence['proofSignature'],
             ]),
             'cursorProgram' => self::cursorProgramForStat4Selectivity(
                 is_array($base['cursorProgram'] ?? null) ? $base['cursorProgram'] : [],
@@ -36344,17 +36344,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $fence,
             ),
             'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT229 SELECTIVITY FENCE '
+                . ' STAT4 EXPRESSION PARTIAL SELECTIVITY FENCE '
                 . (string) ($base['selectedPlan']['name'] ?? '')
                 . ($ready ? ' CURRENT STAT4 CARDINALITY PROVED' : ' REQUIRES CURRENT STAT4 SELECTIVITY REPREPARE'),
             'dependencies' => array_values(array_unique(array_merge(
                 is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                 [
                     'SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan',
-                    'sqlite-sqlplanner-stat4-expression-partial-current-source-next229',
+                    'sqlite-sqlplanner-stat4-expression-partial-selectivity',
                 ],
             ))),
-            'dependency_closure' => 'no new support component needed; next229 reuses current-source STAT4 expression partial sample fences and adds selectivity/cardinality proof before cursor reuse',
+            'dependency_closure' => 'no new support component needed; current-source selectivity reuses current-source STAT4 expression partial sample fences and adds selectivity/cardinality proof before cursor reuse',
             'non_overlap' => 'adds current sqlite_stat4 selectivity and peer-count cardinality validation after accepted next224 sample-order validation; avoids expression ORDER BY, range-cost ranking, grouped SELECT, JSON table, WAL, VFS, B-tree, trigger, UTF, and prior STAT4 sample-order clusters',
         ]);
     }
@@ -36364,11 +36364,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     {
         $rows = $base['matchedRows'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
-            throw new \InvalidArgumentException('SQLite next229 base matched rows must be a list');
+            throw new \InvalidArgumentException('SQLite selectivity base matched rows must be a list');
         }
         foreach ($rows as $row) {
             if (!is_array($row)) {
-                throw new \InvalidArgumentException('SQLite next229 matched rows must be arrays');
+                throw new \InvalidArgumentException('SQLite selectivity matched rows must be arrays');
             }
         }
 
@@ -36383,11 +36383,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     private static function stat4SelectivityFence(array $matchedRows, array $sampleFence, int $limit, int $offset): array
     {
         if ($limit < 0 || $offset < 0) {
-            throw new \InvalidArgumentException('SQLite next229 limit and offset must be non-negative');
+            throw new \InvalidArgumentException('SQLite selectivity limit and offset must be non-negative');
         }
         $proofs = $sampleFence['matchedSampleProofs'] ?? null;
         if (!is_array($proofs) || !array_is_list($proofs) || $proofs === []) {
-            throw new \InvalidArgumentException('SQLite next229 needs next224 matched sample proofs');
+            throw new \InvalidArgumentException('SQLite selectivity needs next224 matched sample proofs');
         }
 
         $matchedCount = count($matchedRows);
@@ -36404,7 +36404,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $peerRowsByKey = [];
         foreach ($proofs as $proof) {
             if (!is_array($proof)) {
-                throw new \InvalidArgumentException('SQLite next229 sample proofs must be arrays');
+                throw new \InvalidArgumentException('SQLite selectivity sample proofs must be arrays');
             }
             $key = (string) ($proof['expressionKey'] ?? '');
             $peerRowsByKey[$key][] = self::rowidForStat4Selectivity($proof);
@@ -36453,7 +36453,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         $values = [];
         foreach ($proofs as $proof) {
             if (!is_array($proof) || !is_int($proof[$column] ?? null)) {
-                throw new \InvalidArgumentException('SQLite next229 sample proof ' . $column . ' must be an integer');
+                throw new \InvalidArgumentException('SQLite selectivity sample proof ' . $column . ' must be an integer');
             }
             $values[] = $proof[$column];
         }
@@ -36467,21 +36467,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         foreach ($proofs as $proof) {
             if ((string) ($proof['expressionKey'] ?? '') === $key) {
                 if (!is_int($proof['sampleNeq'] ?? null)) {
-                    throw new \InvalidArgumentException('SQLite next229 sample proof neq must be an integer');
+                    throw new \InvalidArgumentException('SQLite selectivity sample proof neq must be an integer');
                 }
 
                 return $proof['sampleNeq'];
             }
         }
 
-        throw new \InvalidArgumentException('SQLite next229 sample proof key missing');
+        throw new \InvalidArgumentException('SQLite selectivity sample proof key missing');
     }
 
     /** @param array<string,mixed> $row */
     private static function rowidForStat4Selectivity(array $row): int
     {
         if (!array_key_exists('rowid', $row) || (!is_int($row['rowid']) && !ctype_digit((string) $row['rowid']))) {
-            throw new \InvalidArgumentException('SQLite next229 rowid must be an integer');
+            throw new \InvalidArgumentException('SQLite selectivity rowid must be an integer');
         }
 
         return (int) $row['rowid'];
@@ -36499,7 +36499,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
         $program[] = [
             'opcode' => 'RecheckCurrentStat4Selectivity',
-            'mode' => 'next229-current-source-stat4-expression-partial-selectivity',
+            'mode' => 'stat4-expression-partial-selectivity',
             'estimatedRows' => $fence['estimatedRows'],
             'matchedRows' => $fence['matchedRowCount'],
             'pageWindow' => $fence['pageWindow'],

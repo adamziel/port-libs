@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan;
 
-require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$eq = static fn (string $column, mixed $right): array => ['left' => ['column' => $column], 'operator' => '=', 'right' => $right];
-$like = static fn (string $column, string $right): array => ['left' => ['column' => $column], 'operator' => 'LIKE', 'right' => $right];
-$notNull = static fn (string $column): array => ['left' => ['column' => $column], 'operator' => 'IS NOT NULL'];
-$between = static fn (string $expression, mixed $lower, mixed $upper): array => ['left' => ['expression' => $expression], 'operator' => 'BETWEEN', 'lower' => $lower, 'upper' => $upper];
 $payload = static fn (array $row): array => [
     'rowid' => $row['rowid'],
     'expressionKey' => strtolower((string) $row['option_name']),
@@ -22,18 +18,18 @@ $payload = static fn (array $row): array => [
     ],
 ];
 
-$prepared = [
-    'name' => 'prepared-wp-options-stat4-peer-cardinality-next227',
-    'schemaCookie' => 2270,
-    'stat4Generation' => 227,
+$source = [
+    'name' => 'prepared-wp-options-stat4-selectivity',
+    'schemaCookie' => 2290,
+    'stat4Generation' => 229,
     'rows' => [
         ['rowid' => 10, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_alpha', 'option_value' => 'alpha-old', 'updated_at' => 10],
         ['rowid' => 20, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'forms-old', 'updated_at' => 20],
         ['rowid' => 30, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_seo', 'option_value' => 'seo-old', 'updated_at' => 30],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_stat4_peer_cardinality_next227',
-        'rootPage' => 22701,
+        'name' => 'idx_wp_options_stat4_selectivity',
+        'rootPage' => 22901,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
         'collation' => 'BINARY',
@@ -44,14 +40,18 @@ $prepared = [
             ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
             ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
         ],
-        'partialGroupedOrPredicateArms' => [[
-            ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
-            ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
-        ]],
-        'partialGroupedLikePredicateArms' => [[
-            ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
-            ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
-        ]],
+        'partialGroupedOrPredicateArms' => [
+            [
+                ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+                ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
+            ],
+        ],
+        'partialGroupedLikePredicateArms' => [
+            [
+                ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+                ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
+            ],
+        ],
         'coveringColumns' => ['option_name', 'option_value', 'updated_at', 'autoload', 'blog_id'],
         'stat4Samples' => [
             ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_alpha', 10]],
@@ -62,11 +62,11 @@ $prepared = [
     ]],
 ];
 
-$current = $prepared;
-$current['name'] = 'current-wp-options-stat4-peer-cardinality-next227';
-$current['schemaCookie'] = 2279;
-$current['stat4Generation'] = 297;
-$current['indexes'][0]['rootPage'] = 22788;
+$current = $source;
+$current['name'] = 'current-wp-options-stat4-selectivity';
+$current['schemaCookie'] = 2299;
+$current['stat4Generation'] = 309;
+$current['indexes'][0]['rootPage'] = 22988;
 $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '1 1', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_alpha', 10]],
     ['neq' => '1 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_cache', 40]],
@@ -87,34 +87,38 @@ $current['rows'] = [
 ];
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4ExpressionPartialPeerCardinality(
-    $prepared,
+$terms = [
+    ['left' => ['expression' => 'LOWER(option_name)'], 'operator' => 'BETWEEN', 'lower' => 'plugin_alpha', 'upper' => 'plugin_zulu'],
+    ['left' => ['column' => 'autoload'], 'operator' => '=', 'right' => 'yes'],
+    ['left' => ['column' => 'option_name'], 'operator' => 'IS NOT NULL'],
+    ['left' => ['column' => 'blog_id'], 'operator' => '=', 'right' => 1],
+    ['left' => ['column' => 'option_name'], 'operator' => 'LIKE', 'right' => 'plugin_%'],
+];
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4ExpressionPartialSelectivity(
+    $source,
     $current,
-    [
-        $between('LOWER(option_name)', 'plugin_alpha', 'plugin_zulu'),
-        $eq('autoload', 'yes'),
-        $notNull('option_name'),
-        $eq('blog_id', 1),
-        $like('option_name', 'plugin_%'),
-    ],
+    $terms,
     ['option_name', 'option_value', 'updated_at', 'blog_id'],
     5,
     1,
 );
 
-if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next227-ready');
-    assert($plan['stat4PeerCardinalityFence']['payloadPeerCounts']['plugin_forms'] === 3);
-    assert($plan['stat4PeerCardinalityFence']['expressionKeysWithStalePeerCounts'] === []);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next227 self-test passed\n";
+if (($argv[1] ?? null) === '--self-test') {
+    if (($plan['status'] ?? null) !== 'stat4-expression-partial-selectivity-ready') {
+        throw new RuntimeException('Expected selectivity STAT4 selectivity plan to be ready');
+    }
+    if (($plan['stat4SelectivityFence']['estimatedRows'] ?? null) !== 9) {
+        throw new RuntimeException('Expected current STAT4 counters to estimate nine rows');
+    }
+    echo "wordpress-sqlplanner-stat4-expression-partial-selectivity self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next227',
-    'wordpressUse' => 'Copied wp_options plugin pagination can reuse a changed STAT4 partial expression-index cursor only when sqlite_stat4 neq peer counts still match the current expression payload stream.',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-selectivity',
     'status' => $plan['status'],
-    'selectedSource' => $plan['selectedSource'],
-    'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
-    'peerCardinalityFence' => $plan['stat4PeerCardinalityFence'],
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+    'matchedRowids' => $plan['matchedRowids'],
+    'estimatedRows' => $plan['stat4SelectivityFence']['estimatedRows'],
+    'pageWindow' => $plan['stat4SelectivityFence']['pageWindow'],
+    'wordpressUse' => 'Copied wp_options plugin scans can reuse a current-source partial lower(option_name) expression index only when current sqlite_stat4 counters still cover the selected page and duplicate peer counts.',
+], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . "\n";

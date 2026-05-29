@@ -43,10 +43,37 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current sample reports `/` at 452G size with about 7.5G available, 99% used; `/tmp` has about 6.6G available. Preserve dirty work and use bounded cleanup/refill only.
-- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite next120/next121 development workers with no long sleepers; keep refills bounded because disk remains tight.
+- Root filesystem: current sample reports `/` at 452G size with about 152G available, 67% used; `/tmp` has about 4.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Current launch mode: visible supervised `main` tmux session with serialized source-moving integration and dashboard publication. The active pool is 10-11 real Codex libsqlite consolidation workers with no long sleepers; keep refills bounded and current-base only.
 
 ## Current Coordination Snapshot
+
+- 2026-05-29 supervisor continuation (shell samples 14:16 UTC):
+  Thirtieth consolidation follow-up is reduced and validated in the rolling
+  libsqlite integration worktree. The batch accepts eight AP-wave handoffs:
+  suffix cleanup, planner/STAT4, B-tree vacuum, WAL/VFS, row-value savepoint,
+  upstream-suite veryquick, attach temp WAL schema cache, and trigger
+  recursive RETURNING. Verification passed: php-lint for `29` changed PHP
+  files, focused changed tests
+  `17 test files / 21364 assertions / 0 failures`, `4` changed WordPress
+  examples/self-tests, upstream suite/veryquick evidence
+  `322 test files / 389645 assertions / 0 failures`, git diff --check, exact
+  user-named 150 suffix scan clean, numbered production filename/class scans
+  at `0`, and remaining numbered production method-line audit down to `565`.
+  Public libsqlite PASS and mapped totals remain `154019 / 0 fail` and
+  `830 / 1589` because this is consolidation, not new upstream behavior
+  coverage. Broad family sweeps are still honest debt: planner/STAT4
+  `135 files / 7652 assertions / 4 failures`, rowvalue
+  `195 files / 8753 assertions / 12 failures`, B-tree vacuum
+  `175 files / 103025 assertions / 631 failures`, WAL checkpoint
+  `2 files / 11944 assertions / 19 failures`, attach
+  `83 files / 2284 assertions / 1 failure`, and trigger
+  `60 files / 4482 assertions / 1 failure`. The planner representative
+  failure reproduced with the AP planstat4 patch reversed and reapplied, so it
+  is pre-existing family-gate debt rather than a regression from this reduced
+  batch. A fresh AR reserve wave is visible in tmux `main` with 11 active
+  libsqlite consolidation workers and no long sleepers; the worker prompt
+  continues to treat the user-named 150 suffix as an active cleanup target.
 
 - 2026-05-29 supervisor continuation (shell samples 14:05 UTC):
   Twenty-ninth consolidation follow-up is reduced and validated in the rolling

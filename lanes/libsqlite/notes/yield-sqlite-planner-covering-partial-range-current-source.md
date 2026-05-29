@@ -1,4 +1,4 @@
-# SQLite planner covering partial range current-source next131
+# SQLite planner covering partial range current-source
 
 Status: focused PHP behavior growth for an ordinary covering partial range
 planner current-source handoff.
@@ -10,7 +10,7 @@ the current schema/stat4 source, keep the range cursor on the partial covering
 index, elide table lookup, and materialize current-source covered rows.
 
 WordPress path:
-`wordpress-planner-covering-partial-range-current-source-next131.php` models a
+`wordpress-planner-covering-partial-range-current-source.php` models a
 copied `wp_options` plugin import where a partial covering index over
 `blog_id, autoload, option_name, option_value, rowid` should satisfy
 `autoload = 'yes' AND option_name >= 'plugin_'` plus the query range
@@ -18,22 +18,21 @@ copied `wp_options` plugin import where a partial covering index over
 
 Verification:
 
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringPartialRangeCurrentSourceNext131Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePlannerCoveringPartialRangeCurrentSourcePlanTest.php`
   - `1 test files, 59 assertions, 0 failures`
-- `php lanes/libsqlite/examples/wordpress-planner-covering-partial-range-current-source-next131.php --self-test`
-  - `wordpress-planner-covering-partial-range-current-source-next131 self-test passed`
+- `php lanes/libsqlite/examples/wordpress-planner-covering-partial-range-current-source.php --self-test`
+  - `wordpress-planner-covering-partial-range-current-source self-test passed`
 
 PASS delta: `+59` focused assertions. `lane-status.json` `phpPass` moves from
 `54864` to `54923`. Mapped upstream coverage remains `606 / 1589`; this reuses
 already mapped partial-index, covering-index, range-planner, and current-source
 planner evidence rather than claiming a fresh manifest-backed row.
 
-Non-overlap: avoids accepted partial expression skip-scan next129, raw-column
-partial covering skip-scan next125/next127, expression ORDER BY,
-expression-index range-cost ranking, STAT4 partial expression covering,
-parser-level JSON table source/cursor work, and VFS/WAL/B-tree current-source
-clusters. The new surface is ordinary non-skip-scan covering partial range
-current-source materialization.
+Non-overlap: avoids accepted partial expression skip-scan, raw-column partial
+covering skip-scan, expression ORDER BY, expression-index range-cost ranking,
+STAT4 partial expression covering, parser-level JSON table source/cursor work,
+and VFS/WAL/B-tree current-source clusters. The new surface is ordinary
+non-skip-scan covering partial range current-source materialization.
 
 Dependency closure: no new support component is needed. The patch reuses
 lane-local CREATE INDEX parsing, partial predicate implication, multicolumn

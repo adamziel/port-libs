@@ -18,7 +18,7 @@ final class SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan
          */
         public static function materializePartialRangeCovering(array $preparedSource, array $currentSource, array $predicate, array $neededColumns): array
         {
-            $base = SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materializeNext131(
+            $base = SQLitePlannerCoveringPartialRangeCurrentSourceNextPlan::materialize(
                 $preparedSource,
                 $currentSource,
                 $predicate,
@@ -53,7 +53,7 @@ final class SQLitePlannerPartialRangeCoveringCurrentSourceNextPlan
                 'sqlite-sqlplanner-partial-range-covering-current-source',
             ];
             $base['dependency_closure'] = 'no new support component needed; native partial range covering reuses native partial range planning and adds predicate-exact covering stream materialization for current-source rows';
-            $base['non_overlap'] = 'avoids accepted next131 ordinary partial range materialization, next124 STAT4 partial range reprepare, next133 STAT4 partial expression planning, expression ORDER BY, range-cost, skip-scan, and JSON/VFS/WAL clusters; this slice filters covering current-source rows by full partial predicate terms not present in the index key';
+            $base['non_overlap'] = 'avoids accepted ordinary partial range materialization, STAT4 partial range reprepare, STAT4 partial expression planning, expression ORDER BY, range-cost, skip-scan, and JSON/VFS/WAL clusters; this slice filters covering current-source rows by full partial predicate terms not present in the index key';
 
             return $base;
         }
