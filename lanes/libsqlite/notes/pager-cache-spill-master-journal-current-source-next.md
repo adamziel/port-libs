@@ -1,6 +1,6 @@
-# Pager Cache-Spill Master-Journal Current Source Next150
+# Pager Cache-Spill Master-Journal Current Source Next
 
-Slice: `pager-cache-spill-master-journal-current-source-next150`.
+Slice: `pager-cache-spill-master-journal-current-source-next`.
 
 Behavior added:
 - Re-read the current master journal before admitting dirty pager-cache pages to cache spill.
@@ -8,11 +8,11 @@ Behavior added:
 - Reuse `SQLitePagerDirtyPageCacheSpillPlan::journalModeCurrentSourceNext107()` for rollback-journal and WAL spill routing after the current-source filter.
 
 Focused evidence:
-- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillMasterJournalCurrentSourceNext150Test.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLitePagerCacheSpillMasterJournalCurrentSourceNextTest.php`
 - Result: `1 test files, 92 assertions, 0 failures` with 92 PASS lines.
 
 WordPress smoke:
-- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-master-journal-current-source-next150.php`
+- `php lanes/libsqlite/examples/wordpress-pager-cache-spill-master-journal-current-source-next.php`
 - Proves a copied `wp_options` import spills only pages whose before-images match the current master-journal source while stale and pinned cache pages defer.
 
 Dependency closure:

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLitePagerCacheSpillMasterJournalCurrentSourceNext150Plan;
+use PortLibs\LibSqlite\SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan;
 
 require_once __DIR__ . '/../src/SQLitePagerDirtyPageCacheSpillPlan.php';
-require_once __DIR__ . '/../src/SQLitePagerCacheSpillMasterJournalCurrentSourceNext150Plan.php';
+require_once __DIR__ . '/../src/SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan.php';
 
 $pageSize = 512;
 $databasePath = '/srv/wp-content/database/wp-next150.sqlite';
@@ -22,7 +22,7 @@ $databasePages = [
     4 => $page('wp next150 transient cache before retry spill'),
 ];
 
-$plan = SQLitePagerCacheSpillMasterJournalCurrentSourceNext150Plan::plan(
+$plan = SQLitePagerCacheSpillMasterJournalCurrentSourceNextPlan::plan(
     $databasePath,
     $journalPath,
     $masterPath,
