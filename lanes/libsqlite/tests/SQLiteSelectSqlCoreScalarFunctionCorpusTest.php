@@ -253,6 +253,86 @@ $cases = [
         'SELECT option_name FROM wp_options WHERE lower(substr(option_name, 1, 6)) = \'plugin\'',
         [['option_name' => 'plugin_cache_key']],
     ],
+    'datetime fractional day modifier' => [
+        'SELECT datetime(\'2024-01-01 00:00:00\', \'+0.5 days\') AS value',
+        [['value' => '2024-01-01 12:00:00']],
+    ],
+    'datetime fractional hour modifier' => [
+        'SELECT datetime(\'2024-01-01 00:00:00\', \'+1.25 hours\') AS value',
+        [['value' => '2024-01-01 01:15:00']],
+    ],
+    'datetime fractional minute modifier' => [
+        'SELECT datetime(\'2024-01-01 00:00:00\', \'+1.5 minutes\') AS value',
+        [['value' => '2024-01-01 00:01:30']],
+    ],
+    'time fractional second modifier without subsec' => [
+        'SELECT time(\'2024-01-01 00:00:00\', \'+1.5 seconds\') AS value',
+        [['value' => '00:00:01']],
+    ],
+    'time fractional second modifier with subsec' => [
+        'SELECT time(\'2024-01-01 00:00:00\', \'+1.5 seconds\', \'subsec\') AS value',
+        [['value' => '00:00:01.500']],
+    ],
+    'datetime fractional month modifier' => [
+        'SELECT datetime(\'2024-01-31\', \'+1.5 months\') AS value',
+        [['value' => '2024-03-17 00:00:00']],
+    ],
+    'datetime fractional year modifier' => [
+        'SELECT datetime(\'2024-02-29\', \'+0.5 years\') AS value',
+        [['value' => '2024-08-29 12:00:00']],
+    ],
+    'datetime negative fractional day modifier' => [
+        'SELECT datetime(\'2024-01-02 00:00:00\', \'-0.25 days\') AS value',
+        [['value' => '2024-01-01 18:00:00']],
+    ],
+    'datetime timezone positive offset normalizes utc' => [
+        'SELECT datetime(\'2024-01-01 03:30:00+02:30\') AS value',
+        [['value' => '2024-01-01 01:00:00']],
+    ],
+    'datetime timezone negative offset normalizes utc' => [
+        'SELECT datetime(\'2024-01-01 03:30:00-02:30\') AS value',
+        [['value' => '2024-01-01 06:00:00']],
+    ],
+    'datetime z suffix with subsec' => [
+        'SELECT datetime(\'2024-01-01T00:00:00.125Z\', \'subsec\') AS value',
+        [['value' => '2024-01-01 00:00:00.125']],
+    ],
+    'unixepoch truncates fractional seconds by default' => [
+        'SELECT unixepoch(\'2024-01-01 00:00:00.125\') AS value',
+        [['value' => 1704067200]],
+    ],
+    'unixepoch subsec returns fractional seconds' => [
+        'SELECT unixepoch(\'2024-01-01 00:00:00.125\', \'subsec\') AS value',
+        [['value' => 1704067200.125]],
+    ],
+    'datetime unixepoch subsec preserves milliseconds' => [
+        'SELECT datetime(1704067200.125, \'unixepoch\', \'subsec\') AS value',
+        [['value' => '2024-01-01 00:00:00.125']],
+    ],
+    'time unixepoch subsec preserves milliseconds' => [
+        'SELECT time(1704067200.125, \'unixepoch\', \'subsec\') AS value',
+        [['value' => '00:00:00.125']],
+    ],
+    'strftime fractional seconds' => [
+        'SELECT strftime(\'%f\', \'2024-01-01 00:00:00.125\') AS value',
+        [['value' => '00.125']],
+    ],
+    'strftime julian day text' => [
+        'SELECT strftime(\'%J\', \'2024-01-01 00:00:00\') AS value',
+        [['value' => '2460310.5']],
+    ],
+    'timediff preserves millisecond difference' => [
+        'SELECT timediff(\'2024-01-02 03:04:05.678\', \'2024-01-01 01:02:03.123\') AS value',
+        [['value' => '+0000-00-01 02:02:02.555']],
+    ],
+    'date function in where with fractional modifier' => [
+        'SELECT option_name FROM wp_options WHERE date(\'2024-01-01 23:00:00\', \'+2 hours\') = \'2024-01-02\' ORDER BY option_id LIMIT 1',
+        [['option_name' => 'siteurl']],
+    ],
+    'datetime function in order expression with timezone' => [
+        'SELECT option_name FROM wp_options ORDER BY datetime(\'2024-01-01 03:30:00+02:30\'), option_id LIMIT 2',
+        [['option_name' => 'siteurl'], ['option_name' => 'home']],
+    ],
 ];
 
 $tests = [];

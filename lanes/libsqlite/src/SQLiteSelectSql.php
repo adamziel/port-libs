@@ -3399,7 +3399,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach ([['&', '|', '<<', '>>'], ['||'], ['->>', '->'], ['+', '-'], ['*', '/', '%']] as $operators) {
+        foreach ([['&', '|', '<<', '>>'], ['||', '->>', '->'], ['+', '-'], ['*', '/', '%']] as $operators) {
             $operator = self::topLevelExpressionOperator($sql, $operators);
             if ($operator === null) {
                 continue;

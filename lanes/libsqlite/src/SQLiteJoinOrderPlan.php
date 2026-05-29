@@ -11,7 +11,7 @@ final class SQLiteJoinOrderPlan
      * @param list<array{name:string,table:string,columns:list<string>,unique?:bool}> $indexes
      * @param list<string> $tables
      * @param array<string,list<array{column:string,operator:string,value?:mixed,values?:list<mixed>}>> $constraintsByTable
-     * @param list<array{leftTable:string,leftColumn:string,rightTable:string,rightColumn:string}> $joinTerms
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
      * @return array<string,mixed>
      */
     public static function choose(array $statRows, array $indexes, array $tables, array $constraintsByTable = [], array $joinTerms = []): array
@@ -26,7 +26,7 @@ final class SQLiteJoinOrderPlan
      * @param list<array{name:string,table:string,columns:list<string>,unique?:bool}> $indexes
      * @param list<string> $tables
      * @param array<string,list<array{column:string,operator:string,value?:mixed,values?:list<mixed>}>> $constraintsByTable
-     * @param list<array{leftTable:string,leftColumn:string,rightTable:string,rightColumn:string}> $joinTerms
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
      * @return list<array<string,mixed>>
      */
     public static function rankedOrders(array $statRows, array $indexes, array $tables, array $constraintsByTable = [], array $joinTerms = []): array
@@ -44,7 +44,11 @@ final class SQLiteJoinOrderPlan
             foreach ($order as $position => $table) {
                 $constraints = $constraintsByTable[$table] ?? [];
                 $joinConstraints = self::joinConstraintsFor($table, $available, $joinTerms);
-                if ($position > 0 && $joinConstraints === []) {
+                if ($position > 0 && $joinConstraints === [] && !self::connectedToAvailable($table, $available, $joinTerms)) {
+                    $valid = false;
+                    break;
+                }
+                if (!self::respectsJoinOrderFences($table, $available, $joinTerms)) {
                     $valid = false;
                     break;
                 }
@@ -60,6 +64,7 @@ final class SQLiteJoinOrderPlan
                     'index' => $plan['index'] ?? null,
                     'matchedColumns' => $plan['matchedColumns'],
                     'joinColumns' => array_values(array_map(static fn (array $constraint): string => $constraint['column'], $joinConstraints)),
+                    'joinFence' => self::joinFenceFor($table, $available, $joinTerms),
                     'estimatedRows' => $loopRows,
                     'detail' => $plan['detail'],
                 ];
@@ -114,12 +119,24 @@ final class SQLiteJoinOrderPlan
     }
 
     /**
-     * @param list<array{leftTable:string,leftColumn:string,rightTable:string,rightColumn:string}> $joinTerms
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
      */
     private static function validateJoinTerms(array $joinTerms): void
     {
         foreach ($joinTerms as $term) {
-            foreach (['leftTable', 'leftColumn', 'rightTable', 'rightColumn'] as $key) {
+            foreach (['leftTable', 'rightTable'] as $key) {
+                if (!is_string($term[$key] ?? null) || $term[$key] === '') {
+                    throw new \InvalidArgumentException('SQLite join-order planner join terms need non-empty ' . $key);
+                }
+            }
+            $joinType = strtoupper((string) ($term['joinType'] ?? 'INNER'));
+            if (!in_array($joinType, ['INNER', 'JOIN', 'CROSS', 'LEFT', 'LEFT OUTER', 'RIGHT', 'RIGHT OUTER', 'FULL', 'FULL OUTER'], true)) {
+                throw new \InvalidArgumentException('SQLite join-order planner joinType is not supported');
+            }
+            if ($joinType === 'CROSS') {
+                continue;
+            }
+            foreach (['leftColumn', 'rightColumn'] as $key) {
                 if (!is_string($term[$key] ?? null) || $term[$key] === '') {
                     throw new \InvalidArgumentException('SQLite join-order planner join terms need non-empty ' . $key);
                 }
@@ -129,13 +146,16 @@ final class SQLiteJoinOrderPlan
 
     /**
      * @param array<string,bool> $available
-     * @param list<array{leftTable:string,leftColumn:string,rightTable:string,rightColumn:string}> $joinTerms
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
      * @return list<array{column:string,operator:string,value:mixed}>
      */
     private static function joinConstraintsFor(string $table, array $available, array $joinTerms): array
     {
         $constraints = [];
         foreach ($joinTerms as $term) {
+            if (strtoupper((string) ($term['joinType'] ?? 'INNER')) === 'CROSS') {
+                continue;
+            }
             if (strcasecmp($term['leftTable'], $table) === 0 && isset($available[$term['rightTable']])) {
                 $constraints[] = ['column' => $term['leftColumn'], 'operator' => '=', 'value' => ['outerTable' => $term['rightTable'], 'outerColumn' => $term['rightColumn']]];
             }
@@ -145,6 +165,83 @@ final class SQLiteJoinOrderPlan
         }
 
         return $constraints;
+    }
+
+    /**
+     * @param array<string,bool> $available
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
+     */
+    private static function connectedToAvailable(string $table, array $available, array $joinTerms): bool
+    {
+        foreach ($joinTerms as $term) {
+            if (strcasecmp($term['leftTable'], $table) === 0 && isset($available[$term['rightTable']])) {
+                return true;
+            }
+            if (strcasecmp($term['rightTable'], $table) === 0 && isset($available[$term['leftTable']])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,bool> $available
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
+     */
+    private static function respectsJoinOrderFences(string $table, array $available, array $joinTerms): bool
+    {
+        foreach ($joinTerms as $term) {
+            $joinType = strtoupper((string) ($term['joinType'] ?? 'INNER'));
+            if (in_array($joinType, ['CROSS', 'LEFT', 'LEFT OUTER'], true)
+                && strcasecmp($term['rightTable'], $table) === 0
+                && !isset($available[$term['leftTable']])
+            ) {
+                return false;
+            }
+            if (in_array($joinType, ['RIGHT', 'RIGHT OUTER'], true)
+                && strcasecmp($term['leftTable'], $table) === 0
+                && !isset($available[$term['rightTable']])
+            ) {
+                return false;
+            }
+            if (in_array($joinType, ['FULL', 'FULL OUTER'], true)) {
+                if (strcasecmp($term['rightTable'], $table) === 0 && !isset($available[$term['leftTable']])) {
+                    return false;
+                }
+                if (strcasecmp($term['leftTable'], $table) === 0 && isset($available[$term['rightTable']])) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string,bool> $available
+     * @param list<array{leftTable:string,leftColumn?:string,rightTable:string,rightColumn?:string,joinType?:string}> $joinTerms
+     * @return null|array{type:string,outerTable:string}
+     */
+    private static function joinFenceFor(string $table, array $available, array $joinTerms): ?array
+    {
+        foreach ($joinTerms as $term) {
+            $joinType = strtoupper((string) ($term['joinType'] ?? 'INNER'));
+            if (in_array($joinType, ['CROSS', 'LEFT', 'LEFT OUTER', 'FULL', 'FULL OUTER'], true)
+                && strcasecmp($term['rightTable'], $table) === 0
+                && isset($available[$term['leftTable']])
+            ) {
+                return ['type' => $joinType, 'outerTable' => $term['leftTable']];
+            }
+            if (in_array($joinType, ['RIGHT', 'RIGHT OUTER'], true)
+                && strcasecmp($term['leftTable'], $table) === 0
+                && isset($available[$term['rightTable']])
+            ) {
+                return ['type' => $joinType, 'outerTable' => $term['rightTable']];
+            }
+        }
+
+        return null;
     }
 
     /**

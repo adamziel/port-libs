@@ -1083,10 +1083,18 @@ final class SQLiteCoreScalarFunction
             }
         }
 
+        $subsecond = false;
+        foreach ($modifiers as $modifier) {
+            $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
+            if ($modifierText === 'subsec' || $modifierText === 'subsecond') {
+                $subsecond = true;
+            }
+        }
+
         $instant = self::parseDateTimeValue($timeValue, $modifiers);
         foreach ($modifiers as $modifier) {
             $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
-            if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto') {
+            if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto' || $modifierText === 'subsec' || $modifierText === 'subsecond') {
                 continue;
             }
             if (preg_match('/\Astart of (day|month|year)\z/', $modifierText, $matches) === 1) {
@@ -1106,16 +1114,8 @@ final class SQLiteCoreScalarFunction
                 }
                 continue;
             }
-            if (preg_match('/\A([+-]?\d+)(?:\.\d+)?\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {
-                $unit = match ($matches[2]) {
-                    'second', 'seconds' => 'seconds',
-                    'minute', 'minutes' => 'minutes',
-                    'hour', 'hours' => 'hours',
-                    'day', 'days' => 'days',
-                    'month', 'months' => 'months',
-                    default => 'years',
-                };
-                $instant = $instant->modify(sprintf('%+d %s', (int) $matches[1], $unit));
+            if (preg_match('/\A([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {
+                $instant = self::applyDateTimeAmountModifier($instant, (float) $matches[1], $matches[2]);
                 continue;
             }
 
@@ -1124,13 +1124,76 @@ final class SQLiteCoreScalarFunction
 
         return match ($functionName) {
             'date' => $instant->format('Y-m-d'),
-            'time' => $instant->format('H:i:s'),
-            'datetime' => $instant->format('Y-m-d H:i:s'),
-            'unixepoch' => (int) $instant->format('U'),
+            'time' => self::formatTime($instant, $subsecond),
+            'datetime' => self::formatDateTime($instant, $subsecond),
+            'unixepoch' => $subsecond ? self::unixTimestampFloat($instant) : (int) $instant->format('U'),
             'julianday' => self::unixTimestampFloat($instant) / 86400.0 + 2440587.5,
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
+    }
+
+    private static function applyDateTimeAmountModifier(\DateTimeImmutable $instant, float $amount, string $unit): \DateTimeImmutable
+    {
+        $normalized = rtrim($unit, 's');
+        $whole = (int) ($amount < 0 ? ceil($amount) : floor($amount));
+        $fraction = $amount - (float) $whole;
+
+        if ($whole !== 0) {
+            $instant = $instant->modify(sprintf('%+d %s', $whole, $normalized . 's'));
+        }
+
+        if (abs($fraction) < 0.000000001) {
+            return $instant;
+        }
+
+        $seconds = match ($normalized) {
+            'second' => $fraction,
+            'minute' => $fraction * 60.0,
+            'hour' => $fraction * 3600.0,
+            'day' => $fraction * 86400.0,
+            'month' => $fraction * 30.0 * 86400.0,
+            'year' => $fraction * 365.0 * 86400.0,
+            default => throw new \InvalidArgumentException("Unsupported SQLite date/time modifier unit: {$unit}"),
+        };
+
+        return self::modifyBySeconds($instant, $seconds);
+    }
+
+    private static function modifyBySeconds(\DateTimeImmutable $instant, float $seconds): \DateTimeImmutable
+    {
+        $microseconds = (int) round($seconds * 1000000.0);
+        if ($microseconds === 0) {
+            return $instant;
+        }
+
+        $sign = $microseconds < 0 ? '-' : '+';
+        $absolute = abs($microseconds);
+        $wholeSeconds = intdiv($absolute, 1000000);
+        $remainingMicroseconds = $absolute % 1000000;
+        if ($wholeSeconds > 0) {
+            $instant = $instant->modify("{$sign}{$wholeSeconds} seconds");
+        }
+        if ($remainingMicroseconds > 0) {
+            $instant = $instant->modify("{$sign}{$remainingMicroseconds} microseconds");
+        }
+
+        return $instant;
+    }
+
+    private static function formatTime(\DateTimeImmutable $instant, bool $subsecond): string
+    {
+        return $subsecond ? $instant->format('H:i:s') . self::millisecondSuffix($instant) : $instant->format('H:i:s');
+    }
+
+    private static function formatDateTime(\DateTimeImmutable $instant, bool $subsecond): string
+    {
+        return $subsecond ? $instant->format('Y-m-d H:i:s') . self::millisecondSuffix($instant) : $instant->format('Y-m-d H:i:s');
+    }
+
+    private static function millisecondSuffix(\DateTimeImmutable $instant): string
+    {
+        return sprintf('.%03d', (int) floor(((int) $instant->format('u')) / 1000));
     }
 
     private static function timeDifference(mixed $left, mixed $right): string
@@ -1141,14 +1204,15 @@ final class SQLiteCoreScalarFunction
         $interval = $negative ? $leftInstant->diff($rightInstant) : $rightInstant->diff($leftInstant);
 
         return sprintf(
-            '%s%04d-%02d-%02d %02d:%02d:%02d.000',
+            '%s%04d-%02d-%02d %02d:%02d:%02d.%03d',
             $negative ? '-' : '+',
             $interval->y,
             $interval->m,
             $interval->d,
             $interval->h,
             $interval->i,
-            $interval->s
+            $interval->s,
+            (int) floor($interval->f * 1000.0)
         );
     }
 
@@ -1196,8 +1260,13 @@ final class SQLiteCoreScalarFunction
         if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
             return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
         }
-        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z)?\z/i', $text) === 1) {
-            return new \DateTimeImmutable(str_replace('T', ' ', rtrim($text, 'Zz')), $timezone);
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?\z/i', $text) === 1) {
+            $normalized = str_replace('T', ' ', $text);
+            if (preg_match('/Z\z/i', $normalized) === 1) {
+                $normalized = rtrim($normalized, 'Zz') . '+00:00';
+            }
+
+            return (new \DateTimeImmutable($normalized, $timezone))->setTimezone($timezone);
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");

@@ -4524,4 +4524,173 @@ MD);
         $t->same('blocked-active-runner', $record['active_runner_status']);
         $t->contains('repair current-source next296 provenance', $record['next_gate']);
     },
+    'admits current accepted-head release artifact with focused php evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $acceptedHead = '7ad388140bf69a4cadfdbd1593b7aa1657c4defe';
+        $focusedOutput = implode("\n", array_merge(
+            ['Focused test run: 1 selected test files (root lock skipped)'],
+            array_map(
+                static fn (int $i): string => sprintf('PASS current release admission accepted-head case %02d', $i),
+                range(1, 58)
+            ),
+            ['1 test files, 58 assertions, 0 failures']
+        ));
+
+        $record = $evidence->releaseAdmissionCurrentRecord(
+            [
+                'release-all-current' => [
+                    'status' => 'passed',
+                    'label' => 'libsqlite-current-release',
+                    'repository_head' => $acceptedHead,
+                    'sqlite_commit' => '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7',
+                    'sqlite_version' => '3.54.0',
+                    'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+                    'requested' => [
+                        'testset' => 'release',
+                        'patterns' => [],
+                    ],
+                    'results' => [
+                        'exit' => 0,
+                        'tests' => 329670,
+                        'errors' => 0,
+                    ],
+                ],
+                'focused-current' => [
+                    'status' => 'passed',
+                    'label' => 'libsqlite-current-focused-smoke',
+                    'repository_head' => $acceptedHead,
+                    'sqlite_commit' => '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7',
+                    'sqlite_version' => '3.54.0',
+                    'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+                    'requested' => [
+                        'testset' => 'veryquick',
+                        'patterns' => ['select1.test'],
+                    ],
+                    'results' => [
+                        'exit' => 0,
+                        'tests' => 91,
+                        'errors' => 0,
+                    ],
+                ],
+            ],
+            $acceptedHead,
+            152903,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'current release admission avoids suite399-459 shard rows, numbered-source consolidation, ordinary behavior helpers, and stale release ledger surfaces',
+            ''
+        );
+
+        $t->same('current-release-admission-countable', $record['status']);
+        $t->same(true, $record['countable']);
+        $t->same($acceptedHead, $record['accepted_repository_head']);
+        $t->same(2, $record['artifact_count']);
+        $t->same(1, $record['countable_release_artifacts']);
+        $t->same(1, $record['focused_only_artifacts']);
+        $t->same(0, $record['blocked_artifacts']);
+        $t->same(['release-all-current'], $record['countable_labels']);
+        $t->same(['focused-current'], $record['focused_only_labels']);
+        $t->same([], $record['blocked_labels']);
+        $t->same(329670, $record['tests_total']);
+        $t->same(0, $record['errors_total']);
+        $t->same(58, $record['php_pass_delta']);
+        $t->same(152961, $record['next_php_pass']);
+        $t->same('admitted', $record['php_pass_admission']['status']);
+        $t->same(58, $record['php_pass_admission']['assertion_delta']);
+        $t->same(1, $record['php_pass_admission']['selected_test_files']);
+        $t->same(1, $record['php_pass_admission']['summary_test_files']);
+        $t->same(0, $record['php_pass_admission']['failures']);
+        $t->same(0, $record['blocker_count']);
+        $t->same([], $record['blockers']);
+        $t->same('zero-error-release-parity-countable', $record['ledger']['status']);
+        $t->same(1, $record['ledger']['entry_count']);
+        $t->same(1, $record['ledger']['zero_error_release_artifacts']);
+        $t->same(0, $record['ledger']['blocked_admissions']);
+        $t->same(true, $record['ledger']['release_blocker_closed']);
+        $t->same(true, $record['ledger']['counts_as_zero_error_release_parity']);
+        $t->same(329670, $record['ledger']['artifact_tests_total']);
+        $t->same(0, $record['ledger']['artifact_errors_total']);
+        $t->same(true, $record['counts_release_admission_current']);
+        $t->same(true, $record['counts_release_parity']);
+        $t->contains('current accepted-HEAD release/all zero-error artifact', $record['next_gate']);
+        $t->contains('no new support component needed', $record['dependency_closure']);
+        $t->contains('numbered-source consolidation', $record['non_overlap_note']);
+    },
+    'blocks current release admission for stale artifact duplicate runner and missing php evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $acceptedHead = '7ad388140bf69a4cadfdbd1593b7aa1657c4defe';
+        $focusedOutput = implode("\n", [
+            'Focused test run: 1 selected test files (root lock skipped)',
+            'PASS current release admission blocked stale artifact',
+            '1 test files, 1 assertions, 1 failures',
+        ]);
+
+        $record = $evidence->releaseAdmissionCurrentRecord(
+            [
+                'stale-release' => [
+                    'status' => 'passed',
+                    'label' => 'libsqlite-stale-release',
+                    'repository_head' => 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                    'sqlite_commit' => '8f70ec615f4cd247d36f92a22c99f65ebbcc22a7',
+                    'sqlite_version' => '3.54.0',
+                    'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+                    'requested' => [
+                        'testset' => 'release',
+                        'patterns' => [],
+                    ],
+                    'results' => [
+                        'exit' => 0,
+                        'tests' => 329670,
+                        'errors' => 0,
+                    ],
+                ],
+            ],
+            $acceptedHead,
+            152903,
+            'lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php',
+            $focusedOutput,
+            'current release admission blocked case avoids accepted shard evidence and does not claim release/all parity',
+            '987 1 S 00:08 0.0 ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error release'
+        );
+
+        $t->same('blocked', $record['status']);
+        $t->same(false, $record['countable']);
+        $t->same($acceptedHead, $record['accepted_repository_head']);
+        $t->same(1, $record['artifact_count']);
+        $t->same(0, $record['countable_release_artifacts']);
+        $t->same(0, $record['focused_only_artifacts']);
+        $t->same(1, $record['blocked_artifacts']);
+        $t->same([], $record['countable_labels']);
+        $t->same([], $record['focused_only_labels']);
+        $t->same(['stale-release'], $record['blocked_labels']);
+        $t->same(0, $record['tests_total']);
+        $t->same(0, $record['errors_total']);
+        $t->same(0, $record['php_pass_delta']);
+        $t->same(152903, $record['next_php_pass']);
+        $t->same('blocked', $record['php_pass_admission']['status']);
+        $t->same(0, $record['php_pass_admission']['assertion_delta']);
+        $t->same(1, $record['php_pass_admission']['selected_test_files']);
+        $t->same(1, $record['php_pass_admission']['summary_test_files']);
+        $t->same(1, $record['php_pass_admission']['failures']);
+        $t->same(3, $record['blocker_count']);
+        $t->same([
+            'active-runner-still-running',
+            'current-zero-error-release-artifact-missing',
+            'focused-php-pass-admission-blocked',
+        ], array_column($record['blockers'], 'id'));
+        $t->same(['release-countability', 'release-countability', 'php-pass'], array_column($record['blockers'], 'source'));
+        $t->same('blocked', $record['ledger']['status']);
+        $t->same(1, $record['ledger']['entry_count']);
+        $t->same(0, $record['ledger']['zero_error_release_artifacts']);
+        $t->same(1, $record['ledger']['blocked_admissions']);
+        $t->same(false, $record['ledger']['release_blocker_closed']);
+        $t->same(false, $record['ledger']['counts_as_zero_error_release_parity']);
+        $t->same(0, $record['ledger']['artifact_tests_total']);
+        $t->same(0, $record['ledger']['artifact_errors_total']);
+        $t->same(false, $record['counts_release_admission_current']);
+        $t->same(false, $record['counts_release_parity']);
+        $t->contains('keep current release admission blocked', $record['next_gate']);
+        $t->contains('focused TestRunner output contains failures', $record['blockers'][2]['evidence']);
+        $t->contains('release/all parity', $record['non_overlap_note']);
+    },
 ];

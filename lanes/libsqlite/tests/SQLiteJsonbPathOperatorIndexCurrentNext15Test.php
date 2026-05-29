@@ -119,7 +119,27 @@ return [
     ),
     'select sql json operators compose with concatenation' => static fn (TestRunner $t) => $t->same(
         ['cache:stable', 'forms:beta', 'empty:dev'],
-        $column("SELECT option_value ->> '$.plugin.name' || ':' || option_value ->> '$.plugin.channel' AS label FROM wp_options ORDER BY option_id", 'label'),
+        $column("SELECT (option_value ->> '$.plugin.name') || ':' || (option_value ->> '$.plugin.channel') AS label FROM wp_options ORDER BY option_id", 'label'),
+    ),
+    'select sql json operators share concat precedence for left associative json fragments' => static fn (TestRunner $t) => $t->same(
+        ['"stable":cache', '"beta":forms', '"dev":empty'],
+        $column("SELECT (option_value -> '$.plugin.channel') || ':' || (option_value ->> '$.plugin.name') AS label FROM wp_options ORDER BY option_id", 'label'),
+    ),
+    'select sql json operators let parentheses override concat precedence' => static fn (TestRunner $t) => $t->same(
+        ['"stable"', '"beta"', '"dev"'],
+        $column("SELECT option_value -> ('$.plugin.channel' || '') AS channel_json FROM wp_options ORDER BY option_id", 'channel_json'),
+    ),
+    'select sql json concat before json operator follows sqlite left associativity' => static fn (TestRunner $t) => $t->throws(
+        InvalidArgumentException::class,
+        static fn () => SQLiteSelectSql::execute("SELECT option_value || '{\"extra\":1}' ->> '$.plugin.name' AS bad FROM wp_options", ['wp_options' => $rows]),
+    ),
+    'select sql json repeated concat and operators follow sqlite left associativity' => static fn (TestRunner $t) => $t->throws(
+        InvalidArgumentException::class,
+        static fn () => SQLiteSelectSql::execute("SELECT option_value ->> '$.plugin.name' || ':' || option_value ->> '$.plugin.channel' AS bad FROM wp_options", ['wp_options' => $rows]),
+    ),
+    'select sql json operator can consume explicitly parenthesized concat rhs path' => static fn (TestRunner $t) => $t->same(
+        ['cache', 'forms', 'empty'],
+        $column("SELECT option_value ->> ('$.plugin.' || 'name') AS name FROM wp_options ORDER BY option_id", 'name'),
     ),
     'select sql json operators compose with arithmetic' => static fn (TestRunner $t) => $t->same(
         [8, 4, 1],

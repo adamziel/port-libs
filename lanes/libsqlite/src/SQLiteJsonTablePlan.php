@@ -558,6 +558,118 @@ final class SQLiteJsonTablePlan
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $baseConstraints
      * @param list<list<array{column:string,operator:string,value:mixed,usable?:bool}>> $alternatives
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return array{function:string,runnable:bool,chosenBranch:int|null,branchOrder:list<int>,branches:list<array<string,mixed>>,rows:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int,orderByConsumed:bool,currentReaderPolicy:string,nextReaderPolicy:string,dependencies:list<string>}
+     */
+    public static function rankedAlternativePlan(
+        string $function,
+        array $baseConstraints,
+        array $alternatives,
+        array $orderBy = [],
+    ): array {
+        if ($alternatives === []) {
+            throw new \InvalidArgumentException('SQLite JSON table ranked alternative plan requires at least one branch');
+        }
+
+        $function = self::normalizeFunction($function);
+        $branches = [];
+        foreach ($alternatives as $index => $alternative) {
+            if (!is_array($alternative) || $alternative === []) {
+                throw new \InvalidArgumentException('SQLite JSON table ranked alternative branches must be non-empty constraint lists');
+            }
+
+            $constraints = array_merge($baseConstraints, $alternative);
+            $indexPlan = self::xBestIndexPlan($function, $constraints, $orderBy);
+            $rows = $indexPlan['runnable'] ? self::orderedRows($function, $constraints, $orderBy) : [];
+            $branches[] = [
+                'branch' => $index,
+                'runnable' => $indexPlan['runnable'],
+                'idxNum' => $indexPlan['idxNum'],
+                'idxStr' => $indexPlan['idxStr'],
+                'filterArguments' => $indexPlan['filterArguments'],
+                'constraintUsage' => $indexPlan['constraintUsage'],
+                'orderByConsumed' => $indexPlan['orderByConsumed'],
+                'estimatedCost' => $indexPlan['estimatedCost'],
+                'estimatedRows' => $indexPlan['estimatedRows'],
+                'rowCount' => count($rows),
+                'rowids' => array_values(array_map(
+                    static fn (array $row): mixed => $row['id'] ?? $row['rowid'] ?? null,
+                    $rows,
+                )),
+                'rows' => $rows,
+                'rankKey' => [
+                    $indexPlan['runnable'] ? 0 : 1,
+                    $indexPlan['estimatedCost'],
+                    $indexPlan['estimatedRows'],
+                    $index,
+                ],
+            ];
+        }
+
+        usort($branches, static function (array $left, array $right): int {
+            return $left['rankKey'] <=> $right['rankKey'];
+        });
+
+        $rows = [];
+        $seen = [];
+        $estimatedCost = 0;
+        $estimatedRows = 0;
+        $runnable = false;
+        $runnableBranchCount = 0;
+        $orderByConsumed = $orderBy !== [];
+        foreach ($branches as &$branch) {
+            unset($branch['rankKey']);
+            if (!$branch['runnable']) {
+                continue;
+            }
+
+            $runnable = true;
+            $runnableBranchCount++;
+            $estimatedCost += (int) $branch['estimatedCost'];
+            $estimatedRows += (int) $branch['estimatedRows'];
+            $orderByConsumed = $orderByConsumed && (bool) $branch['orderByConsumed'];
+            foreach ($branch['rows'] as $row) {
+                $key = self::rowIdentityKey($row);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $rows[] = $row;
+            }
+        }
+        unset($branch);
+
+        if ($runnableBranchCount > 1) {
+            $orderByConsumed = false;
+        }
+
+        if ($orderBy !== [] && !$orderByConsumed) {
+            usort($rows, static fn (array $left, array $right): int => self::compareRowsForOrderBy($left, $right, $orderBy));
+        }
+
+        return [
+            'function' => $function,
+            'runnable' => $runnable,
+            'chosenBranch' => $runnable ? (int) $branches[0]['branch'] : null,
+            'branchOrder' => array_values(array_map(
+                static fn (array $branch): int => (int) $branch['branch'],
+                $branches,
+            )),
+            'branches' => $branches,
+            'rows' => $rows,
+            'estimatedCost' => $runnable ? max(1, $estimatedCost) : 1000000,
+            'estimatedRows' => $runnable ? $estimatedRows : 0,
+            'orderByConsumed' => $orderBy !== [] && $orderByConsumed,
+            'currentReaderPolicy' => 'rank-json-table-alternative-branches-before-xfilter',
+            'nextReaderPolicy' => 'reuse-ranked-json-table-alternative-plan-until-constraint-change',
+            'dependencies' => ['sqlite-json-table-ranked-alternative-planner-current'],
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $baseConstraints
+     * @param list<list<array{column:string,operator:string,value:mixed,usable?:bool}>> $alternatives
      * @return list<array<string,mixed>>
      */
     public static function filteredAlternativeRows(string $function, array $baseConstraints, array $alternatives): array

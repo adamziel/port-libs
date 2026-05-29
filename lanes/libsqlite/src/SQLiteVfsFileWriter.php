@@ -299,6 +299,61 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,recovery:array<string, mixed>,atomic:bool,current_source:array{database_path:string,database_bytes:int,wal_path:string,wal_bytes:int,had_wal:bool}}
+     */
+    public function applyCurrentWalTransactionRecovery(string $databasePath, ?int $databasePageSize = null): array
+    {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite current WAL transaction recovery requires a database path');
+        }
+
+        $databaseLocalPath = $this->localPath($databasePath);
+        if (!is_file($databaseLocalPath)) {
+            throw new \RuntimeException("SQLite current WAL transaction recovery database is missing: {$databasePath}");
+        }
+
+        $walPath = $databasePath . '-wal';
+        $walLocalPath = $this->localPath($walPath);
+        $databaseBytes = (string) file_get_contents($databaseLocalPath);
+        $source = [
+            'database_path' => $databasePath,
+            'database_bytes' => strlen($databaseBytes),
+            'wal_path' => $walPath,
+            'wal_bytes' => is_file($walLocalPath) ? strlen((string) file_get_contents($walLocalPath)) : 0,
+            'had_wal' => is_file($walLocalPath),
+        ];
+
+        if (!is_file($walLocalPath)) {
+            return [
+                'status' => 'skipped',
+                'root' => $this->rootDirectory,
+                'applied' => 0,
+                'bytes_written' => 0,
+                'bytes_truncated' => 0,
+                'files_deleted' => 0,
+                'durable_syncs' => 0,
+                'directory_syncs' => 0,
+                'operations' => [],
+                'dependencies' => ['sqlite-current-wal-transaction-recovery', 'sqlite-wal-transaction-recovery-boundary'],
+                'recovery' => [
+                    'status' => 'skipped',
+                    'reason' => 'wal_sidecar_missing',
+                    'can_checkpoint' => false,
+                ],
+                'atomic' => true,
+                'current_source' => $source,
+            ];
+        }
+
+        $walBytes = (string) file_get_contents($walLocalPath);
+        $applied = $this->applyWalTransactionRecoveryBoundary($walBytes, $databaseBytes, $databasePath, $databasePageSize);
+        $applied['dependencies'] = array_values(array_unique(array_merge($applied['dependencies'], ['sqlite-current-wal-transaction-recovery'])));
+        $applied['current_source'] = $source;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}> $transactions
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,append:array<string, mixed>}
      */

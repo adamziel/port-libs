@@ -3291,6 +3291,98 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
+    public function releaseAdmissionCurrentRecord(
+        array $artifactRecords,
+        string $acceptedRepositoryHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        string $processSnapshot = ''
+    ): array {
+        if (trim($acceptedRepositoryHead) === '') {
+            throw new \InvalidArgumentException('SQLite current release admission requires an accepted repository HEAD');
+        }
+
+        $countability = $this->currentReleaseRunnerCountabilityRecord(
+            $artifactRecords,
+            $acceptedRepositoryHead,
+            $processSnapshot
+        );
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $blockers = [];
+        foreach (is_array($countability['blockers'] ?? null) ? $countability['blockers'] : [] as $blocker) {
+            if (is_array($blocker)) {
+                $blocker['source'] = 'release-countability';
+                $blockers[] = $blocker;
+            }
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'source' => 'php-pass',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy release admission gates',
+            ];
+        }
+
+        $countable = ($countability['countable'] ?? false) === true && $blockers === [];
+        $status = $countable ? 'current-release-admission-countable' : 'blocked';
+        $phpDelta = $countable ? (int) ($phpAdmission['assertion_delta'] ?? 0) : 0;
+
+        $ledger = $this->releaseAdmissionLedger([
+            'current-accepted-head-release' => [
+                'status' => $countable ? 'admissible' : 'blocked',
+                'closure_mode' => $countable ? 'zero-error-release-artifact' : 'blocked',
+                'release_blocker_closed' => $countable,
+                'counts_as_zero_error_release_parity' => $countable,
+                'artifact_status' => $countability['status'] ?? 'unknown',
+                'artifact_tests' => (int) ($countability['tests_total'] ?? 0),
+                'artifact_errors' => (int) ($countability['errors_total'] ?? 0),
+                'blocker_count' => count($blockers),
+                'blockers' => $blockers,
+            ],
+        ]);
+
+        return [
+            'status' => $status,
+            'countable' => $countable,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => (int) ($countability['artifact_count'] ?? 0),
+            'countable_release_artifacts' => (int) ($countability['countable_release_artifacts'] ?? 0),
+            'focused_only_artifacts' => (int) ($countability['focused_only_artifacts'] ?? 0),
+            'blocked_artifacts' => (int) ($countability['blocked_artifacts'] ?? 0),
+            'countable_labels' => is_array($countability['countable_labels'] ?? null) ? $countability['countable_labels'] : [],
+            'focused_only_labels' => is_array($countability['focused_only_labels'] ?? null) ? $countability['focused_only_labels'] : [],
+            'blocked_labels' => is_array($countability['blocked_labels'] ?? null) ? $countability['blocked_labels'] : [],
+            'tests_total' => (int) ($countability['tests_total'] ?? 0),
+            'errors_total' => (int) ($countability['errors_total'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => $phpDelta,
+            'next_php_pass' => $currentPhpPass + $phpDelta,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'countability' => $countability,
+            'ledger' => $ledger,
+            'counts_release_admission_current' => $countable,
+            'counts_release_parity' => $countable,
+            'next_gate' => $countable
+                ? 'publish the current accepted-HEAD release/all zero-error artifact and focused PHP pass movement as release admission evidence'
+                : 'keep current release admission blocked until countability, duplicate-runner, accepted-HEAD provenance, and focused PHP evidence are all clean',
+            'dependency_closure' => 'no new support component needed; current release admission composes accepted-head release runner countability, duplicate-runner gates, release admission ledger, and focused TestRunner phpPass evidence only',
+            'non_overlap_note' => trim($nonOverlapNote),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $failureBlocker
      * @return array<string, mixed>
      */
