@@ -17,7 +17,27 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
      */
     public static function plan(mixed ...$args): array
     {
-        return self::variantNext270(...$args);
+        if (count($args) < 37) {
+            return self::variantNext274(...$args);
+        }
+
+        if (count($args) < 45) {
+            return self::variantNext282(...$args);
+        }
+
+        if (count($args) < 49) {
+            return self::variantNext286(...$args);
+        }
+
+        if (count($args) < 53) {
+            return self::variantNext290(...$args);
+        }
+
+        if (count($args) < 57) {
+            return self::variantNext298(...$args);
+        }
+
+        return self::variantNext302(...$args);
     }
 
     /** @return array<string,mixed> */
@@ -26569,5 +26589,429 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         $plan['source_digest'] = hash('sha256', $plan['source_digest'] . '|restamp|' . $to);
 
         return $plan;
+    }
+    public static function variantNext271(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken): array
+    {
+        $base = self::variantNext261($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'pager_hot_journal_header_token'), self::stripReadFenceToken($nextReads, 'pager_hot_journal_header_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'pager_hot_journal_header_token', $currentPagerHotJournalHeaderToken, 271, 'hot_journal_header', 'reader_cache_hot_journal_header_must_match_current_master_journal_source');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext272(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken): array
+    {
+        $base = self::variantNext271($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'master_journal_member_epoch_token'), self::stripReadFenceToken($nextReads, 'master_journal_member_epoch_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'master_journal_member_epoch_token', $currentPagerMasterJournalMemberEpochToken, 272, 'master_journal_member_epoch', 'reader_cache_master_member_epoch_must_match_current_master_journal_source');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext273(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken): array
+    {
+        $base = self::variantNext272($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_schema_cookie_token'), self::stripReadFenceToken($nextReads, 'reader_cache_schema_cookie_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_schema_cookie_token', $currentPagerReaderCacheSchemaCookieToken, 273, 'reader_cache_schema_cookie', 'reader_cache_schema_cookie_must_match_reparsed_current_source_schema');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext274(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken): array
+    {
+        $base = self::variantNext273($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_vacuum_root_token'), self::stripReadFenceToken($nextReads, 'reader_cache_vacuum_root_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_vacuum_root_token', $currentPagerReaderCacheVacuumRootToken, 274, 'reader_cache_vacuum_root', 'reader_cache_vacuum_root_must_match_current_source_rootpage_map');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext275(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken): array
+    {
+        $base = self::variantNext274($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'pager_reserved_lock_token'), self::stripReadFenceToken($nextReads, 'pager_reserved_lock_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'pager_reserved_lock_token', $currentPagerReservedLockToken, 275, 'pager_reserved_lock', 'reader_cache_reserved_lock_must_match_current_pager_source');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext276(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken): array
+    {
+        $base = self::variantNext275($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_page_count_token'), self::stripReadFenceToken($nextReads, 'reader_cache_page_count_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_page_count_token', $currentReaderCachePageCountToken, 276, 'reader_cache_page_count', 'reader_cache_page_count_must_match_current_database_size');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext277(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken): array
+    {
+        $base = self::variantNext276($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_schema_version_token'), self::stripReadFenceToken($nextReads, 'reader_cache_schema_version_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_schema_version_token', $currentReaderCacheSchemaVersionToken, 277, 'reader_cache_schema_version', 'reader_cache_schema_version_must_match_current_schema_source');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext278(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken): array
+    {
+        $base = self::variantNext277($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_change_counter_token'), self::stripReadFenceToken($nextReads, 'reader_cache_change_counter_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_change_counter_token', $currentReaderCacheChangeCounterToken, 278, 'reader_cache_change_counter', 'reader_cache_change_counter_must_match_current_database_header');
+    }
+
+
+    /** @return array<string,mixed> */
+    public static function variantNext279(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken): array
+    {
+        $base = self::variantNext278($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_freelist_trunk_token'), self::stripReadFenceToken($nextReads, 'reader_cache_freelist_trunk_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_freelist_trunk_token', $currentReaderCacheFreelistTrunkToken, 279, 'reader_cache_freelist_trunk', 'reader_cache_freelist_trunk_must_match_current_database_header');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext280(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken): array
+    {
+        $base = self::variantNext279($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_auto_vacuum_token'), self::stripReadFenceToken($nextReads, 'reader_cache_auto_vacuum_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_auto_vacuum_token', $currentReaderCacheAutoVacuumToken, 280, 'reader_cache_auto_vacuum', 'reader_cache_auto_vacuum_must_match_current_pointer_map_source');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext281(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken): array
+    {
+        $base = self::variantNext280($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_encoding_token'), self::stripReadFenceToken($nextReads, 'reader_cache_encoding_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_encoding_token', $currentReaderCacheEncodingToken, 281, 'reader_cache_encoding', 'reader_cache_encoding_must_match_current_database_header');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext282(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken): array
+    {
+        $base = self::variantNext281($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_text_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_text_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_text_schema_token', $currentReaderCacheTextSchemaToken, 282, 'reader_cache_text_schema', 'reader_cache_text_schema_must_match_current_schema_payload');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext283(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken): array
+    {
+        $base = self::variantNext282($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_index_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_index_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_index_schema_token', $currentReaderCacheIndexSchemaToken, 283, 'reader_cache_index_schema', 'reader_cache_index_schema_must_match_current_index_payload');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext284(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken): array
+    {
+        $base = self::variantNext283($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_trigger_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_trigger_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_trigger_schema_token', $currentReaderCacheTriggerSchemaToken, 284, 'reader_cache_trigger_schema', 'reader_cache_trigger_schema_must_match_current_trigger_payload');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext285(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken): array
+    {
+        $base = self::variantNext284($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_view_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_view_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_view_schema_token', $currentReaderCacheViewSchemaToken, 285, 'reader_cache_view_schema', 'reader_cache_view_schema_must_match_current_view_payload');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext286(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken): array
+    {
+        $base = self::variantNext285($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_virtual_table_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_virtual_table_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_virtual_table_schema_token', $currentReaderCacheVirtualTableSchemaToken, 286, 'reader_cache_virtual_table_schema', 'reader_cache_virtual_table_schema_must_match_current_virtual_table_payload');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext287(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken, string $currentReaderCacheModuleSchemaToken): array
+    {
+        $base = self::variantNext286($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_module_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_module_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_module_schema_token', $currentReaderCacheModuleSchemaToken, 287, 'reader_cache_module_schema', 'reader_cache_module_schema_must_match_current_virtual_module_catalog');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext288(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken, string $currentReaderCacheModuleSchemaToken, string $currentReaderCachePragmaSchemaToken): array
+    {
+        $base = self::variantNext287($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_pragma_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_pragma_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_pragma_schema_token', $currentReaderCachePragmaSchemaToken, 288, 'reader_cache_pragma_schema', 'reader_cache_pragma_schema_must_match_current_schema_pragma_catalog');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext289(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken, string $currentReaderCacheModuleSchemaToken, string $currentReaderCachePragmaSchemaToken, string $currentReaderCacheCollationSchemaToken): array
+    {
+        $base = self::variantNext288($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_collation_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_collation_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_collation_schema_token', $currentReaderCacheCollationSchemaToken, 289, 'reader_cache_collation_schema', 'reader_cache_collation_schema_must_match_current_collation_catalog');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext290(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken, string $currentReaderCacheModuleSchemaToken, string $currentReaderCachePragmaSchemaToken, string $currentReaderCacheCollationSchemaToken, string $currentReaderCacheAuthorizerSchemaToken): array
+    {
+        $base = self::variantNext289($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_authorizer_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_authorizer_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken, $currentReaderCacheCollationSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_authorizer_schema_token', $currentReaderCacheAuthorizerSchemaToken, 290, 'reader_cache_authorizer_schema', 'reader_cache_authorizer_schema_must_match_current_authorizer_catalog');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext291(string $databasePath, string $masterJournalPath, string $currentMasterJournalBytes, string $databaseBytes, int $pageSize, array $recoveredPages, array $readerCache, array $nextReads, string $currentSourceId, int $currentEpoch, int $currentPublicationGeneration, string $currentMasterSourceDigest, int $currentRecoverySequence, array $currentMemberJournalTokens, array $currentMemberJournalHeaderDigests, string $currentMasterJournalFileToken, string $currentDatabaseFileToken, string $currentMasterJournalCleanupToken, string $currentReaderLeaseToken, string $currentPagerCacheSourceToken, string $currentReadTransactionToken, string $currentSchemaReparseToken, string $currentStatementSchemaRootToken, string $currentSourceProvenanceToken, string $currentPagerReaderCacheGenerationToken, string $currentReaderSnapshotToken, string $currentMasterJournalRecoveryReceiptToken, string $currentPagerSpillDrainToken, string $currentPagerRollbackJournalReaderSourceToken, string $currentPagerHotJournalHeaderToken, string $currentPagerMasterJournalMemberEpochToken, string $currentPagerReaderCacheSchemaCookieToken, string $currentPagerReaderCacheVacuumRootToken, string $currentPagerReservedLockToken, string $currentReaderCachePageCountToken, string $currentReaderCacheSchemaVersionToken, string $currentReaderCacheChangeCounterToken, string $currentReaderCacheFreelistTrunkToken, string $currentReaderCacheAutoVacuumToken, string $currentReaderCacheEncodingToken, string $currentReaderCacheTextSchemaToken, string $currentReaderCacheIndexSchemaToken, string $currentReaderCacheTriggerSchemaToken, string $currentReaderCacheViewSchemaToken, string $currentReaderCacheVirtualTableSchemaToken, string $currentReaderCacheModuleSchemaToken, string $currentReaderCachePragmaSchemaToken, string $currentReaderCacheCollationSchemaToken, string $currentReaderCacheAuthorizerSchemaToken, string $currentReaderCacheTransactionStateToken): array
+    {
+        $base = self::variantNext290($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_transaction_state_token'), self::stripReadFenceToken($nextReads, 'reader_cache_transaction_state_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken, $currentReaderCacheCollationSchemaToken, $currentReaderCacheAuthorizerSchemaToken);
+
+        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_transaction_state_token', $currentReaderCacheTransactionStateToken, 291, 'reader_cache_transaction_state', 'reader_cache_transaction_state_must_match_current_transaction_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext292(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next292 requires commit-phase token');
+        }
+        $base = self::variantNext291(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_commit_phase_token', $currentToken, 292, 'reader_cache_commit_phase', 'reader_cache_commit_phase_must_match_current_commit_phase');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext293(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next293 requires busy-handler token');
+        }
+        $base = self::variantNext292(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_busy_handler_token', $currentToken, 293, 'reader_cache_busy_handler', 'reader_cache_busy_handler_must_match_current_busy_handler_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext294(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next294 requires savepoint-stack token');
+        }
+        $base = self::variantNext293(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_savepoint_stack_token', $currentToken, 294, 'reader_cache_savepoint_stack', 'reader_cache_savepoint_stack_must_match_current_savepoint_stack');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext295(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next295 requires statement-journal token');
+        }
+        $base = self::variantNext294(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_statement_journal_token', $currentToken, 295, 'reader_cache_statement_journal', 'reader_cache_statement_journal_must_match_current_statement_journal');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext296(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next296 requires temp-page token');
+        }
+        $base = self::variantNext295(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_temp_page_token', $currentToken, 296, 'reader_cache_temp_page', 'reader_cache_temp_page_must_match_current_temp_page_state');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext297(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next297 requires dirty-list token');
+        }
+        $base = self::variantNext296(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_dirty_list_token', $currentToken, 297, 'reader_cache_dirty_list', 'reader_cache_dirty_list_must_match_current_dirty_page_list');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext298(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next298 requires spill-epoch token');
+        }
+        $base = self::variantNext297(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_spill_epoch_token', $currentToken, 298, 'reader_cache_spill_epoch', 'reader_cache_spill_epoch_must_match_current_spill_epoch');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext299(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next299 requires locking-mode token');
+        }
+        $base = self::variantNext298(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_locking_mode_token', $currentToken, 299, 'reader_cache_locking_mode', 'reader_cache_locking_mode_must_match_current_locking_mode');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext300(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next300 requires journal-mode token');
+        }
+        $base = self::variantNext299(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_journal_mode_token', $currentToken, 300, 'reader_cache_journal_mode', 'reader_cache_journal_mode_must_match_current_journal_mode');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext301(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next301 requires synchronous token');
+        }
+        $base = self::variantNext300(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_synchronous_token', $currentToken, 301, 'reader_cache_synchronous', 'reader_cache_synchronous_must_match_current_synchronous_setting');
+    }
+
+    /** @return array<string,mixed> */
+    public static function variantNext302(mixed ...$args): array
+    {
+        $currentToken = array_pop($args);
+        if (!is_string($currentToken)) {
+            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next302 requires mmap-size token');
+        }
+        $base = self::variantNext301(...$args);
+
+        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_mmap_size_token', $currentToken, 302, 'reader_cache_mmap_size', 'reader_cache_mmap_size_must_match_current_mmap_size');
+    }
+
+    /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
+    private static function stripReaderCacheFenceToken(array $cache, string $field): array
+    {
+        foreach ($cache as &$entry) {
+            unset($entry[$field]);
+        }
+        unset($entry);
+
+        return $cache;
+    }
+
+    /** @param list<array<string,mixed>> $reads @return list<array<string,mixed>> */
+    private static function stripReadFenceToken(array $reads, string $field): array
+    {
+        foreach ($reads as &$read) {
+            unset($read[$field]);
+        }
+        unset($read);
+
+        return $reads;
+    }
+
+    /** @param array<string,mixed> $base @param array<int,array<string,mixed>> $readerCache @param list<array<string,mixed>> $nextReads @return array<string,mixed> */
+    private static function applyReaderCacheFenceNext271274(array $base, array $readerCache, array $nextReads, string $field, string $currentToken, int $next, string $label, string $reason): array
+    {
+        if ($currentToken === '') {
+            throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next{$next} requires {$label} token");
+        }
+
+        $cacheTokens = [];
+        foreach ($readerCache as $pageNumber => $entry) {
+            $token = $entry[$field] ?? '';
+            if (!is_int($pageNumber) || $pageNumber < 1 || !is_string($token) || $token === '') {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next{$next} cache entries require {$label} tokens");
+            }
+            $cacheTokens[$pageNumber] = $token;
+        }
+
+        $readTokens = [];
+        foreach ($nextReads as $read) {
+            $readerId = (string) ($read['reader_id'] ?? '');
+            $token = $read[$field] ?? '';
+            if ($readerId === '' || !is_string($token) || $token === '') {
+                throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next{$next} reads require reader ids and {$label} tokens");
+            }
+            $readTokens[$readerId] = $token;
+        }
+
+        $invalidated = [];
+        $rows = [];
+        foreach ($base['reader_rows'] as $row) {
+            $pageNumber = (int) $row['page_number'];
+            $baseAdmitted = !in_array($pageNumber, $base['invalidated_cache_page_numbers'], true);
+            $cacheToken = $cacheTokens[$pageNumber] ?? '';
+            $matches = hash_equals($cacheToken, $currentToken);
+            if ($baseAdmitted && !$matches) {
+                $invalidated[] = $pageNumber;
+                $base['operations'][] = ['op' => "invalidate_reader_cache_{$label}_current_source_next{$next}", 'page_number' => $pageNumber, 'reason' => $reason];
+            }
+
+            $rows[] = $row + [
+                "{$label}_token_admitted" => $baseAdmitted && $matches,
+                "{$label}_token_reason" => $baseAdmitted ? ($matches ? "reader_cache_{$label}_matches_current_source" : $reason) : 'reader_cache_already_invalidated_before_' . $label,
+                "cache_{$label}_token" => $cacheToken,
+                "current_{$label}_token" => $currentToken,
+                "{$label}_token_matches" => $matches,
+            ];
+        }
+
+        $invalidated = self::sortedUniqueNext271274($invalidated);
+        $base['invalidated_cache_page_numbers'] = self::sortedUniqueNext271274(array_merge($base['invalidated_cache_page_numbers'], $invalidated));
+        $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $invalidated));
+        $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $invalidated));
+        $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
+
+        $reopenReaders = array_fill_keys($base['reopen_reader_ids'], true);
+        foreach ($base['next_reads'] as &$read) {
+            $readerId = (string) $read['reader_id'];
+            $ticketCurrent = hash_equals($readTokens[$readerId] ?? '', $currentToken);
+            $pageInvalidated = in_array((int) $read['page_number'], $invalidated, true);
+            $read["{$label}_token_current"] = $ticketCurrent;
+            $read[$field] = $currentToken;
+            if (!$ticketCurrent || $pageInvalidated) {
+                $read['cache_hit'] = false;
+                $read['source'] = "master-journal-reader-cache-{$label}-fence-current-source-next{$next}";
+                $read["{$label}_token_reason"] = $pageInvalidated ? "reader_cache_reopened_after_{$label}_change" : "reader_ticket_{$label}_predates_current_source";
+                $reopenReaders[$readerId] = true;
+                $base['operations'][] = ['op' => "reopen_reader_for_{$label}_current_source_next{$next}", 'page_number' => $read['page_number'], 'reader_id' => $readerId, 'reason' => $read["{$label}_token_reason"]];
+            }
+        }
+        unset($read);
+
+        $base['status'] = "pager-master-journal-reader-cache-current-source-next{$next}";
+        $base['reason'] = "master_journal_reader_cache_rechecks_{$label}_before_reuse";
+        $base["current_{$label}_token"] = $currentToken;
+        $base['reader_rows'] = $rows;
+        $base["{$label}_invalidated_cache_page_numbers"] = $invalidated;
+        $base['read_cache_hits'] = array_column($base['next_reads'], 'cache_hit', 'reader_id');
+        $base['reopen_reader_ids'] = self::sortReaderIdsNext271274(array_keys($reopenReaders));
+        $base['source_digest'] = hash('sha256', $base['source_digest'] . '|' . $label . '|' . $currentToken . '|' . implode(',', $invalidated));
+        $base['dependencies'][] = "sqlite-pager-master-journal-reader-cache-current-source-next{$next}";
+        $base['dependencies'][] = "sqlite-pager-reader-cache-{$label}-fence";
+        $base['non_overlap'] = "next{$next} fences reader-cache reuse on {$label} after accepted pager reader-cache current-source gates; it does not repeat earlier reader-cache source, recovery receipt, snapshot, generation, rollback-source, WAL, VFS, B-tree, JSON, SQL executor, PRAGMA, trigger, or encoding behavior.";
+
+        return $base;
+    }
+
+    /** @param list<int> $values @return list<int> */
+    private static function sortedUniqueNext271274(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values, SORT_NUMERIC);
+
+        return $values;
+    }
+
+    /** @param list<string> $values @return list<string> */
+    private static function sortReaderIdsNext271274(array $values): array
+    {
+        $values = array_values(array_unique($values));
+        sort($values, SORT_NATURAL);
+
+        return $values;
     }
 }
