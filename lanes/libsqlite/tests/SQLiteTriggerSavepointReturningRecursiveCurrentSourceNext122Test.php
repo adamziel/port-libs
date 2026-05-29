@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Plan;
+use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan;
 
 $rows122 = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 2, 'depth' => 0, 'autoload' => 'yes'],
@@ -58,7 +58,7 @@ $returning122 = [
     ['expr' => 'trigger', 'as' => 'source_trigger'],
 ];
 
-$run122 = static fn (array $options = [], array $current = null, array $next = null): array => SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Plan::execute(
+$run122 = static fn (array $options = [], array $current = null, array $next = null): array => SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan::execute(
     $rows122,
     $current ?? [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 3, 'depth' => 1, 'autoload' => 'yes'],

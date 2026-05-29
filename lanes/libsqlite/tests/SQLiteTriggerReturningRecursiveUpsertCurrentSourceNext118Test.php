@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan;
 
 $rows = [
     ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 2, 'depth' => 0, 'autoload' => 'yes'],
@@ -58,7 +58,7 @@ $returning = [
     ['expr' => 'trigger', 'as' => 'source_trigger'],
 ];
 
-$run = static fn (array $current = null, array $next = null, array $options = [], array $triggerSet = null): array => SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan::execute(
+$run = static fn (array $current = null, array $next = null, array $options = [], array $triggerSet = null): array => SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan::execute(
     $rows,
     $current ?? [
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-current', 'revision' => 3, 'depth' => 1, 'autoload' => 'yes'],
@@ -157,7 +157,7 @@ $cases = [
     'max depth rejects nested current recursion before next source' => [static fn (): mixed => $maxDepth(), RuntimeException::class],
     'empty current source rejected' => [static fn (): mixed => $run([], null), InvalidArgumentException::class],
     'empty next source rejected' => [static fn (): mixed => $run(null, []), InvalidArgumentException::class],
-    'malformed current source rejected' => [static fn (): mixed => SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan::execute($rows, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assignments, $triggers), InvalidArgumentException::class],
+    'malformed current source rejected' => [static fn (): mixed => SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan::execute($rows, ['bad' => ['option_name' => 'x']], [['option_name' => 'y']], ['option_name'], $assignments, $triggers), InvalidArgumentException::class],
     'missing next unique column rejected by next source' => [static fn (): mixed => $run(null, [['option_value' => 'missing']]), InvalidArgumentException::class],
 ];
 

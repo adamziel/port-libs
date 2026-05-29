@@ -1,6 +1,6 @@
 # Trigger view RETURNING savepoint recursive current-source next123
 
-This slice adds `SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan`, a bounded coordinator for `INSTEAD OF` view-trigger imports that run a current source batch and then a next source batch against the current result. It preserves statement/yield order, `RETURNING` rows, attempted `RETURNING` diagnostics, and phase-local savepoint rollback metadata.
+This slice adds `SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan`, a bounded coordinator for `INSTEAD OF` view-trigger imports that run a current source batch and then a next source batch against the current result. It preserves statement/yield order, `RETURNING` rows, attempted `RETURNING` diagnostics, and phase-local savepoint rollback metadata.
 
 WordPress relevance: copied `wp_options` imports often stage through views while plugins attach trigger-based audit rows. This lets the PHP SQLite port model current imported rows becoming the source for the next import phase, while a failing trigger row rolls back only its phase and keeps attempted RETURNING diagnostics visible for migration error reporting.
 

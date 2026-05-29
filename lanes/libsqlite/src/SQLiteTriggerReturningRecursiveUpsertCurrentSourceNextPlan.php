@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan
+final class SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows

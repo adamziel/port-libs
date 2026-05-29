@@ -8,12 +8,12 @@ require __DIR__ . '/../src/SQLiteAttachTempViewTriggerResolution.php';
 require __DIR__ . '/../src/SQLiteAttachTempViewTriggerYieldPlan.php';
 require __DIR__ . '/../src/SQLiteSavepointStack.php';
 require __DIR__ . '/../src/SQLiteViewTriggerReturningSavepointPlan.php';
-require __DIR__ . '/../src/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan.php';
-require __DIR__ . '/../src/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan.php';
+require __DIR__ . '/../src/SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan.php';
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan;
 
 $catalog = new SQLiteAttachedSchemaCatalog([
     new SQLiteSchemaRecord('table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)', 1),
@@ -24,7 +24,7 @@ $catalog = new SQLiteAttachedSchemaCatalog([
 ]);
 
 $page = static fn (string $label): string => str_pad($label, 512, '.', STR_PAD_RIGHT);
-$plan = SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan::execute(
+$plan = SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan::execute(
     $catalog,
     'wp_option_import_view_insert',
     [

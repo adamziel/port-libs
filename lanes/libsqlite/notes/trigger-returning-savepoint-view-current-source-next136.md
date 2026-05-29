@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for INSTEAD OF view-trigger `RETURNING`
 across current-source and next-source savepoint boundaries.
 
-This slice adds `SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan`.
+This slice adds `SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan`.
 It reuses the native view-trigger/savepoint executor and records which
 current-source `RETURNING` rows are admitted or suppressed when the current
 phase rolls back to its savepoint before the next source is run. The next
@@ -14,7 +14,7 @@ admitted next-source rows.
 Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Test.php`
-- `php -l lanes/libsqlite/src/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerReturningSavepointViewCurrentSourceNext136Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-view-current-source-next136.php`
 - `php lanes/libsqlite/examples/wordpress-trigger-returning-savepoint-view-current-source-next136.php --self-test`

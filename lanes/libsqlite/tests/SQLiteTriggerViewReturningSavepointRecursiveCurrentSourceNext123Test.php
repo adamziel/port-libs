@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord(
     $type,
@@ -54,7 +54,7 @@ $options = [
     ],
 ];
 
-$run = static fn (string $trigger = 'wp_option_import_view_insert', array $current = null, array $next = null, array $projection = null, array $extraOptions = []) => SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan::execute(
+$run = static fn (string $trigger = 'wp_option_import_view_insert', array $current = null, array $next = null, array $projection = null, array $extraOptions = []) => SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan::execute(
     $catalog(),
     $trigger,
     $tables,
@@ -145,7 +145,7 @@ $cases = [
     'empty next rows rejected' => [static fn (): mixed => $run('wp_option_import_view_insert', $currentRows, []), InvalidArgumentException::class],
     'malformed current source rejected' => [static fn (): mixed => $run('wp_option_import_view_insert', ['bad' => $currentRows[0]], $nextRows), InvalidArgumentException::class],
     'malformed next source rejected during phase' => [static fn (): mixed => $run('wp_option_import_view_insert', $currentRows, ['bad']), InvalidArgumentException::class],
-    'empty savepoint rejected' => [static fn (): mixed => SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan::execute($catalog(), 'wp_option_import_view_insert', $tables, $currentRows, $nextRows, ''), InvalidArgumentException::class],
+    'empty savepoint rejected' => [static fn (): mixed => SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan::execute($catalog(), 'wp_option_import_view_insert', $tables, $currentRows, $nextRows, ''), InvalidArgumentException::class],
     'missing returning column rejected' => [static fn (): mixed => $run('wp_option_import_view_insert', $currentRows, $nextRows, ['missing']), InvalidArgumentException::class],
     'bad dirty page key rejected' => [static fn (): mixed => $run('wp_option_import_view_insert_rollback', $currentRows, $nextRows, $returning, ['dirty_pages' => ['x' => $page('bad')]]), InvalidArgumentException::class],
 ];

@@ -30,7 +30,7 @@ final class SQLiteTriggerDeferredReturningViewCurrentSourceNextPlan
     ): array {
         self::validateForeignKey($foreignKey);
 
-        $base = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan::execute(
+        $base = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan::execute(
             $catalog,
             $triggerName,
             $tables,

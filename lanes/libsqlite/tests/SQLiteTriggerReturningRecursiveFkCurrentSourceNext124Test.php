@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
 
 $parents124 = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl', 'option_value' => 'https://old.test'],
@@ -41,9 +41,9 @@ $statement124 = [
     ],
 ];
 
-$commit124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124);
-$rollback124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['rollback_to_savepoint' => true]);
-$nonRecursive124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['recursive_triggers' => false]);
+$commit124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124);
+$rollback124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['rollback_to_savepoint' => true]);
+$nonRecursive124 = static fn (): array => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['recursive_triggers' => false]);
 
 $cases124 = [
     'commit status' => [static fn (): mixed => $commit124()['status'], 'current-yield-next-commit'],
@@ -103,13 +103,13 @@ $cases124 = [
     'non recursive trigger rows empty' => [static fn (): mixed => $nonRecursive124()['trigger_returning_rows'], []],
     'non recursive attempted returning count' => [static fn (): mixed => count($nonRecursive124()['attempted_returning_rows']), 1],
     'non recursive changes include one parent cascade only' => [static fn (): mixed => $nonRecursive124()['current_changes'], 3],
-    'missing where throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, array_diff_key($statement124, ['where' => true])), InvalidArgumentException::class],
-    'bad savepoint throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['savepoint' => 'bad-name'])), InvalidArgumentException::class],
-    'bad source throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['current_source' => 'bad source'])), InvalidArgumentException::class],
-    'bad on delete throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'restrict'], $statement124), InvalidArgumentException::class],
-    'bad returning column throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => ['missing_column']])), InvalidArgumentException::class],
-    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => [['expr' => 'old.option_id', 'as' => 'bad-alias']]])), InvalidArgumentException::class],
-    'max depth throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['max_depth' => 1]), InvalidArgumentException::class],
+    'missing where throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_diff_key($statement124, ['where' => true])), InvalidArgumentException::class],
+    'bad savepoint throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['savepoint' => 'bad-name'])), InvalidArgumentException::class],
+    'bad source throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['current_source' => 'bad source'])), InvalidArgumentException::class],
+    'bad on delete throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, ['parent_key' => 'option_id', 'child_key' => 'option_id', 'on_delete' => 'restrict'], $statement124), InvalidArgumentException::class],
+    'bad returning column throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => ['missing_column']])), InvalidArgumentException::class],
+    'bad returning alias throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, array_replace($statement124, ['returning' => [['expr' => 'old.option_id', 'as' => 'bad-alias']]])), InvalidArgumentException::class],
+    'max depth throws' => [static fn (): mixed => SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete($parents124, $children124, $grandchildren124, $fk124, $statement124 + ['max_depth' => 1]), InvalidArgumentException::class],
 ];
 
 foreach ($cases124 as $name => [$callback, $expected]) {

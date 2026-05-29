@@ -6,7 +6,7 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan;
+use PortLibs\LibSqlite\SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan;
 
 $record = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
 
@@ -17,7 +17,7 @@ $catalog = new SQLiteAttachedSchemaCatalog([
     $record('trigger', 'wp_option_import_view_insert', 'wp_option_import_view', 0, "CREATE TRIGGER wp_option_import_view_insert INSTEAD OF INSERT ON wp_option_import_view BEGIN INSERT INTO wp_options(option_id, option_name, option_value, autoload) VALUES(new.option_id, new.option_name, new.option_value, new.autoload); INSERT INTO wp_option_audit(option_id, label, option_name) VALUES(new.option_id, 'view-import', new.option_name); SELECT new.option_id, new.option_name; END", 4),
 ]);
 
-$plan = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan::execute(
+$plan = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan::execute(
     $catalog,
     'wp_option_import_view_insert',
     [

@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan
+final class SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables
@@ -29,7 +29,7 @@ final class SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan
         $currentSource = self::sourceToken($options, 'current', 'current@view-trigger-next136');
         $nextSource = self::sourceToken($options, 'next', 'next@view-trigger-next136');
 
-        $base = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan::execute(
+        $base = SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan::execute(
             $catalog,
             $triggerName,
             $tables,

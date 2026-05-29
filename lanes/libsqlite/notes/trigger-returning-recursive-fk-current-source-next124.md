@@ -27,7 +27,7 @@ Verification:
 
 - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Test.php`
 - `php lanes/libsqlite/examples/wordpress-trigger-returning-recursive-fk-current-source-next124.php`
-- `php -l lanes/libsqlite/src/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-trigger-returning-recursive-fk-current-source-next124.php`
 - `git diff --check -- lanes/libsqlite`

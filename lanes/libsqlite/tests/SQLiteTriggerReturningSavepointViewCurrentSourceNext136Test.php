@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
-use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan;
 
 $record136 = static fn (string $type, string $name, string $table, ?int $root, ?string $sql, int $rowid): SQLiteSchemaRecord => new SQLiteSchemaRecord($type, $name, $table, $root, $sql, $rowid);
 
@@ -49,7 +49,7 @@ $options136 = [
     ],
 ];
 
-$run136 = static fn (array $extra = [], array $currentRows = null, array $nextRows = null, array $projection = null): array => SQLiteTriggerReturningSavepointViewCurrentSourceNext136Plan::execute(
+$run136 = static fn (array $extra = [], array $currentRows = null, array $nextRows = null, array $projection = null): array => SQLiteTriggerReturningSavepointViewCurrentSourceNextPlan::execute(
     $catalog136(),
     'wp_option_import_view_insert',
     $tables136,

@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../src/SQLiteRecursiveUpsertConflictYieldPlan.php';
-require __DIR__ . '/../src/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan.php';
+require __DIR__ . '/../src/SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan::execute(
+$plan = SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan::execute(
     [
         ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'revision' => 2, 'depth' => 0, 'autoload' => 'yes'],
         ['option_name' => 'plugin_seed', 'option_value' => 'seed-old', 'revision' => 5, 'depth' => 1, 'autoload' => 'no'],

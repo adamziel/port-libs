@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 use InvalidArgumentException;
 
-final class SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNext123Plan
+final class SQLiteTriggerViewReturningSavepointRecursiveCurrentSourceNextPlan
 {
     /**
      * @param array<string,list<array<string,mixed>>> $tables

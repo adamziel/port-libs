@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PortLibs\LibSqlite;
 
-final class SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Plan
+final class SQLiteTriggerSavepointReturningRecursiveCurrentSourceNextPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
@@ -29,7 +29,7 @@ final class SQLiteTriggerSavepointReturningRecursiveCurrentSourceNext122Plan
         $rollbackTo = (bool) ($options['rollback_to'] ?? true);
         $beforeRows = array_values($rows);
 
-        $attempt = SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan::execute(
+        $attempt = SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan::execute(
             $beforeRows,
             $currentRows,
             $nextRows,

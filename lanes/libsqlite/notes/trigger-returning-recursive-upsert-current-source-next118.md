@@ -3,7 +3,7 @@
 Status: focused PHP behavior growth for recursive trigger-generated UPSERT
 `RETURNING` handoff from a current source batch into the next source batch.
 
-This slice adds `SQLiteTriggerReturningRecursiveUpsertCurrentSourceNext118Plan`.
+This slice adds `SQLiteTriggerReturningRecursiveUpsertCurrentSourceNextPlan`.
 It composes the existing recursive UPSERT/RETURNING executor across a current
 batch and a next batch, preserving current-source yield edges and proving that
 the next batch starts from the current batch's recursive trigger result rows.

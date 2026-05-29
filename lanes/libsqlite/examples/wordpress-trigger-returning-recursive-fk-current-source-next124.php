@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../src/SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan.php';
+require_once __DIR__ . '/../src/SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan.php';
 
-use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan;
+use PortLibs\LibSqlite\SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan;
 
 $parents = [
     ['option_id' => 1, 'next_id' => 2, 'option_name' => 'siteurl'],
@@ -27,7 +27,7 @@ $grandchildren = [
     ['detail_id' => 105, 'option_id' => 4],
 ];
 
-$plan = SQLiteTriggerReturningRecursiveFkCurrentSourceNext124Plan::delete(
+$plan = SQLiteTriggerReturningRecursiveFkCurrentSourceNextPlan::delete(
     $parents,
     $children,
     $grandchildren,
