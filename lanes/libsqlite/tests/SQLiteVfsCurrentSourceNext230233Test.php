@@ -91,7 +91,7 @@ return [
     'vfs current source next230-233 records lease next226-229 prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-reuse-lease-publish-next226-229', $plan()['dependencies'], true)),
     'vfs current source next230-233 records next218-221 prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-reuse-publish-next218-221', $plan()['dependencies'], true)),
     'vfs current source next230-233 records ready next214-217 prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-ready-next214-217', $plan()['dependencies'], true)),
-    'vfs current source next230-233 preserves next206-209 prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-next206-209', $plan()['dependencies'], true)),
+    'vfs current source next230-233 preserves snapshot reuse publication prerequisite' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-publication', $plan()['dependencies'], true)),
     'vfs current source next230-233 captures ready snapshot' => static fn (TestRunner $t) => $t->same('captured-ready', $plan()['events'][0]['status']),
     'vfs current source next230-233 records ready token' => static fn (TestRunner $t) => $t->same('ready-next225', $plan()['events'][0]['ready_token']),
     'vfs current source next230-233 records publish token' => static fn (TestRunner $t) => $t->same('shared-cache-next229', $plan()['events'][0]['publish_token']),
@@ -110,5 +110,5 @@ return [
     'vfs current source next230-233 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([])),
     'vfs current source next230-233 rejects bad publish token' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run([['op' => 'publish', 'snapshot' => 'reader-ready', 'token' => 'bad token']], ['current' => $readyCurrent])),
     'vfs current source next230-233 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsCurrentSourceNextPlan::run(['write(1,4096)'], ['current' => $readyCurrent])),
-    'vfs current source next230-233 notes non-overlap' => static fn (TestRunner $t) => $t->same(true, str_contains($plan()['non_overlap'], 'does not repeat next206-209')),
+    'vfs current source next230-233 notes non-overlap' => static fn (TestRunner $t) => $t->same(true, str_contains($plan()['non_overlap'], 'does not repeat snapshot reuse publication')),
 ];

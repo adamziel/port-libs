@@ -11,11 +11,12 @@ $plan = SQLiteVfsCurrentSourceNextPlan::run([
     'reuse(reader-cache)',
     'publish(shared-cache-visible)',
 ], [
+    'slice' => 'snapshot-reuse-publication',
     'current' => [
         'current_source' => 'main',
         'sources' => [
             'main' => [
-                'handle' => 'vfs202205-1',
+                'handle' => 'vfs-snapshot-reuse-1',
                 'path' => '/srv/www/wp-content/database/wp.sqlite',
                 'owner' => '/srv/www/wp-content/database/wp.sqlite',
                 'data_version' => 12,
@@ -36,8 +37,8 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['events'][1]['status'] === 'reused');
     assert($plan['events'][1]['blocked_reasons'] === []);
     assert($plan['events'][2]['status'] === 'published');
-    assert(in_array('vfs-current-source-snapshot-reuse-next206-209', $plan['dependencies'], true));
-    echo "wordpress-vfs-current-source-next206-209 self-test passed\n";
+    assert(in_array('vfs-current-source-snapshot-reuse-publication', $plan['dependencies'], true));
+    echo "wordpress-vfs-current-source-snapshot-reuse self-test passed\n";
     return;
 }
 

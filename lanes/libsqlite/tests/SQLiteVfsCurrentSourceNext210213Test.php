@@ -8,7 +8,7 @@ $current = [
     'current_source' => 'main',
     'sources' => [
         'main' => [
-            'handle' => 'vfs206209-1',
+            'handle' => 'vfs-snapshot-reuse-1',
             'path' => '/srv/www/wp-content/database/wp.sqlite',
             'data_version' => 13,
             'durable_receipts' => [
@@ -33,7 +33,7 @@ $plan = static function () use ($current): array {
 
 return [
     'vfs current source next210-213 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-publish-next210-213', $plan()['dependencies'], true)),
-    'vfs current source next210-213 preserves next206-209 prerequisite marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-ready-next206-209', $plan()['dependencies'], true)),
+    'vfs current source next210-213 preserves snapshot reuse publication prerequisite marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-current-source-snapshot-reuse-publication-ready', $plan()['dependencies'], true)),
     'vfs current source next210-213 captures clean snapshot' => static fn (TestRunner $t) => $t->same('captured', $plan()['events'][0]['status']),
     'vfs current source next210-213 snapshot carries current data version' => static fn (TestRunner $t) => $t->same(13, $plan()['events'][0]['data_version']),
     'vfs current source next210-213 snapshot carries durable count' => static fn (TestRunner $t) => $t->same(2, $plan()['events'][0]['durable_count']),

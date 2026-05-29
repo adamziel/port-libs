@@ -23,8 +23,8 @@ $payload = static fn (array $row): array => [
 ];
 
 $prepared = [
-    'name' => 'prepared-wp-options-stat4-handoff-next366381',
-    'schemaCookie' => 3660,
+    'name' => 'prepared-wp-options-stat4-handoff-next414429',
+    'schemaCookie' => 3820,
     'stat4Generation' => 286,
     'rows' => [
         ['rowid' => 20, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_forms', 'option_value' => 'forms-old', 'updated_at' => 20],
@@ -32,8 +32,8 @@ $prepared = [
         ['rowid' => 60, 'blog_id' => 1, 'autoload' => 'yes', 'option_name' => 'plugin_zulu', 'option_value' => 'zulu-old', 'updated_at' => 60],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_handoff_next366381',
-        'rootPage' => 36601,
+        'name' => 'idx_wp_options_lower_handoff_next414429',
+        'rootPage' => 38201,
         'expression' => 'lower(option_name)',
         'expressionColumn' => '__expr_lower_option_name',
         'collation' => 'BINARY',
@@ -63,10 +63,10 @@ $prepared = [
 ];
 
 $current = $prepared;
-$current['name'] = 'current-wp-options-stat4-handoff-next366381';
-$current['schemaCookie'] = 3810;
+$current['name'] = 'current-wp-options-stat4-handoff-next414429';
+$current['schemaCookie'] = 3970;
 $current['stat4Generation'] = 902;
-$current['indexes'][0]['rootPage'] = 38108;
+$current['indexes'][0]['rootPage'] = 39708;
 $current['indexes'][0]['stat1'] = ['rows' => '6 2 1'];
 $current['indexes'][0]['stat4Samples'] = [
     ['neq' => '3 3', 'nlt' => '0 0', 'ndlt' => '0 0', 'sample' => ['plugin_forms', 20, 1]],
@@ -84,7 +84,7 @@ $current['rows'] = [
 ];
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext366381(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializePreparedHandoffBridgePenultimate(
     $prepared,
     $current,
     [
@@ -99,18 +99,18 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 if (in_array('--self-test', $argv, true)) {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next366-381-prepared');
-    assert($plan['stat4Next366381PreparationFence']['preparedSlices'] === range(366, 381));
-    assert($plan['stat4Next366381PreparationFence']['handoffWindows'][0]['continuesSlice'] === 350);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next366-381 self-test passed\n";
+    assert($plan['status'] === 'stat4-expression-partial-current-source-next414-429-prepared');
+    assert($plan['stat4Next414429PreparationFence']['preparedSlices'] === range(414, 429));
+    assert($plan['stat4Next414429PreparationFence']['handoffWindows'][0]['continuesSlice'] === 398);
+    echo "wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-bridge-penultimate self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next366-381',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next350-365 current-source STAT4 handoff into next366-381 only when projected current rows still match.',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-prepared-handoff-bridge-penultimate',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next398-413 current-source STAT4 handoff into next414-429 only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
-    'preparedSlices' => $plan['stat4Next366381PreparationFence']['preparedSlices'],
-    'handoffSignature' => $plan['stat4Next366381PreparationFence']['handoffSignature'],
+    'preparedSlices' => $plan['stat4Next414429PreparationFence']['preparedSlices'],
+    'handoffSignature' => $plan['stat4Next414429PreparationFence']['handoffSignature'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

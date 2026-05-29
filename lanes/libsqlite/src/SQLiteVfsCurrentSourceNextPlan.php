@@ -29,7 +29,8 @@ final class SQLiteVfsCurrentSourceNextPlan
             'next194-197' => self::run194197($operations, $options),
             'next198-201' => self::run198201($operations, $options),
             'next202-205' => self::run202205($operations, $options),
-            'next206-209' => self::run206209($operations, $options),
+            'snapshot-reuse-publication' => self::runSnapshotReusePublication($operations, $options),
+            'snapshot-reuse-publication' => self::runSnapshotReusePublication($operations, $options),
             'next210-213' => self::run210213($operations, $options),
             'next214-217' => self::run214217($operations, $options),
             'next218-221' => self::run218221($operations, $options),
@@ -78,7 +79,7 @@ final class SQLiteVfsCurrentSourceNextPlan
     {
         if (isset($options['slice'])) {
             $slice = strtolower(trim((string) $options['slice']));
-            if (!in_array($slice, ['close-reopen-current-source', 'extended-published-reuse-snapshot-fence'], true) && preg_match('/^next\d+-\d+$/', $slice) !== 1) {
+            if (!in_array($slice, ['close-reopen-current-source', 'snapshot-reuse-publication', 'extended-published-reuse-snapshot-fence'], true) && preg_match('/^next\d+-\d+$/', $slice) !== 1) {
                 throw new \InvalidArgumentException('SQLite VFS current-source slice is unsupported');
             }
             return $slice;
@@ -87,13 +88,13 @@ final class SQLiteVfsCurrentSourceNextPlan
             $file = isset($frame['file']) ? (string) $frame['file'] : '';
             if (preg_match('/current-source-next(?<start>\d+)-(?<end>\d+)/i', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
                     return $candidate;
                 }
             }
             if (preg_match('/SQLiteVfsCurrentSourceNext(?<start>\d+)(?<end>\d{3})Test\.php$/', $file, $matches) === 1) {
                 $candidate = 'next' . $matches['start'] . '-' . $matches['end'];
-                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next206-209', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
+                if (in_array($candidate, ['next146-149', 'close-reopen-current-source', 'next158-161', 'next162-165', 'next166-169', 'next170-173', 'next174-177', 'next178-181', 'next182-185', 'next186-189', 'next190-193', 'next194-197', 'next198-201', 'next202-205', 'next210-213', 'next214-217', 'next218-221', 'next222-225', 'next226-229', 'next230-233', 'next234-237', 'next238-241', 'next242-245', 'next246-249', 'next250-253', 'next254-257', 'next258-265', 'next266-273', 'next274-281', 'next282-289', 'next290-297', 'next298-305', 'next306-313', 'next314-321', 'next322-337', 'next338-353', 'next354-369', 'next370-385', 'next386-401', 'next402-417', 'next418-433', 'next434-449', 'next450-465', 'next466-481', 'next482-497', 'next498-513', 'next514-529', 'next530-545', 'next546-561', 'next562-577', 'next578-593', 'next594-609', 'next610-625'], true)) {
                     return $candidate;
                 }
             }
@@ -118,7 +119,7 @@ final class SQLiteVfsCurrentSourceNextPlan
                     $end >= 194 && $end <= 197 => 'next194-197',
                     $end >= 198 && $end <= 201 => 'next198-201',
                     $end >= 202 && $end <= 205 => 'next202-205',
-                    $end >= 206 && $end <= 209 => 'next206-209',
+                    $end >= 206 && $end <= 209 => 'snapshot-reuse-publication',
                     $end >= 210 && $end <= 213 => 'next210-213',
                     $end >= 214 && $end <= 217 => 'next214-217',
                     $end >= 218 && $end <= 221 => 'next218-221',
@@ -5496,36 +5497,36 @@ private static function run158161(array $operations, array $options = []): array
         ], $extra);
     }
 
-    // Consolidated behavior from next206-209.
+    // Consolidated behavior from snapshot reuse publication.
 /**
      * @param list<array<string, mixed>|string> $operations
      * @param array<string, mixed> $options
      * @return array<string, mixed>
      */
-    private static function run206209(array $operations, array $options = []): array
+    private static function runSnapshotReusePublication(array $operations, array $options = []): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 requires operations');
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication requires operations');
         }
 
-        $state = self::hydrate206209($options['current'] ?? []);
-        $current = self::summary206209($state);
+        $state = self::hydrateSnapshotReusePublication($options['current'] ?? []);
+        $current = self::summarySnapshotReusePublication($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation206209($operation);
-            $source = self::sourceFor206209($state, $op['source'] ?? null);
-            $before = self::summary206209($state);
+            $op = self::operationSnapshotReusePublication($operation);
+            $source = self::sourceForSnapshotReusePublication($state, $op['source'] ?? null);
+            $before = self::summarySnapshotReusePublication($state);
 
             if ($op['kind'] === 'snapshot') {
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event206209('snapshot', 'missing-source', $source, $before, self::summary206209($state), []);
+                    $events[] = self::eventSnapshotReusePublication('snapshot', 'missing-source', $source, $before, self::summarySnapshotReusePublication($state), []);
                     continue;
                 }
-                $snapshot = self::snapshotName206209((string) ($op['snapshot'] ?? $source . '-snapshot'));
+                $snapshot = self::snapshotNameSnapshotReusePublication((string) ($op['snapshot'] ?? $source . '-snapshot'));
                 $sourceState = $state['sources'][$source];
                 $dirtyCount = count($sourceState['dirty_pages']);
-                $lastCheckpoint = self::lastCheckpoint206209($sourceState);
+                $lastCheckpoint = self::lastCheckpointSnapshotReusePublication($sourceState);
                 $status = $dirtyCount === 0 && $lastCheckpoint !== null ? 'captured' : 'blocked-unpublished';
                 if ($status === 'captured') {
                     $state['snapshots'][$snapshot] = [
@@ -5538,7 +5539,7 @@ private static function run158161(array $operations, array $options = []): array
                         'checkpoint_token' => $lastCheckpoint['token'],
                     ];
                 }
-                $events[] = self::event206209('snapshot', $status, $source, $before, self::summary206209($state), [
+                $events[] = self::eventSnapshotReusePublication('snapshot', $status, $source, $before, self::summarySnapshotReusePublication($state), [
                     'snapshot' => $snapshot,
                     'dirty_count' => $dirtyCount,
                     'checkpoint_token' => $lastCheckpoint['token'] ?? null,
@@ -5547,19 +5548,19 @@ private static function run158161(array $operations, array $options = []): array
             }
 
             if ($op['kind'] === 'reuse') {
-                $snapshot = self::snapshotName206209((string) ($op['snapshot'] ?? ''));
+                $snapshot = self::snapshotNameSnapshotReusePublication((string) ($op['snapshot'] ?? ''));
                 if (!isset($state['snapshots'][$snapshot])) {
-                    $events[] = self::event206209('reuse', 'missing-snapshot', $source, $before, self::summary206209($state), ['snapshot' => $snapshot]);
+                    $events[] = self::eventSnapshotReusePublication('reuse', 'missing-snapshot', $source, $before, self::summarySnapshotReusePublication($state), ['snapshot' => $snapshot]);
                     continue;
                 }
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event206209('reuse', 'missing-source', $source, $before, self::summary206209($state), ['snapshot' => $snapshot]);
+                    $events[] = self::eventSnapshotReusePublication('reuse', 'missing-source', $source, $before, self::summarySnapshotReusePublication($state), ['snapshot' => $snapshot]);
                     continue;
                 }
                 $snapshotState = $state['snapshots'][$snapshot];
                 $sourceState = $state['sources'][$source];
-                $reasons = self::reuseBlockers206209($snapshotState, $sourceState);
-                $events[] = self::event206209('reuse', $reasons === [] ? 'reused' : 'blocked-stale', $source, $before, self::summary206209($state), [
+                $reasons = self::reuseBlockersSnapshotReusePublication($snapshotState, $sourceState);
+                $events[] = self::eventSnapshotReusePublication('reuse', $reasons === [] ? 'reused' : 'blocked-stale', $source, $before, self::summarySnapshotReusePublication($state), [
                     'snapshot' => $snapshot,
                     'blocked_reasons' => $reasons,
                     'snapshot_data_version' => $snapshotState['data_version'],
@@ -5570,14 +5571,14 @@ private static function run158161(array $operations, array $options = []): array
 
             if ($op['kind'] === 'publish') {
                 if (!isset($state['sources'][$source]) || $state['sources'][$source]['closed'] === true) {
-                    $events[] = self::event206209('publish', 'missing-source', $source, $before, self::summary206209($state), []);
+                    $events[] = self::eventSnapshotReusePublication('publish', 'missing-source', $source, $before, self::summarySnapshotReusePublication($state), []);
                     continue;
                 }
-                $token = self::token206209((string) ($op['token'] ?? 'publish'), 'publish token');
+                $token = self::tokenSnapshotReusePublication((string) ($op['token'] ?? 'publish'), 'publish token');
                 $sourceState = $state['sources'][$source];
                 $dirtyCount = count($sourceState['dirty_pages']);
                 if ($dirtyCount > 0) {
-                    $events[] = self::event206209('publish', 'blocked-dirty', $source, $before, self::summary206209($state), [
+                    $events[] = self::eventSnapshotReusePublication('publish', 'blocked-dirty', $source, $before, self::summarySnapshotReusePublication($state), [
                         'token' => $token,
                         'dirty_count' => $dirtyCount,
                     ]);
@@ -5588,31 +5589,31 @@ private static function run158161(array $operations, array $options = []): array
                     'data_version' => $sourceState['data_version'],
                     'durable_count' => count($sourceState['durable_receipts']),
                 ];
-                $events[] = self::event206209('publish', 'published', $source, $before, self::summary206209($state), [
+                $events[] = self::eventSnapshotReusePublication('publish', 'published', $source, $before, self::summarySnapshotReusePublication($state), [
                     'token' => $token,
                     'published_count' => count($state['sources'][$source]['published']),
                 ]);
                 continue;
             }
 
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 operation is unsupported');
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication operation is unsupported');
         }
 
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary206209($state),
+            'next' => self::summarySnapshotReusePublication($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-dirty-flush-checkpoint-next198-201',
                 'vfs-current-source-ready-next202-205',
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
             ],
-            'non_overlap' => 'next206-209 fences clean current-source snapshot reuse after next198-201 dirty flush/checkpoint and ready next202-205 publication; it does not repeat open/write/flush/checkpoint mechanics.',
+            'non_overlap' => 'Snapshot reuse publication fences clean current-source snapshot reuse after next198-201 dirty flush/checkpoint and ready next202-205 publication; it does not repeat open/write/flush/checkpoint mechanics.',
         ];
     }
 
-    private static function hydrate206209(mixed $current): array
+    private static function hydrateSnapshotReusePublication(mixed $current): array
     {
         $state = ['current_source' => null, 'sources' => [], 'snapshots' => []];
         if (!is_array($current)) {
@@ -5622,40 +5623,40 @@ private static function run158161(array $operations, array $options = []): array
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::sourceName206209((string) $name);
+            $sourceName = self::sourceNameSnapshotReusePublication((string) $name);
             $state['sources'][$sourceName] = [
-                'handle' => self::token206209((string) ($source['handle'] ?? $sourceName), 'handle'),
-                'path' => self::pathName206209((string) ($source['path'] ?? '')),
-                'owner' => self::pathName206209((string) ($source['owner'] ?? $source['path'] ?? '')),
+                'handle' => self::tokenSnapshotReusePublication((string) ($source['handle'] ?? $sourceName), 'handle'),
+                'path' => self::pathNameSnapshotReusePublication((string) ($source['path'] ?? '')),
+                'owner' => self::pathNameSnapshotReusePublication((string) ($source['owner'] ?? $source['path'] ?? '')),
                 'closed' => (bool) ($source['closed'] ?? false),
-                'data_version' => self::nonNegativeInt206209($source['data_version'] ?? 0, 'data version'),
-                'dirty_pages' => self::dirtyPageMap206209($source['dirty_pages'] ?? []),
-                'durable_receipts' => self::receiptList206209($source['durable_receipts'] ?? []),
-                'checkpoints' => self::checkpointList206209($source['checkpoints'] ?? []),
-                'published' => self::checkpointList206209($source['published'] ?? []),
+                'data_version' => self::nonNegativeIntSnapshotReusePublication($source['data_version'] ?? 0, 'data version'),
+                'dirty_pages' => self::dirtyPageMapSnapshotReusePublication($source['dirty_pages'] ?? []),
+                'durable_receipts' => self::receiptListSnapshotReusePublication($source['durable_receipts'] ?? []),
+                'checkpoints' => self::checkpointListSnapshotReusePublication($source['checkpoints'] ?? []),
+                'published' => self::checkpointListSnapshotReusePublication($source['published'] ?? []),
             ];
         }
         foreach (is_array($current['snapshots'] ?? null) ? $current['snapshots'] : [] as $name => $snapshot) {
             if (!is_array($snapshot)) {
                 continue;
             }
-            $state['snapshots'][self::snapshotName206209((string) $name)] = [
-                'source' => self::sourceName206209((string) ($snapshot['source'] ?? 'main')),
-                'handle' => self::token206209((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
-                'path' => self::pathName206209((string) ($snapshot['path'] ?? '')),
-                'owner' => self::pathName206209((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
-                'data_version' => self::nonNegativeInt206209($snapshot['data_version'] ?? 0, 'snapshot data version'),
-                'durable_count' => self::nonNegativeInt206209($snapshot['durable_count'] ?? 0, 'snapshot durable count'),
-                'checkpoint_token' => self::token206209((string) ($snapshot['checkpoint_token'] ?? 'checkpoint'), 'snapshot checkpoint token'),
+            $state['snapshots'][self::snapshotNameSnapshotReusePublication((string) $name)] = [
+                'source' => self::sourceNameSnapshotReusePublication((string) ($snapshot['source'] ?? 'main')),
+                'handle' => self::tokenSnapshotReusePublication((string) ($snapshot['handle'] ?? $name), 'snapshot handle'),
+                'path' => self::pathNameSnapshotReusePublication((string) ($snapshot['path'] ?? '')),
+                'owner' => self::pathNameSnapshotReusePublication((string) ($snapshot['owner'] ?? $snapshot['path'] ?? '')),
+                'data_version' => self::nonNegativeIntSnapshotReusePublication($snapshot['data_version'] ?? 0, 'snapshot data version'),
+                'durable_count' => self::nonNegativeIntSnapshotReusePublication($snapshot['durable_count'] ?? 0, 'snapshot durable count'),
+                'checkpoint_token' => self::tokenSnapshotReusePublication((string) ($snapshot['checkpoint_token'] ?? 'checkpoint'), 'snapshot checkpoint token'),
             ];
         }
         if (isset($current['current_source'])) {
-            $state['current_source'] = self::sourceName206209((string) $current['current_source']);
+            $state['current_source'] = self::sourceNameSnapshotReusePublication((string) $current['current_source']);
         }
         return $state;
     }
 
-    private static function operation206209(string|array $operation): array
+    private static function operationSnapshotReusePublication(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -5676,10 +5677,10 @@ private static function run158161(array $operations, array $options = []): array
         if (preg_match('/^publish\s*\(\s*(?<token>[A-Za-z0-9_.:-]+)\s*\)$/', $trimmed, $matches) === 1) {
             return ['kind' => 'publish', 'token' => $matches['token']];
         }
-        throw new \InvalidArgumentException('SQLite VFS current-source next206-209 operation is unsupported');
+        throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication operation is unsupported');
     }
 
-    private static function summary206209(array $state): array
+    private static function summarySnapshotReusePublication(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -5691,7 +5692,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return array<string> */
-    private static function reuseBlockers206209(array $snapshot, array $source): array
+    private static function reuseBlockersSnapshotReusePublication(array $snapshot, array $source): array
     {
         $reasons = [];
         if ($snapshot['handle'] !== $source['handle']) {
@@ -5712,15 +5713,15 @@ private static function run158161(array $operations, array $options = []): array
         return $reasons;
     }
 
-    private static function event206209(string $kind, string $status, string $source, array $before, array $next, array $extra): array
+    private static function eventSnapshotReusePublication(string $kind, string $status, string $source, array $before, array $next, array $extra): array
     {
         return ['kind' => $kind, 'status' => $status, 'source' => $source, 'before' => $before, 'next' => $next] + $extra;
     }
 
-    private static function sourceFor206209(array $state, mixed $source): string
+    private static function sourceForSnapshotReusePublication(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName206209((string) $source);
+            return self::sourceNameSnapshotReusePublication((string) $source);
         }
         if (is_string($state['current_source'])) {
             return $state['current_source'];
@@ -5728,7 +5729,7 @@ private static function run158161(array $operations, array $options = []): array
         return 'main';
     }
 
-    private static function lastCheckpoint206209(array $source): ?array
+    private static function lastCheckpointSnapshotReusePublication(array $source): ?array
     {
         if ($source['checkpoints'] === []) {
             return null;
@@ -5736,47 +5737,47 @@ private static function run158161(array $operations, array $options = []): array
         return $source['checkpoints'][array_key_last($source['checkpoints'])];
     }
 
-    private static function sourceName206209(string $name): string
+    private static function sourceNameSnapshotReusePublication(string $name): string
     {
-        return self::token206209($name, 'source name');
+        return self::tokenSnapshotReusePublication($name, 'source name');
     }
 
-    private static function snapshotName206209(string $name): string
+    private static function snapshotNameSnapshotReusePublication(string $name): string
     {
-        return self::token206209($name, 'snapshot name');
+        return self::tokenSnapshotReusePublication($name, 'snapshot name');
     }
 
-    private static function pathName206209(string $path): string
+    private static function pathNameSnapshotReusePublication(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 requires valid paths');
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication requires valid paths');
         }
         return $path;
     }
 
-    private static function token206209(string $token, string $label): string
+    private static function tokenSnapshotReusePublication(string $token, string $label): string
     {
         $token = trim($token);
         if ($token === '' || preg_match('/^[A-Za-z0-9_.:\/-]+$/', $token) !== 1) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 requires valid ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication requires valid ' . $label);
         }
         return $token;
     }
 
-    private static function nonNegativeInt206209(mixed $value, string $label): int
+    private static function nonNegativeIntSnapshotReusePublication(mixed $value, string $label): int
     {
         if (!is_int($value) || $value < 0) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 requires non-negative ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication requires non-negative ' . $label);
         }
         return $value;
     }
 
     /** @return array<int, array{page:int, bytes:int, digest:string}> */
-    private static function dirtyPageMap206209(mixed $pages): array
+    private static function dirtyPageMapSnapshotReusePublication(mixed $pages): array
     {
         $map = [];
-        foreach (self::receiptList206209($pages) as $receipt) {
+        foreach (self::receiptListSnapshotReusePublication($pages) as $receipt) {
             $map[$receipt['page']] = $receipt;
         }
         ksort($map);
@@ -5784,7 +5785,7 @@ private static function run158161(array $operations, array $options = []): array
     }
 
     /** @return list<array{page:int, bytes:int, digest:string}> */
-    private static function receiptList206209(mixed $receipts): array
+    private static function receiptListSnapshotReusePublication(mixed $receipts): array
     {
         $result = [];
         foreach (is_array($receipts) ? $receipts : [] as $receipt) {
@@ -5792,24 +5793,24 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'page' => self::positiveInt206209($receipt['page'] ?? null, 'receipt page'),
-                'bytes' => self::positiveInt206209($receipt['bytes'] ?? null, 'receipt bytes'),
-                'digest' => self::token206209((string) ($receipt['digest'] ?? ''), 'receipt digest'),
+                'page' => self::positiveIntSnapshotReusePublication($receipt['page'] ?? null, 'receipt page'),
+                'bytes' => self::positiveIntSnapshotReusePublication($receipt['bytes'] ?? null, 'receipt bytes'),
+                'digest' => self::tokenSnapshotReusePublication((string) ($receipt['digest'] ?? ''), 'receipt digest'),
             ];
         }
         return $result;
     }
 
-    private static function positiveInt206209(mixed $value, string $label): int
+    private static function positiveIntSnapshotReusePublication(mixed $value, string $label): int
     {
         if (!is_int($value) || $value <= 0) {
-            throw new \InvalidArgumentException('SQLite VFS current-source next206-209 requires positive ' . $label);
+            throw new \InvalidArgumentException('SQLite VFS current-source snapshot reuse publication requires positive ' . $label);
         }
         return $value;
     }
 
     /** @return list<array<string, mixed>> */
-    private static function checkpointList206209(mixed $checkpoints): array
+    private static function checkpointListSnapshotReusePublication(mixed $checkpoints): array
     {
         $result = [];
         foreach (is_array($checkpoints) ? $checkpoints : [] as $checkpoint) {
@@ -5817,9 +5818,9 @@ private static function run158161(array $operations, array $options = []): array
                 continue;
             }
             $result[] = [
-                'token' => self::token206209((string) ($checkpoint['token'] ?? ''), 'checkpoint token'),
-                'data_version' => self::nonNegativeInt206209($checkpoint['data_version'] ?? 0, 'checkpoint data version'),
-                'durable_count' => self::nonNegativeInt206209($checkpoint['durable_count'] ?? 0, 'checkpoint durable count'),
+                'token' => self::tokenSnapshotReusePublication((string) ($checkpoint['token'] ?? ''), 'checkpoint token'),
+                'data_version' => self::nonNegativeIntSnapshotReusePublication($checkpoint['data_version'] ?? 0, 'checkpoint data version'),
+                'durable_count' => self::nonNegativeIntSnapshotReusePublication($checkpoint['durable_count'] ?? 0, 'checkpoint durable count'),
             ];
         }
         return $result;
@@ -5925,7 +5926,7 @@ private static function run158161(array $operations, array $options = []): array
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-dirty-flush-checkpoint-next198-201',
-                'vfs-current-source-snapshot-reuse-ready-next206-209',
+                'vfs-current-source-snapshot-reuse-publication-ready',
                 'vfs-current-source-snapshot-reuse-publish-next210-213',
             ],
         ];
@@ -6193,7 +6194,7 @@ private static function run158161(array $operations, array $options = []): array
                 'vfs-current-source-ready-next210-213',
                 'vfs-current-source-snapshot-reuse-publish-next214-217',
             ],
-            'non_overlap' => 'next214-217 validates publication tickets for already-ready VFS current-source snapshots after next210-213; it does not repeat snapshot capture/reuse/publish mechanics from next206-209, ready publication from next202-205, or dirty flush/checkpoint behavior.',
+            'non_overlap' => 'next214-217 validates publication tickets for already-ready VFS current-source snapshots after next210-213; it does not repeat snapshot capture/reuse/publish mechanics from snapshot reuse publication, ready publication from next202-205, or dirty flush/checkpoint behavior.',
         ];
     }
 
@@ -6481,11 +6482,11 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary218221($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
             ],
-            'non_overlap' => 'next218-221 consumes ready next214-217 current-source snapshots and adds publish receipt fencing; it does not repeat next206-209 capture/reuse mechanics, ready next214-217 hydration, dirty flush, or checkpoint creation.',
+            'non_overlap' => 'next218-221 consumes ready next214-217 current-source snapshots and adds publish receipt fencing; it does not repeat snapshot reuse publication mechanics, ready next214-217 hydration, dirty flush, or checkpoint creation.',
         ];
     }
 
@@ -6888,7 +6889,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary222225($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-ready-next206-209',
+                'vfs-current-source-snapshot-reuse-publication-ready',
                 'vfs-current-source-snapshot-reuse-publish-next210-213',
                 'vfs-current-source-after-ready-reuse-publish-next222-225',
             ],
@@ -7106,12 +7107,12 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary226229($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
             ],
-            'non_overlap' => 'next226-229 consumes next218-221 ready snapshot publication fencing and adds reuse lease validation before follow-on publish; it does not repeat next206-209 capture/reuse mechanics, ready next214-217 hydration, dirty flush, checkpoint creation, or next218-221 receipt digest fencing.',
+            'non_overlap' => 'next226-229 consumes next218-221 ready snapshot publication fencing and adds reuse lease validation before follow-on publish; it does not repeat snapshot reuse publication mechanics, ready next214-217 hydration, dirty flush, checkpoint creation, or next218-221 receipt digest fencing.',
         ];
     }
 
@@ -7512,14 +7513,14 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary230233($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-ready-publish-next222-225',
                 'vfs-current-source-reuse-lease-publish-next226-229',
                 'vfs-current-source-snapshot-reuse-publish-next230-233',
             ],
-            'non_overlap' => 'next230-233 consumes the ready next222-225 and reuse lease next226-229 handoff, then captures a fresh current-source snapshot for one more reuse/publish cycle; it does not repeat next206-209 capture/reuse mechanics, ready next214-217 hydration, dirty flush, checkpoint creation, next218-221 receipt digest fencing, or next226-229 lease validation setup.',
+            'non_overlap' => 'next230-233 consumes the ready next222-225 and reuse lease next226-229 handoff, then captures a fresh current-source snapshot for one more reuse/publish cycle; it does not repeat snapshot reuse publication mechanics, ready next214-217 hydration, dirty flush, checkpoint creation, next218-221 receipt digest fencing, or next226-229 lease validation setup.',
         ];
     }
 
@@ -7914,13 +7915,13 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary234237($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
                 'vfs-current-source-reuse-ack-publish-next234-237',
             ],
-            'non_overlap' => 'next234-237 follows ready next226-229 reuse leases and adds consumer acknowledgement before republishing a reused current-source snapshot; it does not overlap parallel next230-233 ownership, next206-209 capture/reuse, next214-217 readiness, next218-221 publication fencing, or next226-229 lease validation.',
+            'non_overlap' => 'next234-237 follows ready next226-229 reuse leases and adds consumer acknowledgement before republishing a reused current-source snapshot; it does not overlap parallel next230-233 ownership, snapshot reuse publication, next214-217 readiness, next218-221 publication fencing, or next226-229 lease validation.',
         ];
     }
 
@@ -8702,7 +8703,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary242245($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -9917,7 +9918,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary254257($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -10316,7 +10317,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary258265($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -10716,7 +10717,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary266273($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -11117,7 +11118,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary274281($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -11526,7 +11527,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary282289($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -11997,7 +11998,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary290297($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -12469,7 +12470,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary298305($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -12942,7 +12943,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary306313($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -13416,7 +13417,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary314321($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -13891,7 +13892,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary322337($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -14367,7 +14368,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary338353($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -14856,7 +14857,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary354369($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -15343,7 +15344,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary370385($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -15831,7 +15832,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary386401($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -16320,7 +16321,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary402417($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -16810,7 +16811,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary418433($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -17301,7 +17302,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary434449($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -17793,7 +17794,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary450465($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -18286,7 +18287,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary466481($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -18780,7 +18781,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary482497($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -19275,7 +19276,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary498513($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -19771,7 +19772,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary514529($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -20268,7 +20269,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary530545($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -20766,7 +20767,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summary546561($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -21265,7 +21266,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summaryInitialPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -21765,7 +21766,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summaryPriorPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -22266,7 +22267,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summaryPrePublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -22768,7 +22769,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summaryPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',
@@ -23270,7 +23271,7 @@ private static function run158161(array $operations, array $options = []): array
             'next' => self::summaryExtendedPublishedReuseSnapshotFence($state),
             'events' => $events,
             'dependencies' => [
-                'vfs-current-source-snapshot-reuse-next206-209',
+                'vfs-current-source-snapshot-reuse-publication',
                 'vfs-current-source-ready-next214-217',
                 'vfs-current-source-reuse-publish-next218-221',
                 'vfs-current-source-reuse-lease-publish-next226-229',

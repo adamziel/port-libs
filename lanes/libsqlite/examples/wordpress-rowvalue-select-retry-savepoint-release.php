@@ -29,11 +29,11 @@ $targets = [
     ['target_id' => 11, 'blog_id' => 4, 'option_name' => 'home', 'action' => 'delete_retry'],
 ];
 
-$yieldUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('yield229', option_value || ':yield229', bytes + 3) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'yield' ORDER BY target_id LIMIT 2) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
+$yieldUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('yield', option_value || ':yield', bytes + 3) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'yield' ORDER BY target_id LIMIT 2) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
 $yieldDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'delete_yield' ORDER BY target_id LIMIT 1) RETURNING option_id, blog_id, option_name ORDER BY option_id";
-$attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attempt229', option_value || ':attempt229', bytes + 5) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'attempt' ORDER BY target_id) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
+$attemptUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('attempt', option_value || ':attempt', bytes + 5) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'attempt' ORDER BY target_id) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
 $attemptDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'delete_attempt' ORDER BY target_id) RETURNING option_id, blog_id, option_name ORDER BY option_id";
-$retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry229', option_value || ':retry229', bytes + 1) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'retry' ORDER BY target_id LIMIT 3) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
+$retryUpdate = "UPDATE wp_options SET (status, option_value, bytes) = ('retry', option_value || ':retry', bytes + 1) WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'retry' ORDER BY target_id LIMIT 3) RETURNING option_id, blog_id, option_name, status, option_value ORDER BY option_id";
 $retryDelete = "DELETE FROM wp_options WHERE (blog_id, option_name) IN (SELECT blog_id, option_name FROM wp_import_targets WHERE action = 'delete_retry' ORDER BY target_id LIMIT 2) RETURNING option_id, blog_id, option_name ORDER BY option_id";
 
 $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::executeSelectRetrySavepointRelease(
@@ -45,26 +45,26 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-select-savepoint-release-current-source-next229',
+    'scenario' => 'wordpress-rowvalue-select-retry-savepoint-release',
     'status' => $plan['status'],
     'savepoint' => $plan['savepoint'],
-    'yielded_ids' => $plan['release_receipt_next229']['yielded_ids'],
-    'suppressed_ids' => $plan['release_receipt_next229']['suppressed_ids'],
-    'retry_ids' => $plan['release_receipt_next229']['retry_ids'],
+    'yielded_ids' => $plan['release_receipt']['yielded_ids'],
+    'suppressed_ids' => $plan['release_receipt']['suppressed_ids'],
+    'retry_ids' => $plan['release_receipt']['retry_ids'],
     'changed_tables' => $plan['changed_tables_after_release'],
     'final_option_ids' => array_column($plan['current_source_tables']['wp_options'], 'option_id'),
     'wordpressUse' => 'A copied WordPress options import can select row-value UPDATE/DELETE RETURNING targets from a staging table, roll back a failed savepoint attempt, retry from the savepoint image, and RELEASE only the retry rows.',
-    'dependencyClosure' => $plan['dependency_closure_next229'],
+    'dependencyClosure' => $plan['dependency_closure'],
 ];
 
 if (
-    $summary['status'] !== 'rowvalue-update-delete-returning-subquery-savepoint-release-current-source-next229'
+    $summary['status'] !== 'rowvalue-update-delete-returning-subquery-savepoint-release-current-source'
     || $summary['yielded_ids'] !== [3, 4, 2]
     || $summary['suppressed_ids'] !== [3, 4, 5]
     || $summary['retry_ids'] !== [3, 4, 6, 2, 7]
     || $summary['final_option_ids'] !== [1, 3, 4, 5, 6]
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-select-savepoint-release-current-source-next229 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-select-savepoint-release-current-source self-test failed\n");
     exit(1);
 }
 

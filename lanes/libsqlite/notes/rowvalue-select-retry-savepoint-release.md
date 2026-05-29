@@ -1,4 +1,4 @@
-# Row-Value UPDATE/DELETE RETURNING Savepoint Current-Source Next229
+# Row-Value Select Retry Savepoint Release
 
 ## Behavior
 
@@ -16,7 +16,7 @@ The modeled sequence is:
 
 Focused test:
 
-`php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNext229Test.php`
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteRowValueSelectRetrySavepointReleaseTest.php`
 
 Result:
 
@@ -24,15 +24,15 @@ Result:
 
 WordPress smoke:
 
-`php lanes/libsqlite/examples/wordpress-rowvalue-select-savepoint-release-current-source-next229.php`
+`php lanes/libsqlite/examples/wordpress-rowvalue-select-retry-savepoint-release.php`
 
 Result:
 
-`wordpress-rowvalue-select-savepoint-release-current-source-next229` JSON self-test passed and reported yielded ids `[3,4,2]`, suppressed ids `[3,4,5]`, retry ids `[3,4,6,2,7]`, and final option ids `[1,3,4,5,6]`.
+`wordpress-rowvalue-select-retry-savepoint-release` JSON smoke passed and reported yielded ids `[3,4,2]`, suppressed ids `[3,4,5]`, retry ids `[3,4,6,2,7]`, and final option ids `[1,3,4,5,6]`.
 
 ## Non-Overlap
 
-This avoids accepted next223 yield-only rollback fencing and next224 nested inner release discarded by outer rollback. The new behavior is row-value `IN (SELECT ...)` target selection plus final savepoint `RELEASE` after retry. It also avoids trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree surfaces.
+This avoids accepted yield-only rollback fencing and nested inner release discarded by outer rollback. The behavior is row-value `IN (SELECT ...)` target selection plus final savepoint `RELEASE` after retry. It also avoids trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree surfaces.
 
 ## Dependency Closure
 

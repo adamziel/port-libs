@@ -34,18 +34,18 @@ $putPointerMapEntry = static function (array &$pages, int $pageNumber, int $type
     $pages[$pointerMapPage] = substr_replace($pages[$pointerMapPage], chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - $pointerMapPage - 1), 5);
 };
 
-$databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
+$databaseForCase = static function (int $caseNumber) use ($makeFirstPage, $putPointerMapEntry): SQLiteDatabase {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
     $pages[1] = $makeFirstPage(110);
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'home', 'https://example.test'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_timeout_next{$sliceNumber}", str_repeat('ttl:', 52)])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_timeout_freelist_handoff_{$caseNumber}", str_repeat('ttl:', 52)])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'stylesheet', str_repeat('theme:', 12)])),
     ]);
     $pages[105] = str_repeat("\0", 512);
     foreach ([106 => 107, 107 => 108, 108 => 109, 109 => 110, 110 => 0] as $pageNumber => $nextPage) {
-        $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(161 + ($pageNumber - 106)), 508);
+        $pages[$pageNumber] = pack('N', $nextPage) . str_repeat(chr(145 + ($pageNumber - 106)), 508);
     }
 
     foreach ([
@@ -62,11 +62,12 @@ $databaseForFreelistHandoff = static function (int $sliceNumber) use ($makeFirst
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) use ($databaseForFreelistHandoff): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
-    $database = $databaseForFreelistHandoff($sliceNumber);
+$planFreelistHandoff = static function (int $caseNumber, int $batchSize = 2) use ($databaseForCase): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+    $database = $databaseForCase($caseNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult($database,
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafCurrentSourceFreelistHandoffFromDeleteResult(
+        $database,
         3,
         [
             'page' => $deletedPage,
@@ -74,7 +75,7 @@ $freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) us
             'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
         ],
         2,
-        str_repeat("next-current-source-pointermap-freeblock-", 34),
+        str_repeat("freelist-handoff-case-{$caseNumber}-", 58),
         3,
         true,
         $batchSize,
@@ -83,14 +84,14 @@ $freelistHandoffPlan = static function (int $sliceNumber, int $batchSize = 2) us
 
 $tests = [];
 
-foreach (array_merge(range(991, 1006), range(1135, 1182)) as $sliceNumber) {
-    $tests["btree vacuum pointermap freeblock current source freelist handoff slice {$sliceNumber} preserves receipts"] = static function (TestRunner $t) use ($freelistHandoffPlan, $sliceNumber): void {
-        $plan = $freelistHandoffPlan($sliceNumber);
+foreach (range(1, 80) as $caseNumber) {
+    $tests["btree vacuum pointermap freeblock current source freelist handoff case {$caseNumber} uses stable canonical method"] = static function (TestRunner $t) use ($planFreelistHandoff, $caseNumber): void {
+        $plan = $planFreelistHandoff($caseNumber);
         $summary = $plan->currentSourceSummary();
         $rows = $plan->currentSourceRows();
 
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-freelist-handoff", $plan->toArray()['action']);
-        $t->same("btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-ready", $summary['status']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-freelist-handoff', $plan->toArray()['action']);
+        $t->same('btree-vacuum-pointermap-freeblock-current-source-freelist-handoff-ready', $summary['status']);
         $t->same(7, $summary['current_source_row_count']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['current_source_pages']);
         $t->same([3, 106, 107, 108], $summary['current_source_leaf_pages']);
@@ -103,13 +104,13 @@ foreach (array_merge(range(991, 1006), range(1135, 1182)) as $sliceNumber) {
         $t->same(true, $summary['all_leaf_receipts_current_at_source']);
         $t->same(true, $summary['all_tail_pages_remain_excluded_from_source']);
         $t->same(true, $summary['all_current_source_links_valid']);
-        $t->same("current-source-freelist-handoff-ready", $rows[0]['current_source_state']);
+        $t->same('current-source-freelist-handoff-ready', $rows[0]['current_source_state']);
         $t->same(null, $rows[0]['previous_current_source_token']);
         $t->same($rows[0]['current_source_token'], $rows[1]['previous_current_source_token']);
-        $t->same(true, isset($summary["current_source_freelist_handoff_token"]));
+        $t->same(true, isset($summary['current_source_freelist_handoff_token']));
         $t->contains('existing freelist splice shape', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
-        $t->same(6, $freelistHandoffPlan($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
+        $t->same(6, $planFreelistHandoff($caseNumber, 3)->currentSourceSummary()['current_source_row_count']);
     };
 }
 

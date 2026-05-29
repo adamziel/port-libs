@@ -12515,23 +12515,23 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $attemptStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_rowvalue_select_retry_next229',
+        string $savepoint = 'wp_options_rowvalue_select_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($yieldStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value select retry next229 needs yield statements');
+            throw new \InvalidArgumentException('SQLite row-value select retry savepoint release needs yield statements');
         }
         if ($attemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value select retry next229 needs attempted statements');
+            throw new \InvalidArgumentException('SQLite row-value select retry savepoint release needs attempted statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value select retry next229 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value select retry savepoint release needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value select retry next229 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value select retry savepoint release needs unique constraints');
         }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $savepoint) !== 1) {
-            throw new \InvalidArgumentException('SQLite row-value select retry next229 savepoint must be an identifier');
+            throw new \InvalidArgumentException('SQLite row-value select retry savepoint release savepoint must be an identifier');
         }
 
         $savepointImage = self::normalizeSelectRetrySavepointTables($tables);
@@ -12540,14 +12540,14 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $yieldStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'yield-subquery-before-rollback-to-next229',
+            'yield-subquery-before-rollback-to-savepoint',
         );
         [$attemptCurrent, $attemptExecuted, $attemptReturning] = self::runSelectRetrySavepointStatements(
             $yieldCurrent,
             $attemptStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'attempt-subquery-after-yield-before-rollback-to-next229',
+            'attempt-subquery-after-yield-before-rollback-to-savepoint',
         );
 
         $rollbackCurrent = $savepointImage;
@@ -12556,7 +12556,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             $retryStatements,
             $uniqueConstraints,
             $rowIdColumn,
-            'retry-subquery-after-rollback-release-next229',
+            'retry-subquery-after-rollback-release',
         );
 
         $yieldedRows = self::flattenSelectRetrySavepointReturning($yieldReturning);
@@ -12564,7 +12564,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $retryRows = self::flattenSelectRetrySavepointReturning($retryReturning);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-subquery-savepoint-release-current-source-next229',
+            'status' => 'rowvalue-update-delete-returning-subquery-savepoint-release-current-source',
             'savepoint' => $savepoint,
             'savepoint_image_tables' => $savepointImage,
             'yield_current_source_tables' => $yieldCurrent,
@@ -12587,16 +12587,16 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'yield_change_count' => self::selectRetrySavepointChangeCount($yieldExecuted),
             'attempt_change_count' => self::selectRetrySavepointChangeCount($attemptExecuted),
             'retry_change_count' => self::selectRetrySavepointChangeCount($retryExecuted),
-            'rowvalue_subquery_targets_next229' => true,
-            'rollback_to_savepoint_next229' => true,
-            'release_commits_retry_next229' => true,
-            'yielded_rows_survive_rollback_next229' => true,
-            'attempted_rows_suppressed_next229' => true,
-            'retry_reads_savepoint_image_next229' => true,
-            'savepoint_released_next229' => true,
+            'rowvalue_subquery_targets' => true,
+            'rollback_to_savepoint' => true,
+            'release_commits_retry' => true,
+            'yielded_rows_survive_rollback' => true,
+            'attempted_rows_suppressed' => true,
+            'retry_reads_savepoint_image' => true,
+            'savepoint_released' => true,
             'changed_tables_after_release' => self::selectRetrySavepointChangedTables($savepointImage, $retryCurrent),
             'row_counts' => self::selectRetrySavepointRowCounts($retryCurrent),
-            'release_receipt_next229' => [
+            'release_receipt' => [
                 'savepoint' => $savepoint,
                 'yielded_count' => count($yieldedRows),
                 'suppressed_count' => count($suppressedRows),
@@ -12606,13 +12606,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
                 'retry_ids' => self::selectRetrySavepointIdsFromRows($retryRows, $rowIdColumn),
                 'released_tables' => array_keys($retryCurrent),
             ],
-            'dependency_closure_next229' => 'no new support component needed; next229 reuses native PHP UPDATE/DELETE RETURNING row-value subquery dispatch and savepoint row images',
+            'dependency_closure' => 'no new support component needed; reuses native PHP UPDATE/DELETE RETURNING row-value subquery dispatch and savepoint row images',
             'dependencies' => [
-                'sqlite-rowvalue-in-select-update-delete-returning-next229',
-                'sqlite-rowvalue-returning-rollback-to-release-retry-next229',
-                'wordpress-rowvalue-select-savepoint-release-current-source-next229',
+                'sqlite-rowvalue-in-select-update-delete-returning',
+                'sqlite-rowvalue-returning-rollback-to-release-retry',
+                'wordpress-rowvalue-select-savepoint-release-current-source',
             ],
-            'non_overlap_next229' => 'adds row-value IN (SELECT ...) target selection through UPDATE/DELETE RETURNING across ROLLBACK TO and final RELEASE; avoids accepted next223 yield-only rollback fencing, next224 nested release discarded by outer rollback, next218 rollback image restoration, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
+            'non_overlap' => 'adds row-value IN (SELECT ...) target selection through UPDATE/DELETE RETURNING across ROLLBACK TO and final RELEASE; avoids accepted yield-only rollback fencing, nested release discarded by outer rollback, rollback image restoration, trigger RETURNING, WAL/VFS, JSON table, planner, and B-tree clusters',
         ];
     }
 
@@ -12678,11 +12678,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value select retry next229 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value select retry savepoint release tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value select retry next229 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value select retry savepoint release rows must be arrays');
                 }
             }
         }
@@ -12705,11 +12705,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value select retry next229 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value select retry savepoint release rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value select retry next229 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value select retry savepoint release rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

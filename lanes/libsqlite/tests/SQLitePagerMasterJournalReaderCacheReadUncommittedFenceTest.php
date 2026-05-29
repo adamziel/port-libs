@@ -7,8 +7,8 @@ use PortLibs\LibSqlite\SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan;
 $tests = [];
 
 $pageSize = 512;
-$database = '/srv/wp-content/database/wp-next334.sqlite';
-$usersDatabase = '/srv/wp-content/database/wp-next334-users.sqlite';
+$database = '/srv/wp-content/database/wp-next330.sqlite';
+$usersDatabase = '/srv/wp-content/database/wp-next330-users.sqlite';
 $mainJournal = $database . '-journal';
 $usersJournal = $usersDatabase . '-journal';
 $master = $database . '-mj';
@@ -19,7 +19,7 @@ $formatPage = static function (string $label) use ($pageSize): string {
     $page = substr_replace($page, pack('n', 512), 16, 2);
     $page = substr_replace($page, chr(4), 20, 1);
     $page = substr_replace($page, pack('N', 2), 56, 4);
-    $page = substr_replace($page, pack('N', 334), 60, 4);
+    $page = substr_replace($page, pack('N', 330), 60, 4);
 
     return substr_replace($page, $label, 100, strlen($label));
 };
@@ -34,109 +34,105 @@ $recoveredDigest = static function (array $pages): string {
     return hash('sha256', implode('|', array_map(static fn (int $pageNumber, string $image): string => $pageNumber . ':' . hash('sha256', $image), array_keys($pages), $pages)));
 };
 
-$before = [1 => $formatPage('next334 stale schema'), 2 => $page('next334 stale options'), 3 => $page('next334 stale plugins'), 4 => $page('next334 stale users')];
-$recovered = [1 => $formatPage('next334 current schema'), 2 => $page('next334 current options'), 3 => $page('next334 current plugins'), 4 => $page('next334 current users')];
-$tokens = [$mainJournal => 'member-main-current-334', $usersJournal => 'member-users-current-334'];
-$headers = [$mainJournal => hash('sha256', 'main header next334'), $usersJournal => hash('sha256', 'users header next334')];
+$before = [1 => $formatPage('next330 stale schema'), 2 => $page('next330 stale options'), 3 => $page('next330 stale plugins'), 4 => $page('next330 stale users')];
+$recovered = [1 => $formatPage('next330 current schema'), 2 => $page('next330 current options'), 3 => $page('next330 current plugins'), 4 => $page('next330 current users')];
+$tokens = [$mainJournal => 'member-main-current-330', $usersJournal => 'member-users-current-330'];
+$headers = [$mainJournal => hash('sha256', 'main header next330'), $usersJournal => hash('sha256', 'users header next330')];
 $base = [
-    'source_id' => 'pager-reader-cache-current-source-next334',
-    'epoch' => 334,
-    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 334, 0])),
-    'publication_generation' => 334,
-    'master_source_digest' => hash('sha256', 'master-next334'),
-    'recovery_sequence' => 334,
+    'source_id' => 'pager-reader-cache-current-source-next330',
+    'epoch' => 330,
+    'format_signature' => hash('sha256', implode('|', [512, 4, 2, 330, 0])),
+    'publication_generation' => 330,
+    'master_source_digest' => hash('sha256', 'master-next330'),
+    'recovery_sequence' => 330,
     'recovered_page_set_digest' => $recoveredDigest($recovered),
     'member_journal_tokens' => $tokens,
     'member_journal_header_digests' => $headers,
     'master_member_order_digest' => hash('sha256', implode("\n", array_keys($tokens))),
-    'master_journal_file_token' => 'master-file-current-334',
+    'master_journal_file_token' => 'master-file-current-330',
     'master_journal_bytes_digest' => hash('sha256', $masterBytes),
-    'database_file_token' => 'database-file-current-334',
-    'master_journal_cleanup_token' => 'master-cleanup-current-334',
-    'reader_lease_token' => 'reader-lease-current-334',
-    'pager_cache_source_token' => 'pager-cache-source-current-334',
-    'read_transaction_token' => 'read-transaction-current-334',
-    'schema_reparse_token' => 'schema-reparse-current-334',
-    'statement_schema_root_token' => 'statement-schema-root-current-334',
-    'current_source_provenance_token' => 'source-provenance-current-334',
-    'pager_reader_cache_generation_token' => 'cache-generation-current-334',
-    'reader_snapshot_token' => 'reader-snapshot-current-334',
-    'master_journal_recovery_receipt_token' => 'recovery-receipt-current-334',
-    'pager_spill_drain_token' => 'spill-drain-current-334',
-    'rollback_journal_reader_source_token' => 'rollback-source-current-334',
-    'pager_hot_journal_header_token' => 'hot-header-current-334',
-    'master_journal_member_epoch_token' => 'member-epoch-current-334',
-    'reader_cache_schema_cookie_token' => 'schema-cookie-current-334',
-    'reader_cache_vacuum_root_token' => 'vacuum-root-current-334',
-    'pager_reserved_lock_token' => 'reserved-lock-current-334',
-    'reader_cache_page_count_token' => 'page-count-current-334',
-    'reader_cache_schema_version_token' => 'schema-version-current-334',
-    'reader_cache_change_counter_token' => 'change-counter-current-334',
-    'reader_cache_freelist_trunk_token' => 'freelist-trunk-current-334',
-    'reader_cache_auto_vacuum_token' => 'auto-vacuum-current-334',
-    'reader_cache_encoding_token' => 'encoding-current-334',
-    'reader_cache_text_schema_token' => 'text-schema-current-334',
-    'reader_cache_index_schema_token' => 'index-schema-current-334',
-    'reader_cache_trigger_schema_token' => 'trigger-schema-current-334',
-    'reader_cache_view_schema_token' => 'view-schema-current-334',
-    'reader_cache_virtual_table_schema_token' => 'virtual-table-schema-current-334',
-    'reader_cache_module_schema_token' => 'module-schema-current-334',
-    'reader_cache_pragma_schema_token' => 'pragma-schema-current-334',
-    'reader_cache_collation_schema_token' => 'collation-schema-current-334',
-    'reader_cache_authorizer_schema_token' => 'authorizer-schema-current-334',
-    'reader_cache_transaction_state_token' => 'transaction-state-current-334',
-    'reader_cache_commit_phase_token' => 'commit-phase-current-334',
-    'reader_cache_busy_handler_token' => 'busy-handler-current-334',
-    'reader_cache_savepoint_stack_token' => 'savepoint-stack-current-334',
-    'reader_cache_statement_journal_token' => 'statement-journal-current-334',
-    'reader_cache_temp_page_token' => 'temp-page-current-334',
-    'reader_cache_dirty_list_token' => 'dirty-list-current-334',
-    'reader_cache_spill_epoch_token' => 'spill-epoch-current-334',
-    'reader_cache_locking_mode_token' => 'locking-mode-current-334',
-    'reader_cache_journal_mode_token' => 'journal-mode-current-334',
-    'reader_cache_synchronous_token' => 'synchronous-current-334',
-    'reader_cache_mmap_size_token' => 'mmap-size-current-334',
-    'reader_cache_cache_size_token' => 'cache-size-current-334',
-    'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-current-334',
-    'reader_cache_query_only_token' => 'query-only-current-334',
-    'reader_cache_foreign_key_token' => 'foreign-key-current-334',
-    'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-current-334',
-    'reader_cache_recursive_trigger_token' => 'recursive-trigger-current-334',
-    'reader_cache_trusted_schema_token' => 'trusted-schema-current-334',
-    'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-current-334',
-    'reader_cache_application_id_token' => 'application-id-current-334',
-    'reader_cache_user_version_token' => 'user-version-current-334',
-    'reader_cache_data_version_token' => 'data-version-current-334',
-    'reader_cache_schema_lock_token' => 'schema-lock-current-334',
-    'reader_cache_schema_format_token' => 'schema-format-current-334',
-    'reader_cache_auto_vacuum_incremental_token' => 'auto-vacuum-incremental-current-334',
-    'reader_cache_reverse_unordered_selects_token' => 'reverse-unordered-selects-current-334',
-    'reader_cache_automatic_index_token' => 'automatic-index-current-334',
-    'reader_cache_case_sensitive_like_token' => 'case-sensitive-like-current-334',
-    'reader_cache_count_changes_token' => 'count-changes-current-334',
-    'reader_cache_checkpoint_fullfsync_token' => 'checkpoint-fullfsync-current-334',
-    'reader_cache_fullfsync_token' => 'fullfsync-current-334',
-    'reader_cache_legacy_file_format_token' => 'legacy-file-format-current-334',
-    'reader_cache_read_uncommitted_token' => 'read-uncommitted-current-334',
-    'reader_cache_reverse_scan_order_token' => 'reverse-scan-order-current-334',
-    'reader_cache_defensive_token' => 'defensive-current-334',
-    'reader_cache_writable_schema_token' => 'writable-schema-current-334',
-    'reader_cache_journal_size_limit_token' => 'journal-size-limit-current-334',
-    'reader_cache_secure_delete_token' => 'secure-delete-current-334',
-    'reader_cache_temp_store_token' => 'temp-store-current-334',
-    'reader_cache_cache_spill_token' => 'cache-spill-current-334',
-    'reader_cache_cell_size_check_token' => 'cell-size-check-current-334',
+    'database_file_token' => 'database-file-current-330',
+    'master_journal_cleanup_token' => 'master-cleanup-current-330',
+    'reader_lease_token' => 'reader-lease-current-330',
+    'pager_cache_source_token' => 'pager-cache-source-current-330',
+    'read_transaction_token' => 'read-transaction-current-330',
+    'schema_reparse_token' => 'schema-reparse-current-330',
+    'statement_schema_root_token' => 'statement-schema-root-current-330',
+    'current_source_provenance_token' => 'source-provenance-current-330',
+    'pager_reader_cache_generation_token' => 'cache-generation-current-330',
+    'reader_snapshot_token' => 'reader-snapshot-current-330',
+    'master_journal_recovery_receipt_token' => 'recovery-receipt-current-330',
+    'pager_spill_drain_token' => 'spill-drain-current-330',
+    'rollback_journal_reader_source_token' => 'rollback-source-current-330',
+    'pager_hot_journal_header_token' => 'hot-header-current-330',
+    'master_journal_member_epoch_token' => 'member-epoch-current-330',
+    'reader_cache_schema_cookie_token' => 'schema-cookie-current-330',
+    'reader_cache_vacuum_root_token' => 'vacuum-root-current-330',
+    'pager_reserved_lock_token' => 'reserved-lock-current-330',
+    'reader_cache_page_count_token' => 'page-count-current-330',
+    'reader_cache_schema_version_token' => 'schema-version-current-330',
+    'reader_cache_change_counter_token' => 'change-counter-current-330',
+    'reader_cache_freelist_trunk_token' => 'freelist-trunk-current-330',
+    'reader_cache_auto_vacuum_token' => 'auto-vacuum-current-330',
+    'reader_cache_encoding_token' => 'encoding-current-330',
+    'reader_cache_text_schema_token' => 'text-schema-current-330',
+    'reader_cache_index_schema_token' => 'index-schema-current-330',
+    'reader_cache_trigger_schema_token' => 'trigger-schema-current-330',
+    'reader_cache_view_schema_token' => 'view-schema-current-330',
+    'reader_cache_virtual_table_schema_token' => 'virtual-table-schema-current-330',
+    'reader_cache_module_schema_token' => 'module-schema-current-330',
+    'reader_cache_pragma_schema_token' => 'pragma-schema-current-330',
+    'reader_cache_collation_schema_token' => 'collation-schema-current-330',
+    'reader_cache_authorizer_schema_token' => 'authorizer-schema-current-330',
+    'reader_cache_transaction_state_token' => 'transaction-state-current-330',
+    'reader_cache_commit_phase_token' => 'commit-phase-current-330',
+    'reader_cache_busy_handler_token' => 'busy-handler-current-330',
+    'reader_cache_savepoint_stack_token' => 'savepoint-stack-current-330',
+    'reader_cache_statement_journal_token' => 'statement-journal-current-330',
+    'reader_cache_temp_page_token' => 'temp-page-current-330',
+    'reader_cache_dirty_list_token' => 'dirty-list-current-330',
+    'reader_cache_spill_epoch_token' => 'spill-epoch-current-330',
+    'reader_cache_locking_mode_token' => 'locking-mode-current-330',
+    'reader_cache_journal_mode_token' => 'journal-mode-current-330',
+    'reader_cache_synchronous_token' => 'synchronous-current-330',
+    'reader_cache_mmap_size_token' => 'mmap-size-current-330',
+    'reader_cache_cache_size_token' => 'cache-size-current-330',
+    'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-current-330',
+    'reader_cache_query_only_token' => 'query-only-current-330',
+    'reader_cache_foreign_key_token' => 'foreign-key-current-330',
+    'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-current-330',
+    'reader_cache_recursive_trigger_token' => 'recursive-trigger-current-330',
+    'reader_cache_trusted_schema_token' => 'trusted-schema-current-330',
+    'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-current-330',
+    'reader_cache_application_id_token' => 'application-id-current-330',
+    'reader_cache_user_version_token' => 'user-version-current-330',
+    'reader_cache_data_version_token' => 'data-version-current-330',
+    'reader_cache_schema_lock_token' => 'schema-lock-current-330',
+    'reader_cache_schema_format_token' => 'schema-format-current-330',
+    'reader_cache_auto_vacuum_incremental_token' => 'auto-vacuum-incremental-current-330',
+    'reader_cache_reverse_unordered_selects_token' => 'reverse-unordered-selects-current-330',
+    'reader_cache_automatic_index_token' => 'automatic-index-current-330',
+    'reader_cache_case_sensitive_like_token' => 'case-sensitive-like-current-330',
+    'reader_cache_count_changes_token' => 'count-changes-current-330',
+    'reader_cache_checkpoint_fullfsync_token' => 'checkpoint-fullfsync-current-330',
+    'reader_cache_fullfsync_token' => 'fullfsync-current-330',
+    'reader_cache_legacy_file_format_token' => 'legacy-file-format-current-330',
+    'reader_cache_read_uncommitted_token' => 'read-uncommitted-current-330',
+    'reader_cache_secure_delete_token' => 'secure-delete-current-330',
+    'reader_cache_temp_store_token' => 'temp-store-current-330',
+    'reader_cache_cache_spill_token' => 'cache-spill-current-330',
+    'reader_cache_cell_size_check_token' => 'cell-size-check-current-330',
 ];
 $cacheEntry = static fn (string $label, string $image, array $extra = []): array => array_merge($base, ['label' => $label, 'reader_id' => $label . '-reader', 'image' => $image], $extra);
 $read = static fn (int $pageNumber, array $extra = []): array => array_merge([
     'reader_id' => 'read-' . $pageNumber,
     'page_number' => $pageNumber,
     'source_id' => $base['source_id'],
-    'epoch' => 334,
+    'epoch' => 330,
     'format_signature' => $base['format_signature'],
-    'publication_generation' => 334,
+    'publication_generation' => 330,
     'master_source_digest' => $base['master_source_digest'],
-    'recovery_sequence' => 334,
+    'recovery_sequence' => 330,
     'recovered_page_set_digest' => $base['recovered_page_set_digest'],
     'member_journal_token_digest' => $mapDigest($tokens),
     'member_journal_header_digest' => $mapDigest($headers),
@@ -210,33 +206,29 @@ $read = static fn (int $pageNumber, array $extra = []): array => array_merge([
     'reader_cache_fullfsync_token' => $base['reader_cache_fullfsync_token'],
     'reader_cache_legacy_file_format_token' => $base['reader_cache_legacy_file_format_token'],
     'reader_cache_read_uncommitted_token' => $base['reader_cache_read_uncommitted_token'],
-    'reader_cache_reverse_scan_order_token' => $base['reader_cache_reverse_scan_order_token'],
-    'reader_cache_defensive_token' => $base['reader_cache_defensive_token'],
-    'reader_cache_writable_schema_token' => $base['reader_cache_writable_schema_token'],
-    'reader_cache_journal_size_limit_token' => $base['reader_cache_journal_size_limit_token'],
     'reader_cache_secure_delete_token' => $base['reader_cache_secure_delete_token'],
     'reader_cache_temp_store_token' => $base['reader_cache_temp_store_token'],
     'reader_cache_cache_spill_token' => $base['reader_cache_cache_spill_token'],
     'reader_cache_cell_size_check_token' => $base['reader_cache_cell_size_check_token'],
 ], $extra);
 $plan = static function (?array $cache = null, ?array $reads = null) use ($database, $master, $masterBytes, $before, $pageSize, $recovered, $base, $tokens, $headers, $cacheEntry, $read): array {
-    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext334($database, $master, $masterBytes, implode('', $before), $pageSize, $recovered, $cache ?? [
+    return SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceReaderCacheReadUncommittedFence($database, $master, $masterBytes, implode('', $before), $pageSize, $recovered, $cache ?? [
         1 => $cacheEntry('schema-stale-module', $recovered[1], ['reader_cache_module_schema_token' => 'module-schema-old']),
         2 => $cacheEntry('options-stale-pragma', $recovered[2], ['reader_cache_pragma_schema_token' => 'pragma-schema-old']),
         3 => $cacheEntry('plugins-stale-collation', $recovered[3], ['reader_cache_collation_schema_token' => 'collation-schema-old']),
         4 => $cacheEntry('users-stale-secure-delete', $recovered[4], ['reader_cache_secure_delete_token' => 'secure-delete-old']),
-    ], $reads ?? [$read(1), $read(2), $read(3), $read(4, ['reader_cache_savepoint_stack_token' => 'savepoint-stack-old', 'reader_cache_statement_journal_token' => 'statement-journal-old', 'reader_cache_temp_page_token' => 'temp-page-old', 'reader_cache_dirty_list_token' => 'dirty-list-old', 'reader_cache_spill_epoch_token' => 'spill-epoch-old', 'reader_cache_locking_mode_token' => 'locking-mode-old', 'reader_cache_journal_mode_token' => 'journal-mode-old', 'reader_cache_synchronous_token' => 'synchronous-old', 'reader_cache_mmap_size_token' => 'mmap-size-old', 'reader_cache_cache_size_token' => 'cache-size-old', 'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-old', 'reader_cache_query_only_token' => 'query-only-old', 'reader_cache_foreign_key_token' => 'foreign-key-old', 'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-old', 'reader_cache_recursive_trigger_token' => 'recursive-trigger-old', 'reader_cache_trusted_schema_token' => 'trusted-schema-old', 'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-old', 'reader_cache_application_id_token' => 'application-id-old', 'reader_cache_user_version_token' => 'user-version-old', 'reader_cache_data_version_token' => 'data-version-old', 'reader_cache_schema_lock_token' => 'schema-lock-old', 'reader_cache_secure_delete_token' => 'secure-delete-old', 'reader_cache_temp_store_token' => 'temp-store-old', 'reader_cache_cache_spill_token' => 'cache-spill-old', 'reader_cache_cell_size_check_token' => 'cell-size-check-old', 'reader_cache_reverse_unordered_selects_token' => 'reverse-unordered-selects-old', 'reader_cache_automatic_index_token' => 'automatic-index-old', 'reader_cache_case_sensitive_like_token' => 'case-sensitive-like-old', 'reader_cache_count_changes_token' => 'count-changes-old', 'reader_cache_checkpoint_fullfsync_token' => 'checkpoint-fullfsync-old', 'reader_cache_fullfsync_token' => 'fullfsync-old', 'reader_cache_legacy_file_format_token' => 'legacy-file-format-old', 'reader_cache_read_uncommitted_token' => 'read-uncommitted-old', 'reader_cache_reverse_scan_order_token' => 'reverse-scan-order-old', 'reader_cache_defensive_token' => 'defensive-old', 'reader_cache_writable_schema_token' => 'writable-schema-old', 'reader_cache_journal_size_limit_token' => 'journal-size-limit-old'])], $base['source_id'], 334, 334, $base['master_source_digest'], 334, $tokens, $headers, $base['master_journal_file_token'], $base['database_file_token'], $base['master_journal_cleanup_token'], $base['reader_lease_token'], $base['pager_cache_source_token'], $base['read_transaction_token'], $base['schema_reparse_token'], $base['statement_schema_root_token'], $base['current_source_provenance_token'], $base['pager_reader_cache_generation_token'], $base['reader_snapshot_token'], $base['master_journal_recovery_receipt_token'], $base['pager_spill_drain_token'], $base['rollback_journal_reader_source_token'], $base['pager_hot_journal_header_token'], $base['master_journal_member_epoch_token'], $base['reader_cache_schema_cookie_token'], $base['reader_cache_vacuum_root_token'], $base['pager_reserved_lock_token'], $base['reader_cache_page_count_token'], $base['reader_cache_schema_version_token'], $base['reader_cache_change_counter_token'], $base['reader_cache_freelist_trunk_token'], $base['reader_cache_auto_vacuum_token'], $base['reader_cache_encoding_token'], $base['reader_cache_text_schema_token'], $base['reader_cache_index_schema_token'], $base['reader_cache_trigger_schema_token'], $base['reader_cache_view_schema_token'], $base['reader_cache_virtual_table_schema_token'], $base['reader_cache_module_schema_token'], $base['reader_cache_pragma_schema_token'], $base['reader_cache_collation_schema_token'], $base['reader_cache_authorizer_schema_token'], $base['reader_cache_transaction_state_token'], $base['reader_cache_commit_phase_token'], $base['reader_cache_busy_handler_token'], $base['reader_cache_savepoint_stack_token'], $base['reader_cache_statement_journal_token'], $base['reader_cache_temp_page_token'], $base['reader_cache_dirty_list_token'], $base['reader_cache_spill_epoch_token'], $base['reader_cache_locking_mode_token'], $base['reader_cache_journal_mode_token'], $base['reader_cache_synchronous_token'], $base['reader_cache_mmap_size_token'], $base['reader_cache_cache_size_token'], $base['reader_cache_wal_autocheckpoint_token'], $base['reader_cache_query_only_token'], $base['reader_cache_foreign_key_token'], $base['reader_cache_defer_foreign_key_token'], $base['reader_cache_recursive_trigger_token'], $base['reader_cache_trusted_schema_token'], $base['reader_cache_ignore_check_constraints_token'], $base['reader_cache_application_id_token'], $base['reader_cache_user_version_token'], $base['reader_cache_data_version_token'], $base['reader_cache_schema_lock_token'], $base['reader_cache_secure_delete_token'], $base['reader_cache_temp_store_token'], $base['reader_cache_cache_spill_token'], $base['reader_cache_cell_size_check_token'], $base['reader_cache_reverse_unordered_selects_token'], $base['reader_cache_automatic_index_token'], $base['reader_cache_case_sensitive_like_token'], $base['reader_cache_count_changes_token'], $base['reader_cache_checkpoint_fullfsync_token'], $base['reader_cache_fullfsync_token'], $base['reader_cache_legacy_file_format_token'], $base['reader_cache_read_uncommitted_token'], $base['reader_cache_reverse_scan_order_token'], $base['reader_cache_defensive_token'], $base['reader_cache_writable_schema_token'], $base['reader_cache_journal_size_limit_token']);
+    ], $reads ?? [$read(1), $read(2), $read(3), $read(4, ['reader_cache_savepoint_stack_token' => 'savepoint-stack-old', 'reader_cache_statement_journal_token' => 'statement-journal-old', 'reader_cache_temp_page_token' => 'temp-page-old', 'reader_cache_dirty_list_token' => 'dirty-list-old', 'reader_cache_spill_epoch_token' => 'spill-epoch-old', 'reader_cache_locking_mode_token' => 'locking-mode-old', 'reader_cache_journal_mode_token' => 'journal-mode-old', 'reader_cache_synchronous_token' => 'synchronous-old', 'reader_cache_mmap_size_token' => 'mmap-size-old', 'reader_cache_cache_size_token' => 'cache-size-old', 'reader_cache_wal_autocheckpoint_token' => 'wal-autocheckpoint-old', 'reader_cache_query_only_token' => 'query-only-old', 'reader_cache_foreign_key_token' => 'foreign-key-old', 'reader_cache_defer_foreign_key_token' => 'defer-foreign-key-old', 'reader_cache_recursive_trigger_token' => 'recursive-trigger-old', 'reader_cache_trusted_schema_token' => 'trusted-schema-old', 'reader_cache_ignore_check_constraints_token' => 'ignore-check-constraints-old', 'reader_cache_application_id_token' => 'application-id-old', 'reader_cache_user_version_token' => 'user-version-old', 'reader_cache_data_version_token' => 'data-version-old', 'reader_cache_schema_lock_token' => 'schema-lock-old', 'reader_cache_secure_delete_token' => 'secure-delete-old', 'reader_cache_temp_store_token' => 'temp-store-old', 'reader_cache_cache_spill_token' => 'cache-spill-old', 'reader_cache_cell_size_check_token' => 'cell-size-check-old', 'reader_cache_reverse_unordered_selects_token' => 'reverse-unordered-selects-old', 'reader_cache_automatic_index_token' => 'automatic-index-old', 'reader_cache_case_sensitive_like_token' => 'case-sensitive-like-old', 'reader_cache_count_changes_token' => 'count-changes-old', 'reader_cache_checkpoint_fullfsync_token' => 'checkpoint-fullfsync-old', 'reader_cache_fullfsync_token' => 'fullfsync-old', 'reader_cache_legacy_file_format_token' => 'legacy-file-format-old', 'reader_cache_read_uncommitted_token' => 'read-uncommitted-old'])], $base['source_id'], 330, 330, $base['master_source_digest'], 330, $tokens, $headers, $base['master_journal_file_token'], $base['database_file_token'], $base['master_journal_cleanup_token'], $base['reader_lease_token'], $base['pager_cache_source_token'], $base['read_transaction_token'], $base['schema_reparse_token'], $base['statement_schema_root_token'], $base['current_source_provenance_token'], $base['pager_reader_cache_generation_token'], $base['reader_snapshot_token'], $base['master_journal_recovery_receipt_token'], $base['pager_spill_drain_token'], $base['rollback_journal_reader_source_token'], $base['pager_hot_journal_header_token'], $base['master_journal_member_epoch_token'], $base['reader_cache_schema_cookie_token'], $base['reader_cache_vacuum_root_token'], $base['pager_reserved_lock_token'], $base['reader_cache_page_count_token'], $base['reader_cache_schema_version_token'], $base['reader_cache_change_counter_token'], $base['reader_cache_freelist_trunk_token'], $base['reader_cache_auto_vacuum_token'], $base['reader_cache_encoding_token'], $base['reader_cache_text_schema_token'], $base['reader_cache_index_schema_token'], $base['reader_cache_trigger_schema_token'], $base['reader_cache_view_schema_token'], $base['reader_cache_virtual_table_schema_token'], $base['reader_cache_module_schema_token'], $base['reader_cache_pragma_schema_token'], $base['reader_cache_collation_schema_token'], $base['reader_cache_authorizer_schema_token'], $base['reader_cache_transaction_state_token'], $base['reader_cache_commit_phase_token'], $base['reader_cache_busy_handler_token'], $base['reader_cache_savepoint_stack_token'], $base['reader_cache_statement_journal_token'], $base['reader_cache_temp_page_token'], $base['reader_cache_dirty_list_token'], $base['reader_cache_spill_epoch_token'], $base['reader_cache_locking_mode_token'], $base['reader_cache_journal_mode_token'], $base['reader_cache_synchronous_token'], $base['reader_cache_mmap_size_token'], $base['reader_cache_cache_size_token'], $base['reader_cache_wal_autocheckpoint_token'], $base['reader_cache_query_only_token'], $base['reader_cache_foreign_key_token'], $base['reader_cache_defer_foreign_key_token'], $base['reader_cache_recursive_trigger_token'], $base['reader_cache_trusted_schema_token'], $base['reader_cache_ignore_check_constraints_token'], $base['reader_cache_application_id_token'], $base['reader_cache_user_version_token'], $base['reader_cache_data_version_token'], $base['reader_cache_schema_lock_token'], $base['reader_cache_secure_delete_token'], $base['reader_cache_temp_store_token'], $base['reader_cache_cache_spill_token'], $base['reader_cache_cell_size_check_token'], $base['reader_cache_reverse_unordered_selects_token'], $base['reader_cache_automatic_index_token'], $base['reader_cache_case_sensitive_like_token'], $base['reader_cache_count_changes_token'], $base['reader_cache_checkpoint_fullfsync_token'], $base['reader_cache_fullfsync_token'], $base['reader_cache_legacy_file_format_token'], $base['reader_cache_read_uncommitted_token']);
 };
 $opCount = static fn (array $plan, string $op): int => count(array_filter($plan['operations'], static fn (array $operation): bool => ($operation['op'] ?? '') === $op));
 
 $cases = [
-    'status' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-reader-cache-current-source-next334'],
+    'status' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-reader-cache-current-source-next330'],
     'next287 module-schema invalidation' => [static fn (): mixed => $plan()['reader_cache_module_schema_invalidated_cache_page_numbers'], [1]],
     'next288 pragma-schema invalidation' => [static fn (): mixed => $plan()['reader_cache_pragma_schema_invalidated_cache_page_numbers'], [2]],
     'next289 collation-schema invalidation' => [static fn (): mixed => $plan()['reader_cache_collation_schema_invalidated_cache_page_numbers'], [3]],
-    'next291 transaction-state fence is current' => [static fn (): mixed => $plan()['current_reader_cache_transaction_state_token'], 'transaction-state-current-334'],
-    'next292 commit-phase fence is current' => [static fn (): mixed => $plan()['current_reader_cache_commit_phase_token'], 'commit-phase-current-334'],
-    'next293 busy-handler fence is current' => [static fn (): mixed => $plan()['current_reader_cache_busy_handler_token'], 'busy-handler-current-334'],
+    'next291 transaction-state fence is current' => [static fn (): mixed => $plan()['current_reader_cache_transaction_state_token'], 'transaction-state-current-330'],
+    'next292 commit-phase fence is current' => [static fn (): mixed => $plan()['current_reader_cache_commit_phase_token'], 'commit-phase-current-330'],
+    'next293 busy-handler fence is current' => [static fn (): mixed => $plan()['current_reader_cache_busy_handler_token'], 'busy-handler-current-330'],
     'next294 savepoint-stack ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_savepoint_stack_token_reason'], 'reader_ticket_reader_cache_savepoint_stack_predates_current_source'],
     'next295 statement-journal ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_statement_journal_token_reason'], 'reader_ticket_reader_cache_statement_journal_predates_current_source'],
     'next296 temp-page ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_temp_page_token_reason'], 'reader_ticket_reader_cache_temp_page_predates_current_source'],
@@ -270,14 +262,10 @@ $cases = [
     'next328 fullfsync ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_fullfsync_token_reason'], 'reader_ticket_reader_cache_fullfsync_predates_current_source'],
     'next329 legacy-file-format ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_legacy_file_format_token_reason'], 'reader_ticket_reader_cache_legacy_file_format_predates_current_source'],
     'next330 read-uncommitted ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_read_uncommitted_token_reason'], 'reader_ticket_reader_cache_read_uncommitted_predates_current_source'],
-    'next331 reverse-scan-order ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_reverse_scan_order_token_reason'], 'reader_ticket_reader_cache_reverse_scan_order_predates_current_source'],
-    'next332 defensive ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_defensive_token_reason'], 'reader_ticket_reader_cache_defensive_predates_current_source'],
-    'next333 writable-schema ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_writable_schema_token_reason'], 'reader_ticket_reader_cache_writable_schema_predates_current_source'],
-    'next334 journal-size-limit ticket reopens reader' => [static fn (): mixed => $plan()['next_reads'][3]['reader_cache_journal_size_limit_token_reason'], 'reader_ticket_reader_cache_journal_size_limit_predates_current_source'],
     'combined invalidation set' => [static fn (): mixed => $plan()['invalidated_cache_page_numbers'], [1, 2, 3, 4]],
     'read hits include savepoint-stack miss' => [static fn (): mixed => $plan()['read_cache_hits'], ['read-1' => false, 'read-2' => false, 'read-3' => false, 'read-4' => false]],
     'dependencies include next287' => [static fn (): mixed => in_array('sqlite-pager-master-journal-reader-cache-current-source-next287', $plan()['dependencies'], true), true],
-    'dependencies include next334' => [static fn (): mixed => in_array('sqlite-pager-master-journal-reader-cache-current-source-next334', $plan()['dependencies'], true), true],
+    'dependencies include next330' => [static fn (): mixed => in_array('sqlite-pager-master-journal-reader-cache-current-source-next330', $plan()['dependencies'], true), true],
     'operation next295' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_statement_journal_current_source_next295'), 1],
     'operation next296' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_temp_page_current_source_next296'), 1],
     'operation next297' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_dirty_list_current_source_next297'), 1],
@@ -285,11 +273,11 @@ $cases = [
     'operation next299' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_locking_mode_current_source_next299'), 1],
     'operation next300' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_journal_mode_current_source_next300'), 1],
     'operation next301' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_synchronous_current_source_next301'), 1],
-    'operation next302' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_mmap_size_current_source_next302'), 1],
+    'operation next302' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_mmap_size_current_source_next302'), 0],
     'operation next303' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_cache_size_current_source_next303'), 1],
     'operation next304' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_wal_autocheckpoint_current_source_next304'), 1],
     'operation next305' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_query_only_current_source_next305'), 1],
-    'operation next306' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_foreign_key_current_source_next306'), 1],
+    'operation next306' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_foreign_key_current_source_next306'), 0],
     'operation next307' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_defer_foreign_key_current_source_next307'), 1],
     'operation next308' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_recursive_trigger_current_source_next308'), 1],
     'operation next309' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_trusted_schema_current_source_next309'), 1],
@@ -297,34 +285,30 @@ $cases = [
     'operation next315' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_application_id_current_source_next315'), 1],
     'operation next316' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_user_version_current_source_next316'), 1],
     'operation next317' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_data_version_current_source_next317'), 1],
-    'operation next318' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_schema_lock_current_source_next318'), 1],
+    'operation next318' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_schema_lock_current_source_next318'), 0],
     'operation next319' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_secure_delete_current_source_next319'), 1],
     'operation next320' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_temp_store_current_source_next320'), 1],
     'operation next321' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_cache_spill_current_source_next321'), 1],
-    'operation next322' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_cell_size_check_current_source_next322'), 1],
+    'operation next322' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_cell_size_check_current_source_next322'), 0],
     'operation next323' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_reverse_unordered_selects_current_source_next323'), 1],
     'operation next324' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_automatic_index_current_source_next324'), 1],
     'operation next325' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_case_sensitive_like_current_source_next325'), 1],
-    'operation next326' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_count_changes_current_source_next326'), 1],
+    'operation next326' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_count_changes_current_source_next326'), 0],
     'operation next327' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_checkpoint_fullfsync_current_source_next327'), 1],
     'operation next328' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_fullfsync_current_source_next328'), 1],
     'operation next329' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_legacy_file_format_current_source_next329'), 1],
     'operation next330' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_read_uncommitted_current_source_next330'), 1],
-    'operation next331' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_reverse_scan_order_current_source_next331'), 1],
-    'operation next332' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_defensive_current_source_next332'), 1],
-    'operation next333' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_writable_schema_current_source_next333'), 1],
-    'operation next334' => [static fn (): mixed => $opCount($plan(), 'reopen_reader_for_reader_cache_journal_size_limit_current_source_next334'), 1],
-    'default plan points at next334' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-reader-cache-current-source-next334'],
+    'default plan points at next330' => [static fn (): mixed => $plan()['status'], 'pager-master-journal-reader-cache-current-source-next330'],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['pager master journal reader cache current source next334 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['pager master journal reader cache current source next330 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         $t->same($expected, $callback());
     };
 }
 
-$tests['pager master journal reader cache current source next334 missing token rejects'] = static function (TestRunner $t) use ($plan, $cacheEntry, $recovered): void {
-    $t->throws(Throwable::class, static fn () => $plan([1 => array_diff_key($cacheEntry('missing', $recovered[1]), ['reader_cache_journal_size_limit_token' => true])]));
+$tests['pager master journal reader cache current source next330 missing token rejects'] = static function (TestRunner $t) use ($plan, $cacheEntry, $recovered): void {
+    $t->throws(Throwable::class, static fn () => $plan([1 => array_diff_key($cacheEntry('missing', $recovered[1]), ['reader_cache_read_uncommitted_token' => true])]));
 };
 
 return $tests;
