@@ -48,7 +48,7 @@
 
 ## Current Coordination Snapshot
 
-- 2026-05-29 supervisor continuation (shell samples 19:47 UTC):
+- 2026-05-29 supervisor continuation (shell samples 19:43 UTC):
   Seventy-fourth safe consolidation follow-up is integrated and pushed as
   `588eb53ee`. The batch accepts 1 stale-base trigger RETURNING handoff
   originally based on `147fe0e2` and replayed cleanly with a 3-way apply on
