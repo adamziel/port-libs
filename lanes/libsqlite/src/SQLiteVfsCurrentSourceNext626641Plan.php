@@ -103,8 +103,9 @@ final class SQLiteVfsCurrentSourceNext626641Plan
                 'vfs-current-source-snapshot-reuse-publish-next562-577',
                 'vfs-current-source-snapshot-reuse-publish-next610-625',
                 'vfs-current-source-snapshot-reuse-publish-next626-641',
+                'vfs-current-source-snapshot-reuse-publish-next642-657',
             ],
-            'non_overlap' => 'next626-641 follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; it does not modify prior next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
+            'non_overlap' => 'next626-641 follows merged next610-625 by requiring the shared-cache-next625 receipt before creating a fresh current-source snapshot and publishing shared-cache-next641; next642-657 follows the integrated next626-641 handoff by requiring shared-cache-next641 before publishing shared-cache-next657. Neither window modifies prior next610-625 files, earlier capture/readiness/lease gates, dirty flushing, VFS locking, WAL checkpointing, or B-tree behavior.',
         ];
     }
 
