@@ -124,6 +124,165 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan
         return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete, $batchSize));
     }
 
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext156(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext157(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        bool $secureDelete = false,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceTransitionVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext158(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        int $parentBtreePageNumber,
+        string $replacementOverflowPayload,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceVacuumAllocationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $parentBtreePageNumber, $replacementOverflowPayload, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext159(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReuseAuditVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext160(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext161(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext162(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext163(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFenceVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext164(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceContinuityVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResultNext165(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self
+    {
+        return new self(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWritableDiffVariant::tableLeafFromDeleteResult($database, $leafPageNumber, $deleteResult, $maxTruncatedPages, $replacementOverflowPayload, $parentBtreePageNumber, $secureDelete));
+    }
+
+
 }
 
 final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextAdmissionVariant
@@ -4432,6 +4591,1997 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextFreelistSpliceV
             static fn (mixed $value): string => is_bool($value) ? ($value ? '1' : '0') : (string) $value,
             $values,
         )));
+    }
+}
+
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant
+{
+    /**
+     * @param array<int, string> $overflowPageImages
+     * @param list<array<string, mixed>> $rows
+     */
+    private function __construct(
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        public readonly SQLiteFreelistAllocationPlan $allocationPlan,
+        public readonly SQLiteDatabase $databaseAfterAllocation,
+        private readonly array $overflowPageImages,
+        public readonly array $rows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+                $database,
+                $leafPageNumber,
+                $deleteResult,
+                $maxTruncatedPages,
+                $secureDelete,
+            ),
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+        );
+    }
+
+    public static function fromBasePlan(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+    ): self {
+        if ($replacementOverflowPayload === '') {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next156 requires replacement overflow payload bytes');
+        }
+        if ($parentBtreePageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next156 parent b-tree page must be at page 2 or later');
+        }
+
+        $vacuumDatabase = $basePlan->basePlan->basePlan->nextDatabase;
+        $allocationCount = SQLiteOverflowPage::requiredPageCount(
+            strlen($replacementOverflowPayload),
+            $vacuumDatabase->header->pageSize,
+            $vacuumDatabase->usablePageSize(),
+        );
+        $allocationPlan = $vacuumDatabase->planOverflowPageAllocation($allocationCount, $parentBtreePageNumber, false);
+        $overflowPageImages = SQLiteOverflowPage::encodeChainAtPages(
+            $replacementOverflowPayload,
+            $allocationPlan->allocatedPageNumbers,
+            $vacuumDatabase->header->pageSize,
+            $vacuumDatabase->usablePageSize(),
+        );
+        $databaseAfterAllocation = $vacuumDatabase->applyPageAllocationPlan($allocationPlan, $overflowPageImages);
+
+        return new self(
+            $basePlan,
+            $allocationPlan,
+            $databaseAfterAllocation,
+            $overflowPageImages,
+            self::buildRows($basePlan, $allocationPlan, $databaseAfterAllocation),
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function allocatedOverflowPages(): array
+    {
+        return $this->allocationPlan->allocatedPageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function survivingReleasedOverflowPagesReused(): array
+    {
+        return array_values(array_intersect(
+            $this->basePlan->basePlan->survivingReleasedOverflowPages(),
+            $this->allocatedOverflowPages(),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function truncatedReleasedOverflowPagesRejected(): array
+    {
+        $allocated = array_fill_keys($this->allocatedOverflowPages(), true);
+
+        return array_values(array_filter(
+            $this->basePlan->basePlan->truncatedReleasedOverflowPages(),
+            static fn (int $pageNumber): bool => !isset($allocated[$pageNumber]),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function truncatedPointerMapPagesRejected(): array
+    {
+        $allocated = array_fill_keys($this->allocatedOverflowPages(), true);
+
+        return array_values(array_filter(
+            $this->basePlan->basePlan->truncatedPointerMapPages(),
+            static fn (int $pageNumber): bool => !isset($allocated[$pageNumber]),
+        ));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function overflowPageImages(): array
+    {
+        return $this->overflowPageImages;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function pageImages(): array
+    {
+        $images = $this->basePlan->basePlan->basePlan->pageImages;
+        foreach ($this->allocationPlan->pageImages() as $pageNumber => $page) {
+            $images[$pageNumber] = $page;
+        }
+        foreach ($this->overflowPageImages as $pageNumber => $page) {
+            $images[$pageNumber] = $page;
+        }
+        ksort($images);
+
+        return $images;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next156',
+            'leaf_page' => $this->basePlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'released_overflow_pages' => $this->basePlan->basePlan->basePlan->releasedOverflowPages(),
+            'surviving_released_overflow_pages' => $this->basePlan->basePlan->survivingReleasedOverflowPages(),
+            'truncated_released_overflow_pages' => $this->basePlan->basePlan->truncatedReleasedOverflowPages(),
+            'truncated_pointer_map_pages' => $this->basePlan->basePlan->truncatedPointerMapPages(),
+            'allocated_overflow_pages' => $this->allocatedOverflowPages(),
+            'surviving_released_overflow_pages_reused' => $this->survivingReleasedOverflowPagesReused(),
+            'truncated_released_overflow_pages_rejected' => $this->truncatedReleasedOverflowPagesRejected(),
+            'truncated_pointer_map_pages_rejected' => $this->truncatedPointerMapPagesRejected(),
+            'final_database_page_count' => $this->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $this->databaseAfterAllocation->freelistPageNumbers(),
+            'updated_page_numbers' => array_keys($this->pageImages()),
+            'rows' => $this->rows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildRows(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        SQLiteFreelistAllocationPlan $allocationPlan,
+        SQLiteDatabase $databaseAfterAllocation,
+    ): array {
+        $allocated = array_fill_keys($allocationPlan->allocatedPageNumbers, true);
+        $rows = [];
+
+        foreach ($basePlan->rows as $row) {
+            $pageNumber = (int) $row['page_number'];
+            $isMaterialized = (bool) $row['materialized'];
+            $isAllocated = isset($allocated[$pageNumber]);
+            $finalEntry = $isMaterialized || $isAllocated
+                ? self::pointerMapEntry($databaseAfterAllocation, $pageNumber)
+                : null;
+
+            $rows[] = [
+                'kind' => $row['kind'],
+                'page_number' => $pageNumber,
+                'source_pointer_map_type' => $row['source_pointer_map_type'],
+                'source_pointer_map_parent' => $row['source_pointer_map_parent'],
+                'post_vacuum_pointer_map_type' => $row['next_pointer_map_type'],
+                'post_vacuum_pointer_map_parent' => $row['next_pointer_map_parent'],
+                'post_vacuum_status' => $row['vacuum_status'],
+                'post_vacuum_materialized' => $isMaterialized,
+                'allocated_for_replacement' => $isAllocated,
+                'rejected_after_truncate' => !$isMaterialized && !$isAllocated,
+                'final_pointer_map_type' => $finalEntry['type_name'] ?? null,
+                'final_pointer_map_parent' => $finalEntry['parent_page_number'] ?? null,
+                'final_materialized' => $pageNumber <= $databaseAfterAllocation->pageCount(),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pointerMapEntry(SQLiteDatabase $database, int $pageNumber): ?array
+    {
+        if (!$database->isAutoVacuum() || $pageNumber > $database->pageCount() || $database->isPointerMapPage($pageNumber)) {
+            return null;
+        }
+
+        return $database->pointerMapEntryForPage($pageNumber)->toArray();
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceTransitionVariant
+{
+    /**
+     * @param list<array<string, mixed>> $transitionRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        private readonly array $transitionRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        bool $secureDelete = false,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan): self
+    {
+        return new self($basePlan, self::buildTransitionRows($basePlan));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function transitionRows(): array
+    {
+        return $this->transitionRows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function severedCurrentSourceNextPointers(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter(
+                $this->transitionRows,
+                static fn (array $row): bool => $row['released_overflow_page'] === true
+                    && $row['current_source_next_page'] !== 0
+                    && $row['current_source_next_page'] !== null
+                    && $row['next_materialized_next_page'] === null,
+            ),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function materializedFreeblockPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter(
+                $this->transitionRows,
+                static fn (array $row): bool => $row['transition_status'] === 'leaf-freeblock-preserved',
+            ),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function survivingFreelistPagesWithClearedNext(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter(
+                $this->transitionRows,
+                static fn (array $row): bool => $row['transition_status'] === 'surviving-free-page-cleared-next',
+            ),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next157',
+            'leaf_page' => $this->basePlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'released_overflow_pages' => $this->basePlan->basePlan->basePlan->releasedOverflowPages(),
+            'materialized_freeblock_pages' => $this->materializedFreeblockPages(),
+            'surviving_freelist_pages_with_cleared_next' => $this->survivingFreelistPagesWithClearedNext(),
+            'severed_current_source_next_pointers' => $this->severedCurrentSourceNextPointers(),
+            'final_database_page_count' => $this->basePlan->basePlan->basePlan->nextDatabase->pageCount(),
+            'final_freelist_page_numbers' => $this->basePlan->basePlan->basePlan->nextDatabase->freelistPageNumbers(),
+            'transition_rows' => $this->transitionRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildTransitionRows(SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan): array
+    {
+        $rows = [];
+        $releasedOverflowPages = array_fill_keys($basePlan->basePlan->basePlan->releasedOverflowPages(), true);
+        foreach ($basePlan->rows as $row) {
+            $kind = (string) $row['kind'];
+            $pageNumber = (int) $row['page_number'];
+            $materialized = (bool) $row['materialized'];
+            $releasedOverflowPage = isset($releasedOverflowPages[$pageNumber]);
+            $currentNextPage = $releasedOverflowPage
+                && array_key_exists('source_overflow_next_page', $row)
+                ? (int) $row['source_overflow_next_page']
+                : null;
+            $nextMaterializedNextPage = $releasedOverflowPage && $materialized
+                && array_key_exists('next_overflow_next_page', $row)
+                ? (int) $row['next_overflow_next_page']
+                : null;
+
+            $rows[] = [
+                'kind' => $kind,
+                'page_number' => $pageNumber,
+                'released_overflow_page' => $releasedOverflowPage,
+                'current_source_next_page' => $currentNextPage,
+                'next_materialized_next_page' => $nextMaterializedNextPage,
+                'current_pointer_map_type' => $row['source_pointer_map_type'],
+                'next_pointer_map_type' => $row['next_pointer_map_type'],
+                'current_pointer_map_parent' => $row['source_pointer_map_parent'],
+                'next_pointer_map_parent' => $row['next_pointer_map_parent'],
+                'current_page_hash' => $row['source_page_hash'],
+                'next_page_hash' => $row['next_page_hash'],
+                'materialized' => $materialized,
+                'transition_status' => self::transitionStatus($kind, $materialized, $currentNextPage, $nextMaterializedNextPage, $row),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private static function transitionStatus(
+        string $kind,
+        bool $materialized,
+        ?int $currentNextPage,
+        ?int $nextMaterializedNextPage,
+        array $row,
+    ): string {
+        if ($kind === 'deleted-leaf-freeblock') {
+            return 'leaf-freeblock-preserved';
+        }
+        if (!$materialized) {
+            return $currentNextPage === 0 ? 'truncated-terminal-overflow' : 'truncated-current-next-pointer';
+        }
+        if (($row['next_pointer_map_type'] ?? null) === 'free-page' && $nextMaterializedNextPage === 0) {
+            return 'surviving-free-page-cleared-next';
+        }
+
+        return 'materialized-overflow';
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceVacuumAllocationVariant
+{
+    /**
+     * @param array<int, string> $overflowPageImages
+     * @param list<array<string, mixed>> $rows
+     */
+    private function __construct(
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $vacuumPlan,
+        public readonly SQLiteFreelistAllocationPlan $allocationPlan,
+        public readonly SQLiteDatabase $databaseAfterAllocation,
+        private readonly array $overflowPageImages,
+        private readonly array $rows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        int $parentBtreePageNumber,
+        string $replacementOverflowPayload,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromVacuumPlan(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+                $database,
+                $leafPageNumber,
+                $deleteResult,
+                $maxTruncatedPages,
+                $secureDelete,
+            ),
+            $parentBtreePageNumber,
+            $replacementOverflowPayload,
+        );
+    }
+
+    public static function fromVacuumPlan(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $vacuumPlan,
+        int $parentBtreePageNumber,
+        string $replacementOverflowPayload,
+    ): self {
+        if ($replacementOverflowPayload === '') {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next158 requires replacement overflow payload bytes');
+        }
+
+        $databaseAfterVacuum = $vacuumPlan->basePlan->basePlan->nextDatabase;
+        $allocationCount = SQLiteOverflowPage::requiredPageCount(
+            strlen($replacementOverflowPayload),
+            $databaseAfterVacuum->header->pageSize,
+            $databaseAfterVacuum->usablePageSize(),
+        );
+        $allocationPlan = $databaseAfterVacuum->planOverflowPageAllocation($allocationCount, $parentBtreePageNumber, false);
+        $overflowPageImages = SQLiteOverflowPage::encodeChainAtPages(
+            $replacementOverflowPayload,
+            $allocationPlan->allocatedPageNumbers,
+            $databaseAfterVacuum->header->pageSize,
+            $databaseAfterVacuum->usablePageSize(),
+        );
+        $databaseAfterAllocation = $databaseAfterVacuum->applyPageAllocationPlan($allocationPlan, $overflowPageImages);
+
+        return new self(
+            $vacuumPlan,
+            $allocationPlan,
+            $databaseAfterAllocation,
+            $overflowPageImages,
+            self::buildRows($vacuumPlan, $databaseAfterVacuum, $databaseAfterAllocation, $allocationPlan),
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function rows(): array
+    {
+        return $this->rows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function allocatedOverflowPages(): array
+    {
+        return $this->allocationPlan->allocatedPageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusedVacuumFreelistPages(): array
+    {
+        return array_values(array_intersect(
+            $this->vacuumPlan->toArray()['final_freelist_page_numbers'],
+            $this->allocationPlan->allocatedPageNumbers,
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function truncatedPagesNotReused(): array
+    {
+        return array_values(array_diff(
+            $this->vacuumPlan->toArray()['truncated_page_numbers'],
+            $this->allocationPlan->allocatedPageNumbers,
+        ));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function overflowPageImages(): array
+    {
+        return $this->overflowPageImages;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function pageImages(): array
+    {
+        $updated = array_fill_keys($this->vacuumPlan->toArray()['updated_page_numbers'], true);
+        foreach (array_keys($this->allocationPlan->pageImages()) as $pageNumber) {
+            $updated[$pageNumber] = true;
+        }
+        foreach ($this->overflowPageImages as $pageNumber => $page) {
+            $updated[$pageNumber] = true;
+        }
+
+        $images = [];
+        foreach (array_keys($updated) as $pageNumber) {
+            if ($pageNumber <= $this->databaseAfterAllocation->pageCount()) {
+                $images[$pageNumber] = $this->databaseAfterAllocation->page($pageNumber);
+            }
+        }
+        ksort($images);
+
+        return $images;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next158',
+            'leaf_page' => $this->vacuumPlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'released_overflow_pages' => $this->vacuumPlan->toArray()['released_overflow_pages'],
+            'surviving_released_overflow_pages' => $this->vacuumPlan->toArray()['surviving_released_overflow_pages'],
+            'truncated_page_numbers' => $this->vacuumPlan->toArray()['truncated_page_numbers'],
+            'allocated_overflow_pages' => $this->allocatedOverflowPages(),
+            'reused_vacuum_freelist_pages' => $this->reusedVacuumFreelistPages(),
+            'truncated_pages_not_reused' => $this->truncatedPagesNotReused(),
+            'final_database_page_count' => $this->databaseAfterAllocation->pageCount(),
+            'final_first_freelist_trunk_page' => $this->databaseAfterAllocation->header->firstFreelistTrunkPage,
+            'final_freelist_page_count' => $this->databaseAfterAllocation->header->freelistPageCount,
+            'final_freelist_page_numbers' => $this->databaseAfterAllocation->freelistPageNumbers(),
+            'updated_page_numbers' => array_keys($this->pageImages()),
+            'rows' => $this->rows,
+            'vacuum' => $this->vacuumPlan->toArray(),
+            'allocation' => $this->allocationPlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildRows(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $vacuumPlan,
+        SQLiteDatabase $databaseAfterVacuum,
+        SQLiteDatabase $databaseAfterAllocation,
+        SQLiteFreelistAllocationPlan $allocationPlan,
+    ): array {
+        $vacuumRowsByPage = [];
+        foreach ($vacuumPlan->rows as $row) {
+            $vacuumRowsByPage[(int) $row['page_number']] = $row;
+        }
+
+        $steps = $allocationPlan->allocationSteps();
+        $rows = [];
+        foreach ($allocationPlan->allocatedPageNumbers as $position => $pageNumber) {
+            $before = $databaseAfterVacuum->pointerMapEntryForPage($pageNumber)->toArray();
+            $after = $databaseAfterAllocation->pointerMapEntryForPage($pageNumber)->toArray();
+            $page = $databaseAfterAllocation->page($pageNumber);
+            $vacuumRow = $vacuumRowsByPage[$pageNumber] ?? null;
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'allocation_position' => $position,
+                'allocation_source' => $steps[$position]['source'] ?? null,
+                'allocation_trunk_page' => $steps[$position]['trunk_page'] ?? null,
+                'vacuum_status' => $vacuumRow['vacuum_status'] ?? null,
+                'vacuum_freelist_role' => $vacuumRow['freelist_role'] ?? null,
+                'before_pointer_map_type' => $before['type_name'],
+                'before_pointer_map_parent' => $before['parent_page_number'],
+                'next_pointer_map_type' => $after['type_name'],
+                'next_pointer_map_parent' => $after['parent_page_number'],
+                'next_overflow_next_page' => self::readUInt32($page, 0),
+                'next_overflow_is_tail' => self::readUInt32($page, 0) === 0,
+                'payload_prefix' => substr($page, 4, 12),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next158 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReuseAuditVariant
+{
+    /**
+     * @param list<array<string, mixed>> $chainRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan,
+        private readonly array $chainRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan): self
+    {
+        if (count($basePlan->allocatedOverflowPages()) < 2) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next159 requires a multi-page replacement overflow chain');
+        }
+
+        return new self($basePlan, self::buildChainRows($basePlan));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function chainRows(): array
+    {
+        return $this->chainRows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusedSurvivingChainPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->chainRows, static fn (array $row): bool => $row['reused_surviving_released_page'] === true),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function rejectedTruncatedChainPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->chainRows, static fn (array $row): bool => $row['rejected_after_truncate'] === true),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next159',
+            'leaf_page' => $this->basePlan->basePlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'released_overflow_pages' => $this->basePlan->basePlan->basePlan->basePlan->releasedOverflowPages(),
+            'allocated_overflow_pages' => $this->basePlan->allocatedOverflowPages(),
+            'reused_surviving_chain_pages' => $this->reusedSurvivingChainPages(),
+            'rejected_truncated_chain_pages' => $this->rejectedTruncatedChainPages(),
+            'final_database_page_count' => $this->basePlan->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $this->basePlan->databaseAfterAllocation->freelistPageNumbers(),
+            'chain_rows' => $this->chainRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildChainRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan): array
+    {
+        $sourceDatabase = $basePlan->basePlan->basePlan->basePlan->sourceDatabase;
+        $postVacuumDatabase = $basePlan->basePlan->basePlan->basePlan->nextDatabase;
+        $finalDatabase = $basePlan->databaseAfterAllocation;
+        $allocated = array_fill_keys($basePlan->allocatedOverflowPages(), true);
+        $surviving = array_fill_keys($basePlan->basePlan->basePlan->survivingReleasedOverflowPages(), true);
+        $rows = [];
+
+        foreach ($basePlan->rows as $row) {
+            if ($row['kind'] !== 'released-overflow-page') {
+                continue;
+            }
+
+            $pageNumber = (int) $row['page_number'];
+            $isAllocated = isset($allocated[$pageNumber]);
+            $isFinalMaterialized = $pageNumber <= $finalDatabase->pageCount();
+            $sourceEntry = self::pointerMapEntry($sourceDatabase, $pageNumber);
+            $postVacuumEntry = self::pointerMapEntry($postVacuumDatabase, $pageNumber);
+            $finalEntry = self::pointerMapEntry($finalDatabase, $pageNumber);
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'source_overflow_next_page' => self::readUInt32($sourceDatabase->page($pageNumber), 0),
+                'post_vacuum_overflow_next_page' => $pageNumber <= $postVacuumDatabase->pageCount()
+                    ? self::readUInt32($postVacuumDatabase->page($pageNumber), 0)
+                    : null,
+                'final_overflow_next_page' => $isFinalMaterialized ? self::readUInt32($finalDatabase->page($pageNumber), 0) : null,
+                'source_pointer_map_type' => $sourceEntry['type_name'] ?? null,
+                'source_pointer_map_parent' => $sourceEntry['parent_page_number'] ?? null,
+                'post_vacuum_pointer_map_type' => $postVacuumEntry['type_name'] ?? null,
+                'post_vacuum_pointer_map_parent' => $postVacuumEntry['parent_page_number'] ?? null,
+                'final_pointer_map_type' => $finalEntry['type_name'] ?? null,
+                'final_pointer_map_parent' => $finalEntry['parent_page_number'] ?? null,
+                'reused_surviving_released_page' => $isAllocated && isset($surviving[$pageNumber]),
+                'allocated_for_replacement' => $isAllocated,
+                'rejected_after_truncate' => !$isAllocated && !$isFinalMaterialized,
+                'final_materialized' => $isFinalMaterialized,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pointerMapEntry(SQLiteDatabase $database, int $pageNumber): ?array
+    {
+        if (!$database->isAutoVacuum() || $pageNumber > $database->pageCount() || $database->isPointerMapPage($pageNumber)) {
+            return null;
+        }
+
+        return $database->pointerMapEntryForPage($pageNumber)->toArray();
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next159 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant
+{
+    /**
+     * @param list<array<string, mixed>> $chainRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan,
+        public readonly array $chainRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan): self
+    {
+        return new self($basePlan, self::buildChainRows($basePlan));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function replacementOverflowPages(): array
+    {
+        return $this->basePlan->allocatedOverflowPages();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function replacementOverflowNextPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['overflow_next_page'],
+            $this->chainRows,
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function replacementPointerMapParents(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['pointer_map_parent'],
+            $this->chainRows,
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusedCurrentSourceFreePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->chainRows, static fn (array $row): bool => $row['reused_current_source_free_page']),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function truncatedCurrentSourcePagesRejected(): array
+    {
+        return $this->basePlan->truncatedReleasedOverflowPagesRejected();
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function leafFreeblockPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->basePlan->rows, static fn (array $row): bool => $row['kind'] === 'deleted-leaf-freeblock'),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next160',
+            'leaf_page' => $this->basePlan->basePlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'replacement_overflow_pages' => $this->replacementOverflowPages(),
+            'replacement_overflow_next_pages' => $this->replacementOverflowNextPages(),
+            'replacement_pointer_map_parents' => $this->replacementPointerMapParents(),
+            'reused_current_source_free_pages' => $this->reusedCurrentSourceFreePages(),
+            'truncated_current_source_pages_rejected' => $this->truncatedCurrentSourcePagesRejected(),
+            'leaf_freeblock_pages' => $this->leafFreeblockPages(),
+            'final_database_page_count' => $this->basePlan->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $this->basePlan->databaseAfterAllocation->freelistPageNumbers(),
+            'chain_rows' => $this->chainRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildChainRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementAllocationVariant $basePlan): array
+    {
+        $allocatedPages = $basePlan->allocatedOverflowPages();
+        $surviving = array_fill_keys($basePlan->basePlan->basePlan->survivingReleasedOverflowPages(), true);
+        $truncated = array_fill_keys($basePlan->basePlan->basePlan->truncatedReleasedOverflowPages(), true);
+        $rowsByPage = [];
+        foreach ($basePlan->rows as $row) {
+            $rowsByPage[(int) $row['page_number']] = $row;
+        }
+
+        $rows = [];
+        foreach ($allocatedPages as $index => $pageNumber) {
+            $entry = $basePlan->databaseAfterAllocation->pointerMapEntryForPage($pageNumber);
+            $expectedParent = $index === 0
+                ? (int) $entry->parentPageNumber
+                : $allocatedPages[$index - 1];
+            $overflowNext = self::readUInt32($basePlan->databaseAfterAllocation->page($pageNumber), 0);
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'chain_position' => $index,
+                'overflow_next_page' => $overflowNext,
+                'expected_next_page' => $allocatedPages[$index + 1] ?? 0,
+                'pointer_map_type' => $entry->typeName(),
+                'pointer_map_parent' => $entry->parentPageNumber,
+                'expected_pointer_map_parent' => $expectedParent,
+                'pointer_map_matches_chain' => $entry->parentPageNumber === $expectedParent,
+                'next_pointer_matches_chain' => $overflowNext === ($allocatedPages[$index + 1] ?? 0),
+                'reused_current_source_free_page' => isset($surviving[$pageNumber]),
+                'truncated_current_source_page_reused' => isset($truncated[$pageNumber]),
+                'post_vacuum_status' => $rowsByPage[$pageNumber]['post_vacuum_status'] ?? null,
+                'final_page_hash' => hash('sha256', $basePlan->databaseAfterAllocation->page($pageNumber)),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next160 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant
+{
+    /**
+     * @param array<int, string> $overflowPageImages
+     * @param list<array<string, mixed>> $rows
+     */
+    private function __construct(
+        public readonly SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        public readonly SQLiteFreelistAllocationPlan $allocationPlan,
+        public readonly SQLiteDatabase $databaseAfterAllocation,
+        private readonly array $overflowPageImages,
+        public readonly array $rows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(
+            SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan::next144TableLeafFromDeleteResult(
+                $database,
+                $leafPageNumber,
+                $deleteResult,
+                $maxTruncatedPages,
+                $secureDelete,
+            ),
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+        );
+    }
+
+    public static function fromBasePlan(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+    ): self {
+        if ($replacementOverflowPayload === '') {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next161 requires replacement overflow payload bytes');
+        }
+        if ($parentBtreePageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next161 parent b-tree page must be at page 2 or later');
+        }
+
+        $vacuumDatabase = $basePlan->basePlan->basePlan->nextDatabase;
+        $allocationCount = SQLiteOverflowPage::requiredPageCount(
+            strlen($replacementOverflowPayload),
+            $vacuumDatabase->header->pageSize,
+            $vacuumDatabase->usablePageSize(),
+        );
+        $allocationPlan = $vacuumDatabase->planOverflowPageAllocation($allocationCount, $parentBtreePageNumber, true);
+        if ($allocationPlan->appendedPageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next161 requires appended overflow pages after partial vacuum');
+        }
+
+        $overflowPageImages = SQLiteOverflowPage::encodeChainAtPages(
+            $replacementOverflowPayload,
+            $allocationPlan->allocatedPageNumbers,
+            $vacuumDatabase->header->pageSize,
+            $vacuumDatabase->usablePageSize(),
+        );
+        $databaseAfterAllocation = $vacuumDatabase->applyPageAllocationPlan($allocationPlan, $overflowPageImages);
+
+        return new self(
+            $basePlan,
+            $allocationPlan,
+            $databaseAfterAllocation,
+            $overflowPageImages,
+            self::buildRows($basePlan, $allocationPlan, $databaseAfterAllocation),
+        );
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function allocatedOverflowPages(): array
+    {
+        return $this->allocationPlan->allocatedPageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function appendedOverflowPages(): array
+    {
+        return $this->allocationPlan->appendedPageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusedSurvivingReleasedOverflowPages(): array
+    {
+        $surviving = array_fill_keys($this->basePlan->basePlan->survivingReleasedOverflowPages(), true);
+
+        return array_values(array_filter(
+            $this->allocatedOverflowPages(),
+            static fn (int $pageNumber): bool => isset($surviving[$pageNumber]),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function appendedPreviouslyTruncatedOverflowPages(): array
+    {
+        $truncated = array_fill_keys($this->basePlan->basePlan->truncatedReleasedOverflowPages(), true);
+
+        return array_values(array_filter(
+            $this->appendedOverflowPages(),
+            static fn (int $pageNumber): bool => isset($truncated[$pageNumber]),
+        ));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function overflowPageImages(): array
+    {
+        return $this->overflowPageImages;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function pageImages(): array
+    {
+        $images = $this->basePlan->basePlan->basePlan->pageImages;
+        foreach ($this->allocationPlan->pageImages() as $pageNumber => $page) {
+            $images[$pageNumber] = $page;
+        }
+        foreach ($this->overflowPageImages as $pageNumber => $page) {
+            $images[$pageNumber] = $page;
+        }
+        ksort($images);
+
+        return $images;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next161',
+            'leaf_page' => $this->basePlan->basePlan->basePlan->deletePlan->leafPageNumber,
+            'released_overflow_pages' => $this->basePlan->basePlan->basePlan->releasedOverflowPages(),
+            'surviving_released_overflow_pages' => $this->basePlan->basePlan->survivingReleasedOverflowPages(),
+            'truncated_released_overflow_pages' => $this->basePlan->basePlan->truncatedReleasedOverflowPages(),
+            'allocated_overflow_pages' => $this->allocatedOverflowPages(),
+            'appended_overflow_pages' => $this->appendedOverflowPages(),
+            'reused_surviving_released_overflow_pages' => $this->reusedSurvivingReleasedOverflowPages(),
+            'appended_previously_truncated_overflow_pages' => $this->appendedPreviouslyTruncatedOverflowPages(),
+            'final_database_page_count' => $this->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $this->databaseAfterAllocation->freelistPageNumbers(),
+            'updated_page_numbers' => array_keys($this->pageImages()),
+            'rows' => $this->rows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildRows(
+        SQLiteBTreePointerMapVacuumFreeblockCurrentSourceNextPlan $basePlan,
+        SQLiteFreelistAllocationPlan $allocationPlan,
+        SQLiteDatabase $databaseAfterAllocation,
+    ): array {
+        $allocated = array_fill_keys($allocationPlan->allocatedPageNumbers, true);
+        $appended = array_fill_keys($allocationPlan->appendedPageNumbers, true);
+        $truncated = array_fill_keys($basePlan->basePlan->truncatedReleasedOverflowPages(), true);
+        $rows = [];
+
+        foreach ($basePlan->rows as $row) {
+            $pageNumber = (int) $row['page_number'];
+            $isAllocated = isset($allocated[$pageNumber]);
+            $isAppended = isset($appended[$pageNumber]);
+            $finalEntry = ($isAllocated || $pageNumber <= $databaseAfterAllocation->pageCount())
+                ? self::pointerMapEntry($databaseAfterAllocation, $pageNumber)
+                : null;
+
+            $rows[] = [
+                'kind' => $row['kind'],
+                'page_number' => $pageNumber,
+                'post_vacuum_status' => $row['vacuum_status'],
+                'post_vacuum_materialized' => (bool) $row['materialized'],
+                'allocated_for_replacement' => $isAllocated,
+                'appended_for_replacement' => $isAppended,
+                'was_truncated_by_vacuum' => isset($truncated[$pageNumber]),
+                'appended_after_truncate' => $isAppended && isset($truncated[$pageNumber]),
+                'source_pointer_map_type' => $row['source_pointer_map_type'],
+                'source_pointer_map_parent' => $row['source_pointer_map_parent'],
+                'post_vacuum_pointer_map_type' => $row['next_pointer_map_type'],
+                'post_vacuum_pointer_map_parent' => $row['next_pointer_map_parent'],
+                'final_pointer_map_type' => $finalEntry['type_name'] ?? null,
+                'final_pointer_map_parent' => $finalEntry['parent_page_number'] ?? null,
+                'final_overflow_next_page' => $isAllocated ? self::readUInt32($databaseAfterAllocation->page($pageNumber), 0) : null,
+                'final_materialized' => $pageNumber <= $databaseAfterAllocation->pageCount(),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pointerMapEntry(SQLiteDatabase $database, int $pageNumber): ?array
+    {
+        if (!$database->isAutoVacuum() || $pageNumber > $database->pageCount() || $database->isPointerMapPage($pageNumber)) {
+            return null;
+        }
+
+        return $database->pointerMapEntryForPage($pageNumber)->toArray();
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next161 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant
+{
+    /**
+     * @param list<array<string, mixed>> $writeRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan,
+        private readonly array $writeRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan): self
+    {
+        return new self($basePlan, self::buildWriteRows($basePlan));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function writeRows(): array
+    {
+        return $this->writeRows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function writablePageNumbers(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->writeRows, static fn (array $row): bool => $row['write_allowed']),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function pointerMapWritePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->writeRows, static fn (array $row): bool => $row['write_kind'] === 'pointer-map-page'),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function rejectedTruncatedPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->writeRows, static fn (array $row): bool => $row['write_kind'] === 'rejected-truncated-current-source-page'),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next162',
+            'leaf_page' => $this->basePlan->toArray()['leaf_page'],
+            'writable_page_numbers' => $this->writablePageNumbers(),
+            'pointer_map_write_pages' => $this->pointerMapWritePages(),
+            'rejected_truncated_pages' => $this->rejectedTruncatedPages(),
+            'replacement_overflow_pages' => $this->basePlan->replacementOverflowPages(),
+            'replacement_overflow_next_pages' => $this->basePlan->replacementOverflowNextPages(),
+            'replacement_pointer_map_parents' => $this->basePlan->replacementPointerMapParents(),
+            'final_database_page_count' => $this->basePlan->toArray()['final_database_page_count'],
+            'write_rows' => $this->writeRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildWriteRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan): array
+    {
+        $nextDatabase = $basePlan->basePlan->databaseAfterAllocation;
+        $pageImages = $basePlan->basePlan->pageImages();
+        $leafPage = (int) $basePlan->toArray()['leaf_page'];
+        $replacementPages = array_fill_keys($basePlan->replacementOverflowPages(), true);
+        $pointerMapPages = [];
+        foreach ($basePlan->replacementOverflowPages() as $pageNumber) {
+            $pointerMapPages[$nextDatabase->pointerMapPageFor($pageNumber)] = true;
+        }
+        $rejected = array_fill_keys($basePlan->truncatedCurrentSourcePagesRejected(), true);
+
+        $rows = [];
+        foreach ($pageImages as $pageNumber => $pageImage) {
+            $writeKind = self::writeKind((int) $pageNumber, $leafPage, $replacementPages, $pointerMapPages);
+            $rows[] = [
+                'page_number' => (int) $pageNumber,
+                'write_kind' => $writeKind,
+                'write_allowed' => (int) $pageNumber <= $nextDatabase->pageCount() && !isset($rejected[$pageNumber]),
+                'page_size' => strlen($pageImage),
+                'page_hash' => hash('sha256', $pageImage),
+                'is_pointer_map_page' => $nextDatabase->isPointerMapPage((int) $pageNumber),
+                'is_replacement_overflow_page' => isset($replacementPages[$pageNumber]),
+                'overflow_next_page' => isset($replacementPages[$pageNumber]) ? self::readUInt32($pageImage, 0) : null,
+                'pointer_map_cell_offsets' => self::pointerMapCellOffsetsForPage($nextDatabase, (int) $pageNumber, $basePlan->replacementOverflowPages()),
+            ];
+        }
+
+        foreach ($basePlan->truncatedCurrentSourcePagesRejected() as $pageNumber) {
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'write_kind' => 'rejected-truncated-current-source-page',
+                'write_allowed' => false,
+                'page_size' => 0,
+                'page_hash' => null,
+                'is_pointer_map_page' => false,
+                'is_replacement_overflow_page' => false,
+                'overflow_next_page' => null,
+                'pointer_map_cell_offsets' => [],
+            ];
+        }
+
+        usort($rows, static fn (array $a, array $b): int => ((int) $a['page_number']) <=> ((int) $b['page_number']));
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, true> $replacementPages
+     * @param array<int, true> $pointerMapPages
+     */
+    private static function writeKind(int $pageNumber, int $leafPage, array $replacementPages, array $pointerMapPages): string
+    {
+        if ($pageNumber === 1) {
+            return 'database-header';
+        }
+        if ($pageNumber === $leafPage) {
+            return 'leaf-freeblock-page';
+        }
+        if (isset($pointerMapPages[$pageNumber])) {
+            return 'pointer-map-page';
+        }
+        if (isset($replacementPages[$pageNumber])) {
+            return 'replacement-overflow-page';
+        }
+
+        return 'freelist-trunk-page';
+    }
+
+    /**
+     * @param list<int> $replacementOverflowPages
+     * @return list<int>
+     */
+    private static function pointerMapCellOffsetsForPage(SQLiteDatabase $database, int $pageNumber, array $replacementOverflowPages): array
+    {
+        if (!$database->isPointerMapPage($pageNumber)) {
+            return [];
+        }
+
+        $offsets = [];
+        foreach ($replacementOverflowPages as $overflowPage) {
+            if ($database->pointerMapPageFor($overflowPage) === $pageNumber) {
+                $offsets[] = 5 * ($overflowPage - $pageNumber - 1);
+            }
+        }
+
+        return $offsets;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next162 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFenceVariant
+{
+    /**
+     * @param list<array<string, mixed>> $fenceRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan,
+        private readonly array $fenceRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan): self
+    {
+        if ($basePlan->replacementOverflowPages() === []) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source next163 requires replacement overflow pages');
+        }
+        if ($basePlan->leafFreeblockPages() === []) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock current-source next163 requires a deleted leaf freeblock');
+        }
+
+        foreach ($basePlan->chainRows as $row) {
+            if (($row['pointer_map_matches_chain'] ?? false) !== true || ($row['next_pointer_matches_chain'] ?? false) !== true) {
+                throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next163 replacement chain is inconsistent');
+            }
+            if (($row['truncated_current_source_page_reused'] ?? false) === true) {
+                throw new \RuntimeException('SQLite b-tree vacuum pointer-map freeblock current-source next163 cannot reuse a truncated current-source page');
+            }
+        }
+
+        return new self($basePlan, self::buildFenceRows($basePlan));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function fenceRows(): array
+    {
+        return $this->fenceRows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function admittedCurrentSourcePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->fenceRows, static fn (array $row): bool => $row['current_source_admitted'] === true),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function rejectedCurrentSourcePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->fenceRows, static fn (array $row): bool => $row['current_source_rejected'] === true),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function replacementChainPages(): array
+    {
+        return $this->basePlan->replacementOverflowPages();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function currentSourceFence(): array
+    {
+        $base156 = $this->basePlan->basePlan;
+        $released = $base156->basePlan->basePlan->basePlan->releasedOverflowPages();
+        $surviving = $base156->basePlan->basePlan->survivingReleasedOverflowPages();
+        $truncated = $base156->basePlan->basePlan->truncatedReleasedOverflowPages();
+        $leafPage = $base156->basePlan->basePlan->basePlan->deletePlan->leafPageNumber;
+        $leafImage = $base156->basePlan->basePlan->basePlan->deletePlan->leafPageImage;
+
+        return [
+            'status' => 'btree-vacuum-pointermap-freeblock-current-source-next163-ready',
+            'leaf_page' => $leafPage,
+            'leaf_freeblock_pages' => $this->basePlan->leafFreeblockPages(),
+            'released_overflow_pages' => $released,
+            'surviving_released_overflow_pages' => $surviving,
+            'truncated_released_overflow_pages' => $truncated,
+            'replacement_chain_pages' => $this->replacementChainPages(),
+            'admitted_current_source_pages' => $this->admittedCurrentSourcePages(),
+            'rejected_current_source_pages' => $this->rejectedCurrentSourcePages(),
+            'source_chain_signature' => self::signature($released),
+            'surviving_chain_signature' => self::signature($surviving),
+            'truncated_chain_signature' => self::signature($truncated),
+            'replacement_chain_signature' => self::signature($this->replacementChainPages()),
+            'leaf_freeblock_hash' => hash('sha256', $leafImage),
+            'final_database_page_count' => $base156->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $base156->databaseAfterAllocation->freelistPageNumbers(),
+            'dependencies' => [
+                'sqlite-btree-vacuum-pointermap-freeblock-current-source-next160',
+                'sqlite-current-source-next163',
+            ],
+            'dependency_closure' => 'no new support component needed; next163 reuses native b-tree vacuum, freelist allocation, overflow encoding, and pointer-map page image application',
+            'non_overlap' => 'adds current-source admission fencing for replacement overflow chains after vacuum truncation; does not repeat next160 chain pointer validation, next159 row imaging, overflow freelist release, page relocation, root collapse, or bulk overflow freeblock materialization',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next163',
+            'current_source_fence' => $this->currentSourceFence(),
+            'fence_rows' => $this->fenceRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildFenceRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceReplacementChainVariant $basePlan): array
+    {
+        $base156 = $basePlan->basePlan;
+        $sourceDatabase = $base156->basePlan->basePlan->basePlan->sourceDatabase;
+        $finalDatabase = $base156->databaseAfterAllocation;
+        $allocatedByPage = [];
+        foreach ($basePlan->chainRows as $row) {
+            $allocatedByPage[(int) $row['page_number']] = $row;
+        }
+
+        $rows = [];
+        foreach ($base156->basePlan->basePlan->basePlan->releasedOverflowPages() as $position => $pageNumber) {
+            $allocatedRow = $allocatedByPage[$pageNumber] ?? null;
+            $sourceEntry = self::pointerMapEntry($sourceDatabase, $pageNumber);
+            $finalEntry = $pageNumber <= $finalDatabase->pageCount()
+                ? self::pointerMapEntry($finalDatabase, $pageNumber)
+                : null;
+            $sourceNext = self::readUInt32($sourceDatabase->page($pageNumber), 0);
+            $finalNext = $pageNumber <= $finalDatabase->pageCount()
+                ? self::readUInt32($finalDatabase->page($pageNumber), 0)
+                : null;
+
+            $rows[] = [
+                'source_chain_position' => $position,
+                'page_number' => $pageNumber,
+                'source_overflow_next_page' => $sourceNext,
+                'final_overflow_next_page' => $finalNext,
+                'source_pointer_map_type' => $sourceEntry['type_name'] ?? null,
+                'source_pointer_map_parent' => $sourceEntry['parent_page_number'] ?? null,
+                'final_pointer_map_type' => $finalEntry['type_name'] ?? null,
+                'final_pointer_map_parent' => $finalEntry['parent_page_number'] ?? null,
+                'replacement_chain_position' => $allocatedRow['chain_position'] ?? null,
+                'replacement_expected_next_page' => $allocatedRow['expected_next_page'] ?? null,
+                'replacement_expected_parent' => $allocatedRow['expected_pointer_map_parent'] ?? null,
+                'current_source_admitted' => $allocatedRow !== null,
+                'current_source_rejected' => $allocatedRow === null,
+                'admission_status' => $allocatedRow === null
+                    ? 'rejected-after-vacuum-truncate'
+                    : 'admitted-as-replacement-overflow-page',
+                'source_page_hash' => hash('sha256', $sourceDatabase->page($pageNumber)),
+                'final_page_hash' => $pageNumber <= $finalDatabase->pageCount()
+                    ? hash('sha256', $finalDatabase->page($pageNumber))
+                    : null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pointerMapEntry(SQLiteDatabase $database, int $pageNumber): ?array
+    {
+        if (!$database->isAutoVacuum() || $pageNumber > $database->pageCount() || $database->isPointerMapPage($pageNumber)) {
+            return null;
+        }
+
+        return $database->pointerMapEntryForPage($pageNumber)->toArray();
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     */
+    private static function signature(array $pageNumbers): string
+    {
+        return hash('sha256', implode(',', $pageNumbers));
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next163 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceContinuityVariant
+{
+    /**
+     * @param list<array<string, mixed>> $chainRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant $basePlan,
+        private readonly array $chainRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant $basePlan): self
+    {
+        $chainRows = self::buildChainRows($basePlan);
+        $errors = self::continuityErrorsForRows($chainRows, $basePlan->allocatedOverflowPages());
+        if ($errors !== []) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next164 replacement chain is inconsistent: ' . implode('; ', $errors));
+        }
+
+        return new self($basePlan, $chainRows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function chainRows(): array
+    {
+        return $this->chainRows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function continuityErrors(): array
+    {
+        return self::continuityErrorsForRows($this->chainRows, $this->basePlan->allocatedOverflowPages());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function currentSourceNextChangedPages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->chainRows, static fn (array $row): bool => $row['source_next_page'] !== $row['final_next_page']),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function reusedTruncatedCurrentSourcePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->chainRows, static fn (array $row): bool => $row['appended_after_truncate'] === true),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next164',
+            'released_overflow_pages' => $this->basePlan->basePlan->basePlan->basePlan->releasedOverflowPages(),
+            'allocated_overflow_pages' => $this->basePlan->allocatedOverflowPages(),
+            'appended_overflow_pages' => $this->basePlan->appendedOverflowPages(),
+            'current_source_next_changed_pages' => $this->currentSourceNextChangedPages(),
+            'reused_truncated_current_source_pages' => $this->reusedTruncatedCurrentSourcePages(),
+            'continuity_errors' => $this->continuityErrors(),
+            'final_database_page_count' => $this->basePlan->databaseAfterAllocation->pageCount(),
+            'final_freelist_page_numbers' => $this->basePlan->databaseAfterAllocation->freelistPageNumbers(),
+            'chain_rows' => $this->chainRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildChainRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceAppendAllocationVariant $basePlan): array
+    {
+        $sourceDatabase = $basePlan->basePlan->basePlan->basePlan->sourceDatabase;
+        $postVacuumDatabase = $basePlan->basePlan->basePlan->basePlan->nextDatabase;
+        $finalDatabase = $basePlan->databaseAfterAllocation;
+        $allocated = array_fill_keys($basePlan->allocatedOverflowPages(), true);
+        $appended = array_fill_keys($basePlan->appendedOverflowPages(), true);
+        $truncated = array_fill_keys($basePlan->basePlan->basePlan->truncatedReleasedOverflowPages(), true);
+        $rows = [];
+
+        foreach ($basePlan->basePlan->basePlan->basePlan->releasedOverflowPages() as $chainPosition => $pageNumber) {
+            $sourcePresent = $pageNumber <= $sourceDatabase->pageCount();
+            $postVacuumPresent = $pageNumber <= $postVacuumDatabase->pageCount();
+            $finalPresent = $pageNumber <= $finalDatabase->pageCount();
+            $isAllocated = isset($allocated[$pageNumber]);
+            $entry = ($finalPresent && $finalDatabase->isAutoVacuum() && !$finalDatabase->isPointerMapPage($pageNumber))
+                ? $finalDatabase->pointerMapEntryForPage($pageNumber)
+                : null;
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'chain_position' => $chainPosition,
+                'source_materialized' => $sourcePresent,
+                'post_vacuum_materialized' => $postVacuumPresent,
+                'final_materialized' => $finalPresent,
+                'allocated_for_replacement' => $isAllocated,
+                'appended_after_truncate' => isset($appended[$pageNumber]) && isset($truncated[$pageNumber]),
+                'source_next_page' => $sourcePresent ? self::readUInt32($sourceDatabase->page($pageNumber), 0) : null,
+                'post_vacuum_next_page' => $postVacuumPresent ? self::readUInt32($postVacuumDatabase->page($pageNumber), 0) : null,
+                'final_next_page' => ($finalPresent && $isAllocated) ? self::readUInt32($finalDatabase->page($pageNumber), 0) : null,
+                'final_pointer_map_type' => $entry?->typeName(),
+                'final_pointer_map_parent' => $entry?->parentPageNumber,
+                'final_page_hash' => $finalPresent ? hash('sha256', $finalDatabase->page($pageNumber)) : null,
+                'status' => $isAllocated
+                    ? (isset($appended[$pageNumber]) ? 'replacement-overflow-appended' : 'replacement-overflow-reused')
+                    : ($postVacuumPresent ? 'post-vacuum-free-page' : 'truncated-tail-page'),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param list<int> $allocatedPages
+     * @return list<string>
+     */
+    private static function continuityErrorsForRows(array $rows, array $allocatedPages): array
+    {
+        $rowsByPage = [];
+        foreach ($rows as $row) {
+            $rowsByPage[(int) $row['page_number']] = $row;
+        }
+
+        $errors = [];
+        foreach ($allocatedPages as $index => $pageNumber) {
+            if (!isset($rowsByPage[$pageNumber])) {
+                $errors[] = "allocated page {$pageNumber} was not released by the delete";
+                continue;
+            }
+
+            $expectedNext = $allocatedPages[$index + 1] ?? 0;
+            $row = $rowsByPage[$pageNumber];
+            if ($row['final_materialized'] !== true) {
+                $errors[] = "allocated page {$pageNumber} is not materialized in the final database";
+            }
+            if ($row['final_next_page'] !== $expectedNext) {
+                $errors[] = "allocated page {$pageNumber} points to {$row['final_next_page']} instead of {$expectedNext}";
+            }
+            $expectedType = $index === 0 ? 'first-overflow-page' : 'overflow-page';
+            if ($row['final_pointer_map_type'] !== $expectedType) {
+                $errors[] = "allocated page {$pageNumber} pointer-map type is {$row['final_pointer_map_type']} instead of {$expectedType}";
+            }
+            $expectedParent = $index === 0 ? null : $allocatedPages[$index - 1];
+            if ($index > 0 && $row['final_pointer_map_parent'] !== $expectedParent) {
+                $errors[] = "allocated page {$pageNumber} pointer-map parent is {$row['final_pointer_map_parent']} instead of {$expectedParent}";
+            }
+        }
+
+        return $errors;
+    }
+
+    private static function readUInt32(string $bytes, int $offset): int
+    {
+        $value = unpack('N', substr($bytes, $offset, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next164 could not read uint32');
+        }
+
+        return $value[1];
+    }
+}
+
+
+final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWritableDiffVariant
+{
+    /**
+     * @param list<array<string, mixed>> $sourceNextRows
+     */
+    private function __construct(
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant $basePlan,
+        private readonly array $sourceNextRows,
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $deleteResult
+     */
+    public static function tableLeafFromDeleteResult(
+        SQLiteDatabase $database,
+        int $leafPageNumber,
+        array $deleteResult,
+        int $maxTruncatedPages,
+        string $replacementOverflowPayload,
+        int $parentBtreePageNumber,
+        bool $secureDelete = true,
+    ): self {
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant::tableLeafFromDeleteResult(
+            $database,
+            $leafPageNumber,
+            $deleteResult,
+            $maxTruncatedPages,
+            $replacementOverflowPayload,
+            $parentBtreePageNumber,
+            $secureDelete,
+        ));
+    }
+
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant $basePlan): self
+    {
+        return new self($basePlan, self::buildSourceNextRows($basePlan));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function sourceNextRows(): array
+    {
+        return $this->sourceNextRows;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function changedWritablePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->sourceNextRows, static fn (array $row): bool => $row['write_allowed'] && $row['page_changed']),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function unchangedWritablePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->sourceNextRows, static fn (array $row): bool => $row['write_allowed'] && !$row['page_changed']),
+        ));
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function rejectedCurrentSourcePages(): array
+    {
+        return array_values(array_map(
+            static fn (array $row): int => (int) $row['page_number'],
+            array_filter($this->sourceNextRows, static fn (array $row): bool => !$row['write_allowed']),
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'action' => 'btree-vacuum-pointermap-freeblock-current-source-next165',
+            'leaf_page' => $this->basePlan->toArray()['leaf_page'],
+            'changed_writable_pages' => $this->changedWritablePages(),
+            'unchanged_writable_pages' => $this->unchangedWritablePages(),
+            'rejected_current_source_pages' => $this->rejectedCurrentSourcePages(),
+            'replacement_overflow_pages' => $this->basePlan->basePlan->replacementOverflowPages(),
+            'replacement_overflow_next_pages' => $this->basePlan->basePlan->replacementOverflowNextPages(),
+            'replacement_pointer_map_parents' => $this->basePlan->basePlan->replacementPointerMapParents(),
+            'source_next_rows' => $this->sourceNextRows,
+            'base_plan' => $this->basePlan->toArray(),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function buildSourceNextRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceWriteAdmissionVariant $basePlan): array
+    {
+        $sourceDatabase = $basePlan->basePlan->basePlan->basePlan->basePlan->basePlan->sourceDatabase;
+        $nextDatabase = $basePlan->basePlan->basePlan->databaseAfterAllocation;
+        $rows = [];
+
+        foreach ($basePlan->writeRows() as $writeRow) {
+            $pageNumber = (int) $writeRow['page_number'];
+            $writeAllowed = (bool) $writeRow['write_allowed'];
+            $currentPage = $pageNumber <= $sourceDatabase->pageCount() ? $sourceDatabase->page($pageNumber) : null;
+            $nextPage = $writeAllowed && $pageNumber <= $nextDatabase->pageCount() ? $nextDatabase->page($pageNumber) : null;
+            $currentPointerMapEntry = self::pointerMapEntry($sourceDatabase, $pageNumber);
+            $nextPointerMapEntry = $nextPage !== null ? self::pointerMapEntry($nextDatabase, $pageNumber) : null;
+
+            $rows[] = [
+                'page_number' => $pageNumber,
+                'write_kind' => $writeRow['write_kind'],
+                'write_allowed' => $writeAllowed,
+                'current_materialized' => $currentPage !== null,
+                'next_materialized' => $nextPage !== null,
+                'current_page_hash' => $currentPage === null ? null : hash('sha256', $currentPage),
+                'next_page_hash' => $nextPage === null ? null : hash('sha256', $nextPage),
+                'page_changed' => $currentPage !== null && $nextPage !== null && $currentPage !== $nextPage,
+                'current_overflow_next_page' => self::overflowNextPage($currentPage, (string) $writeRow['write_kind']),
+                'next_overflow_next_page' => self::overflowNextPage($nextPage, (string) $writeRow['write_kind']),
+                'current_pointer_map_type' => $currentPointerMapEntry['type_name'] ?? null,
+                'current_pointer_map_parent' => $currentPointerMapEntry['parent_page_number'] ?? null,
+                'next_pointer_map_type' => $nextPointerMapEntry['type_name'] ?? null,
+                'next_pointer_map_parent' => $nextPointerMapEntry['parent_page_number'] ?? null,
+                'pointer_map_changed' => $currentPointerMapEntry !== $nextPointerMapEntry,
+                'pointer_map_cell_offsets' => $writeRow['pointer_map_cell_offsets'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function pointerMapEntry(SQLiteDatabase $database, int $pageNumber): ?array
+    {
+        if (!$database->isAutoVacuum() || $pageNumber < 2 || $pageNumber > $database->pageCount() || $database->isPointerMapPage($pageNumber)) {
+            return null;
+        }
+
+        return $database->pointerMapEntryForPage($pageNumber)->toArray();
+    }
+
+    private static function overflowNextPage(?string $page, string $writeKind): ?int
+    {
+        if ($page === null || $writeKind !== 'replacement-overflow-page') {
+            return null;
+        }
+
+        $value = unpack('N', substr($page, 0, 4));
+        if ($value === false) {
+            throw new \InvalidArgumentException('SQLite b-tree vacuum pointer-map freeblock next165 could not read uint32');
+        }
+
+        return $value[1];
     }
 }
 

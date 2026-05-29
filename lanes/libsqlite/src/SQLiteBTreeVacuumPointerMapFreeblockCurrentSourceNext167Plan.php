@@ -11,7 +11,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext167Plan
      * @param list<array<string, mixed>> $releasedPageRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $leafRows,
         private readonly array $releasedPageRows,
     ) {
@@ -29,7 +29,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext167Plan
         int $parentBtreePageNumber,
         bool $secureDelete = true,
     ): self {
-        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext164(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -40,7 +40,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext167Plan
         ));
     }
 
-    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan $basePlan): self
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): self
     {
         $leafRows = self::buildLeafRows($basePlan);
         $releasedPageRows = self::buildReleasedPageRows($basePlan);
@@ -144,7 +144,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext167Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildLeafRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan $basePlan): array
+    private static function buildLeafRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $base144 = $basePlan->basePlan->basePlan;
         $sourceDatabase = $base144->basePlan->basePlan->sourceDatabase;
@@ -189,7 +189,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext167Plan
     /**
      * @return list<array<string, mixed>>
      */
-    private static function buildReleasedPageRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext164Plan $basePlan): array
+    private static function buildReleasedPageRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan): array
     {
         $sourceDatabase = $basePlan->basePlan->basePlan->basePlan->basePlan->sourceDatabase;
         $postVacuumDatabase = $basePlan->basePlan->basePlan->basePlan->basePlan->nextDatabase;

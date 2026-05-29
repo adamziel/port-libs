@@ -10,7 +10,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan
      * @param list<array<string, mixed>> $writeGateRows
      */
     private function __construct(
-        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext165Plan $basePlan,
+        public readonly SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan,
         private readonly array $writeGateRows,
     ) {
     }
@@ -29,7 +29,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan
         bool $secureDelete = true,
         array $observedCurrentPages = [],
     ): self {
-        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext165Plan::tableLeafFromDeleteResult(
+        return self::fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultNext165(
             $database,
             $leafPageNumber,
             $deleteResult,
@@ -43,7 +43,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan
     /**
      * @param array<int, string> $observedCurrentPages
      */
-    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext165Plan $basePlan, array $observedCurrentPages = []): self
+    public static function fromBasePlan(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan, array $observedCurrentPages = []): self
     {
         $rows = self::buildWriteGateRows($basePlan, $observedCurrentPages);
         if (self::admittedPagesFromRows($rows) === []) {
@@ -146,7 +146,7 @@ final class SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext169Plan
      * @param array<int, string> $observedCurrentPages
      * @return list<array<string, mixed>>
      */
-    private static function buildWriteGateRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNext165Plan $basePlan, array $observedCurrentPages): array
+    private static function buildWriteGateRows(SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan $basePlan, array $observedCurrentPages): array
     {
         $rows = [];
         foreach ($basePlan->sourceNextRows() as $row) {
