@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsShmLockFileControlCurrentSource;
 
-$plan = SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext85([
+$plan = SQLiteVfsShmLockFileControlCurrentSource::planShmLockFileControl([
     'open',
     'shm_lock(write, exclusive)',
     'file_control(persist_wal, on)',

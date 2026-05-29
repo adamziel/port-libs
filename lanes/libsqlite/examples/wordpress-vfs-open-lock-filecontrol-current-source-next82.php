@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$plan = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext82([
+$plan = SQLiteVfsOpenLockFileControlCurrentSource::planOpenLockFileControl([
     'open(file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared)',
     'file_control(chunk_size, 8192)',
     'file_control(mmap_size, 65536)',

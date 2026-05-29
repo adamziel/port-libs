@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run126 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext126($ops, $options + [
+$run126 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planUriShmFileControlLocks($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/wp%20cache.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -135,5 +135,5 @@ return [
     'vfs uri shm filecontrol lock current source next126 nolock reason' => static fn (TestRunner $t) => $t->same('nolock VFS disables SHM byte-range locking', $nolock()['events'][2]['reason']),
 
     'vfs uri shm filecontrol lock current source next126 rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run126(['open(shm)', ['op' => 'shmlock', 'lock' => 'read0', 'mode' => 'shared', 'connection' => '../bad']])),
-    'vfs uri shm filecontrol lock current source next126 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext126([])),
+    'vfs uri shm filecontrol lock current source next126 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planUriShmFileControlLocks([])),
 ];

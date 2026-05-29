@@ -21,7 +21,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext146(
+        public static function materialize(
             array $preparedSource,
             array $currentSource,
             ?array $nextSource,
@@ -43,14 +43,14 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
                 $neededExpressions,
             );
 
-            $currentSignature = self::sourceSignatureNext146($currentSource, $currentRows);
-            $nextSummary = $nextSource === null ? null : self::nextSummaryNext146($currentSource, $nextSource, $currentRows);
+            $currentSignature = self::sourceSignature($currentSource, $currentRows);
+            $nextSummary = $nextSource === null ? null : self::nextSourceSummary($currentSource, $nextSource, $currentRows);
             $nextAdmitted = $nextSummary === null || $nextSummary['replanReasons'] === [];
             $ready = ($base['status'] ?? null) === 'covering-expression-range-current-source-next134-ready'
                 && ($base['tableLookupElided'] ?? false) === true
                 && $nextAdmitted;
 
-            $coveringRows = self::coveringRowsNext146($base);
+            $coveringRows = self::coveringRows($base);
             $rowids = array_column($coveringRows, 'rowid');
             $payloadSignature = hash('sha256', json_encode($coveringRows, JSON_THROW_ON_ERROR));
 
@@ -66,12 +66,12 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
                     [
                         'next146SourceSignature' => $currentSignature,
                         'next146PayloadSignature' => $payloadSignature,
-                        'next146OrderSignature' => self::orderSignatureNext146($orderBy),
+                        'next146OrderSignature' => self::orderSignature($orderBy),
                         'next146CoveringColumns' => $neededColumns,
                         'next146CoveringExpressionCount' => count($neededExpressions),
                     ],
                 ),
-                'cursorTape' => self::cursorTapeNext146($base, $ready, $currentSignature, $payloadSignature),
+                'cursorTape' => self::cursorTape($base, $ready, $currentSignature, $payloadSignature),
                 'selectedPlan' => array_replace(
                     is_array($base['selectedPlan'] ?? null) ? $base['selectedPlan'] : [],
                     [
@@ -102,7 +102,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return list<array<string,mixed>>
          */
-        private static function coveringRowsNext146(array $base): array
+        private static function coveringRows(array $base): array
         {
             $rows = [];
             foreach (($base['currentNextRows'] ?? []) as $pair) {
@@ -127,7 +127,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
          * @param list<array<string,mixed>> $currentRows
          * @return array<string,mixed>
          */
-        private static function nextSummaryNext146(array $currentSource, array $nextSource, array $currentRows): array
+        private static function nextSourceSummary(array $currentSource, array $nextSource, array $currentRows): array
         {
             $nextRows = $nextSource['rows'] ?? $currentRows;
             if (!is_array($nextRows) || !array_is_list($nextRows)) {
@@ -139,15 +139,15 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
                 }
             }
 
-            $currentSignature = self::sourceSignatureNext146($currentSource, $currentRows);
-            $nextSignature = self::sourceSignatureNext146($nextSource, $nextRows);
+            $currentSignature = self::sourceSignature($currentSource, $currentRows);
+            $nextSignature = self::sourceSignature($nextSource, $nextRows);
             $reasons = [];
             foreach (['schemaCookie' => 'schema-cookie', 'stat4Generation' => 'stat4-generation'] as $key => $reason) {
                 if (($currentSource[$key] ?? null) !== ($nextSource[$key] ?? null)) {
                     $reasons[] = $reason;
                 }
             }
-            if (self::indexSignatureNext146($currentSource) !== self::indexSignatureNext146($nextSource)) {
+            if (self::indexSignature($currentSource) !== self::indexSignature($nextSource)) {
                 $reasons[] = 'index-signature';
             }
             if (hash('sha256', json_encode($currentRows, JSON_THROW_ON_ERROR)) !== hash('sha256', json_encode($nextRows, JSON_THROW_ON_ERROR))) {
@@ -168,13 +168,13 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @param list<array<string,mixed>> $rows
          */
-        private static function sourceSignatureNext146(array $source, array $rows): string
+        private static function sourceSignature(array $source, array $rows): string
         {
             return hash('sha256', json_encode([
                 'name' => $source['name'] ?? null,
                 'schemaCookie' => $source['schemaCookie'] ?? null,
                 'stat4Generation' => $source['stat4Generation'] ?? null,
-                'indexes' => self::indexSignatureNext146($source),
+                'indexes' => self::indexSignature($source),
                 'rows' => $rows,
             ], JSON_THROW_ON_ERROR));
         }
@@ -182,7 +182,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext146(array $source): string
+        private static function indexSignature(array $source): string
         {
             return hash('sha256', serialize($source['indexes'] ?? []));
         }
@@ -190,7 +190,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
         /**
          * @param list<array<string,string>> $orderBy
          */
-        private static function orderSignatureNext146(array $orderBy): string
+        private static function orderSignature(array $orderBy): string
         {
             $parts = [];
             foreach ($orderBy as $term) {
@@ -206,7 +206,7 @@ final class SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext146(array $base, bool $ready, string $sourceSignature, string $payloadSignature): array
+        private static function cursorTape(array $base, bool $ready, string $sourceSignature, string $payloadSignature): array
         {
             $tape = is_array($base['cursorTape'] ?? null) ? $base['cursorTape'] : [];
             $program = is_array($tape['program'] ?? null) ? $tape['program'] : [];

@@ -62,7 +62,7 @@ $statements925940 = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next928 WHERE cache_key = ?'],
 ];
 
-$plan925940 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext925940(
+$plan925940 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::schemaCacheAuditWindow(
     $schemas ?? $schemas925940,
     $statements ?? $statements925940,
     $events,

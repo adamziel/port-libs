@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run141 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext141($ops, $options + [
+$run141 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::planUriShmFileControlRegression($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20close.sqlite?mode=rw&cache=shared&role=default',
 ]);
 
@@ -118,7 +118,7 @@ $tests['vfs uri shm filecontrol regression current source next141 readonly shm s
 $tests['vfs uri shm filecontrol regression current source next141 readonly close releases'] = static fn (TestRunner $t) => $t->same(true, $readonly()['events'][3]['released_shm_locks']);
 $tests['vfs uri shm filecontrol regression current source next141 readonly close clears reader'] = static fn (TestRunner $t) => $t->same([], $readonly()['events'][3]['next']['owners']['/srv/www/wp-content/database/wp archive.sqlite']['shm_locks']['read0']);
 
-$tests['vfs uri shm filecontrol regression current source next141 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext141([]));
+$tests['vfs uri shm filecontrol regression current source next141 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::planUriShmFileControlRegression([]));
 $tests['vfs uri shm filecontrol regression current source next141 rejects empty close connection'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run141(['open(file:/srv/www/wp-content/database/bad.sqlite-shm?mode=rw)', ['op' => 'close', 'source' => 'shm', 'connection' => '']]));
 $tests['vfs uri shm filecontrol regression current source next141 missing close reports missing handle'] = static fn (TestRunner $t) => $t->same('missing-handle', $missingClose()['events'][0]['status']);
 $tests['vfs uri shm filecontrol regression current source next141 missing close keeps no handles'] = static fn (TestRunner $t) => $t->same(['main' => 0, 'wal' => 0, 'shm' => 0], $missingClose()['next']['open_by_source']);

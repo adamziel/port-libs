@@ -21,7 +21,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext112(array $operations, array $options = []): array
+    public static function planShmLockByteFileControl(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-shm-lockbyte-filecontrol-current-source-next112');
     }
@@ -31,7 +31,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext117(array $operations, array $options = []): array
+    public static function planShmLockByteUriFileControl(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-shm-lockbyte-uri-filecontrol-current-source-next117');
     }
@@ -41,7 +41,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext128(array $operations, array $options = []): array
+    public static function planOpenShmFileControlUri(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-open-shm-filecontrol-uri-current-source-next128', true);
     }
@@ -51,7 +51,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext135(array $operations, array $options = []): array
+    public static function planLockingUriFileControl(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-locking-uri-filecontrol-current-source-next135', true, true);
     }
@@ -61,7 +61,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext136(array $operations, array $options = []): array
+    public static function planUriFileControlShm(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-uri-filecontrol-shm-current-source-next136', true, true, true);
     }
@@ -71,7 +71,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext139(array $operations, array $options = []): array
+    public static function planTempUriFileControlRegression(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-temp-uri-filecontrol-regression-current-source-next139', true);
     }
@@ -81,7 +81,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext141(array $operations, array $options = []): array
+    public static function planUriShmFileControlRegression(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-uri-shm-filecontrol-regression-current-source-next141', true);
     }
@@ -269,7 +269,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
                 'owner' => $owner,
                 'file_control' => $control,
                 'value' => $value,
-                'reason' => 'filecontrol requires currentSourceNext112',
+                'reason' => 'filecontrol requires planShmLockByteFileControl',
             ]];
         }
 

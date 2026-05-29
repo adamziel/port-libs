@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run104 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext104($ops, $options + [
+$run104 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planUriShmFileControlWithGeneration($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/wp%20cache.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -122,7 +122,7 @@ return [
     'vfs uri shm filecontrol current source next104 readonly main data version fresh' => static fn (TestRunner $t) => $t->same(false, $readonly()['events'][4]['stale_current_source']),
     'vfs uri shm filecontrol current source next104 readonly shm data version fresh' => static fn (TestRunner $t) => $t->same(false, $readonly()['events'][6]['stale_current_source']),
 
-    'vfs uri shm filecontrol current source next104 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext104([])),
+    'vfs uri shm filecontrol current source next104 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planUriShmFileControlWithGeneration([])),
     'vfs uri shm filecontrol current source next104 rejects remote authority' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(main, file://example.com/srv/www/wp.sqlite?mode=rw)'])),
     'vfs uri shm filecontrol current source next104 rejects bad shm lock' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(shm)', 'shm_lock(read9, shared)'])),
     'vfs uri shm filecontrol current source next104 rejects bad reserve bytes' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(main)', ['op' => 'filecontrol', 'control' => 'reserve_bytes', 'value' => -1]])),

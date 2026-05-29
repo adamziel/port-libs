@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run92 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext92($ops, $options + [
+$run92 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planUriShmFileControl($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/site%20cache.sqlite?mode=rw&cache=shared',
 ]);
 

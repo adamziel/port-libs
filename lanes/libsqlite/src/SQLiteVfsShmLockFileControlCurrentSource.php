@@ -11,9 +11,9 @@ final class SQLiteVfsShmLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext85(array $operations, array $options = []): array
+    public static function planShmLockFileControl(array $operations, array $options = []): array
     {
-        return self::run($operations, $options, false, 'vfs-shm-lock-filecontrol-current-source-next85', 'next85');
+        return self::run($operations, $options, false, 'vfs-shm-lock-filecontrol-current-source-next85', 'shm-lock-file-control');
     }
 
     /**
@@ -21,9 +21,9 @@ final class SQLiteVfsShmLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext88(array $operations, array $options = []): array
+    public static function planUriShmLockFileControl(array $operations, array $options = []): array
     {
-        return self::run($operations, $options, true, 'vfs-uri-shm-lock-filecontrol-current-source-next88', 'next88');
+        return self::run($operations, $options, true, 'vfs-uri-shm-lock-filecontrol-current-source-next88', 'uri-shm-lock-file-control');
     }
 
     /**
@@ -34,14 +34,14 @@ final class SQLiteVfsShmLockFileControlCurrentSource
     private static function run(array $operations, array $options, bool $uriAware, string $dependency, string $label): array
     {
         if ($operations === []) {
-            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {$label} requires operations");
+            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {} requires operations");
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null);
         $open = self::openSource((string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite'), $uriAware, $state);
         $path = $open['source_key'];
         if ($path === '') {
-            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {$label} requires a database path");
+            throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {} requires a database path");
         }
 
         if (!isset($state['sources'][$path])) {

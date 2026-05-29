@@ -62,7 +62,7 @@ $rows = [
 ];
 $nextSource = $currentSource + ['rows' => $rows];
 
-$plan = SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materializeNext146(
+$plan = SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materialize(
     $preparedSource,
     $currentSource,
     $nextSource,

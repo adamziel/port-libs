@@ -8,7 +8,7 @@ require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
 use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext112([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::planShmLockByteFileControl([
     'open(file:/srv/www/wp-content/database/wp%20options.sqlite-shm?mode=rw&cache=shared)',
     'shm read0 shared wp-reader',
     'open(file:/srv/www/wp-content/database/wp%20options.sqlite?mode=rw&cache=shared)',

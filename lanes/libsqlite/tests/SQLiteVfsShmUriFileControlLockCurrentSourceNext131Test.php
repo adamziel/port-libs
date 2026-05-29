@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run131 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext131($ops, $options + [
+$run131 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmUriFileControlLocks($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/wp%20range.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -125,5 +125,5 @@ return [
     'vfs shm uri filecontrol lock current source next131 rejects zero span' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run131(['open(shm)', ['op' => 'shmlock', 'lock' => 'read0', 'span' => 0, 'mode' => 'shared']])),
     'vfs shm uri filecontrol lock current source next131 rejects overflow span' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run131(['open(shm)', ['op' => 'shmlock', 'lock' => 'read3', 'span' => 3, 'mode' => 'shared']])),
     'vfs shm uri filecontrol lock current source next131 rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run131(['open(shm)', ['op' => 'shmlock', 'lock' => 'read0', 'span' => 2, 'mode' => 'shared', 'connection' => '../bad']])),
-    'vfs shm uri filecontrol lock current source next131 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext131([])),
+    'vfs shm uri filecontrol lock current source next131 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmUriFileControlLocks([])),
 ];

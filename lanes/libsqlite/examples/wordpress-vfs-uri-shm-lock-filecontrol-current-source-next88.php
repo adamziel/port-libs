@@ -6,7 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsShmLockFileControlCurrentSource;
 
-$first = SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$first = SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(write, exclusive)',
     'file_control(persist_wal, on)',
@@ -17,7 +17,7 @@ $first = SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared',
 ]);
 
-$reopen = SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$reopen = SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(read, shared)',
     'file_control(mmap_size, 262144)',

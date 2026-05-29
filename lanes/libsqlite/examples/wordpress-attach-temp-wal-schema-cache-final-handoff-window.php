@@ -29,7 +29,7 @@ $statements = [
     ['name' => 'verify-reader', 'sql' => 'SELECT verify_id FROM verify.wp_schema_verify_receipt_next984 INDEXED BY wp_schema_verify_receipt_key_next984 WHERE verify_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext973988($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::schemaCacheFinalHandoffWindow($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 976, 'table' => 'wp_navigation_rule_locale_publish_batch_next976', 'indexes' => ['wp_navigation_rule_locale_publish_batch_key_next976'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 980, 'table' => 'wp_theme_stage_publish_token_next980', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'review', 'from' => 'wp_schema_review_receipt_key_next968', 'to' => 'wp_schema_review_receipt_key_next982'],
@@ -62,7 +62,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['verify-reader']['schema_transitions'][0]['next_schema'] === 'verify');
     assert($plan['stable_statements'] === ['handoff-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next973-988 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-final-handoff-window self-test passed\n";
     return;
 }
 

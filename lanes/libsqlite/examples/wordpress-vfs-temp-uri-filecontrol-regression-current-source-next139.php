@@ -8,7 +8,7 @@ require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
 use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext139([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::planTempUriFileControlRegression([
     ['op' => 'open', 'source' => 'temp', 'filename' => 'file:/tmp/wp%20import%20scratch.sqlite?mode=rw&cache=private&role=sorter&checkpoint=on&busy=150'],
     ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => 'role'],
     ['op' => 'filecontrol', 'control' => 'uri_boolean', 'value' => ['parameter' => 'checkpoint', 'default' => false]],

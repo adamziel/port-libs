@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run103 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext103($ops, $options + [
+$run103 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planOpenDeviceCharacteristics($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix',
     'device_flags' => ['powersafe_overwrite', 'safe_append', 'sequential'],
     'sector_size' => 4096,
@@ -139,5 +139,5 @@ return [
     'vfs xopen device characteristics current source next103 explicit powersafe off bitmask' => static fn (TestRunner $t) => $t->same($map['batch_atomic'], $explicitCurrent()['events'][4]['value']),
     'vfs xopen device characteristics current source next103 rejects bad flag' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run103([['op' => 'open', 'device_flags' => ['bogus']]])),
     'vfs xopen device characteristics current source next103 rejects bad sector' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run103([['op' => 'open', 'sector_size' => 1000]])),
-    'vfs xopen device characteristics current source next103 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext103([])),
+    'vfs xopen device characteristics current source next103 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planOpenDeviceCharacteristics([])),
 ];

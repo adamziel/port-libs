@@ -68,7 +68,7 @@ $statements941956 = [
     ['name' => 'report-reader', 'sql' => 'SELECT report_id FROM report.wp_schema_report_receipt_next941 INDEXED BY wp_schema_report_receipt_key_next941 WHERE report_key = ?'],
 ];
 
-$plan941956 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext941956(
+$plan941956 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::schemaCacheReportWindow(
     $schemas ?? $schemas941956,
     $statements ?? $statements941956,
     $events,

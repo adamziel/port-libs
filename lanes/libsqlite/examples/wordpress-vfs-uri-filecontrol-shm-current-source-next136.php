@@ -6,7 +6,7 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext136([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::planUriFileControlShm([
     'open(file:/srv/www/wp-content/database/wp%20136.sqlite-shm?mode=rw&cache=shared&role=reader&readmark=3&checkpoint=on)',
     'shm read0 shared wp-reader',
     'shm write exclusive wp-import',

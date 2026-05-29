@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run87 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext87($ops, $options + [
+$run87 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared',
 ]);
-$run126 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext126($ops, $options + [
+$run126 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared',
 ]);
-$run131 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext131($ops, $options + [
+$run131 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -161,7 +161,7 @@ $tests += [
     'vfs bad source lock regression next140 exclusive owner stored' => static fn (TestRunner $t) => $t->same(['wp-cron'], $validHydrated()['events'][5]['owner_locks']['read1']),
     'vfs bad source lock regression next140 final shm lock count' => static fn (TestRunner $t) => $t->same(2, $validHydrated()['next']['shm_lock_count']),
     'vfs bad source lock regression next140 final persistent connection count' => static fn (TestRunner $t) => $t->same(1, $validHydrated()['next']['persistent_shm_connection_count']),
-    'vfs bad source lock regression next140 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-shm-uri-filecontrol-lock-current-source-next131', $validHydrated()['dependencies'], true)),
+    'vfs bad source lock regression next140 dependency marker' => static fn (TestRunner $t) => $t->same(true, in_array('vfs-shm-bad-source-regression-current-source-next138', $validHydrated()['dependencies'], true)),
 ];
 
 return $tests;

@@ -9,12 +9,12 @@ Validation:
 
 ```bash
 php -l lanes/libsqlite/src/SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext973988Test.php
+php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalHandoffWindowTest.php
 php -l lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalPreparationWindowTest.php
-php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next973-988.php
+php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-handoff-window.php
 php -l lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-preparation-window.php
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheCurrentSourceNext973988Test.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalPreparationWindowTest.php
-php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-source-next973-988.php --self-test
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalHandoffWindowTest.php lanes/libsqlite/tests/SQLiteAttachTempWalSchemaCacheFinalPreparationWindowTest.php
+php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-handoff-window.php --self-test
 php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-final-preparation-window.php --self-test
 git diff --check
 ```

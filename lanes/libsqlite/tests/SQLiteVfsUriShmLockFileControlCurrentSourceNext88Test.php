@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsShmLockFileControlCurrentSource;
 
 $tests = [];
 
-$run88 = static fn (array $ops, array $options = []): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88(
+$run88 = static fn (array $ops, array $options = []): array => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl(
     $ops,
     $options + ['filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared'],
 );
@@ -36,7 +36,7 @@ $decoded = static function () use ($run88): array {
     return $result;
 };
 
-$readonly = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$readonly = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(read, shared)',
     'file_control(mmap_size, 65536)',
@@ -45,7 +45,7 @@ $readonly = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::cur
     'filename' => 'file:/srv/www/wp-content/database/archive%20copy.sqlite?mode=ro&cache=shared',
 ]);
 
-$immutable = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$immutable = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(read, shared)',
     'file_control(mmap_size, 1)',
@@ -53,14 +53,14 @@ $immutable = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::cu
     'filename' => 'file://localhost/srv/www/wp-content/database/archive%20copy.sqlite?mode=rw&immutable=1',
 ]);
 
-$nolock = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$nolock = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(read, shared)',
 ], [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&nolock=1',
 ]);
 
-$memoryOne = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([
+$memoryOne = static fn (): array => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([
     'open',
     'shm_lock(read, shared)',
 ], [
@@ -152,9 +152,9 @@ $tests['vfs uri shm lock filecontrol current source next88 writer blocker list']
 $tests['vfs uri shm lock filecontrol current source next88 writer succeeds after first release'] = static fn (TestRunner $t) => $t->same('acquired', $conflict()['events'][6]['status']);
 $tests['vfs uri shm lock filecontrol current source next88 writer final locked count'] = static fn (TestRunner $t) => $t->same(2, $conflict()['next']['locked_count']);
 
-$tests['vfs uri shm lock filecontrol current source next88 rejects remote authority'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88(['open'], ['filename' => 'file://example.com/srv/db.sqlite?mode=rw']));
-$tests['vfs uri shm lock filecontrol current source next88 rejects bad percent'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88(['open'], ['filename' => 'file:/srv/db%2.sqlite?mode=rw']));
-$tests['vfs uri shm lock filecontrol current source next88 rejects bad immutable boolean'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88(['open'], ['filename' => 'file:/srv/db.sqlite?immutable=yes']));
-$tests['vfs uri shm lock filecontrol current source next88 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext88([]));
+$tests['vfs uri shm lock filecontrol current source next88 rejects remote authority'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl(['open'], ['filename' => 'file://example.com/srv/db.sqlite?mode=rw']));
+$tests['vfs uri shm lock filecontrol current source next88 rejects bad percent'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl(['open'], ['filename' => 'file:/srv/db%2.sqlite?mode=rw']));
+$tests['vfs uri shm lock filecontrol current source next88 rejects bad immutable boolean'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl(['open'], ['filename' => 'file:/srv/db.sqlite?immutable=yes']));
+$tests['vfs uri shm lock filecontrol current source next88 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::planUriShmLockFileControl([]));
 
 return $tests;

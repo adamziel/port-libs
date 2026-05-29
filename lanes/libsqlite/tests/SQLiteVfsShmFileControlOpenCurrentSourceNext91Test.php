@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsShmOpenFileControlCurrentSourcePlan;
 
 $tests = [];
 
-$run91 = static fn (array $ops, array $options = []): array => SQLiteVfsShmOpenFileControlCurrentSourcePlan::currentSourceNext91(
+$run91 = static fn (array $ops, array $options = []): array => SQLiteVfsShmOpenFileControlCurrentSourcePlan::planShmOpenFileControl(
     $ops,
     $options + ['filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared'],
 );
@@ -122,7 +122,7 @@ $tests['vfs shm filecontrol open current source next91 explicit current main per
 
 $tests['vfs shm filecontrol open current source next91 missing source switch'] = static fn (TestRunner $t) => $t->same('missing-handle', $missing()['events'][0]['status']);
 $tests['vfs shm filecontrol open current source next91 missing filecontrol handle'] = static fn (TestRunner $t) => $t->same('missing-handle', $missing()['events'][1]['status']);
-$tests['vfs shm filecontrol open current source next91 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmOpenFileControlCurrentSourcePlan::currentSourceNext91([]));
+$tests['vfs shm filecontrol open current source next91 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmOpenFileControlCurrentSourcePlan::planShmOpenFileControl([]));
 $tests['vfs shm filecontrol open current source next91 rejects remote authority'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run91(['open(file://example.com/srv/db.sqlite-shm?mode=rw)']));
 $tests['vfs shm filecontrol open current source next91 rejects bad percent'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run91(['open(file:/srv/db%2.sqlite-shm?mode=rw)']));
 $tests['vfs shm filecontrol open current source next91 rejects bad source'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run91([['op' => 'open', 'source' => 'temp']]));

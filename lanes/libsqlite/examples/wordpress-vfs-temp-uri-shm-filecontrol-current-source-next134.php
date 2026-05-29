@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteVfsShmFileControlLockCurrentSourcePlan.php
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext134([
+$plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::planTempUriShmFileControl([
     'open(main, file:/srv/www/wp-content/database/wp-options.sqlite?mode=rw&cache=shared)',
     'file_control(reserve_bytes, 48)',
     'open(temp, file:/srv/www/wp-content/database/wp%20import.sqlite?mode=memory&cache=private)',

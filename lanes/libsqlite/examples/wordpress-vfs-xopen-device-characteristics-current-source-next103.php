@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$plan = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext103([
+$plan = SQLiteVfsOpenLockFileControlCurrentSource::planOpenDeviceCharacteristics([
     'open(file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix)',
     'file_control(device_characteristics)',
     'lock(reserved)',

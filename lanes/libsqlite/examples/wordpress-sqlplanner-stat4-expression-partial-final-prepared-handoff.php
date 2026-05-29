@@ -101,14 +101,14 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeFin
 if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-final-prepared-handoff-prepared');
     assert($plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'] === range(990, 1005));
-    assert($plan['stat4FinalPreparedHandoffPreparationFence']['handoffWindows'][0]['continuesSlice'] === 974);
+    assert($plan['stat4FinalPreparedHandoffPreparationFence']['handoffWindows'][0]['continuesSlice'] === 958);
     echo "wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff self-test passed\n";
     return;
 }
 
 echo json_encode([
     'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-final-prepared-handoff',
-    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next974-989 current-source STAT4 handoff into final prepared handoff only when projected current rows still match.',
+    'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next958-973 current-source STAT4 handoff into final prepared handoff only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,
     'preparedSlices' => $plan['stat4FinalPreparedHandoffPreparationFence']['preparedSlices'],

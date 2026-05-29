@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsShmLockFileControlCurrentSource;
 
 $tests = [];
 
-$run85 = static fn (array $ops, array $options = []): array => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext85(
+$run85 = static fn (array $ops, array $options = []): array => SQLiteVfsShmLockFileControlCurrentSource::planShmLockFileControl(
     $ops,
     $options + ['filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared'],
 );
@@ -140,7 +140,7 @@ $tests['vfs shm lock filecontrol current source next85 checkpoint generation two
 $tests['vfs shm lock filecontrol current source next85 blocks filecontrol without lock'] = static fn (TestRunner $t) => $t->same('blocked', $run85(['open', 'file_control(mmap_size, 1)'])['events'][1]['status']);
 $tests['vfs shm lock filecontrol current source next85 no lock read reason'] = static fn (TestRunner $t) => $t->same('requires_shm_read_lock', $run85(['open', 'file_control(mmap_size, 1)'])['events'][1]['reason']);
 $tests['vfs shm lock filecontrol current source next85 no lock write reason'] = static fn (TestRunner $t) => $t->same('requires_exclusive_shm_lock', $run85(['open', 'file_control(chunk_size, 1)'])['events'][1]['reason']);
-$tests['vfs shm lock filecontrol current source next85 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::currentSourceNext85([]));
+$tests['vfs shm lock filecontrol current source next85 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmLockFileControlCurrentSource::planShmLockFileControl([]));
 $tests['vfs shm lock filecontrol current source next85 rejects bad lock'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run85(['open', 'shm_lock(bogus)']));
 $tests['vfs shm lock filecontrol current source next85 rejects bad chunk'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run85(['open', 'shm_lock(write, exclusive)', ['op' => 'filecontrol', 'control' => 'chunk_size', 'value' => -1]]));
 $tests['vfs shm lock filecontrol current source next85 rejects bad name hint'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run85(['open', 'shm_lock(read)', ['op' => 'filecontrol', 'control' => 'name_hint', 'value' => '']]));

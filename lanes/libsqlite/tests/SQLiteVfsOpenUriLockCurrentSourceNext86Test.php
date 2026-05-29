@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run86 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext86($ops, $options + [
+$run86 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planUriOpenLock($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared',
 ]);
 

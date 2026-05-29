@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run128 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext128($ops, $options + [
+$run128 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::planOpenShmFileControlUri($ops, $options + [
     'filename' => 'file://localhost/srv/www/wp-content/database/wp%20uri.sqlite?mode=rw&cache=shared&vfs=unix-excl&psow=1&role=front&trace=one&trace=two&busy=1500&checkpoint=on',
 ]);
 
@@ -123,7 +123,7 @@ $tests['vfs open shm filecontrol uri current source next128 readonly bool off fa
 $tests['vfs open shm filecontrol uri current source next128 readonly persist ignored'] = static fn (TestRunner $t) => $t->same('ignored', $readonly()['events'][3]['status']);
 $tests['vfs open shm filecontrol uri current source next128 readonly data version fresh'] = static fn (TestRunner $t) => $t->same(false, $readonly()['events'][4]['stale_current_source']);
 
-$tests['vfs open shm filecontrol uri current source next128 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext128([]));
+$tests['vfs open shm filecontrol uri current source next128 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::planOpenShmFileControlUri([]));
 $tests['vfs open shm filecontrol uri current source next128 rejects empty uri parameter'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run128(['open(file:/srv/www/wp-content/database/bad.sqlite?mode=rw)', ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => '']]));
 $tests['vfs open shm filecontrol uri current source next128 rejects nul uri parameter'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run128(['open(file:/srv/www/wp-content/database/bad.sqlite?mode=rw)', ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => "bad\0name"]]));
 $tests['vfs open shm filecontrol uri current source next128 rejects bad int default'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run128(['open(file:/srv/www/wp-content/database/bad.sqlite?mode=rw)', ['op' => 'filecontrol', 'control' => 'uri_int', 'value' => ['parameter' => 'missing', 'default' => 'abc']]]));

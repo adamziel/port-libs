@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run139 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext139($ops, $options + [
+$run139 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::planTempUriFileControlRegression($ops, $options + [
     'filename' => 'file:/tmp/wp-import-temp.sqlite?mode=rw&cache=private&role=default&checkpoint=off',
 ]);
 
@@ -100,7 +100,7 @@ $tests['vfs temp uri filecontrol regression current source next139 plain temp in
 $tests['vfs temp uri filecontrol regression current source next139 plain temp chunk local'] = static fn (TestRunner $t) => $t->same('temporary-handle', $plainTemp()['events'][4]['routed_to']);
 $tests['vfs temp uri filecontrol regression current source next139 plain temp no persistent owners'] = static fn (TestRunner $t) => $t->same(0, $plainTemp()['next']['persistent_control_count']);
 
-$tests['vfs temp uri filecontrol regression current source next139 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext139([]));
+$tests['vfs temp uri filecontrol regression current source next139 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::planTempUriFileControlRegression([]));
 $tests['vfs temp uri filecontrol regression current source next139 rejects empty uri parameter'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run139([['op' => 'open', 'source' => 'temp', 'filename' => 'file:/tmp/bad.sqlite?mode=rw'], ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => '']]));
 $tests['vfs temp uri filecontrol regression current source next139 rejects nul uri parameter'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run139([['op' => 'open', 'source' => 'temp', 'filename' => 'file:/tmp/bad.sqlite?mode=rw'], ['op' => 'filecontrol', 'control' => 'uri_parameter', 'value' => "bad\0name"]]));
 

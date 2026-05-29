@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteVfsOpenLockFileControlCurrentSource.php';
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$first = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext90([
+$first = SQLiteVfsOpenLockFileControlCurrentSource::planLockingFileControlPersistence([
     'open',
     'file_control(chunk_size, 8192)',
     'lock(reserved)',
@@ -18,7 +18,7 @@ $first = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext90([
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix',
 ]);
 
-$second = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext90([
+$second = SQLiteVfsOpenLockFileControlCurrentSource::planLockingFileControlPersistence([
     'open(file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=private&vfs=unix)',
 ], [
     'current' => $first['events'][5]['next'],

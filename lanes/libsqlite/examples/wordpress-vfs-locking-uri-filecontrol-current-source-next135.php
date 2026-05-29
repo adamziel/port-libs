@@ -8,7 +8,7 @@ require_once __DIR__ . '/../src/SQLiteVfsLockByteUriShmCurrentSourceNext.php';
 
 use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
-$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext135([
+$plan = SQLiteVfsLockByteUriShmCurrentSourceNext::planLockingUriFileControl([
     'open(file:/srv/www/wp-content/database/wp%20fresh.sqlite-shm?mode=rw&cache=shared&vfs=unix-dotfile)',
     'open(file:/srv/www/wp-content/database/wp%20fresh.sqlite?mode=rw&cache=shared&vfs=unix-dotfile)',
     'lock reserved wp-import 19 on main',

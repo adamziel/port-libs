@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run138 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138($ops, $options + [
+$run138 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/bad-source.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -55,7 +55,7 @@ $tests = [
     'vfs shm bad source regression current source next138 final open by source' => static fn (TestRunner $t) => $t->same(['main' => 1, 'wal' => 0, 'shm' => 1], $baseline()['next']['open_by_source']),
     'vfs shm bad source regression current source next138 final shm lock count' => static fn (TestRunner $t) => $t->same(1, $baseline()['next']['shm_lock_count']),
     'vfs shm bad source regression current source next138 final connection count' => static fn (TestRunner $t) => $t->same(1, $baseline()['next']['persistent_shm_connection_count']),
-    'vfs shm bad source regression current source next138 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138([])),
+    'vfs shm bad source regression current source next138 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression([])),
 ];
 
 foreach ($badCases as $name => $ops) {

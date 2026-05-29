@@ -75,7 +75,7 @@ $plan146 = static fn (
     ?array $rows = null,
     ?array $order = null,
     ?array $needed = null,
-): array => SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materializeNext146(
+): array => SQLitePlannerExpressionCoveringRangeCurrentSourceNextPlan::materialize(
     $prepared ?? $preparedSource146(),
     $current ?? $currentSource146(),
     $next,

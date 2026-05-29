@@ -14,7 +14,7 @@ $badCurrent = [
 
 $blocked = false;
 try {
-    SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext131([
+    SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression([
         'open(main)',
     ], [
         'current' => $badCurrent,
@@ -24,7 +24,7 @@ try {
     $blocked = str_contains($e->getMessage(), 'SQLite SHM lock name is unsupported');
 }
 
-$valid = SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext131([
+$valid = SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression([
     'open(main)',
     'open(shm)',
     ['op' => 'shmlock', 'lock' => 'read0', 'mode' => 'shared', 'connection' => 'wp-cron'],

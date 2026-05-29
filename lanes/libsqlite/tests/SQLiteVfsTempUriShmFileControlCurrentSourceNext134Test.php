@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run134 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext134($ops, $options + [
+$run134 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planTempUriShmFileControl($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp-options.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -124,7 +124,7 @@ return [
     'vfs temp uri shm filecontrol current source next134 readonly temp shm lock blocked temp reason' => static fn (TestRunner $t) => $t->same('temporary database handles do not use persistent SHM byte-range locks', $readonlyTemp()['events'][4]['reason']),
     'vfs temp uri shm filecontrol current source next134 close only temp shm deleted' => static fn (TestRunner $t) => $t->same(['temp:temp-shm:1'], $closeOnlyTempShm()['next']['deleted_temp_owners']),
 
-    'vfs temp uri shm filecontrol current source next134 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext134([])),
+    'vfs temp uri shm filecontrol current source next134 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planTempUriShmFileControl([])),
     'vfs temp uri shm filecontrol current source next134 rejects bad uri authority' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(temp, file://example.com/tmp/wp.sqlite?mode=memory)'])),
     'vfs temp uri shm filecontrol current source next134 rejects bad shm range' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(shm)', ['op' => 'shmlock', 'source' => 'shm', 'lock' => 'read4', 'span' => 2, 'mode' => 'shared']])),
     'vfs temp uri shm filecontrol current source next134 rejects bad connection' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $invalid(['open(temp-shm)', ['op' => 'shmlock', 'source' => 'temp-shm', 'lock' => 'read0', 'span' => 1, 'mode' => 'shared', 'connection' => '../bad']])),

@@ -360,7 +360,7 @@ $read = array_merge($base, [
     'member_journal_header_digest' => $mapDigest($headers),
     'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_token' => 'stmt-vdbe-isnull-branch-condition-branch-condition-handoff-old',
 ]);
-$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::variantNext974(
+$plan = SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan::currentSourceVdbeArithmeticBranchConditionFence(
     $database,
     $master,
     $masterBytes,

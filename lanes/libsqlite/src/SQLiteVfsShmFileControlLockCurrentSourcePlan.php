@@ -11,9 +11,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext87(array $operations, array $options = []): array
+    public static function planShmFileControlLock(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-filecontrol-lock-current-source-next87');
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-shm-filecontrol-lock-current-source-next87');
     }
 
     /**
@@ -21,9 +21,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext92(array $operations, array $options = []): array
+    public static function planUriShmFileControl(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next92');
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next92');
     }
 
     /**
@@ -31,9 +31,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext104(array $operations, array $options = []): array
+    public static function planUriShmFileControlWithGeneration(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next104', true);
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-uri-shm-filecontrol-current-source-next104', true);
     }
 
     /**
@@ -41,9 +41,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext126(array $operations, array $options = []): array
+    public static function planUriShmFileControlLocks(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-uri-shm-filecontrol-lock-current-source-next126', true, true);
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-uri-shm-filecontrol-lock-current-source-next126', true, true);
     }
 
     /**
@@ -51,9 +51,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext131(array $operations, array $options = []): array
+    public static function planShmUriFileControlLocks(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-uri-filecontrol-lock-current-source-next131', true, true, true);
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-shm-uri-filecontrol-lock-current-source-next131', true, true, true);
     }
 
     /**
@@ -61,9 +61,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext138(array $operations, array $options = []): array
+    public static function planShmBadSourceRegression(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-shm-bad-source-regression-current-source-next138', true, true, true);
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-shm-bad-source-regression-current-source-next138', true, true, true, false, true);
     }
 
     /**
@@ -71,9 +71,9 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext134(array $operations, array $options = []): array
+    public static function planTempUriShmFileControl(array $operations, array $options = []): array
     {
-        return self::runCurrentSourceNext($operations, $options, 'vfs-temp-uri-shm-filecontrol-current-source-next134', true, true, true, true);
+        return self::runCurrentSourcePlan($operations, $options, 'vfs-temp-uri-shm-filecontrol-current-source-next134', true, true, true, true);
     }
 
     /**
@@ -81,17 +81,20 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    private static function runCurrentSourceNext(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false, bool $trackTemporary = false): array
+    private static function runCurrentSourcePlan(array $operations, array $options, string $dependencyMarker, bool $trackGeneration = false, bool $trackShmOwners = false, bool $trackShmRanges = false, bool $trackTemporary = false, bool $rejectTempHydratedSources = false): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS SHM file-control lock current-source requires operations');
         }
 
-        $state = self::normalizeCurrent($options['current'] ?? null);
+        $state = self::normalizeCurrent($options['current'] ?? null, $rejectTempHydratedSources);
         $events = [];
 
         foreach ($operations as $operation) {
             $op = self::normalizeOperation($operation);
+            if (!$trackTemporary && isset($op['source']) && in_array((string) $op['source'], ['temp', 'temp-shm'], true)) {
+                throw new \InvalidArgumentException('SQLite VFS temporary current source is unsupported for this plan');
+            }
             $before = self::snapshot($state);
 
             if ($op['kind'] === 'open') {
@@ -282,7 +285,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
      * @param array<string,mixed>|null $current
      * @return array<string,mixed>
      */
-    private static function normalizeCurrent(mixed $current): array
+    private static function normalizeCurrent(mixed $current, bool $rejectTempHydratedSources = false): array
     {
         if (!is_array($current)) {
             return [
@@ -298,7 +301,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             ];
         }
 
-        return [
+        $state = [
             'sequence' => max(0, (int) ($current['sequence'] ?? 0)),
             'current_source' => isset($current['current_source']) ? self::sourceName((string) $current['current_source']) : null,
             'handles' => is_array($current['handles'] ?? null) ? self::normalizeCurrentHandles($current['handles']) : [],
@@ -309,6 +312,35 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
             'persistent_generations' => is_array($current['persistent_generations'] ?? null) ? $current['persistent_generations'] : [],
             'deleted_temp_owners' => is_array($current['deleted_temp_owners'] ?? null) ? array_values(array_map('strval', $current['deleted_temp_owners'])) : [],
         ];
+
+        if ($rejectTempHydratedSources) {
+            self::assertNoTempHydratedSources($state);
+        }
+
+        return $state;
+    }
+
+    /**
+     * @param array<string,mixed> $state
+     */
+    private static function assertNoTempHydratedSources(array $state): void
+    {
+        $badSources = ['temp', 'temp-shm'];
+        if (in_array($state['current_source'], $badSources, true)) {
+            throw new \InvalidArgumentException('SQLite VFS hydrated current source is unsupported');
+        }
+
+        foreach (array_keys($state['source_handles']) as $source) {
+            if (in_array((string) $source, $badSources, true)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated source handle is unsupported');
+            }
+        }
+
+        foreach ($state['handles'] as $handle) {
+            if (is_array($handle) && in_array((string) ($handle['source'] ?? ''), $badSources, true)) {
+                throw new \InvalidArgumentException('SQLite VFS hydrated handle source is unsupported');
+            }
+        }
     }
 
     /**

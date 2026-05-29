@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run109 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext109($ops, $options + [
+$run109 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planSqliteUriFileControls($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20uri.sqlite?mode=rw&cache=shared&vfs=unix',
     'device_flags' => ['powersafe_overwrite', 'safe_append'],
     'sector_size' => 4096,
@@ -94,5 +94,5 @@ return [
     'vfs open lock filecontrol uri current source next109 missing int default zero without array' => static fn (TestRunner $t) => $t->same(0, $defaults()['events'][2]['value']),
     'vfs open lock filecontrol uri current source next109 rejects bad int default' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, $badDefaults),
     'vfs open lock filecontrol uri current source next109 rejects empty parameter array' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run109([['op' => 'open'], ['op' => 'filecontrol', 'control' => 'uri_boolean', 'value' => ['parameter' => '']]])),
-    'vfs open lock filecontrol uri current source next109 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext109([])),
+    'vfs open lock filecontrol uri current source next109 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planSqliteUriFileControls([])),
 ];

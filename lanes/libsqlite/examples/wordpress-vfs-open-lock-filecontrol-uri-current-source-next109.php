@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$plan = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext109([
+$plan = SQLiteVfsOpenLockFileControlCurrentSource::planSqliteUriFileControls([
     ['op' => 'open', 'filename' => 'file:/srv/www/wp-content/database/wp%20uri.sqlite?mode=rw&cache=shared&vfs=unix&wp_import=yes&busy_timeout=2500&retry=soon&role=import'],
     ['op' => 'filecontrol', 'control' => 'uri_boolean', 'value' => ['parameter' => 'wp_import', 'default' => false]],
     ['op' => 'filecontrol', 'control' => 'uri_int', 'value' => ['parameter' => 'busy_timeout', 'default' => 0]],

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run90 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext90($ops, $options + [
+$run90 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planLockingFileControlPersistence($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix',
 ]);
 
@@ -149,7 +149,7 @@ return [
     'vfs filecontrol locking persistence current source next90 explicit data version continues' => static fn (TestRunner $t) => $t->same(10, $explicitCurrent()['events'][2]['next']['persistent_controls']['/srv/www/wp-content/database/current.sqlite']['data_version']),
     'vfs filecontrol locking persistence current source next90 explicit reserve persists' => static fn (TestRunner $t) => $t->same(32, $explicitCurrent()['events'][2]['next']['persistent_controls']['/srv/www/wp-content/database/current.sqlite']['reserve_bytes']),
 
-    'vfs filecontrol locking persistence current source next90 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext90([])),
+    'vfs filecontrol locking persistence current source next90 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planLockingFileControlPersistence([])),
     'vfs filecontrol locking persistence current source next90 rejects bad lock' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run90(['open', 'lock(writer)'])),
     'vfs filecontrol locking persistence current source next90 rejects bad chunk' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run90(['open', 'lock(reserved)', 'file_control(chunk_size, -1)'])),
 ];

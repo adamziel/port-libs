@@ -6,7 +6,7 @@ require_once __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsShmOpenFileControlCurrentSourcePlan;
 
-$plan = SQLiteVfsShmOpenFileControlCurrentSourcePlan::currentSourceNext91([
+$plan = SQLiteVfsShmOpenFileControlCurrentSourcePlan::planShmOpenFileControl([
     'open(file:/srv/www/wp-content/database/wp%20copy.sqlite-shm?mode=rw&cache=shared)',
     'file_control(persist_wal, on)',
     'file_control(chunk_size, 16384)',

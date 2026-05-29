@@ -7,7 +7,7 @@ require_once __DIR__ . '/../src/SQLiteVfsOpenLockFileControlCurrentSource.php';
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$plan = SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext99([
+$plan = SQLiteVfsOpenLockFileControlCurrentSource::planGeneratedSourceFileControls([
     'open(file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix)',
     'open(file://localhost/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=private&vfs=unix)',
     ['op' => 'lock', 'handle' => 'db-1', 'value' => 'reserved'],

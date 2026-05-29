@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run82 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext82($ops, $options + [
+$run82 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planOpenLockFileControl($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -103,7 +103,7 @@ return [
     'vfs open lock filecontrol current source next82 missing filecontrol reports missing' => static fn (TestRunner $t) => $t->same('missing-handle', $run82([['op' => 'filecontrol', 'handle' => 'missing', 'control' => 'mmap_size', 'value' => 1]])['status']),
     'vfs open lock filecontrol current source next82 missing lock reports missing' => static fn (TestRunner $t) => $t->same('missing-handle', $run82([['op' => 'lock', 'handle' => 'missing', 'value' => 'shared']])['status']),
     'vfs open lock filecontrol current source next82 missing close reports missing' => static fn (TestRunner $t) => $t->same('missing-handle', $run82([['op' => 'close', 'handle' => 'missing']])['status']),
-    'vfs open lock filecontrol current source next82 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext82([])),
+    'vfs open lock filecontrol current source next82 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planOpenLockFileControl([])),
     'vfs open lock filecontrol current source next82 rejects unsupported operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run82(['checkpoint'])),
     'vfs open lock filecontrol current source next82 rejects bad lock level' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run82(['open', 'lock(bogus)'])),
     'vfs open lock filecontrol current source next82 rejects bad name hint' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run82(['open', ['op' => 'filecontrol', 'control' => 'name_hint', 'value' => '']])),

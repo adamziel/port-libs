@@ -234,7 +234,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
 
         if (count($args) < 745) {
-            return self::variantNext974(...$args);
+            return self::currentSourceVdbeArithmeticBranchConditionFence(...$args);
         }
 
         return self::currentSourceVdbeSavepointBranchConditionFence(...$args);
@@ -26794,7 +26794,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext261($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'pager_hot_journal_header_token'), self::stripReadFenceToken($nextReads, 'pager_hot_journal_header_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'pager_hot_journal_header_token', $currentPagerHotJournalHeaderToken, 271, 'hot_journal_header', 'reader_cache_hot_journal_header_must_match_current_master_journal_source');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'pager_hot_journal_header_token', $currentPagerHotJournalHeaderToken, 271, 'hot_journal_header', 'reader_cache_hot_journal_header_must_match_current_master_journal_source');
     }
 
     /** @return array<string,mixed> */
@@ -26802,7 +26802,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext271($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'master_journal_member_epoch_token'), self::stripReadFenceToken($nextReads, 'master_journal_member_epoch_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'master_journal_member_epoch_token', $currentPagerMasterJournalMemberEpochToken, 272, 'master_journal_member_epoch', 'reader_cache_master_member_epoch_must_match_current_master_journal_source');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'master_journal_member_epoch_token', $currentPagerMasterJournalMemberEpochToken, 272, 'master_journal_member_epoch', 'reader_cache_master_member_epoch_must_match_current_master_journal_source');
     }
 
     /** @return array<string,mixed> */
@@ -26810,7 +26810,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext272($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_schema_cookie_token'), self::stripReadFenceToken($nextReads, 'reader_cache_schema_cookie_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_schema_cookie_token', $currentPagerReaderCacheSchemaCookieToken, 273, 'reader_cache_schema_cookie', 'reader_cache_schema_cookie_must_match_reparsed_current_source_schema');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_schema_cookie_token', $currentPagerReaderCacheSchemaCookieToken, 273, 'reader_cache_schema_cookie', 'reader_cache_schema_cookie_must_match_reparsed_current_source_schema');
     }
 
     /** @return array<string,mixed> */
@@ -26818,7 +26818,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext273($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_vacuum_root_token'), self::stripReadFenceToken($nextReads, 'reader_cache_vacuum_root_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_vacuum_root_token', $currentPagerReaderCacheVacuumRootToken, 274, 'reader_cache_vacuum_root', 'reader_cache_vacuum_root_must_match_current_source_rootpage_map');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_vacuum_root_token', $currentPagerReaderCacheVacuumRootToken, 274, 'reader_cache_vacuum_root', 'reader_cache_vacuum_root_must_match_current_source_rootpage_map');
     }
 
     /** @return array<string,mixed> */
@@ -26826,7 +26826,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext274($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'pager_reserved_lock_token'), self::stripReadFenceToken($nextReads, 'pager_reserved_lock_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'pager_reserved_lock_token', $currentPagerReservedLockToken, 275, 'pager_reserved_lock', 'reader_cache_reserved_lock_must_match_current_pager_source');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'pager_reserved_lock_token', $currentPagerReservedLockToken, 275, 'pager_reserved_lock', 'reader_cache_reserved_lock_must_match_current_pager_source');
     }
 
     /** @return array<string,mixed> */
@@ -26834,7 +26834,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext275($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_page_count_token'), self::stripReadFenceToken($nextReads, 'reader_cache_page_count_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_page_count_token', $currentReaderCachePageCountToken, 276, 'reader_cache_page_count', 'reader_cache_page_count_must_match_current_database_size');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_page_count_token', $currentReaderCachePageCountToken, 276, 'reader_cache_page_count', 'reader_cache_page_count_must_match_current_database_size');
     }
 
     /** @return array<string,mixed> */
@@ -26842,7 +26842,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext276($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_schema_version_token'), self::stripReadFenceToken($nextReads, 'reader_cache_schema_version_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_schema_version_token', $currentReaderCacheSchemaVersionToken, 277, 'reader_cache_schema_version', 'reader_cache_schema_version_must_match_current_schema_source');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_schema_version_token', $currentReaderCacheSchemaVersionToken, 277, 'reader_cache_schema_version', 'reader_cache_schema_version_must_match_current_schema_source');
     }
 
     /** @return array<string,mixed> */
@@ -26850,7 +26850,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext277($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_change_counter_token'), self::stripReadFenceToken($nextReads, 'reader_cache_change_counter_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_change_counter_token', $currentReaderCacheChangeCounterToken, 278, 'reader_cache_change_counter', 'reader_cache_change_counter_must_match_current_database_header');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_change_counter_token', $currentReaderCacheChangeCounterToken, 278, 'reader_cache_change_counter', 'reader_cache_change_counter_must_match_current_database_header');
     }
 
 
@@ -26859,7 +26859,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext278($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_freelist_trunk_token'), self::stripReadFenceToken($nextReads, 'reader_cache_freelist_trunk_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_freelist_trunk_token', $currentReaderCacheFreelistTrunkToken, 279, 'reader_cache_freelist_trunk', 'reader_cache_freelist_trunk_must_match_current_database_header');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_freelist_trunk_token', $currentReaderCacheFreelistTrunkToken, 279, 'reader_cache_freelist_trunk', 'reader_cache_freelist_trunk_must_match_current_database_header');
     }
 
     /** @return array<string,mixed> */
@@ -26867,7 +26867,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext279($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_auto_vacuum_token'), self::stripReadFenceToken($nextReads, 'reader_cache_auto_vacuum_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_auto_vacuum_token', $currentReaderCacheAutoVacuumToken, 280, 'reader_cache_auto_vacuum', 'reader_cache_auto_vacuum_must_match_current_pointer_map_source');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_auto_vacuum_token', $currentReaderCacheAutoVacuumToken, 280, 'reader_cache_auto_vacuum', 'reader_cache_auto_vacuum_must_match_current_pointer_map_source');
     }
 
     /** @return array<string,mixed> */
@@ -26875,7 +26875,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext280($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_encoding_token'), self::stripReadFenceToken($nextReads, 'reader_cache_encoding_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_encoding_token', $currentReaderCacheEncodingToken, 281, 'reader_cache_encoding', 'reader_cache_encoding_must_match_current_database_header');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_encoding_token', $currentReaderCacheEncodingToken, 281, 'reader_cache_encoding', 'reader_cache_encoding_must_match_current_database_header');
     }
 
     /** @return array<string,mixed> */
@@ -26883,7 +26883,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext281($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_text_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_text_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_text_schema_token', $currentReaderCacheTextSchemaToken, 282, 'reader_cache_text_schema', 'reader_cache_text_schema_must_match_current_schema_payload');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_text_schema_token', $currentReaderCacheTextSchemaToken, 282, 'reader_cache_text_schema', 'reader_cache_text_schema_must_match_current_schema_payload');
     }
 
     /** @return array<string,mixed> */
@@ -26891,7 +26891,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext282($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_index_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_index_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_index_schema_token', $currentReaderCacheIndexSchemaToken, 283, 'reader_cache_index_schema', 'reader_cache_index_schema_must_match_current_index_payload');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_index_schema_token', $currentReaderCacheIndexSchemaToken, 283, 'reader_cache_index_schema', 'reader_cache_index_schema_must_match_current_index_payload');
     }
 
     /** @return array<string,mixed> */
@@ -26899,7 +26899,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext283($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_trigger_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_trigger_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_trigger_schema_token', $currentReaderCacheTriggerSchemaToken, 284, 'reader_cache_trigger_schema', 'reader_cache_trigger_schema_must_match_current_trigger_payload');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_trigger_schema_token', $currentReaderCacheTriggerSchemaToken, 284, 'reader_cache_trigger_schema', 'reader_cache_trigger_schema_must_match_current_trigger_payload');
     }
 
     /** @return array<string,mixed> */
@@ -26907,7 +26907,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext284($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_view_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_view_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_view_schema_token', $currentReaderCacheViewSchemaToken, 285, 'reader_cache_view_schema', 'reader_cache_view_schema_must_match_current_view_payload');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_view_schema_token', $currentReaderCacheViewSchemaToken, 285, 'reader_cache_view_schema', 'reader_cache_view_schema_must_match_current_view_payload');
     }
 
     /** @return array<string,mixed> */
@@ -26915,7 +26915,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext285($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_virtual_table_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_virtual_table_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_virtual_table_schema_token', $currentReaderCacheVirtualTableSchemaToken, 286, 'reader_cache_virtual_table_schema', 'reader_cache_virtual_table_schema_must_match_current_virtual_table_payload');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_virtual_table_schema_token', $currentReaderCacheVirtualTableSchemaToken, 286, 'reader_cache_virtual_table_schema', 'reader_cache_virtual_table_schema_must_match_current_virtual_table_payload');
     }
 
     /** @return array<string,mixed> */
@@ -26923,7 +26923,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext286($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_module_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_module_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_module_schema_token', $currentReaderCacheModuleSchemaToken, 287, 'reader_cache_module_schema', 'reader_cache_module_schema_must_match_current_virtual_module_catalog');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_module_schema_token', $currentReaderCacheModuleSchemaToken, 287, 'reader_cache_module_schema', 'reader_cache_module_schema_must_match_current_virtual_module_catalog');
     }
 
     /** @return array<string,mixed> */
@@ -26931,7 +26931,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext287($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_pragma_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_pragma_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_pragma_schema_token', $currentReaderCachePragmaSchemaToken, 288, 'reader_cache_pragma_schema', 'reader_cache_pragma_schema_must_match_current_schema_pragma_catalog');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_pragma_schema_token', $currentReaderCachePragmaSchemaToken, 288, 'reader_cache_pragma_schema', 'reader_cache_pragma_schema_must_match_current_schema_pragma_catalog');
     }
 
     /** @return array<string,mixed> */
@@ -26939,7 +26939,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext288($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_collation_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_collation_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_collation_schema_token', $currentReaderCacheCollationSchemaToken, 289, 'reader_cache_collation_schema', 'reader_cache_collation_schema_must_match_current_collation_catalog');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_collation_schema_token', $currentReaderCacheCollationSchemaToken, 289, 'reader_cache_collation_schema', 'reader_cache_collation_schema_must_match_current_collation_catalog');
     }
 
     /** @return array<string,mixed> */
@@ -26947,7 +26947,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext289($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_authorizer_schema_token'), self::stripReadFenceToken($nextReads, 'reader_cache_authorizer_schema_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken, $currentReaderCacheCollationSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_authorizer_schema_token', $currentReaderCacheAuthorizerSchemaToken, 290, 'reader_cache_authorizer_schema', 'reader_cache_authorizer_schema_must_match_current_authorizer_catalog');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_authorizer_schema_token', $currentReaderCacheAuthorizerSchemaToken, 290, 'reader_cache_authorizer_schema', 'reader_cache_authorizer_schema_must_match_current_authorizer_catalog');
     }
 
     /** @return array<string,mixed> */
@@ -26955,7 +26955,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     {
         $base = self::variantNext290($databasePath, $masterJournalPath, $currentMasterJournalBytes, $databaseBytes, $pageSize, $recoveredPages, self::stripReaderCacheFenceToken($readerCache, 'reader_cache_transaction_state_token'), self::stripReadFenceToken($nextReads, 'reader_cache_transaction_state_token'), $currentSourceId, $currentEpoch, $currentPublicationGeneration, $currentMasterSourceDigest, $currentRecoverySequence, $currentMemberJournalTokens, $currentMemberJournalHeaderDigests, $currentMasterJournalFileToken, $currentDatabaseFileToken, $currentMasterJournalCleanupToken, $currentReaderLeaseToken, $currentPagerCacheSourceToken, $currentReadTransactionToken, $currentSchemaReparseToken, $currentStatementSchemaRootToken, $currentSourceProvenanceToken, $currentPagerReaderCacheGenerationToken, $currentReaderSnapshotToken, $currentMasterJournalRecoveryReceiptToken, $currentPagerSpillDrainToken, $currentPagerRollbackJournalReaderSourceToken, $currentPagerHotJournalHeaderToken, $currentPagerMasterJournalMemberEpochToken, $currentPagerReaderCacheSchemaCookieToken, $currentPagerReaderCacheVacuumRootToken, $currentPagerReservedLockToken, $currentReaderCachePageCountToken, $currentReaderCacheSchemaVersionToken, $currentReaderCacheChangeCounterToken, $currentReaderCacheFreelistTrunkToken, $currentReaderCacheAutoVacuumToken, $currentReaderCacheEncodingToken, $currentReaderCacheTextSchemaToken, $currentReaderCacheIndexSchemaToken, $currentReaderCacheTriggerSchemaToken, $currentReaderCacheViewSchemaToken, $currentReaderCacheVirtualTableSchemaToken, $currentReaderCacheModuleSchemaToken, $currentReaderCachePragmaSchemaToken, $currentReaderCacheCollationSchemaToken, $currentReaderCacheAuthorizerSchemaToken);
 
-        return self::applyReaderCacheFenceNext271274($base, $readerCache, $nextReads, 'reader_cache_transaction_state_token', $currentReaderCacheTransactionStateToken, 291, 'reader_cache_transaction_state', 'reader_cache_transaction_state_must_match_current_transaction_state');
+        return self::applyReaderCacheFence($base, $readerCache, $nextReads, 'reader_cache_transaction_state_token', $currentReaderCacheTransactionStateToken, 291, 'reader_cache_transaction_state', 'reader_cache_transaction_state_must_match_current_transaction_state');
     }
 
     /** @return array<string,mixed> */
@@ -26967,7 +26967,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext291(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_commit_phase_token', $currentToken, 292, 'reader_cache_commit_phase', 'reader_cache_commit_phase_must_match_current_commit_phase');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_commit_phase_token', $currentToken, 292, 'reader_cache_commit_phase', 'reader_cache_commit_phase_must_match_current_commit_phase');
     }
 
     /** @return array<string,mixed> */
@@ -26979,7 +26979,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext292(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_busy_handler_token', $currentToken, 293, 'reader_cache_busy_handler', 'reader_cache_busy_handler_must_match_current_busy_handler_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_busy_handler_token', $currentToken, 293, 'reader_cache_busy_handler', 'reader_cache_busy_handler_must_match_current_busy_handler_state');
     }
 
     /** @return array<string,mixed> */
@@ -26991,7 +26991,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext293(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_savepoint_stack_token', $currentToken, 294, 'reader_cache_savepoint_stack', 'reader_cache_savepoint_stack_must_match_current_savepoint_stack');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_savepoint_stack_token', $currentToken, 294, 'reader_cache_savepoint_stack', 'reader_cache_savepoint_stack_must_match_current_savepoint_stack');
     }
 
     /** @return array<string,mixed> */
@@ -27003,7 +27003,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext294(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_statement_journal_token', $currentToken, 295, 'reader_cache_statement_journal', 'reader_cache_statement_journal_must_match_current_statement_journal');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_statement_journal_token', $currentToken, 295, 'reader_cache_statement_journal', 'reader_cache_statement_journal_must_match_current_statement_journal');
     }
 
     /** @return array<string,mixed> */
@@ -27015,7 +27015,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext295(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_temp_page_token', $currentToken, 296, 'reader_cache_temp_page', 'reader_cache_temp_page_must_match_current_temp_page_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_temp_page_token', $currentToken, 296, 'reader_cache_temp_page', 'reader_cache_temp_page_must_match_current_temp_page_state');
     }
 
     /** @return array<string,mixed> */
@@ -27027,7 +27027,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext296(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_dirty_list_token', $currentToken, 297, 'reader_cache_dirty_list', 'reader_cache_dirty_list_must_match_current_dirty_page_list');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_dirty_list_token', $currentToken, 297, 'reader_cache_dirty_list', 'reader_cache_dirty_list_must_match_current_dirty_page_list');
     }
 
     /** @return array<string,mixed> */
@@ -27039,7 +27039,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext297(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_spill_epoch_token', $currentToken, 298, 'reader_cache_spill_epoch', 'reader_cache_spill_epoch_must_match_current_spill_epoch');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_spill_epoch_token', $currentToken, 298, 'reader_cache_spill_epoch', 'reader_cache_spill_epoch_must_match_current_spill_epoch');
     }
 
     /** @return array<string,mixed> */
@@ -27051,7 +27051,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext298(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_locking_mode_token', $currentToken, 299, 'reader_cache_locking_mode', 'reader_cache_locking_mode_must_match_current_locking_mode');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_locking_mode_token', $currentToken, 299, 'reader_cache_locking_mode', 'reader_cache_locking_mode_must_match_current_locking_mode');
     }
 
     /** @return array<string,mixed> */
@@ -27063,7 +27063,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext299(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_journal_mode_token', $currentToken, 300, 'reader_cache_journal_mode', 'reader_cache_journal_mode_must_match_current_journal_mode');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_journal_mode_token', $currentToken, 300, 'reader_cache_journal_mode', 'reader_cache_journal_mode_must_match_current_journal_mode');
     }
 
     /** @return array<string,mixed> */
@@ -27075,7 +27075,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext300(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_synchronous_token', $currentToken, 301, 'reader_cache_synchronous', 'reader_cache_synchronous_must_match_current_synchronous_setting');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_synchronous_token', $currentToken, 301, 'reader_cache_synchronous', 'reader_cache_synchronous_must_match_current_synchronous_setting');
     }
 
     /** @return array<string,mixed> */
@@ -27087,7 +27087,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext301(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_mmap_size_token', $currentToken, 302, 'reader_cache_mmap_size', 'reader_cache_mmap_size_must_match_current_mmap_size');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_mmap_size_token', $currentToken, 302, 'reader_cache_mmap_size', 'reader_cache_mmap_size_must_match_current_mmap_size');
     }
 
     /** @return array<string,mixed> */
@@ -27099,7 +27099,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext302(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_cache_size_token', $currentToken, 303, 'reader_cache_cache_size', 'reader_cache_cache_size_must_match_current_cache_size');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_cache_size_token', $currentToken, 303, 'reader_cache_cache_size', 'reader_cache_cache_size_must_match_current_cache_size');
     }
 
     /** @return array<string,mixed> */
@@ -27111,7 +27111,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext303(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_wal_autocheckpoint_token', $currentToken, 304, 'reader_cache_wal_autocheckpoint', 'reader_cache_wal_autocheckpoint_must_match_current_wal_autocheckpoint');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_wal_autocheckpoint_token', $currentToken, 304, 'reader_cache_wal_autocheckpoint', 'reader_cache_wal_autocheckpoint_must_match_current_wal_autocheckpoint');
     }
 
     /** @return array<string,mixed> */
@@ -27123,7 +27123,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext304(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_query_only_token', $currentToken, 305, 'reader_cache_query_only', 'reader_cache_query_only_must_match_current_query_only_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_query_only_token', $currentToken, 305, 'reader_cache_query_only', 'reader_cache_query_only_must_match_current_query_only_state');
     }
 
     /** @return array<string,mixed> */
@@ -27135,7 +27135,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext305(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_foreign_key_token', $currentToken, 306, 'reader_cache_foreign_key', 'reader_cache_foreign_key_must_match_current_foreign_key_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_foreign_key_token', $currentToken, 306, 'reader_cache_foreign_key', 'reader_cache_foreign_key_must_match_current_foreign_key_state');
     }
 
     /** @return array<string,mixed> */
@@ -27147,7 +27147,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext306(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_defer_foreign_key_token', $currentToken, 307, 'reader_cache_defer_foreign_key', 'reader_cache_defer_foreign_key_must_match_current_deferred_foreign_key_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_defer_foreign_key_token', $currentToken, 307, 'reader_cache_defer_foreign_key', 'reader_cache_defer_foreign_key_must_match_current_deferred_foreign_key_state');
     }
 
     /** @return array<string,mixed> */
@@ -27159,7 +27159,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext307(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_recursive_trigger_token', $currentToken, 308, 'reader_cache_recursive_trigger', 'reader_cache_recursive_trigger_must_match_current_recursive_trigger_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_recursive_trigger_token', $currentToken, 308, 'reader_cache_recursive_trigger', 'reader_cache_recursive_trigger_must_match_current_recursive_trigger_state');
     }
 
     /** @return array<string,mixed> */
@@ -27171,7 +27171,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext308(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_trusted_schema_token', $currentToken, 309, 'reader_cache_trusted_schema', 'reader_cache_trusted_schema_must_match_current_trusted_schema_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_trusted_schema_token', $currentToken, 309, 'reader_cache_trusted_schema', 'reader_cache_trusted_schema_must_match_current_trusted_schema_state');
     }
 
     /** @return array<string,mixed> */
@@ -27183,7 +27183,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext309(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_ignore_check_constraints_token', $currentToken, 310, 'reader_cache_ignore_check_constraints', 'reader_cache_ignore_check_constraints_must_match_current_ignore_check_constraints_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_ignore_check_constraints_token', $currentToken, 310, 'reader_cache_ignore_check_constraints', 'reader_cache_ignore_check_constraints_must_match_current_ignore_check_constraints_state');
     }
 
     /** @return array<string,mixed> */
@@ -27195,7 +27195,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext310(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 311, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_application_id');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 311, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_application_id');
     }
 
     /** @return array<string,mixed> */
@@ -27207,7 +27207,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext311(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_user_version_token', $currentToken, 312, 'reader_cache_user_version', 'reader_cache_user_version_must_match_current_user_version');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_user_version_token', $currentToken, 312, 'reader_cache_user_version', 'reader_cache_user_version_must_match_current_user_version');
     }
 
     /** @return array<string,mixed> */
@@ -27219,7 +27219,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext312(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_schema_format_token', $currentToken, 313, 'reader_cache_schema_format', 'reader_cache_schema_format_must_match_current_schema_format');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_schema_format_token', $currentToken, 313, 'reader_cache_schema_format', 'reader_cache_schema_format_must_match_current_schema_format');
     }
 
     /** @return array<string,mixed> */
@@ -27231,7 +27231,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext313(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_auto_vacuum_incremental_token', $currentToken, 314, 'reader_cache_auto_vacuum_incremental', 'reader_cache_auto_vacuum_incremental_must_match_current_auto_vacuum_incremental_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_auto_vacuum_incremental_token', $currentToken, 314, 'reader_cache_auto_vacuum_incremental', 'reader_cache_auto_vacuum_incremental_must_match_current_auto_vacuum_incremental_state');
     }
 
     /** @return array<string,mixed> */
@@ -27243,7 +27243,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext310(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 315, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_database_header');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_application_id_token', $currentToken, 315, 'reader_cache_application_id', 'reader_cache_application_id_must_match_current_database_header');
     }
 
     /** @return array<string,mixed> */
@@ -27255,7 +27255,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext315(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_user_version_token', $currentToken, 316, 'reader_cache_user_version', 'reader_cache_user_version_must_match_current_database_header');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_user_version_token', $currentToken, 316, 'reader_cache_user_version', 'reader_cache_user_version_must_match_current_database_header');
     }
 
     /** @return array<string,mixed> */
@@ -27267,7 +27267,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext316(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_data_version_token', $currentToken, 317, 'reader_cache_data_version', 'reader_cache_data_version_must_match_current_reader_observation');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_data_version_token', $currentToken, 317, 'reader_cache_data_version', 'reader_cache_data_version_must_match_current_reader_observation');
     }
 
     /** @return array<string,mixed> */
@@ -27279,7 +27279,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext317(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_schema_lock_token', $currentToken, 318, 'reader_cache_schema_lock', 'reader_cache_schema_lock_must_match_current_shared_schema_lock');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_schema_lock_token', $currentToken, 318, 'reader_cache_schema_lock', 'reader_cache_schema_lock_must_match_current_shared_schema_lock');
     }
 
     /** @return array<string,mixed> */
@@ -27291,7 +27291,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext318(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_secure_delete_token', $currentToken, 319, 'reader_cache_secure_delete', 'reader_cache_secure_delete_must_match_current_secure_delete_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_secure_delete_token', $currentToken, 319, 'reader_cache_secure_delete', 'reader_cache_secure_delete_must_match_current_secure_delete_state');
     }
 
     /** @return array<string,mixed> */
@@ -27303,7 +27303,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext319(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_temp_store_token', $currentToken, 320, 'reader_cache_temp_store', 'reader_cache_temp_store_must_match_current_temp_store_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_temp_store_token', $currentToken, 320, 'reader_cache_temp_store', 'reader_cache_temp_store_must_match_current_temp_store_state');
     }
 
     /** @return array<string,mixed> */
@@ -27315,7 +27315,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext320(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_cache_spill_token', $currentToken, 321, 'reader_cache_cache_spill', 'reader_cache_cache_spill_must_match_current_cache_spill_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_cache_spill_token', $currentToken, 321, 'reader_cache_cache_spill', 'reader_cache_cache_spill_must_match_current_cache_spill_state');
     }
 
     /** @return array<string,mixed> */
@@ -27327,7 +27327,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext321(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_cell_size_check_token', $currentToken, 322, 'reader_cache_cell_size_check', 'reader_cache_cell_size_check_must_match_current_cell_size_check_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_cell_size_check_token', $currentToken, 322, 'reader_cache_cell_size_check', 'reader_cache_cell_size_check_must_match_current_cell_size_check_state');
     }
 
     /** @return array<string,mixed> */
@@ -27339,7 +27339,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext322(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_reverse_unordered_selects_token', $currentToken, 323, 'reader_cache_reverse_unordered_selects', 'reader_cache_reverse_unordered_selects_must_match_current_reverse_unordered_selects_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_reverse_unordered_selects_token', $currentToken, 323, 'reader_cache_reverse_unordered_selects', 'reader_cache_reverse_unordered_selects_must_match_current_reverse_unordered_selects_state');
     }
 
     /** @return array<string,mixed> */
@@ -27351,7 +27351,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext323(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_automatic_index_token', $currentToken, 324, 'reader_cache_automatic_index', 'reader_cache_automatic_index_must_match_current_automatic_index_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_automatic_index_token', $currentToken, 324, 'reader_cache_automatic_index', 'reader_cache_automatic_index_must_match_current_automatic_index_state');
     }
 
     /** @return array<string,mixed> */
@@ -27363,7 +27363,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext324(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_case_sensitive_like_token', $currentToken, 325, 'reader_cache_case_sensitive_like', 'reader_cache_case_sensitive_like_must_match_current_case_sensitive_like_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_case_sensitive_like_token', $currentToken, 325, 'reader_cache_case_sensitive_like', 'reader_cache_case_sensitive_like_must_match_current_case_sensitive_like_state');
     }
 
     /** @return array<string,mixed> */
@@ -27375,7 +27375,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext325(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_count_changes_token', $currentToken, 326, 'reader_cache_count_changes', 'reader_cache_count_changes_must_match_current_count_changes_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_count_changes_token', $currentToken, 326, 'reader_cache_count_changes', 'reader_cache_count_changes_must_match_current_count_changes_state');
     }
 
     /** @return array<string,mixed> */
@@ -27387,7 +27387,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext326(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_checkpoint_fullfsync_token', $currentToken, 327, 'reader_cache_checkpoint_fullfsync', 'reader_cache_checkpoint_fullfsync_must_match_current_checkpoint_fullfsync_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_checkpoint_fullfsync_token', $currentToken, 327, 'reader_cache_checkpoint_fullfsync', 'reader_cache_checkpoint_fullfsync_must_match_current_checkpoint_fullfsync_state');
     }
 
     /** @return array<string,mixed> */
@@ -27399,7 +27399,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext327(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_fullfsync_token', $currentToken, 328, 'reader_cache_fullfsync', 'reader_cache_fullfsync_must_match_current_fullfsync_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_fullfsync_token', $currentToken, 328, 'reader_cache_fullfsync', 'reader_cache_fullfsync_must_match_current_fullfsync_state');
     }
 
     /** @return array<string,mixed> */
@@ -27411,7 +27411,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext328(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_legacy_file_format_token', $currentToken, 329, 'reader_cache_legacy_file_format', 'reader_cache_legacy_file_format_must_match_current_legacy_file_format_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_legacy_file_format_token', $currentToken, 329, 'reader_cache_legacy_file_format', 'reader_cache_legacy_file_format_must_match_current_legacy_file_format_state');
     }
 
     /** @return array<string,mixed> */
@@ -27423,7 +27423,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext329(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_read_uncommitted_token', $currentToken, 330, 'reader_cache_read_uncommitted', 'reader_cache_read_uncommitted_must_match_current_read_uncommitted_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_read_uncommitted_token', $currentToken, 330, 'reader_cache_read_uncommitted', 'reader_cache_read_uncommitted_must_match_current_read_uncommitted_state');
     }
 
     /** @return array<string,mixed> */
@@ -27435,7 +27435,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext330(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_reverse_scan_order_token', $currentToken, 331, 'reader_cache_reverse_scan_order', 'reader_cache_reverse_scan_order_must_match_current_reverse_scan_order_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_reverse_scan_order_token', $currentToken, 331, 'reader_cache_reverse_scan_order', 'reader_cache_reverse_scan_order_must_match_current_reverse_scan_order_state');
     }
 
     /** @return array<string,mixed> */
@@ -27447,7 +27447,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext331(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_defensive_token', $currentToken, 332, 'reader_cache_defensive', 'reader_cache_defensive_must_match_current_defensive_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_defensive_token', $currentToken, 332, 'reader_cache_defensive', 'reader_cache_defensive_must_match_current_defensive_state');
     }
 
     /** @return array<string,mixed> */
@@ -27459,7 +27459,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext332(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_writable_schema_token', $currentToken, 333, 'reader_cache_writable_schema', 'reader_cache_writable_schema_must_match_current_writable_schema_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_writable_schema_token', $currentToken, 333, 'reader_cache_writable_schema', 'reader_cache_writable_schema_must_match_current_writable_schema_state');
     }
 
     /** @return array<string,mixed> */
@@ -27471,7 +27471,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext333(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_journal_size_limit_token', $currentToken, 334, 'reader_cache_journal_size_limit', 'reader_cache_journal_size_limit_must_match_current_journal_size_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_journal_size_limit_token', $currentToken, 334, 'reader_cache_journal_size_limit', 'reader_cache_journal_size_limit_must_match_current_journal_size_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27483,7 +27483,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext334(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_threads_token', $currentToken, 335, 'reader_cache_threads', 'reader_cache_threads_must_match_current_threads_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_threads_token', $currentToken, 335, 'reader_cache_threads', 'reader_cache_threads_must_match_current_threads_state');
     }
 
     /** @return array<string,mixed> */
@@ -27495,7 +27495,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext335(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_optimize_token', $currentToken, 336, 'reader_cache_optimize', 'reader_cache_optimize_must_match_current_optimize_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_optimize_token', $currentToken, 336, 'reader_cache_optimize', 'reader_cache_optimize_must_match_current_optimize_state');
     }
 
     /** @return array<string,mixed> */
@@ -27507,7 +27507,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext336(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_analysis_limit_token', $currentToken, 337, 'reader_cache_analysis_limit', 'reader_cache_analysis_limit_must_match_current_analysis_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_analysis_limit_token', $currentToken, 337, 'reader_cache_analysis_limit', 'reader_cache_analysis_limit_must_match_current_analysis_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27519,7 +27519,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext337(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_hard_heap_limit_token', $currentToken, 338, 'reader_cache_hard_heap_limit', 'reader_cache_hard_heap_limit_must_match_current_hard_heap_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_hard_heap_limit_token', $currentToken, 338, 'reader_cache_hard_heap_limit', 'reader_cache_hard_heap_limit_must_match_current_hard_heap_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27531,7 +27531,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext338(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_soft_heap_limit_token', $currentToken, 339, 'reader_cache_soft_heap_limit', 'reader_cache_soft_heap_limit_must_match_current_soft_heap_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_soft_heap_limit_token', $currentToken, 339, 'reader_cache_soft_heap_limit', 'reader_cache_soft_heap_limit_must_match_current_soft_heap_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27543,7 +27543,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext339(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_page_size_token', $currentToken, 340, 'reader_cache_page_size', 'reader_cache_page_size_must_match_current_page_size_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_page_size_token', $currentToken, 340, 'reader_cache_page_size', 'reader_cache_page_size_must_match_current_page_size_state');
     }
 
     /** @return array<string,mixed> */
@@ -27555,7 +27555,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext340(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_max_page_count_token', $currentToken, 341, 'reader_cache_max_page_count', 'reader_cache_max_page_count_must_match_current_max_page_count_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_max_page_count_token', $currentToken, 341, 'reader_cache_max_page_count', 'reader_cache_max_page_count_must_match_current_max_page_count_state');
     }
 
     /** @return array<string,mixed> */
@@ -27567,7 +27567,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext341(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_locking_proxy_file_token', $currentToken, 342, 'reader_cache_locking_proxy_file', 'reader_cache_locking_proxy_file_must_match_current_locking_proxy_file_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_locking_proxy_file_token', $currentToken, 342, 'reader_cache_locking_proxy_file', 'reader_cache_locking_proxy_file_must_match_current_locking_proxy_file_state');
     }
 
     /** @return array<string,mixed> */
@@ -27579,7 +27579,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext342(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_page_cache_overflow_token', $currentToken, 343, 'reader_cache_page_cache_overflow', 'reader_cache_page_cache_overflow_must_match_current_page_cache_overflow_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_page_cache_overflow_token', $currentToken, 343, 'reader_cache_page_cache_overflow', 'reader_cache_page_cache_overflow_must_match_current_page_cache_overflow_state');
     }
 
     /** @return array<string,mixed> */
@@ -27591,7 +27591,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext343(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_scratch_allocator_token', $currentToken, 344, 'reader_cache_scratch_allocator', 'reader_cache_scratch_allocator_must_match_current_scratch_allocator_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_scratch_allocator_token', $currentToken, 344, 'reader_cache_scratch_allocator', 'reader_cache_scratch_allocator_must_match_current_scratch_allocator_state');
     }
 
     /** @return array<string,mixed> */
@@ -27603,7 +27603,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext344(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_lookaside_token', $currentToken, 345, 'reader_cache_lookaside', 'reader_cache_lookaside_must_match_current_lookaside_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_lookaside_token', $currentToken, 345, 'reader_cache_lookaside', 'reader_cache_lookaside_must_match_current_lookaside_state');
     }
 
     /** @return array<string,mixed> */
@@ -27615,7 +27615,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext345(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pcache_dirty_limit_token', $currentToken, 346, 'reader_cache_pcache_dirty_limit', 'reader_cache_pcache_dirty_limit_must_match_current_pcache_dirty_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pcache_dirty_limit_token', $currentToken, 346, 'reader_cache_pcache_dirty_limit', 'reader_cache_pcache_dirty_limit_must_match_current_pcache_dirty_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27627,7 +27627,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext346(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_mmap_read_limit_token', $currentToken, 347, 'reader_cache_mmap_read_limit', 'reader_cache_mmap_read_limit_must_match_current_mmap_read_limit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_mmap_read_limit_token', $currentToken, 347, 'reader_cache_mmap_read_limit', 'reader_cache_mmap_read_limit_must_match_current_mmap_read_limit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27639,7 +27639,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext347(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_sorter_reference_token', $currentToken, 348, 'reader_cache_sorter_reference', 'reader_cache_sorter_reference_must_match_current_sorter_reference_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_sorter_reference_token', $currentToken, 348, 'reader_cache_sorter_reference', 'reader_cache_sorter_reference_must_match_current_sorter_reference_state');
     }
 
     /** @return array<string,mixed> */
@@ -27651,7 +27651,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext348(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_worker_thread_token', $currentToken, 349, 'reader_cache_worker_thread', 'reader_cache_worker_thread_must_match_current_worker_thread_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_worker_thread_token', $currentToken, 349, 'reader_cache_worker_thread', 'reader_cache_worker_thread_must_match_current_worker_thread_state');
     }
 
     /** @return array<string,mixed> */
@@ -27663,7 +27663,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext349(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_memory_alarm_token', $currentToken, 350, 'reader_cache_memory_alarm', 'reader_cache_memory_alarm_must_match_current_memory_alarm_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_memory_alarm_token', $currentToken, 350, 'reader_cache_memory_alarm', 'reader_cache_memory_alarm_must_match_current_memory_alarm_state');
     }
 
     /** @return array<string,mixed> */
@@ -27675,7 +27675,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext350(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_status_counter_token', $currentToken, 351, 'reader_cache_status_counter', 'reader_cache_status_counter_must_match_current_status_counter_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_status_counter_token', $currentToken, 351, 'reader_cache_status_counter', 'reader_cache_status_counter_must_match_current_status_counter_state');
     }
 
     /** @return array<string,mixed> */
@@ -27687,7 +27687,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext351(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pagecache_size_token', $currentToken, 352, 'reader_cache_pagecache_size', 'reader_cache_pagecache_size_must_match_current_pagecache_size_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_size_token', $currentToken, 352, 'reader_cache_pagecache_size', 'reader_cache_pagecache_size_must_match_current_pagecache_size_state');
     }
 
     /** @return array<string,mixed> */
@@ -27699,7 +27699,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext352(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pagecache_recycle_token', $currentToken, 353, 'reader_cache_pagecache_recycle', 'reader_cache_pagecache_recycle_must_match_current_pagecache_recycle_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_recycle_token', $currentToken, 353, 'reader_cache_pagecache_recycle', 'reader_cache_pagecache_recycle_must_match_current_pagecache_recycle_state');
     }
 
     /** @return array<string,mixed> */
@@ -27711,7 +27711,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext353(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_scratch_spill_token', $currentToken, 354, 'reader_cache_scratch_spill', 'reader_cache_scratch_spill_must_match_current_scratch_spill_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_scratch_spill_token', $currentToken, 354, 'reader_cache_scratch_spill', 'reader_cache_scratch_spill_must_match_current_scratch_spill_state');
     }
 
     /** @return array<string,mixed> */
@@ -27723,7 +27723,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext354(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_lookaside_hit_token', $currentToken, 355, 'reader_cache_lookaside_hit', 'reader_cache_lookaside_hit_must_match_current_lookaside_hit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_lookaside_hit_token', $currentToken, 355, 'reader_cache_lookaside_hit', 'reader_cache_lookaside_hit_must_match_current_lookaside_hit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27735,7 +27735,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext355(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_lookaside_miss_size_token', $currentToken, 356, 'reader_cache_lookaside_miss_size', 'reader_cache_lookaside_miss_size_must_match_current_lookaside_miss_size_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_lookaside_miss_size_token', $currentToken, 356, 'reader_cache_lookaside_miss_size', 'reader_cache_lookaside_miss_size_must_match_current_lookaside_miss_size_state');
     }
 
     /** @return array<string,mixed> */
@@ -27747,7 +27747,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext356(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pcache_refcount_token', $currentToken, 357, 'reader_cache_pcache_refcount', 'reader_cache_pcache_refcount_must_match_current_pcache_refcount_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pcache_refcount_token', $currentToken, 357, 'reader_cache_pcache_refcount', 'reader_cache_pcache_refcount_must_match_current_pcache_refcount_state');
     }
 
     /** @return array<string,mixed> */
@@ -27759,7 +27759,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext357(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_memory_used_token', $currentToken, 358, 'reader_cache_memory_used', 'reader_cache_memory_used_must_match_current_memory_used_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_memory_used_token', $currentToken, 358, 'reader_cache_memory_used', 'reader_cache_memory_used_must_match_current_memory_used_state');
     }
 
     /** @return array<string,mixed> */
@@ -27771,7 +27771,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext358(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_memory_highwater_token', $currentToken, 359, 'reader_cache_memory_highwater', 'reader_cache_memory_highwater_must_match_current_memory_highwater_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_memory_highwater_token', $currentToken, 359, 'reader_cache_memory_highwater', 'reader_cache_memory_highwater_must_match_current_memory_highwater_state');
     }
 
     /** @return array<string,mixed> */
@@ -27783,7 +27783,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext359(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pagecache_used_token', $currentToken, 360, 'reader_cache_pagecache_used', 'reader_cache_pagecache_used_must_match_current_pagecache_used_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_used_token', $currentToken, 360, 'reader_cache_pagecache_used', 'reader_cache_pagecache_used_must_match_current_pagecache_used_state');
     }
 
     /** @return array<string,mixed> */
@@ -27795,7 +27795,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext360(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_pagecache_overflow_token', $currentToken, 361, 'reader_cache_pagecache_overflow', 'reader_cache_pagecache_overflow_must_match_current_pagecache_overflow_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_pagecache_overflow_token', $currentToken, 361, 'reader_cache_pagecache_overflow', 'reader_cache_pagecache_overflow_must_match_current_pagecache_overflow_state');
     }
 
     /** @return array<string,mixed> */
@@ -27807,7 +27807,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext361(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_scratch_used_token', $currentToken, 362, 'reader_cache_scratch_used', 'reader_cache_scratch_used_must_match_current_scratch_used_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_scratch_used_token', $currentToken, 362, 'reader_cache_scratch_used', 'reader_cache_scratch_used_must_match_current_scratch_used_state');
     }
 
     /** @return array<string,mixed> */
@@ -27819,7 +27819,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext362(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_scratch_overflow_token', $currentToken, 363, 'reader_cache_scratch_overflow', 'reader_cache_scratch_overflow_must_match_current_scratch_overflow_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_scratch_overflow_token', $currentToken, 363, 'reader_cache_scratch_overflow', 'reader_cache_scratch_overflow_must_match_current_scratch_overflow_state');
     }
 
     /** @return array<string,mixed> */
@@ -27831,7 +27831,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext363(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_malloc_size_token', $currentToken, 364, 'reader_cache_malloc_size', 'reader_cache_malloc_size_must_match_current_malloc_size_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_malloc_size_token', $currentToken, 364, 'reader_cache_malloc_size', 'reader_cache_malloc_size_must_match_current_malloc_size_state');
     }
 
     /** @return array<string,mixed> */
@@ -27843,7 +27843,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext364(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_malloc_count_token', $currentToken, 365, 'reader_cache_malloc_count', 'reader_cache_malloc_count_must_match_current_malloc_count_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_malloc_count_token', $currentToken, 365, 'reader_cache_malloc_count', 'reader_cache_malloc_count_must_match_current_malloc_count_state');
     }
 
     /** @return array<string,mixed> */
@@ -27855,7 +27855,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext365(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_used_token', $currentToken, 366, 'reader_cache_stmt_used', 'reader_cache_stmt_used_must_match_current_stmt_used_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_used_token', $currentToken, 366, 'reader_cache_stmt_used', 'reader_cache_stmt_used_must_match_current_stmt_used_state');
     }
 
     /** @return array<string,mixed> */
@@ -27867,7 +27867,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext366(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_busy_token', $currentToken, 367, 'reader_cache_stmt_busy', 'reader_cache_stmt_busy_must_match_current_stmt_busy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_busy_token', $currentToken, 367, 'reader_cache_stmt_busy', 'reader_cache_stmt_busy_must_match_current_stmt_busy_state');
     }
 
     /** @return array<string,mixed> */
@@ -27879,7 +27879,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext367(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_memused_token', $currentToken, 368, 'reader_cache_stmt_memused', 'reader_cache_stmt_memused_must_match_current_stmt_memused_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_memused_token', $currentToken, 368, 'reader_cache_stmt_memused', 'reader_cache_stmt_memused_must_match_current_stmt_memused_state');
     }
 
     /** @return array<string,mixed> */
@@ -27891,7 +27891,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext368(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_token', $currentToken, 369, 'reader_cache_stmt_scanstatus', 'reader_cache_stmt_scanstatus_must_match_current_stmt_scanstatus_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_token', $currentToken, 369, 'reader_cache_stmt_scanstatus', 'reader_cache_stmt_scanstatus_must_match_current_stmt_scanstatus_state');
     }
 
     /** @return array<string,mixed> */
@@ -27903,7 +27903,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext369(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_reprepare_token', $currentToken, 370, 'reader_cache_stmt_reprepare', 'reader_cache_stmt_reprepare_must_match_current_stmt_reprepare_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_reprepare_token', $currentToken, 370, 'reader_cache_stmt_reprepare', 'reader_cache_stmt_reprepare_must_match_current_stmt_reprepare_state');
     }
 
     /** @return array<string,mixed> */
@@ -27915,7 +27915,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext370(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_run_token', $currentToken, 371, 'reader_cache_stmt_run', 'reader_cache_stmt_run_must_match_current_stmt_run_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_run_token', $currentToken, 371, 'reader_cache_stmt_run', 'reader_cache_stmt_run_must_match_current_stmt_run_state');
     }
 
     /** @return array<string,mixed> */
@@ -27927,7 +27927,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext371(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_sort_token', $currentToken, 372, 'reader_cache_stmt_sort', 'reader_cache_stmt_sort_must_match_current_stmt_sort_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_sort_token', $currentToken, 372, 'reader_cache_stmt_sort', 'reader_cache_stmt_sort_must_match_current_stmt_sort_state');
     }
 
     /** @return array<string,mixed> */
@@ -27939,7 +27939,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext372(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_autoindex_token', $currentToken, 373, 'reader_cache_stmt_autoindex', 'reader_cache_stmt_autoindex_must_match_current_stmt_autoindex_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_autoindex_token', $currentToken, 373, 'reader_cache_stmt_autoindex', 'reader_cache_stmt_autoindex_must_match_current_stmt_autoindex_state');
     }
 
     /** @return array<string,mixed> */
@@ -27951,7 +27951,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext373(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_fullscan_token', $currentToken, 374, 'reader_cache_stmt_fullscan', 'reader_cache_stmt_fullscan_must_match_current_stmt_fullscan_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_fullscan_token', $currentToken, 374, 'reader_cache_stmt_fullscan', 'reader_cache_stmt_fullscan_must_match_current_stmt_fullscan_state');
     }
 
     /** @return array<string,mixed> */
@@ -27963,7 +27963,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext374(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vmstep_token', $currentToken, 375, 'reader_cache_stmt_vmstep', 'reader_cache_stmt_vmstep_must_match_current_stmt_vmstep_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vmstep_token', $currentToken, 375, 'reader_cache_stmt_vmstep', 'reader_cache_stmt_vmstep_must_match_current_stmt_vmstep_state');
     }
 
     /** @return array<string,mixed> */
@@ -27975,7 +27975,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext375(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_filter_hit_token', $currentToken, 376, 'reader_cache_stmt_filter_hit', 'reader_cache_stmt_filter_hit_must_match_current_stmt_filter_hit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_filter_hit_token', $currentToken, 376, 'reader_cache_stmt_filter_hit', 'reader_cache_stmt_filter_hit_must_match_current_stmt_filter_hit_state');
     }
 
     /** @return array<string,mixed> */
@@ -27987,7 +27987,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext376(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_filter_miss_token', $currentToken, 377, 'reader_cache_stmt_filter_miss', 'reader_cache_stmt_filter_miss_must_match_current_stmt_filter_miss_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_filter_miss_token', $currentToken, 377, 'reader_cache_stmt_filter_miss', 'reader_cache_stmt_filter_miss_must_match_current_stmt_filter_miss_state');
     }
 
     /** @return array<string,mixed> */
@@ -27999,7 +27999,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext377(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_nsort_token', $currentToken, 378, 'reader_cache_stmt_nsort', 'reader_cache_stmt_nsort_must_match_current_stmt_nsort_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_nsort_token', $currentToken, 378, 'reader_cache_stmt_nsort', 'reader_cache_stmt_nsort_must_match_current_stmt_nsort_state');
     }
 
     /** @return array<string,mixed> */
@@ -28011,7 +28011,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext378(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_nautoindex_token', $currentToken, 379, 'reader_cache_stmt_nautoindex', 'reader_cache_stmt_nautoindex_must_match_current_stmt_nautoindex_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_nautoindex_token', $currentToken, 379, 'reader_cache_stmt_nautoindex', 'reader_cache_stmt_nautoindex_must_match_current_stmt_nautoindex_state');
     }
 
     /** @return array<string,mixed> */
@@ -28023,7 +28023,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext379(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_nfullscan_token', $currentToken, 380, 'reader_cache_stmt_nfullscan', 'reader_cache_stmt_nfullscan_must_match_current_stmt_nfullscan_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_nfullscan_token', $currentToken, 380, 'reader_cache_stmt_nfullscan', 'reader_cache_stmt_nfullscan_must_match_current_stmt_nfullscan_state');
     }
 
     /** @return array<string,mixed> */
@@ -28035,7 +28035,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext380(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_expired_token', $currentToken, 381, 'reader_cache_stmt_expired', 'reader_cache_stmt_expired_must_match_current_stmt_expired_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_expired_token', $currentToken, 381, 'reader_cache_stmt_expired', 'reader_cache_stmt_expired_must_match_current_stmt_expired_state');
     }
 
     /** @return array<string,mixed> */
@@ -28047,7 +28047,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext381(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_readonly_token', $currentToken, 382, 'reader_cache_stmt_readonly', 'reader_cache_stmt_readonly_must_match_current_stmt_readonly_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_readonly_token', $currentToken, 382, 'reader_cache_stmt_readonly', 'reader_cache_stmt_readonly_must_match_current_stmt_readonly_state');
     }
 
     /** @return array<string,mixed> */
@@ -28059,7 +28059,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext382(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_nloop_token', $currentToken, 383, 'reader_cache_stmt_scanstatus_nloop', 'reader_cache_stmt_scanstatus_nloop_must_match_current_stmt_scanstatus_nloop_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_nloop_token', $currentToken, 383, 'reader_cache_stmt_scanstatus_nloop', 'reader_cache_stmt_scanstatus_nloop_must_match_current_stmt_scanstatus_nloop_state');
     }
 
     /** @return array<string,mixed> */
@@ -28071,7 +28071,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext383(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_nvisit_token', $currentToken, 384, 'reader_cache_stmt_scanstatus_nvisit', 'reader_cache_stmt_scanstatus_nvisit_must_match_current_stmt_scanstatus_nvisit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_nvisit_token', $currentToken, 384, 'reader_cache_stmt_scanstatus_nvisit', 'reader_cache_stmt_scanstatus_nvisit_must_match_current_stmt_scanstatus_nvisit_state');
     }
 
     /** @return array<string,mixed> */
@@ -28083,7 +28083,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext384(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_est_token', $currentToken, 385, 'reader_cache_stmt_scanstatus_est', 'reader_cache_stmt_scanstatus_est_must_match_current_stmt_scanstatus_est_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_est_token', $currentToken, 385, 'reader_cache_stmt_scanstatus_est', 'reader_cache_stmt_scanstatus_est_must_match_current_stmt_scanstatus_est_state');
     }
 
     /** @return array<string,mixed> */
@@ -28095,7 +28095,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext385(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_name_token', $currentToken, 386, 'reader_cache_stmt_scanstatus_name', 'reader_cache_stmt_scanstatus_name_must_match_current_stmt_scanstatus_name_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_name_token', $currentToken, 386, 'reader_cache_stmt_scanstatus_name', 'reader_cache_stmt_scanstatus_name_must_match_current_stmt_scanstatus_name_state');
     }
 
     /** @return array<string,mixed> */
@@ -28107,7 +28107,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext386(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_explain_token', $currentToken, 387, 'reader_cache_stmt_scanstatus_explain', 'reader_cache_stmt_scanstatus_explain_must_match_current_stmt_scanstatus_explain_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_explain_token', $currentToken, 387, 'reader_cache_stmt_scanstatus_explain', 'reader_cache_stmt_scanstatus_explain_must_match_current_stmt_scanstatus_explain_state');
     }
 
     /** @return array<string,mixed> */
@@ -28119,7 +28119,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext387(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_selectid_token', $currentToken, 388, 'reader_cache_stmt_scanstatus_selectid', 'reader_cache_stmt_scanstatus_selectid_must_match_current_stmt_scanstatus_selectid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_selectid_token', $currentToken, 388, 'reader_cache_stmt_scanstatus_selectid', 'reader_cache_stmt_scanstatus_selectid_must_match_current_stmt_scanstatus_selectid_state');
     }
 
     /** @return array<string,mixed> */
@@ -28131,7 +28131,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext388(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_parentid_token', $currentToken, 389, 'reader_cache_stmt_scanstatus_parentid', 'reader_cache_stmt_scanstatus_parentid_must_match_current_stmt_scanstatus_parentid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_parentid_token', $currentToken, 389, 'reader_cache_stmt_scanstatus_parentid', 'reader_cache_stmt_scanstatus_parentid_must_match_current_stmt_scanstatus_parentid_state');
     }
 
     /** @return array<string,mixed> */
@@ -28143,7 +28143,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext389(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_ncycle_token', $currentToken, 390, 'reader_cache_stmt_scanstatus_ncycle', 'reader_cache_stmt_scanstatus_ncycle_must_match_current_stmt_scanstatus_ncycle_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_scanstatus_ncycle_token', $currentToken, 390, 'reader_cache_stmt_scanstatus_ncycle', 'reader_cache_stmt_scanstatus_ncycle_must_match_current_stmt_scanstatus_ncycle_state');
     }
 
     /** @return array<string,mixed> */
@@ -28155,7 +28155,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext390(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vm_halt_token', $currentToken, 391, 'reader_cache_stmt_vm_halt', 'reader_cache_stmt_vm_halt_must_match_current_stmt_vm_halt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vm_halt_token', $currentToken, 391, 'reader_cache_stmt_vm_halt', 'reader_cache_stmt_vm_halt_must_match_current_stmt_vm_halt_state');
     }
 
     /** @return array<string,mixed> */
@@ -28167,7 +28167,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext391(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vm_reset_token', $currentToken, 392, 'reader_cache_stmt_vm_reset', 'reader_cache_stmt_vm_reset_must_match_current_stmt_vm_reset_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vm_reset_token', $currentToken, 392, 'reader_cache_stmt_vm_reset', 'reader_cache_stmt_vm_reset_must_match_current_stmt_vm_reset_state');
     }
 
     /** @return array<string,mixed> */
@@ -28179,7 +28179,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext392(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_bind_parameter_token', $currentToken, 393, 'reader_cache_stmt_bind_parameter', 'reader_cache_stmt_bind_parameter_must_match_current_stmt_bind_parameter_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_bind_parameter_token', $currentToken, 393, 'reader_cache_stmt_bind_parameter', 'reader_cache_stmt_bind_parameter_must_match_current_stmt_bind_parameter_state');
     }
 
     /** @return array<string,mixed> */
@@ -28191,7 +28191,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext393(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_expanded_sql_token', $currentToken, 394, 'reader_cache_stmt_expanded_sql', 'reader_cache_stmt_expanded_sql_must_match_current_stmt_expanded_sql_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_expanded_sql_token', $currentToken, 394, 'reader_cache_stmt_expanded_sql', 'reader_cache_stmt_expanded_sql_must_match_current_stmt_expanded_sql_state');
     }
 
     /** @return array<string,mixed> */
@@ -28203,7 +28203,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext394(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_normalized_sql_token', $currentToken, 395, 'reader_cache_stmt_normalized_sql', 'reader_cache_stmt_normalized_sql_must_match_current_stmt_normalized_sql_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_normalized_sql_token', $currentToken, 395, 'reader_cache_stmt_normalized_sql', 'reader_cache_stmt_normalized_sql_must_match_current_stmt_normalized_sql_state');
     }
 
     /** @return array<string,mixed> */
@@ -28215,7 +28215,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext395(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_sql_text_token', $currentToken, 396, 'reader_cache_stmt_sql_text', 'reader_cache_stmt_sql_text_must_match_current_stmt_sql_text_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_sql_text_token', $currentToken, 396, 'reader_cache_stmt_sql_text', 'reader_cache_stmt_sql_text_must_match_current_stmt_sql_text_state');
     }
 
     /** @return array<string,mixed> */
@@ -28227,7 +28227,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext396(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_readonly_schema_token', $currentToken, 397, 'reader_cache_stmt_readonly_schema', 'reader_cache_stmt_readonly_schema_must_match_current_stmt_readonly_schema_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_readonly_schema_token', $currentToken, 397, 'reader_cache_stmt_readonly_schema', 'reader_cache_stmt_readonly_schema_must_match_current_stmt_readonly_schema_state');
     }
 
     /** @return array<string,mixed> */
@@ -28239,7 +28239,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext397(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_busy_state_token', $currentToken, 398, 'reader_cache_stmt_busy_state', 'reader_cache_stmt_busy_state_must_match_current_stmt_busy_state_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_busy_state_token', $currentToken, 398, 'reader_cache_stmt_busy_state', 'reader_cache_stmt_busy_state_must_match_current_stmt_busy_state_state');
     }
 
     /** @return array<string,mixed> */
@@ -28251,7 +28251,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext398(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_isexplain_token', $currentToken, 399, 'reader_cache_stmt_isexplain', 'reader_cache_stmt_isexplain_must_match_current_stmt_isexplain_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_isexplain_token', $currentToken, 399, 'reader_cache_stmt_isexplain', 'reader_cache_stmt_isexplain_must_match_current_stmt_isexplain_state');
     }
 
     /** @return array<string,mixed> */
@@ -28263,7 +28263,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext399(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_explain_mode_token', $currentToken, 400, 'reader_cache_stmt_explain_mode', 'reader_cache_stmt_explain_mode_must_match_current_stmt_explain_mode_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_explain_mode_token', $currentToken, 400, 'reader_cache_stmt_explain_mode', 'reader_cache_stmt_explain_mode_must_match_current_stmt_explain_mode_state');
     }
 
     /** @return array<string,mixed> */
@@ -28275,7 +28275,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext400(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_debug_token', $currentToken, 401, 'reader_cache_stmt_vdbe_debug', 'reader_cache_stmt_vdbe_debug_must_match_current_stmt_vdbe_debug_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_debug_token', $currentToken, 401, 'reader_cache_stmt_vdbe_debug', 'reader_cache_stmt_vdbe_debug_must_match_current_stmt_vdbe_debug_state');
     }
 
     /** @return array<string,mixed> */
@@ -28287,7 +28287,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext401(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_listing_token', $currentToken, 402, 'reader_cache_stmt_vdbe_listing', 'reader_cache_stmt_vdbe_listing_must_match_current_stmt_vdbe_listing_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_listing_token', $currentToken, 402, 'reader_cache_stmt_vdbe_listing', 'reader_cache_stmt_vdbe_listing_must_match_current_stmt_vdbe_listing_state');
     }
 
     /** @return array<string,mixed> */
@@ -28299,7 +28299,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext402(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_trace_token', $currentToken, 403, 'reader_cache_stmt_vdbe_trace', 'reader_cache_stmt_vdbe_trace_must_match_current_stmt_vdbe_trace_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_trace_token', $currentToken, 403, 'reader_cache_stmt_vdbe_trace', 'reader_cache_stmt_vdbe_trace_must_match_current_stmt_vdbe_trace_state');
     }
 
     /** @return array<string,mixed> */
@@ -28311,7 +28311,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext403(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_addoptrace_token', $currentToken, 404, 'reader_cache_stmt_vdbe_addoptrace', 'reader_cache_stmt_vdbe_addoptrace_must_match_current_stmt_vdbe_addoptrace_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_addoptrace_token', $currentToken, 404, 'reader_cache_stmt_vdbe_addoptrace', 'reader_cache_stmt_vdbe_addoptrace_must_match_current_stmt_vdbe_addoptrace_state');
     }
 
     /** @return array<string,mixed> */
@@ -28323,7 +28323,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext404(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eqptrace_token', $currentToken, 405, 'reader_cache_stmt_vdbe_eqptrace', 'reader_cache_stmt_vdbe_eqptrace_must_match_current_stmt_vdbe_eqptrace_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eqptrace_token', $currentToken, 405, 'reader_cache_stmt_vdbe_eqptrace', 'reader_cache_stmt_vdbe_eqptrace_must_match_current_stmt_vdbe_eqptrace_state');
     }
 
     /** @return array<string,mixed> */
@@ -28335,7 +28335,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext405(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_coverage_token', $currentToken, 406, 'reader_cache_stmt_vdbe_coverage', 'reader_cache_stmt_vdbe_coverage_must_match_current_stmt_vdbe_coverage_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_coverage_token', $currentToken, 406, 'reader_cache_stmt_vdbe_coverage', 'reader_cache_stmt_vdbe_coverage_must_match_current_stmt_vdbe_coverage_state');
     }
 
     /** @return array<string,mixed> */
@@ -28347,7 +28347,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext406(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_comment_token', $currentToken, 407, 'reader_cache_stmt_vdbe_comment', 'reader_cache_stmt_vdbe_comment_must_match_current_stmt_vdbe_comment_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_comment_token', $currentToken, 407, 'reader_cache_stmt_vdbe_comment', 'reader_cache_stmt_vdbe_comment_must_match_current_stmt_vdbe_comment_state');
     }
 
     /** @return array<string,mixed> */
@@ -28359,7 +28359,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext407(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_profile_token', $currentToken, 408, 'reader_cache_stmt_vdbe_profile', 'reader_cache_stmt_vdbe_profile_must_match_current_stmt_vdbe_profile_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_profile_token', $currentToken, 408, 'reader_cache_stmt_vdbe_profile', 'reader_cache_stmt_vdbe_profile_must_match_current_stmt_vdbe_profile_state');
     }
 
     /** @return array<string,mixed> */
@@ -28371,7 +28371,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext408(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_scanstatus_token', $currentToken, 409, 'reader_cache_stmt_vdbe_scanstatus', 'reader_cache_stmt_vdbe_scanstatus_must_match_current_stmt_vdbe_scanstatus_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_scanstatus_token', $currentToken, 409, 'reader_cache_stmt_vdbe_scanstatus', 'reader_cache_stmt_vdbe_scanstatus_must_match_current_stmt_vdbe_scanstatus_state');
     }
 
     /** @return array<string,mixed> */
@@ -28383,7 +28383,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext409(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_reprep_token', $currentToken, 410, 'reader_cache_stmt_vdbe_reprep', 'reader_cache_stmt_vdbe_reprep_must_match_current_stmt_vdbe_reprep_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_reprep_token', $currentToken, 410, 'reader_cache_stmt_vdbe_reprep', 'reader_cache_stmt_vdbe_reprep_must_match_current_stmt_vdbe_reprep_state');
     }
 
     /** @return array<string,mixed> */
@@ -28395,7 +28395,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext410(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_run_token', $currentToken, 411, 'reader_cache_stmt_vdbe_run', 'reader_cache_stmt_vdbe_run_must_match_current_stmt_vdbe_run_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_run_token', $currentToken, 411, 'reader_cache_stmt_vdbe_run', 'reader_cache_stmt_vdbe_run_must_match_current_stmt_vdbe_run_state');
     }
 
     /** @return array<string,mixed> */
@@ -28407,7 +28407,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext411(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_token', $currentToken, 412, 'reader_cache_stmt_vdbe_yield', 'reader_cache_stmt_vdbe_yield_must_match_current_stmt_vdbe_yield_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_token', $currentToken, 412, 'reader_cache_stmt_vdbe_yield', 'reader_cache_stmt_vdbe_yield_must_match_current_stmt_vdbe_yield_state');
     }
 
     /** @return array<string,mixed> */
@@ -28419,7 +28419,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext412(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pause_token', $currentToken, 413, 'reader_cache_stmt_vdbe_pause', 'reader_cache_stmt_vdbe_pause_must_match_current_stmt_vdbe_pause_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pause_token', $currentToken, 413, 'reader_cache_stmt_vdbe_pause', 'reader_cache_stmt_vdbe_pause_must_match_current_stmt_vdbe_pause_state');
     }
 
     /** @return array<string,mixed> */
@@ -28431,7 +28431,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext413(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_reset_token', $currentToken, 414, 'reader_cache_stmt_vdbe_reset', 'reader_cache_stmt_vdbe_reset_must_match_current_stmt_vdbe_reset_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_reset_token', $currentToken, 414, 'reader_cache_stmt_vdbe_reset', 'reader_cache_stmt_vdbe_reset_must_match_current_stmt_vdbe_reset_state');
     }
 
     /** @return array<string,mixed> */
@@ -28443,7 +28443,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext414(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_finalize_token', $currentToken, 415, 'reader_cache_stmt_vdbe_finalize', 'reader_cache_stmt_vdbe_finalize_must_match_current_stmt_vdbe_finalize_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_finalize_token', $currentToken, 415, 'reader_cache_stmt_vdbe_finalize', 'reader_cache_stmt_vdbe_finalize_must_match_current_stmt_vdbe_finalize_state');
     }
 
     /** @return array<string,mixed> */
@@ -28455,7 +28455,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext415(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transfer_token', $currentToken, 416, 'reader_cache_stmt_vdbe_transfer', 'reader_cache_stmt_vdbe_transfer_must_match_current_stmt_vdbe_transfer_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transfer_token', $currentToken, 416, 'reader_cache_stmt_vdbe_transfer', 'reader_cache_stmt_vdbe_transfer_must_match_current_stmt_vdbe_transfer_state');
     }
 
     /** @return array<string,mixed> */
@@ -28467,7 +28467,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext416(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursor_token', $currentToken, 417, 'reader_cache_stmt_vdbe_cursor', 'reader_cache_stmt_vdbe_cursor_must_match_current_stmt_vdbe_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursor_token', $currentToken, 417, 'reader_cache_stmt_vdbe_cursor', 'reader_cache_stmt_vdbe_cursor_must_match_current_stmt_vdbe_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28479,7 +28479,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext417(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_token', $currentToken, 418, 'reader_cache_stmt_vdbe_sorter', 'reader_cache_stmt_vdbe_sorter_must_match_current_stmt_vdbe_sorter_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_token', $currentToken, 418, 'reader_cache_stmt_vdbe_sorter', 'reader_cache_stmt_vdbe_sorter_must_match_current_stmt_vdbe_sorter_state');
     }
 
     /** @return array<string,mixed> */
@@ -28491,7 +28491,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext418(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auxdata_token', $currentToken, 419, 'reader_cache_stmt_vdbe_auxdata', 'reader_cache_stmt_vdbe_auxdata_must_match_current_stmt_vdbe_auxdata_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auxdata_token', $currentToken, 419, 'reader_cache_stmt_vdbe_auxdata', 'reader_cache_stmt_vdbe_auxdata_must_match_current_stmt_vdbe_auxdata_state');
     }
 
     /** @return array<string,mixed> */
@@ -28503,7 +28503,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext419(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_mem_token', $currentToken, 420, 'reader_cache_stmt_vdbe_mem', 'reader_cache_stmt_vdbe_mem_must_match_current_stmt_vdbe_mem_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_mem_token', $currentToken, 420, 'reader_cache_stmt_vdbe_mem', 'reader_cache_stmt_vdbe_mem_must_match_current_stmt_vdbe_mem_state');
     }
 
     /** @return array<string,mixed> */
@@ -28515,7 +28515,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext420(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_memtype_token', $currentToken, 421, 'reader_cache_stmt_vdbe_memtype', 'reader_cache_stmt_vdbe_memtype_must_match_current_stmt_vdbe_memtype_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_memtype_token', $currentToken, 421, 'reader_cache_stmt_vdbe_memtype', 'reader_cache_stmt_vdbe_memtype_must_match_current_stmt_vdbe_memtype_state');
     }
 
     /** @return array<string,mixed> */
@@ -28527,7 +28527,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext421(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_token', $currentToken, 422, 'reader_cache_stmt_vdbe_column', 'reader_cache_stmt_vdbe_column_must_match_current_stmt_vdbe_column_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_token', $currentToken, 422, 'reader_cache_stmt_vdbe_column', 'reader_cache_stmt_vdbe_column_must_match_current_stmt_vdbe_column_state');
     }
 
     /** @return array<string,mixed> */
@@ -28539,7 +28539,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext422(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowid_token', $currentToken, 423, 'reader_cache_stmt_vdbe_rowid', 'reader_cache_stmt_vdbe_rowid_must_match_current_stmt_vdbe_rowid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowid_token', $currentToken, 423, 'reader_cache_stmt_vdbe_rowid', 'reader_cache_stmt_vdbe_rowid_must_match_current_stmt_vdbe_rowid_state');
     }
 
     /** @return array<string,mixed> */
@@ -28551,7 +28551,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext423(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_token', $currentToken, 424, 'reader_cache_stmt_vdbe_seek', 'reader_cache_stmt_vdbe_seek_must_match_current_stmt_vdbe_seek_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_token', $currentToken, 424, 'reader_cache_stmt_vdbe_seek', 'reader_cache_stmt_vdbe_seek_must_match_current_stmt_vdbe_seek_state');
     }
 
     /** @return array<string,mixed> */
@@ -28563,7 +28563,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext424(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_btree_cursor_token', $currentToken, 425, 'reader_cache_stmt_vdbe_btree_cursor', 'reader_cache_stmt_vdbe_btree_cursor_must_match_current_stmt_vdbe_btree_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_btree_cursor_token', $currentToken, 425, 'reader_cache_stmt_vdbe_btree_cursor', 'reader_cache_stmt_vdbe_btree_cursor_must_match_current_stmt_vdbe_btree_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28575,7 +28575,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext425(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_index_cursor_token', $currentToken, 426, 'reader_cache_stmt_vdbe_index_cursor', 'reader_cache_stmt_vdbe_index_cursor_must_match_current_stmt_vdbe_index_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_index_cursor_token', $currentToken, 426, 'reader_cache_stmt_vdbe_index_cursor', 'reader_cache_stmt_vdbe_index_cursor_must_match_current_stmt_vdbe_index_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28587,7 +28587,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext426(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ephemeral_cursor_token', $currentToken, 427, 'reader_cache_stmt_vdbe_ephemeral_cursor', 'reader_cache_stmt_vdbe_ephemeral_cursor_must_match_current_stmt_vdbe_ephemeral_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ephemeral_cursor_token', $currentToken, 427, 'reader_cache_stmt_vdbe_ephemeral_cursor', 'reader_cache_stmt_vdbe_ephemeral_cursor_must_match_current_stmt_vdbe_ephemeral_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28599,7 +28599,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext427(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_cursor_token', $currentToken, 428, 'reader_cache_stmt_vdbe_open_cursor', 'reader_cache_stmt_vdbe_open_cursor_must_match_current_stmt_vdbe_open_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_cursor_token', $currentToken, 428, 'reader_cache_stmt_vdbe_open_cursor', 'reader_cache_stmt_vdbe_open_cursor_must_match_current_stmt_vdbe_open_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28611,7 +28611,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext428(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_close_cursor_token', $currentToken, 429, 'reader_cache_stmt_vdbe_close_cursor', 'reader_cache_stmt_vdbe_close_cursor_must_match_current_stmt_vdbe_close_cursor_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_close_cursor_token', $currentToken, 429, 'reader_cache_stmt_vdbe_close_cursor', 'reader_cache_stmt_vdbe_close_cursor_must_match_current_stmt_vdbe_close_cursor_state');
     }
 
     /** @return array<string,mixed> */
@@ -28623,7 +28623,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext429(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rewind_token', $currentToken, 430, 'reader_cache_stmt_vdbe_rewind', 'reader_cache_stmt_vdbe_rewind_must_match_current_stmt_vdbe_rewind_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rewind_token', $currentToken, 430, 'reader_cache_stmt_vdbe_rewind', 'reader_cache_stmt_vdbe_rewind_must_match_current_stmt_vdbe_rewind_state');
     }
 
     /** @return array<string,mixed> */
@@ -28635,7 +28635,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext430(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_next_token', $currentToken, 431, 'reader_cache_stmt_vdbe_next', 'reader_cache_stmt_vdbe_next_must_match_current_stmt_vdbe_next_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_next_token', $currentToken, 431, 'reader_cache_stmt_vdbe_next', 'reader_cache_stmt_vdbe_next_must_match_current_stmt_vdbe_next_state');
     }
 
     /** @return array<string,mixed> */
@@ -28647,7 +28647,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext431(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_prev_token', $currentToken, 432, 'reader_cache_stmt_vdbe_prev', 'reader_cache_stmt_vdbe_prev_must_match_current_stmt_vdbe_prev_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_prev_token', $currentToken, 432, 'reader_cache_stmt_vdbe_prev', 'reader_cache_stmt_vdbe_prev_must_match_current_stmt_vdbe_prev_state');
     }
 
     /** @return array<string,mixed> */
@@ -28659,7 +28659,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext432(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_nextifopen_token', $currentToken, 433, 'reader_cache_stmt_vdbe_nextifopen', 'reader_cache_stmt_vdbe_nextifopen_must_match_current_stmt_vdbe_nextifopen_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_nextifopen_token', $currentToken, 433, 'reader_cache_stmt_vdbe_nextifopen', 'reader_cache_stmt_vdbe_nextifopen_must_match_current_stmt_vdbe_nextifopen_state');
     }
 
     /** @return array<string,mixed> */
@@ -28671,7 +28671,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext433(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_previfopen_token', $currentToken, 434, 'reader_cache_stmt_vdbe_previfopen', 'reader_cache_stmt_vdbe_previfopen_must_match_current_stmt_vdbe_previfopen_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_previfopen_token', $currentToken, 434, 'reader_cache_stmt_vdbe_previfopen', 'reader_cache_stmt_vdbe_previfopen_must_match_current_stmt_vdbe_previfopen_state');
     }
 
     /** @return array<string,mixed> */
@@ -28683,7 +28683,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext434(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_next_token', $currentToken, 435, 'reader_cache_stmt_vdbe_sorter_next', 'reader_cache_stmt_vdbe_sorter_next_must_match_current_stmt_vdbe_sorter_next_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_next_token', $currentToken, 435, 'reader_cache_stmt_vdbe_sorter_next', 'reader_cache_stmt_vdbe_sorter_next_must_match_current_stmt_vdbe_sorter_next_state');
     }
 
     /** @return array<string,mixed> */
@@ -28695,7 +28695,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext435(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seeklt_token', $currentToken, 436, 'reader_cache_stmt_vdbe_seeklt', 'reader_cache_stmt_vdbe_seeklt_must_match_current_stmt_vdbe_seeklt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seeklt_token', $currentToken, 436, 'reader_cache_stmt_vdbe_seeklt', 'reader_cache_stmt_vdbe_seeklt_must_match_current_stmt_vdbe_seeklt_state');
     }
 
     /** @return array<string,mixed> */
@@ -28707,7 +28707,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext436(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekle_token', $currentToken, 437, 'reader_cache_stmt_vdbe_seekle', 'reader_cache_stmt_vdbe_seekle_must_match_current_stmt_vdbe_seekle_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekle_token', $currentToken, 437, 'reader_cache_stmt_vdbe_seekle', 'reader_cache_stmt_vdbe_seekle_must_match_current_stmt_vdbe_seekle_state');
     }
 
     /** @return array<string,mixed> */
@@ -28719,7 +28719,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext437(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekge_token', $currentToken, 438, 'reader_cache_stmt_vdbe_seekge', 'reader_cache_stmt_vdbe_seekge_must_match_current_stmt_vdbe_seekge_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekge_token', $currentToken, 438, 'reader_cache_stmt_vdbe_seekge', 'reader_cache_stmt_vdbe_seekge_must_match_current_stmt_vdbe_seekge_state');
     }
 
     /** @return array<string,mixed> */
@@ -28731,7 +28731,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext438(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekgt_token', $currentToken, 439, 'reader_cache_stmt_vdbe_seekgt', 'reader_cache_stmt_vdbe_seekgt_must_match_current_stmt_vdbe_seekgt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekgt_token', $currentToken, 439, 'reader_cache_stmt_vdbe_seekgt', 'reader_cache_stmt_vdbe_seekgt_must_match_current_stmt_vdbe_seekgt_state');
     }
 
     /** @return array<string,mixed> */
@@ -28743,7 +28743,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext439(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekscan_token', $currentToken, 440, 'reader_cache_stmt_vdbe_seekscan', 'reader_cache_stmt_vdbe_seekscan_must_match_current_stmt_vdbe_seekscan_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seekscan_token', $currentToken, 440, 'reader_cache_stmt_vdbe_seekscan', 'reader_cache_stmt_vdbe_seekscan_must_match_current_stmt_vdbe_seekscan_state');
     }
 
     /** @return array<string,mixed> */
@@ -28755,7 +28755,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext440(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notfound_token', $currentToken, 441, 'reader_cache_stmt_vdbe_notfound', 'reader_cache_stmt_vdbe_notfound_must_match_current_stmt_vdbe_notfound_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notfound_token', $currentToken, 441, 'reader_cache_stmt_vdbe_notfound', 'reader_cache_stmt_vdbe_notfound_must_match_current_stmt_vdbe_notfound_state');
     }
 
     /** @return array<string,mixed> */
@@ -28767,7 +28767,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext441(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_found_token', $currentToken, 442, 'reader_cache_stmt_vdbe_found', 'reader_cache_stmt_vdbe_found_must_match_current_stmt_vdbe_found_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_found_token', $currentToken, 442, 'reader_cache_stmt_vdbe_found', 'reader_cache_stmt_vdbe_found_must_match_current_stmt_vdbe_found_state');
     }
 
     /** @return array<string,mixed> */
@@ -28779,7 +28779,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext442(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notexists_token', $currentToken, 443, 'reader_cache_stmt_vdbe_notexists', 'reader_cache_stmt_vdbe_notexists_must_match_current_stmt_vdbe_notexists_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notexists_token', $currentToken, 443, 'reader_cache_stmt_vdbe_notexists', 'reader_cache_stmt_vdbe_notexists_must_match_current_stmt_vdbe_notexists_state');
     }
 
     /** @return array<string,mixed> */
@@ -28791,7 +28791,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext443(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_last_token', $currentToken, 444, 'reader_cache_stmt_vdbe_last', 'reader_cache_stmt_vdbe_last_must_match_current_stmt_vdbe_last_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_last_token', $currentToken, 444, 'reader_cache_stmt_vdbe_last', 'reader_cache_stmt_vdbe_last_must_match_current_stmt_vdbe_last_state');
     }
 
     /** @return array<string,mixed> */
@@ -28803,7 +28803,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext444(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnosuchrow_token', $currentToken, 445, 'reader_cache_stmt_vdbe_ifnosuchrow', 'reader_cache_stmt_vdbe_ifnosuchrow_must_match_current_stmt_vdbe_ifnosuchrow_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnosuchrow_token', $currentToken, 445, 'reader_cache_stmt_vdbe_ifnosuchrow', 'reader_cache_stmt_vdbe_ifnosuchrow_must_match_current_stmt_vdbe_ifnosuchrow_state');
     }
 
     /** @return array<string,mixed> */
@@ -28815,7 +28815,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext445(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_deferred_seek_token', $currentToken, 446, 'reader_cache_stmt_vdbe_deferred_seek', 'reader_cache_stmt_vdbe_deferred_seek_must_match_current_stmt_vdbe_deferred_seek_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_deferred_seek_token', $currentToken, 446, 'reader_cache_stmt_vdbe_deferred_seek', 'reader_cache_stmt_vdbe_deferred_seek_must_match_current_stmt_vdbe_deferred_seek_state');
     }
 
 
@@ -28828,7 +28828,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext446(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_moveto_token', $currentToken, 447, 'reader_cache_stmt_vdbe_moveto', 'reader_cache_stmt_vdbe_moveto_must_match_current_stmt_vdbe_moveto_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_moveto_token', $currentToken, 447, 'reader_cache_stmt_vdbe_moveto', 'reader_cache_stmt_vdbe_moveto_must_match_current_stmt_vdbe_moveto_state');
     }
 
     /** @return array<string,mixed> */
@@ -28840,7 +28840,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext447(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_index_rowid_token', $currentToken, 448, 'reader_cache_stmt_vdbe_index_rowid', 'reader_cache_stmt_vdbe_index_rowid_must_match_current_stmt_vdbe_index_rowid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_index_rowid_token', $currentToken, 448, 'reader_cache_stmt_vdbe_index_rowid', 'reader_cache_stmt_vdbe_index_rowid_must_match_current_stmt_vdbe_index_rowid_state');
     }
 
     /** @return array<string,mixed> */
@@ -28852,7 +28852,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext448(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_read_token', $currentToken, 449, 'reader_cache_stmt_vdbe_rowset_read', 'reader_cache_stmt_vdbe_rowset_read_must_match_current_stmt_vdbe_rowset_read_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_read_token', $currentToken, 449, 'reader_cache_stmt_vdbe_rowset_read', 'reader_cache_stmt_vdbe_rowset_read_must_match_current_stmt_vdbe_rowset_read_state');
     }
 
     /** @return array<string,mixed> */
@@ -28864,7 +28864,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext449(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_test_token', $currentToken, 450, 'reader_cache_stmt_vdbe_rowset_test', 'reader_cache_stmt_vdbe_rowset_test_must_match_current_stmt_vdbe_rowset_test_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_test_token', $currentToken, 450, 'reader_cache_stmt_vdbe_rowset_test', 'reader_cache_stmt_vdbe_rowset_test_must_match_current_stmt_vdbe_rowset_test_state');
     }
 
     /** @return array<string,mixed> */
@@ -28876,7 +28876,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext450(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_add_token', $currentToken, 451, 'reader_cache_stmt_vdbe_rowset_add', 'reader_cache_stmt_vdbe_rowset_add_must_match_current_stmt_vdbe_rowset_add_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowset_add_token', $currentToken, 451, 'reader_cache_stmt_vdbe_rowset_add', 'reader_cache_stmt_vdbe_rowset_add_must_match_current_stmt_vdbe_rowset_add_state');
     }
 
     /** @return array<string,mixed> */
@@ -28888,7 +28888,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext451(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_insert_token', $currentToken, 452, 'reader_cache_stmt_vdbe_idx_insert', 'reader_cache_stmt_vdbe_idx_insert_must_match_current_stmt_vdbe_idx_insert_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_insert_token', $currentToken, 452, 'reader_cache_stmt_vdbe_idx_insert', 'reader_cache_stmt_vdbe_idx_insert_must_match_current_stmt_vdbe_idx_insert_state');
     }
 
     /** @return array<string,mixed> */
@@ -28900,7 +28900,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext452(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_delete_token', $currentToken, 453, 'reader_cache_stmt_vdbe_idx_delete', 'reader_cache_stmt_vdbe_idx_delete_must_match_current_stmt_vdbe_idx_delete_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_delete_token', $currentToken, 453, 'reader_cache_stmt_vdbe_idx_delete', 'reader_cache_stmt_vdbe_idx_delete_must_match_current_stmt_vdbe_idx_delete_state');
     }
 
     /** @return array<string,mixed> */
@@ -28912,7 +28912,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext453(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_rowid_token', $currentToken, 454, 'reader_cache_stmt_vdbe_idx_rowid', 'reader_cache_stmt_vdbe_idx_rowid_must_match_current_stmt_vdbe_idx_rowid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_rowid_token', $currentToken, 454, 'reader_cache_stmt_vdbe_idx_rowid', 'reader_cache_stmt_vdbe_idx_rowid_must_match_current_stmt_vdbe_idx_rowid_state');
     }
 
     /** @return array<string,mixed> */
@@ -28924,7 +28924,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext454(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_ge_token', $currentToken, 455, 'reader_cache_stmt_vdbe_idx_ge', 'reader_cache_stmt_vdbe_idx_ge_must_match_current_stmt_vdbe_idx_ge_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_ge_token', $currentToken, 455, 'reader_cache_stmt_vdbe_idx_ge', 'reader_cache_stmt_vdbe_idx_ge_must_match_current_stmt_vdbe_idx_ge_state');
     }
 
     /** @return array<string,mixed> */
@@ -28936,7 +28936,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext455(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_gt_token', $currentToken, 456, 'reader_cache_stmt_vdbe_idx_gt', 'reader_cache_stmt_vdbe_idx_gt_must_match_current_stmt_vdbe_idx_gt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_gt_token', $currentToken, 456, 'reader_cache_stmt_vdbe_idx_gt', 'reader_cache_stmt_vdbe_idx_gt_must_match_current_stmt_vdbe_idx_gt_state');
     }
 
     /** @return array<string,mixed> */
@@ -28948,7 +28948,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext456(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_le_token', $currentToken, 457, 'reader_cache_stmt_vdbe_idx_le', 'reader_cache_stmt_vdbe_idx_le_must_match_current_stmt_vdbe_idx_le_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_le_token', $currentToken, 457, 'reader_cache_stmt_vdbe_idx_le', 'reader_cache_stmt_vdbe_idx_le_must_match_current_stmt_vdbe_idx_le_state');
     }
 
     /** @return array<string,mixed> */
@@ -28960,7 +28960,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext457(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_lt_token', $currentToken, 458, 'reader_cache_stmt_vdbe_idx_lt', 'reader_cache_stmt_vdbe_idx_lt_must_match_current_stmt_vdbe_idx_lt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_lt_token', $currentToken, 458, 'reader_cache_stmt_vdbe_idx_lt', 'reader_cache_stmt_vdbe_idx_lt_must_match_current_stmt_vdbe_idx_lt_state');
     }
 
     /** @return array<string,mixed> */
@@ -28972,7 +28972,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext458(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_keyinfo_token', $currentToken, 459, 'reader_cache_stmt_vdbe_idx_keyinfo', 'reader_cache_stmt_vdbe_idx_keyinfo_must_match_current_stmt_vdbe_idx_keyinfo_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_idx_keyinfo_token', $currentToken, 459, 'reader_cache_stmt_vdbe_idx_keyinfo', 'reader_cache_stmt_vdbe_idx_keyinfo_must_match_current_stmt_vdbe_idx_keyinfo_state');
     }
 
     /** @return array<string,mixed> */
@@ -28984,7 +28984,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext459(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_read_token', $currentToken, 460, 'reader_cache_stmt_vdbe_open_read', 'reader_cache_stmt_vdbe_open_read_must_match_current_stmt_vdbe_open_read_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_read_token', $currentToken, 460, 'reader_cache_stmt_vdbe_open_read', 'reader_cache_stmt_vdbe_open_read_must_match_current_stmt_vdbe_open_read_state');
     }
 
     /** @return array<string,mixed> */
@@ -28996,7 +28996,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext460(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_write_token', $currentToken, 461, 'reader_cache_stmt_vdbe_open_write', 'reader_cache_stmt_vdbe_open_write_must_match_current_stmt_vdbe_open_write_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_write_token', $currentToken, 461, 'reader_cache_stmt_vdbe_open_write', 'reader_cache_stmt_vdbe_open_write_must_match_current_stmt_vdbe_open_write_state');
     }
 
     /** @return array<string,mixed> */
@@ -29008,7 +29008,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext461(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_dup_token', $currentToken, 462, 'reader_cache_stmt_vdbe_open_dup', 'reader_cache_stmt_vdbe_open_dup_must_match_current_stmt_vdbe_open_dup_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_dup_token', $currentToken, 462, 'reader_cache_stmt_vdbe_open_dup', 'reader_cache_stmt_vdbe_open_dup_must_match_current_stmt_vdbe_open_dup_state');
     }
 
     /** @return array<string,mixed> */
@@ -29020,7 +29020,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext462(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_pseudo_token', $currentToken, 463, 'reader_cache_stmt_vdbe_open_pseudo', 'reader_cache_stmt_vdbe_open_pseudo_must_match_current_stmt_vdbe_open_pseudo_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_pseudo_token', $currentToken, 463, 'reader_cache_stmt_vdbe_open_pseudo', 'reader_cache_stmt_vdbe_open_pseudo_must_match_current_stmt_vdbe_open_pseudo_state');
     }
 
     /** @return array<string,mixed> */
@@ -29032,7 +29032,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext463(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_ephemeral_token', $currentToken, 464, 'reader_cache_stmt_vdbe_open_ephemeral', 'reader_cache_stmt_vdbe_open_ephemeral_must_match_current_stmt_vdbe_open_ephemeral_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_open_ephemeral_token', $currentToken, 464, 'reader_cache_stmt_vdbe_open_ephemeral', 'reader_cache_stmt_vdbe_open_ephemeral_must_match_current_stmt_vdbe_open_ephemeral_state');
     }
 
     /** @return array<string,mixed> */
@@ -29044,7 +29044,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext464(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_open_token', $currentToken, 465, 'reader_cache_stmt_vdbe_sorter_open', 'reader_cache_stmt_vdbe_sorter_open_must_match_current_stmt_vdbe_sorter_open_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sorter_open_token', $currentToken, 465, 'reader_cache_stmt_vdbe_sorter_open', 'reader_cache_stmt_vdbe_sorter_open_must_match_current_stmt_vdbe_sorter_open_state');
     }
 
     /** @return array<string,mixed> */
@@ -29056,7 +29056,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext465(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sequence_token', $currentToken, 466, 'reader_cache_stmt_vdbe_sequence', 'reader_cache_stmt_vdbe_sequence_must_match_current_stmt_vdbe_sequence_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_sequence_token', $currentToken, 466, 'reader_cache_stmt_vdbe_sequence', 'reader_cache_stmt_vdbe_sequence_must_match_current_stmt_vdbe_sequence_state');
     }
 
     /** @return array<string,mixed> */
@@ -29068,7 +29068,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext466(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_newrowid_token', $currentToken, 467, 'reader_cache_stmt_vdbe_newrowid', 'reader_cache_stmt_vdbe_newrowid_must_match_current_stmt_vdbe_newrowid_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_newrowid_token', $currentToken, 467, 'reader_cache_stmt_vdbe_newrowid', 'reader_cache_stmt_vdbe_newrowid_must_match_current_stmt_vdbe_newrowid_state');
     }
 
     /** @return array<string,mixed> */
@@ -29080,7 +29080,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext467(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_insert_token', $currentToken, 468, 'reader_cache_stmt_vdbe_insert', 'reader_cache_stmt_vdbe_insert_must_match_current_stmt_vdbe_insert_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_insert_token', $currentToken, 468, 'reader_cache_stmt_vdbe_insert', 'reader_cache_stmt_vdbe_insert_must_match_current_stmt_vdbe_insert_state');
     }
 
     /** @return array<string,mixed> */
@@ -29092,7 +29092,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext468(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_delete_token', $currentToken, 469, 'reader_cache_stmt_vdbe_delete', 'reader_cache_stmt_vdbe_delete_must_match_current_stmt_vdbe_delete_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_delete_token', $currentToken, 469, 'reader_cache_stmt_vdbe_delete', 'reader_cache_stmt_vdbe_delete_must_match_current_stmt_vdbe_delete_state');
     }
 
     /** @return array<string,mixed> */
@@ -29104,7 +29104,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext469(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowdata_token', $currentToken, 470, 'reader_cache_stmt_vdbe_rowdata', 'reader_cache_stmt_vdbe_rowdata_must_match_current_stmt_vdbe_rowdata_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_rowdata_token', $currentToken, 470, 'reader_cache_stmt_vdbe_rowdata', 'reader_cache_stmt_vdbe_rowdata_must_match_current_stmt_vdbe_rowdata_state');
     }
 
     /** @return array<string,mixed> */
@@ -29116,7 +29116,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext470(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_metadata_token', $currentToken, 471, 'reader_cache_stmt_vdbe_column_metadata', 'reader_cache_stmt_vdbe_column_metadata_must_match_current_stmt_vdbe_column_metadata_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_metadata_token', $currentToken, 471, 'reader_cache_stmt_vdbe_column_metadata', 'reader_cache_stmt_vdbe_column_metadata_must_match_current_stmt_vdbe_column_metadata_state');
     }
 
     /** @return array<string,mixed> */
@@ -29128,7 +29128,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext471(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_make_record_token', $currentToken, 472, 'reader_cache_stmt_vdbe_make_record', 'reader_cache_stmt_vdbe_make_record_must_match_current_stmt_vdbe_make_record_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_make_record_token', $currentToken, 472, 'reader_cache_stmt_vdbe_make_record', 'reader_cache_stmt_vdbe_make_record_must_match_current_stmt_vdbe_make_record_state');
     }
 
     /** @return array<string,mixed> */
@@ -29140,7 +29140,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext472(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_token', $currentToken, 473, 'reader_cache_stmt_vdbe_affinity', 'reader_cache_stmt_vdbe_affinity_must_match_current_stmt_vdbe_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_token', $currentToken, 473, 'reader_cache_stmt_vdbe_affinity', 'reader_cache_stmt_vdbe_affinity_must_match_current_stmt_vdbe_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -29152,7 +29152,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext473(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_typecheck_token', $currentToken, 474, 'reader_cache_stmt_vdbe_typecheck', 'reader_cache_stmt_vdbe_typecheck_must_match_current_stmt_vdbe_typecheck_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_typecheck_token', $currentToken, 474, 'reader_cache_stmt_vdbe_typecheck', 'reader_cache_stmt_vdbe_typecheck_must_match_current_stmt_vdbe_typecheck_state');
     }
 
     /** @return array<string,mixed> */
@@ -29164,7 +29164,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext474(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_constraint_token', $currentToken, 475, 'reader_cache_stmt_vdbe_constraint', 'reader_cache_stmt_vdbe_constraint_must_match_current_stmt_vdbe_constraint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_constraint_token', $currentToken, 475, 'reader_cache_stmt_vdbe_constraint', 'reader_cache_stmt_vdbe_constraint_must_match_current_stmt_vdbe_constraint_state');
     }
 
     /** @return array<string,mixed> */
@@ -29176,7 +29176,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext475(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_conflict_token', $currentToken, 476, 'reader_cache_stmt_vdbe_conflict', 'reader_cache_stmt_vdbe_conflict_must_match_current_stmt_vdbe_conflict_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_conflict_token', $currentToken, 476, 'reader_cache_stmt_vdbe_conflict', 'reader_cache_stmt_vdbe_conflict_must_match_current_stmt_vdbe_conflict_state');
     }
 
     /** @return array<string,mixed> */
@@ -29188,7 +29188,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext476(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_fk_check_token', $currentToken, 477, 'reader_cache_stmt_vdbe_fk_check', 'reader_cache_stmt_vdbe_fk_check_must_match_current_stmt_vdbe_fk_check_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_fk_check_token', $currentToken, 477, 'reader_cache_stmt_vdbe_fk_check', 'reader_cache_stmt_vdbe_fk_check_must_match_current_stmt_vdbe_fk_check_state');
     }
 
     /** @return array<string,mixed> */
@@ -29200,7 +29200,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext477(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_returning_token', $currentToken, 478, 'reader_cache_stmt_vdbe_returning', 'reader_cache_stmt_vdbe_returning_must_match_current_stmt_vdbe_returning_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_returning_token', $currentToken, 478, 'reader_cache_stmt_vdbe_returning', 'reader_cache_stmt_vdbe_returning_must_match_current_stmt_vdbe_returning_state');
     }
 
     /** @return array<string,mixed> */
@@ -29212,7 +29212,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext478(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_program_token', $currentToken, 479, 'reader_cache_stmt_vdbe_program', 'reader_cache_stmt_vdbe_program_must_match_current_stmt_vdbe_program_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_program_token', $currentToken, 479, 'reader_cache_stmt_vdbe_program', 'reader_cache_stmt_vdbe_program_must_match_current_stmt_vdbe_program_state');
     }
 
     /** @return array<string,mixed> */
@@ -29224,7 +29224,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext479(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_param_token', $currentToken, 480, 'reader_cache_stmt_vdbe_param', 'reader_cache_stmt_vdbe_param_must_match_current_stmt_vdbe_param_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_param_token', $currentToken, 480, 'reader_cache_stmt_vdbe_param', 'reader_cache_stmt_vdbe_param_must_match_current_stmt_vdbe_param_state');
     }
 
     /** @return array<string,mixed> */
@@ -29236,7 +29236,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext480(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_variable_token', $currentToken, 481, 'reader_cache_stmt_vdbe_variable', 'reader_cache_stmt_vdbe_variable_must_match_current_stmt_vdbe_variable_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_variable_token', $currentToken, 481, 'reader_cache_stmt_vdbe_variable', 'reader_cache_stmt_vdbe_variable_must_match_current_stmt_vdbe_variable_state');
     }
 
     /** @return array<string,mixed> */
@@ -29248,7 +29248,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext481(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_copy_token', $currentToken, 482, 'reader_cache_stmt_vdbe_copy', 'reader_cache_stmt_vdbe_copy_must_match_current_stmt_vdbe_copy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_copy_token', $currentToken, 482, 'reader_cache_stmt_vdbe_copy', 'reader_cache_stmt_vdbe_copy_must_match_current_stmt_vdbe_copy_state');
     }
 
     /** @return array<string,mixed> */
@@ -29260,7 +29260,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext482(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_scopy_token', $currentToken, 483, 'reader_cache_stmt_vdbe_scopy', 'reader_cache_stmt_vdbe_scopy_must_match_current_stmt_vdbe_scopy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_scopy_token', $currentToken, 483, 'reader_cache_stmt_vdbe_scopy', 'reader_cache_stmt_vdbe_scopy_must_match_current_stmt_vdbe_scopy_state');
     }
 
     /** @return array<string,mixed> */
@@ -29272,7 +29272,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext483(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_intcopy_token', $currentToken, 484, 'reader_cache_stmt_vdbe_intcopy', 'reader_cache_stmt_vdbe_intcopy_must_match_current_stmt_vdbe_intcopy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_intcopy_token', $currentToken, 484, 'reader_cache_stmt_vdbe_intcopy', 'reader_cache_stmt_vdbe_intcopy_must_match_current_stmt_vdbe_intcopy_state');
     }
 
     /** @return array<string,mixed> */
@@ -29284,7 +29284,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext484(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_result_row_token', $currentToken, 485, 'reader_cache_stmt_vdbe_result_row', 'reader_cache_stmt_vdbe_result_row_must_match_current_stmt_vdbe_result_row_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_result_row_token', $currentToken, 485, 'reader_cache_stmt_vdbe_result_row', 'reader_cache_stmt_vdbe_result_row_must_match_current_stmt_vdbe_result_row_state');
     }
 
     /** @return array<string,mixed> */
@@ -29296,7 +29296,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext485(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_collseq_token', $currentToken, 486, 'reader_cache_stmt_vdbe_collseq', 'reader_cache_stmt_vdbe_collseq_must_match_current_stmt_vdbe_collseq_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_collseq_token', $currentToken, 486, 'reader_cache_stmt_vdbe_collseq', 'reader_cache_stmt_vdbe_collseq_must_match_current_stmt_vdbe_collseq_state');
     }
 
     /** @return array<string,mixed> */
@@ -29308,7 +29308,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext486(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_function_token', $currentToken, 487, 'reader_cache_stmt_vdbe_function', 'reader_cache_stmt_vdbe_function_must_match_current_stmt_vdbe_function_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_function_token', $currentToken, 487, 'reader_cache_stmt_vdbe_function', 'reader_cache_stmt_vdbe_function_must_match_current_stmt_vdbe_function_state');
     }
 
     /** @return array<string,mixed> */
@@ -29320,7 +29320,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext487(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_agg_step_token', $currentToken, 488, 'reader_cache_stmt_vdbe_agg_step', 'reader_cache_stmt_vdbe_agg_step_must_match_current_stmt_vdbe_agg_step_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_agg_step_token', $currentToken, 488, 'reader_cache_stmt_vdbe_agg_step', 'reader_cache_stmt_vdbe_agg_step_must_match_current_stmt_vdbe_agg_step_state');
     }
 
     /** @return array<string,mixed> */
@@ -29332,7 +29332,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext488(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_agg_final_token', $currentToken, 489, 'reader_cache_stmt_vdbe_agg_final', 'reader_cache_stmt_vdbe_agg_final_must_match_current_stmt_vdbe_agg_final_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_agg_final_token', $currentToken, 489, 'reader_cache_stmt_vdbe_agg_final', 'reader_cache_stmt_vdbe_agg_final_must_match_current_stmt_vdbe_agg_final_state');
     }
 
     /** @return array<string,mixed> */
@@ -29344,7 +29344,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext489(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_token', $currentToken, 490, 'reader_cache_stmt_vdbe_real', 'reader_cache_stmt_vdbe_real_must_match_current_stmt_vdbe_real_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_token', $currentToken, 490, 'reader_cache_stmt_vdbe_real', 'reader_cache_stmt_vdbe_real_must_match_current_stmt_vdbe_real_state');
     }
 
     /** @return array<string,mixed> */
@@ -29356,7 +29356,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext490(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_token', $currentToken, 491, 'reader_cache_stmt_vdbe_real_affinity', 'reader_cache_stmt_vdbe_real_affinity_must_match_current_stmt_vdbe_real_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_token', $currentToken, 491, 'reader_cache_stmt_vdbe_real_affinity', 'reader_cache_stmt_vdbe_real_affinity_must_match_current_stmt_vdbe_real_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -29368,7 +29368,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext491(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_token', $currentToken, 492, 'reader_cache_stmt_vdbe_cast', 'reader_cache_stmt_vdbe_cast_must_match_current_stmt_vdbe_cast_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_token', $currentToken, 492, 'reader_cache_stmt_vdbe_cast', 'reader_cache_stmt_vdbe_cast_must_match_current_stmt_vdbe_cast_state');
     }
 
     /** @return array<string,mixed> */
@@ -29380,7 +29380,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext492(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_token', $currentToken, 493, 'reader_cache_stmt_vdbe_permutation', 'reader_cache_stmt_vdbe_permutation_must_match_current_stmt_vdbe_permutation_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_token', $currentToken, 493, 'reader_cache_stmt_vdbe_permutation', 'reader_cache_stmt_vdbe_permutation_must_match_current_stmt_vdbe_permutation_state');
     }
 
     /** @return array<string,mixed> */
@@ -29392,7 +29392,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext493(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_token', $currentToken, 494, 'reader_cache_stmt_vdbe_compare', 'reader_cache_stmt_vdbe_compare_must_match_current_stmt_vdbe_compare_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_token', $currentToken, 494, 'reader_cache_stmt_vdbe_compare', 'reader_cache_stmt_vdbe_compare_must_match_current_stmt_vdbe_compare_state');
     }
 
     /** @return array<string,mixed> */
@@ -29404,7 +29404,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext494(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_token', $currentToken, 495, 'reader_cache_stmt_vdbe_jump', 'reader_cache_stmt_vdbe_jump_must_match_current_stmt_vdbe_jump_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_token', $currentToken, 495, 'reader_cache_stmt_vdbe_jump', 'reader_cache_stmt_vdbe_jump_must_match_current_stmt_vdbe_jump_state');
     }
 
     /** @return array<string,mixed> */
@@ -29416,7 +29416,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext495(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_token', $currentToken, 496, 'reader_cache_stmt_vdbe_once', 'reader_cache_stmt_vdbe_once_must_match_current_stmt_vdbe_once_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_token', $currentToken, 496, 'reader_cache_stmt_vdbe_once', 'reader_cache_stmt_vdbe_once_must_match_current_stmt_vdbe_once_state');
     }
 
     /** @return array<string,mixed> */
@@ -29428,7 +29428,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext496(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_token', $currentToken, 497, 'reader_cache_stmt_vdbe_if', 'reader_cache_stmt_vdbe_if_must_match_current_stmt_vdbe_if_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_token', $currentToken, 497, 'reader_cache_stmt_vdbe_if', 'reader_cache_stmt_vdbe_if_must_match_current_stmt_vdbe_if_state');
     }
 
     /** @return array<string,mixed> */
@@ -29440,7 +29440,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext497(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_token', $currentToken, 498, 'reader_cache_stmt_vdbe_ifnot', 'reader_cache_stmt_vdbe_ifnot_must_match_current_stmt_vdbe_ifnot_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_token', $currentToken, 498, 'reader_cache_stmt_vdbe_ifnot', 'reader_cache_stmt_vdbe_ifnot_must_match_current_stmt_vdbe_ifnot_state');
     }
 
     /** @return array<string,mixed> */
@@ -29452,7 +29452,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext498(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_token', $currentToken, 499, 'reader_cache_stmt_vdbe_isnull', 'reader_cache_stmt_vdbe_isnull_must_match_current_stmt_vdbe_isnull_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_token', $currentToken, 499, 'reader_cache_stmt_vdbe_isnull', 'reader_cache_stmt_vdbe_isnull_must_match_current_stmt_vdbe_isnull_state');
     }
 
     /** @return array<string,mixed> */
@@ -29464,7 +29464,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext499(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_token', $currentToken, 500, 'reader_cache_stmt_vdbe_notnull', 'reader_cache_stmt_vdbe_notnull_must_match_current_stmt_vdbe_notnull_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_token', $currentToken, 500, 'reader_cache_stmt_vdbe_notnull', 'reader_cache_stmt_vdbe_notnull_must_match_current_stmt_vdbe_notnull_state');
     }
 
     /** @return array<string,mixed> */
@@ -29476,7 +29476,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext500(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_token', $currentToken, 501, 'reader_cache_stmt_vdbe_ne', 'reader_cache_stmt_vdbe_ne_must_match_current_stmt_vdbe_ne_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_token', $currentToken, 501, 'reader_cache_stmt_vdbe_ne', 'reader_cache_stmt_vdbe_ne_must_match_current_stmt_vdbe_ne_state');
     }
 
     /** @return array<string,mixed> */
@@ -29488,7 +29488,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext501(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_token', $currentToken, 502, 'reader_cache_stmt_vdbe_eq', 'reader_cache_stmt_vdbe_eq_must_match_current_stmt_vdbe_eq_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_token', $currentToken, 502, 'reader_cache_stmt_vdbe_eq', 'reader_cache_stmt_vdbe_eq_must_match_current_stmt_vdbe_eq_state');
     }
 
     /** @return array<string,mixed> */
@@ -29500,7 +29500,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext502(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_token', $currentToken, 503, 'reader_cache_stmt_vdbe_gt', 'reader_cache_stmt_vdbe_gt_must_match_current_stmt_vdbe_gt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_token', $currentToken, 503, 'reader_cache_stmt_vdbe_gt', 'reader_cache_stmt_vdbe_gt_must_match_current_stmt_vdbe_gt_state');
     }
 
     /** @return array<string,mixed> */
@@ -29512,7 +29512,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext503(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_token', $currentToken, 504, 'reader_cache_stmt_vdbe_le', 'reader_cache_stmt_vdbe_le_must_match_current_stmt_vdbe_le_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_token', $currentToken, 504, 'reader_cache_stmt_vdbe_le', 'reader_cache_stmt_vdbe_le_must_match_current_stmt_vdbe_le_state');
     }
 
     /** @return array<string,mixed> */
@@ -29524,7 +29524,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext504(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_token', $currentToken, 505, 'reader_cache_stmt_vdbe_lt', 'reader_cache_stmt_vdbe_lt_must_match_current_stmt_vdbe_lt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_token', $currentToken, 505, 'reader_cache_stmt_vdbe_lt', 'reader_cache_stmt_vdbe_lt_must_match_current_stmt_vdbe_lt_state');
     }
 
     /** @return array<string,mixed> */
@@ -29536,7 +29536,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext505(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_token', $currentToken, 506, 'reader_cache_stmt_vdbe_ge', 'reader_cache_stmt_vdbe_ge_must_match_current_stmt_vdbe_ge_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_token', $currentToken, 506, 'reader_cache_stmt_vdbe_ge', 'reader_cache_stmt_vdbe_ge_must_match_current_stmt_vdbe_ge_state');
     }
 
     /** @return array<string,mixed> */
@@ -29548,7 +29548,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext506(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_token', $currentToken, 507, 'reader_cache_stmt_vdbe_else_eq', 'reader_cache_stmt_vdbe_else_eq_must_match_current_stmt_vdbe_else_eq_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_token', $currentToken, 507, 'reader_cache_stmt_vdbe_else_eq', 'reader_cache_stmt_vdbe_else_eq_must_match_current_stmt_vdbe_else_eq_state');
     }
 
     /** @return array<string,mixed> */
@@ -29560,7 +29560,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext507(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_token', $currentToken, 508, 'reader_cache_stmt_vdbe_zero_or_null', 'reader_cache_stmt_vdbe_zero_or_null_must_match_current_stmt_vdbe_zero_or_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_token', $currentToken, 508, 'reader_cache_stmt_vdbe_zero_or_null', 'reader_cache_stmt_vdbe_zero_or_null_must_match_current_stmt_vdbe_zero_or_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -29572,7 +29572,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext508(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_token', $currentToken, 509, 'reader_cache_stmt_vdbe_seek_hit', 'reader_cache_stmt_vdbe_seek_hit_must_match_current_stmt_vdbe_seek_hit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_token', $currentToken, 509, 'reader_cache_stmt_vdbe_seek_hit', 'reader_cache_stmt_vdbe_seek_hit_must_match_current_stmt_vdbe_seek_hit_state');
     }
 
     /** @return array<string,mixed> */
@@ -29584,7 +29584,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext509(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_token', $currentToken, 510, 'reader_cache_stmt_vdbe_if_not_open', 'reader_cache_stmt_vdbe_if_not_open_must_match_current_stmt_vdbe_if_not_open_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_token', $currentToken, 510, 'reader_cache_stmt_vdbe_if_not_open', 'reader_cache_stmt_vdbe_if_not_open_must_match_current_stmt_vdbe_if_not_open_state');
     }
 
     /** @return array<string,mixed> */
@@ -29596,7 +29596,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext510(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_token', $currentToken, 511, 'reader_cache_stmt_vdbe_not_open', 'reader_cache_stmt_vdbe_not_open_must_match_current_stmt_vdbe_not_open_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_token', $currentToken, 511, 'reader_cache_stmt_vdbe_not_open', 'reader_cache_stmt_vdbe_not_open_must_match_current_stmt_vdbe_not_open_state');
     }
 
     /** @return array<string,mixed> */
@@ -29608,7 +29608,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext511(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_token', $currentToken, 512, 'reader_cache_stmt_vdbe_if_open', 'reader_cache_stmt_vdbe_if_open_must_match_current_stmt_vdbe_if_open_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_token', $currentToken, 512, 'reader_cache_stmt_vdbe_if_open', 'reader_cache_stmt_vdbe_if_open_must_match_current_stmt_vdbe_if_open_state');
     }
 
     /** @return array<string,mixed> */
@@ -29620,7 +29620,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext512(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_token', $currentToken, 513, 'reader_cache_stmt_vdbe_transaction', 'reader_cache_stmt_vdbe_transaction_must_match_current_stmt_vdbe_transaction_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_token', $currentToken, 513, 'reader_cache_stmt_vdbe_transaction', 'reader_cache_stmt_vdbe_transaction_must_match_current_stmt_vdbe_transaction_state');
     }
 
     /** @return array<string,mixed> */
@@ -29632,7 +29632,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext513(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_token', $currentToken, 514, 'reader_cache_stmt_vdbe_auto_commit', 'reader_cache_stmt_vdbe_auto_commit_must_match_current_stmt_vdbe_auto_commit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_token', $currentToken, 514, 'reader_cache_stmt_vdbe_auto_commit', 'reader_cache_stmt_vdbe_auto_commit_must_match_current_stmt_vdbe_auto_commit_state');
     }
 
     /** @return array<string,mixed> */
@@ -29644,7 +29644,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext514(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_token', $currentToken, 515, 'reader_cache_stmt_vdbe_savepoint', 'reader_cache_stmt_vdbe_savepoint_must_match_current_stmt_vdbe_savepoint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_token', $currentToken, 515, 'reader_cache_stmt_vdbe_savepoint', 'reader_cache_stmt_vdbe_savepoint_must_match_current_stmt_vdbe_savepoint_state');
     }
 
     /** @return array<string,mixed> */
@@ -29656,7 +29656,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext515(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_token', $currentToken, 516, 'reader_cache_stmt_vdbe_checkpoint', 'reader_cache_stmt_vdbe_checkpoint_must_match_current_stmt_vdbe_checkpoint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_token', $currentToken, 516, 'reader_cache_stmt_vdbe_checkpoint', 'reader_cache_stmt_vdbe_checkpoint_must_match_current_stmt_vdbe_checkpoint_state');
     }
 
     /** @return array<string,mixed> */
@@ -29668,7 +29668,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext516(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_token', $currentToken, 517, 'reader_cache_stmt_vdbe_journal_mode', 'reader_cache_stmt_vdbe_journal_mode_must_match_current_stmt_vdbe_journal_mode_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_token', $currentToken, 517, 'reader_cache_stmt_vdbe_journal_mode', 'reader_cache_stmt_vdbe_journal_mode_must_match_current_stmt_vdbe_journal_mode_state');
     }
 
     /** @return array<string,mixed> */
@@ -29680,7 +29680,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext517(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_token', $currentToken, 518, 'reader_cache_stmt_vdbe_vacuum', 'reader_cache_stmt_vdbe_vacuum_must_match_current_stmt_vdbe_vacuum_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_token', $currentToken, 518, 'reader_cache_stmt_vdbe_vacuum', 'reader_cache_stmt_vdbe_vacuum_must_match_current_stmt_vdbe_vacuum_state');
     }
 
     /** @return array<string,mixed> */
@@ -29692,7 +29692,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext518(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_token', $currentToken, 519, 'reader_cache_stmt_vdbe_incr_vacuum', 'reader_cache_stmt_vdbe_incr_vacuum_must_match_current_stmt_vdbe_incr_vacuum_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_token', $currentToken, 519, 'reader_cache_stmt_vdbe_incr_vacuum', 'reader_cache_stmt_vdbe_incr_vacuum_must_match_current_stmt_vdbe_incr_vacuum_state');
     }
 
     /** @return array<string,mixed> */
@@ -29704,7 +29704,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext519(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_token', $currentToken, 520, 'reader_cache_stmt_vdbe_expire', 'reader_cache_stmt_vdbe_expire_must_match_current_stmt_vdbe_expire_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_token', $currentToken, 520, 'reader_cache_stmt_vdbe_expire', 'reader_cache_stmt_vdbe_expire_must_match_current_stmt_vdbe_expire_state');
     }
 
     /** @return array<string,mixed> */
@@ -29716,7 +29716,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext520(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_token', $currentToken, 521, 'reader_cache_stmt_vdbe_table_lock', 'reader_cache_stmt_vdbe_table_lock_must_match_current_stmt_vdbe_table_lock_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_token', $currentToken, 521, 'reader_cache_stmt_vdbe_table_lock', 'reader_cache_stmt_vdbe_table_lock_must_match_current_stmt_vdbe_table_lock_state');
     }
 
     /** @return array<string,mixed> */
@@ -29728,7 +29728,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext521(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_token', $currentToken, 522, 'reader_cache_stmt_vdbe_vbegin', 'reader_cache_stmt_vdbe_vbegin_must_match_current_stmt_vdbe_vbegin_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_token', $currentToken, 522, 'reader_cache_stmt_vdbe_vbegin', 'reader_cache_stmt_vdbe_vbegin_must_match_current_stmt_vdbe_vbegin_state');
     }
 
     /** @return array<string,mixed> */
@@ -29740,7 +29740,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext522(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_token', $currentToken, 523, 'reader_cache_stmt_vdbe_vcreate', 'reader_cache_stmt_vdbe_vcreate_must_match_current_stmt_vdbe_vcreate_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_token', $currentToken, 523, 'reader_cache_stmt_vdbe_vcreate', 'reader_cache_stmt_vdbe_vcreate_must_match_current_stmt_vdbe_vcreate_state');
     }
 
     /** @return array<string,mixed> */
@@ -29752,7 +29752,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext523(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_token', $currentToken, 524, 'reader_cache_stmt_vdbe_vdestroy', 'reader_cache_stmt_vdbe_vdestroy_must_match_current_stmt_vdbe_vdestroy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_token', $currentToken, 524, 'reader_cache_stmt_vdbe_vdestroy', 'reader_cache_stmt_vdbe_vdestroy_must_match_current_stmt_vdbe_vdestroy_state');
     }
 
     /** @return array<string,mixed> */
@@ -29764,7 +29764,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext524(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_token', $currentToken, 525, 'reader_cache_stmt_vdbe_vopen', 'reader_cache_stmt_vdbe_vopen_must_match_current_stmt_vdbe_vopen_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_token', $currentToken, 525, 'reader_cache_stmt_vdbe_vopen', 'reader_cache_stmt_vdbe_vopen_must_match_current_stmt_vdbe_vopen_state');
     }
 
     /** @return array<string,mixed> */
@@ -29776,7 +29776,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext525(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_token', $currentToken, 526, 'reader_cache_stmt_vdbe_vfilter', 'reader_cache_stmt_vdbe_vfilter_must_match_current_stmt_vdbe_vfilter_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_token', $currentToken, 526, 'reader_cache_stmt_vdbe_vfilter', 'reader_cache_stmt_vdbe_vfilter_must_match_current_stmt_vdbe_vfilter_state');
     }
 
     /** @return array<string,mixed> */
@@ -29788,7 +29788,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext526(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_token', $currentToken, 527, 'reader_cache_stmt_vdbe_vcolumn', 'reader_cache_stmt_vdbe_vcolumn_must_match_current_stmt_vdbe_vcolumn_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_token', $currentToken, 527, 'reader_cache_stmt_vdbe_vcolumn', 'reader_cache_stmt_vdbe_vcolumn_must_match_current_stmt_vdbe_vcolumn_state');
     }
 
     /** @return array<string,mixed> */
@@ -29800,7 +29800,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext527(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_token', $currentToken, 528, 'reader_cache_stmt_vdbe_vnext', 'reader_cache_stmt_vdbe_vnext_must_match_current_stmt_vdbe_vnext_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_token', $currentToken, 528, 'reader_cache_stmt_vdbe_vnext', 'reader_cache_stmt_vdbe_vnext_must_match_current_stmt_vdbe_vnext_state');
     }
 
     /** @return array<string,mixed> */
@@ -29812,7 +29812,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext528(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_token', $currentToken, 529, 'reader_cache_stmt_vdbe_vrename', 'reader_cache_stmt_vdbe_vrename_must_match_current_stmt_vdbe_vrename_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_token', $currentToken, 529, 'reader_cache_stmt_vdbe_vrename', 'reader_cache_stmt_vdbe_vrename_must_match_current_stmt_vdbe_vrename_state');
     }
 
     /** @return array<string,mixed> */
@@ -29824,7 +29824,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext529(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_token', $currentToken, 530, 'reader_cache_stmt_vdbe_pagecount', 'reader_cache_stmt_vdbe_pagecount_must_match_current_stmt_vdbe_pagecount_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_token', $currentToken, 530, 'reader_cache_stmt_vdbe_pagecount', 'reader_cache_stmt_vdbe_pagecount_must_match_current_stmt_vdbe_pagecount_state');
     }
 
     /** @return array<string,mixed> */
@@ -29836,7 +29836,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext530(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_token', $currentToken, 531, 'reader_cache_stmt_vdbe_maxpgcnt', 'reader_cache_stmt_vdbe_maxpgcnt_must_match_current_stmt_vdbe_maxpgcnt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_token', $currentToken, 531, 'reader_cache_stmt_vdbe_maxpgcnt', 'reader_cache_stmt_vdbe_maxpgcnt_must_match_current_stmt_vdbe_maxpgcnt_state');
     }
 
     /** @return array<string,mixed> */
@@ -29848,7 +29848,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext531(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_token', $currentToken, 532, 'reader_cache_stmt_vdbe_opcode_trace', 'reader_cache_stmt_vdbe_opcode_trace_must_match_current_stmt_vdbe_opcode_trace_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_token', $currentToken, 532, 'reader_cache_stmt_vdbe_opcode_trace', 'reader_cache_stmt_vdbe_opcode_trace_must_match_current_stmt_vdbe_opcode_trace_state');
     }
 
     /** @return array<string,mixed> */
@@ -29860,7 +29860,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext532(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_token', $currentToken, 533, 'reader_cache_stmt_vdbe_cursorhint', 'reader_cache_stmt_vdbe_cursorhint_must_match_current_stmt_vdbe_cursorhint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_token', $currentToken, 533, 'reader_cache_stmt_vdbe_cursorhint', 'reader_cache_stmt_vdbe_cursorhint_must_match_current_stmt_vdbe_cursorhint_state');
     }
 
     /** @return array<string,mixed> */
@@ -29872,7 +29872,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext533(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_token', $currentToken, 534, 'reader_cache_stmt_vdbe_noop', 'reader_cache_stmt_vdbe_noop_must_match_current_stmt_vdbe_noop_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_token', $currentToken, 534, 'reader_cache_stmt_vdbe_noop', 'reader_cache_stmt_vdbe_noop_must_match_current_stmt_vdbe_noop_state');
     }
 
     /** @return array<string,mixed> */
@@ -29884,7 +29884,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext534(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_token', $currentToken, 535, 'reader_cache_stmt_vdbe_init', 'reader_cache_stmt_vdbe_init_must_match_current_stmt_vdbe_init_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_token', $currentToken, 535, 'reader_cache_stmt_vdbe_init', 'reader_cache_stmt_vdbe_init_must_match_current_stmt_vdbe_init_state');
     }
 
     /** @return array<string,mixed> */
@@ -29896,7 +29896,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext535(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_token', $currentToken, 536, 'reader_cache_stmt_vdbe_goto', 'reader_cache_stmt_vdbe_goto_must_match_current_stmt_vdbe_goto_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_token', $currentToken, 536, 'reader_cache_stmt_vdbe_goto', 'reader_cache_stmt_vdbe_goto_must_match_current_stmt_vdbe_goto_state');
     }
 
     /** @return array<string,mixed> */
@@ -29908,7 +29908,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext536(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_token', $currentToken, 537, 'reader_cache_stmt_vdbe_gosub', 'reader_cache_stmt_vdbe_gosub_must_match_current_stmt_vdbe_gosub_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_token', $currentToken, 537, 'reader_cache_stmt_vdbe_gosub', 'reader_cache_stmt_vdbe_gosub_must_match_current_stmt_vdbe_gosub_state');
     }
 
     /** @return array<string,mixed> */
@@ -29920,7 +29920,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext537(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_token', $currentToken, 538, 'reader_cache_stmt_vdbe_return', 'reader_cache_stmt_vdbe_return_must_match_current_stmt_vdbe_return_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_token', $currentToken, 538, 'reader_cache_stmt_vdbe_return', 'reader_cache_stmt_vdbe_return_must_match_current_stmt_vdbe_return_state');
     }
 
     /** @return array<string,mixed> */
@@ -29932,7 +29932,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext538(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_token', $currentToken, 539, 'reader_cache_stmt_vdbe_yield_op', 'reader_cache_stmt_vdbe_yield_op_must_match_current_stmt_vdbe_yield_op_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_token', $currentToken, 539, 'reader_cache_stmt_vdbe_yield_op', 'reader_cache_stmt_vdbe_yield_op_must_match_current_stmt_vdbe_yield_op_state');
     }
 
     /** @return array<string,mixed> */
@@ -29944,7 +29944,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext539(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_token', $currentToken, 540, 'reader_cache_stmt_vdbe_halt', 'reader_cache_stmt_vdbe_halt_must_match_current_stmt_vdbe_halt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_token', $currentToken, 540, 'reader_cache_stmt_vdbe_halt', 'reader_cache_stmt_vdbe_halt_must_match_current_stmt_vdbe_halt_state');
     }
 
     /** @return array<string,mixed> */
@@ -29956,7 +29956,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext540(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_token', $currentToken, 541, 'reader_cache_stmt_vdbe_halt_if_null', 'reader_cache_stmt_vdbe_halt_if_null_must_match_current_stmt_vdbe_halt_if_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_token', $currentToken, 541, 'reader_cache_stmt_vdbe_halt_if_null', 'reader_cache_stmt_vdbe_halt_if_null_must_match_current_stmt_vdbe_halt_if_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -29968,7 +29968,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext541(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_token', $currentToken, 542, 'reader_cache_stmt_vdbe_must_be_int', 'reader_cache_stmt_vdbe_must_be_int_must_match_current_stmt_vdbe_must_be_int_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_token', $currentToken, 542, 'reader_cache_stmt_vdbe_must_be_int', 'reader_cache_stmt_vdbe_must_be_int_must_match_current_stmt_vdbe_must_be_int_state');
     }
 
     /** @return array<string,mixed> */
@@ -29980,7 +29980,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext542(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_token', $currentToken, 543, 'reader_cache_stmt_vdbe_string', 'reader_cache_stmt_vdbe_string_must_match_current_stmt_vdbe_string_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_token', $currentToken, 543, 'reader_cache_stmt_vdbe_string', 'reader_cache_stmt_vdbe_string_must_match_current_stmt_vdbe_string_state');
     }
 
     /** @return array<string,mixed> */
@@ -29992,7 +29992,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext543(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_token', $currentToken, 544, 'reader_cache_stmt_vdbe_blob', 'reader_cache_stmt_vdbe_blob_must_match_current_stmt_vdbe_blob_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_token', $currentToken, 544, 'reader_cache_stmt_vdbe_blob', 'reader_cache_stmt_vdbe_blob_must_match_current_stmt_vdbe_blob_state');
     }
 
     /** @return array<string,mixed> */
@@ -30004,7 +30004,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext544(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_token', $currentToken, 545, 'reader_cache_stmt_vdbe_null', 'reader_cache_stmt_vdbe_null_must_match_current_stmt_vdbe_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_token', $currentToken, 545, 'reader_cache_stmt_vdbe_null', 'reader_cache_stmt_vdbe_null_must_match_current_stmt_vdbe_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -30016,7 +30016,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext545(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_token', $currentToken, 546, 'reader_cache_stmt_vdbe_soft_null', 'reader_cache_stmt_vdbe_soft_null_must_match_current_stmt_vdbe_soft_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_token', $currentToken, 546, 'reader_cache_stmt_vdbe_soft_null', 'reader_cache_stmt_vdbe_soft_null_must_match_current_stmt_vdbe_soft_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -30028,7 +30028,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext546(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_token', $currentToken, 547, 'reader_cache_stmt_vdbe_integer', 'reader_cache_stmt_vdbe_integer_must_match_current_stmt_vdbe_integer_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_token', $currentToken, 547, 'reader_cache_stmt_vdbe_integer', 'reader_cache_stmt_vdbe_integer_must_match_current_stmt_vdbe_integer_state');
     }
 
     /** @return array<string,mixed> */
@@ -30040,7 +30040,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext547(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_token', $currentToken, 548, 'reader_cache_stmt_vdbe_int64', 'reader_cache_stmt_vdbe_int64_must_match_current_stmt_vdbe_int64_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_token', $currentToken, 548, 'reader_cache_stmt_vdbe_int64', 'reader_cache_stmt_vdbe_int64_must_match_current_stmt_vdbe_int64_state');
     }
 
     /** @return array<string,mixed> */
@@ -30052,7 +30052,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext548(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_token', $currentToken, 549, 'reader_cache_stmt_vdbe_real_value', 'reader_cache_stmt_vdbe_real_value_must_match_current_stmt_vdbe_real_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_token', $currentToken, 549, 'reader_cache_stmt_vdbe_real_value', 'reader_cache_stmt_vdbe_real_value_must_match_current_stmt_vdbe_real_state');
     }
 
     /** @return array<string,mixed> */
@@ -30064,7 +30064,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext549(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_token', $currentToken, 550, 'reader_cache_stmt_vdbe_boolean', 'reader_cache_stmt_vdbe_boolean_must_match_current_stmt_vdbe_boolean_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_token', $currentToken, 550, 'reader_cache_stmt_vdbe_boolean', 'reader_cache_stmt_vdbe_boolean_must_match_current_stmt_vdbe_boolean_state');
     }
 
     /** @return array<string,mixed> */
@@ -30076,7 +30076,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext550(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_token', $currentToken, 551, 'reader_cache_stmt_vdbe_null_row', 'reader_cache_stmt_vdbe_null_row_must_match_current_stmt_vdbe_null_row_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_token', $currentToken, 551, 'reader_cache_stmt_vdbe_null_row', 'reader_cache_stmt_vdbe_null_row_must_match_current_stmt_vdbe_null_row_state');
     }
 
     /** @return array<string,mixed> */
@@ -30088,7 +30088,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext551(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_token', $currentToken, 552, 'reader_cache_stmt_vdbe_row_value', 'reader_cache_stmt_vdbe_row_value_must_match_current_stmt_vdbe_row_value_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_token', $currentToken, 552, 'reader_cache_stmt_vdbe_row_value', 'reader_cache_stmt_vdbe_row_value_must_match_current_stmt_vdbe_row_value_state');
     }
 
     /** @return array<string,mixed> */
@@ -30100,7 +30100,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext552(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_token', $currentToken, 553, 'reader_cache_stmt_vdbe_zeroblob', 'reader_cache_stmt_vdbe_zeroblob_must_match_current_stmt_vdbe_zeroblob_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_token', $currentToken, 553, 'reader_cache_stmt_vdbe_zeroblob', 'reader_cache_stmt_vdbe_zeroblob_must_match_current_stmt_vdbe_zeroblob_state');
     }
 
     /** @return array<string,mixed> */
@@ -30112,7 +30112,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext553(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_token', $currentToken, 554, 'reader_cache_stmt_vdbe_string8', 'reader_cache_stmt_vdbe_string8_must_match_current_stmt_vdbe_string8_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_token', $currentToken, 554, 'reader_cache_stmt_vdbe_string8', 'reader_cache_stmt_vdbe_string8_must_match_current_stmt_vdbe_string8_state');
     }
 
     /** @return array<string,mixed> */
@@ -30124,7 +30124,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext554(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_token', $currentToken, 555, 'reader_cache_stmt_vdbe_concat', 'reader_cache_stmt_vdbe_concat_must_match_current_stmt_vdbe_concat_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_token', $currentToken, 555, 'reader_cache_stmt_vdbe_concat', 'reader_cache_stmt_vdbe_concat_must_match_current_stmt_vdbe_concat_state');
     }
 
     /** @return array<string,mixed> */
@@ -30136,7 +30136,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext555(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_token', $currentToken, 556, 'reader_cache_stmt_vdbe_add', 'reader_cache_stmt_vdbe_add_must_match_current_stmt_vdbe_add_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_token', $currentToken, 556, 'reader_cache_stmt_vdbe_add', 'reader_cache_stmt_vdbe_add_must_match_current_stmt_vdbe_add_state');
     }
 
     /** @return array<string,mixed> */
@@ -30148,7 +30148,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext556(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_token', $currentToken, 557, 'reader_cache_stmt_vdbe_subtract', 'reader_cache_stmt_vdbe_subtract_must_match_current_stmt_vdbe_subtract_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_token', $currentToken, 557, 'reader_cache_stmt_vdbe_subtract', 'reader_cache_stmt_vdbe_subtract_must_match_current_stmt_vdbe_subtract_state');
     }
 
     /** @return array<string,mixed> */
@@ -30160,7 +30160,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext557(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_token', $currentToken, 558, 'reader_cache_stmt_vdbe_multiply', 'reader_cache_stmt_vdbe_multiply_must_match_current_stmt_vdbe_multiply_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_token', $currentToken, 558, 'reader_cache_stmt_vdbe_multiply', 'reader_cache_stmt_vdbe_multiply_must_match_current_stmt_vdbe_multiply_state');
     }
 
     /** @return array<string,mixed> */
@@ -30172,7 +30172,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext558(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_token', $currentToken, 559, 'reader_cache_stmt_vdbe_divide', 'reader_cache_stmt_vdbe_divide_must_match_current_stmt_vdbe_divide_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_token', $currentToken, 559, 'reader_cache_stmt_vdbe_divide', 'reader_cache_stmt_vdbe_divide_must_match_current_stmt_vdbe_divide_state');
     }
 
     /** @return array<string,mixed> */
@@ -30184,7 +30184,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext559(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_token', $currentToken, 560, 'reader_cache_stmt_vdbe_remainder', 'reader_cache_stmt_vdbe_remainder_must_match_current_stmt_vdbe_remainder_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_token', $currentToken, 560, 'reader_cache_stmt_vdbe_remainder', 'reader_cache_stmt_vdbe_remainder_must_match_current_stmt_vdbe_remainder_state');
     }
 
     /** @return array<string,mixed> */
@@ -30196,7 +30196,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext560(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_token', $currentToken, 561, 'reader_cache_stmt_vdbe_bit_and', 'reader_cache_stmt_vdbe_bit_and_must_match_current_stmt_vdbe_bit_and_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_token', $currentToken, 561, 'reader_cache_stmt_vdbe_bit_and', 'reader_cache_stmt_vdbe_bit_and_must_match_current_stmt_vdbe_bit_and_state');
     }
 
     /** @return array<string,mixed> */
@@ -30208,7 +30208,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext561(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_token', $currentToken, 562, 'reader_cache_stmt_vdbe_bit_or', 'reader_cache_stmt_vdbe_bit_or_must_match_current_stmt_vdbe_bit_or_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_token', $currentToken, 562, 'reader_cache_stmt_vdbe_bit_or', 'reader_cache_stmt_vdbe_bit_or_must_match_current_stmt_vdbe_bit_or_state');
     }
 
     /** @return array<string,mixed> */
@@ -30220,7 +30220,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext562(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_token', $currentToken, 563, 'reader_cache_stmt_vdbe_shift_left', 'reader_cache_stmt_vdbe_shift_left_must_match_current_stmt_vdbe_shift_left_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_token', $currentToken, 563, 'reader_cache_stmt_vdbe_shift_left', 'reader_cache_stmt_vdbe_shift_left_must_match_current_stmt_vdbe_shift_left_state');
     }
 
     /** @return array<string,mixed> */
@@ -30232,7 +30232,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext563(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_token', $currentToken, 564, 'reader_cache_stmt_vdbe_shift_right', 'reader_cache_stmt_vdbe_shift_right_must_match_current_stmt_vdbe_shift_right_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_token', $currentToken, 564, 'reader_cache_stmt_vdbe_shift_right', 'reader_cache_stmt_vdbe_shift_right_must_match_current_stmt_vdbe_shift_right_state');
     }
 
     /** @return array<string,mixed> */
@@ -30244,7 +30244,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext564(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_token', $currentToken, 565, 'reader_cache_stmt_vdbe_add_imm', 'reader_cache_stmt_vdbe_add_imm_must_match_current_stmt_vdbe_add_imm_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_token', $currentToken, 565, 'reader_cache_stmt_vdbe_add_imm', 'reader_cache_stmt_vdbe_add_imm_must_match_current_stmt_vdbe_add_imm_state');
     }
 
     /** @return array<string,mixed> */
@@ -30256,7 +30256,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext565(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_token', $currentToken, 566, 'reader_cache_stmt_vdbe_bit_not', 'reader_cache_stmt_vdbe_bit_not_must_match_current_stmt_vdbe_bit_not_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_token', $currentToken, 566, 'reader_cache_stmt_vdbe_bit_not', 'reader_cache_stmt_vdbe_bit_not_must_match_current_stmt_vdbe_bit_not_state');
     }
 
     /** @return array<string,mixed> */
@@ -30268,7 +30268,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext566(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_token', $currentToken, 567, 'reader_cache_stmt_vdbe_real_affinity_value', 'reader_cache_stmt_vdbe_real_affinity_value_must_match_current_stmt_vdbe_real_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_token', $currentToken, 567, 'reader_cache_stmt_vdbe_real_affinity_value', 'reader_cache_stmt_vdbe_real_affinity_value_must_match_current_stmt_vdbe_real_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -30280,7 +30280,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext567(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_token', $currentToken, 568, 'reader_cache_stmt_vdbe_cast_affinity', 'reader_cache_stmt_vdbe_cast_affinity_must_match_current_stmt_vdbe_cast_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_token', $currentToken, 568, 'reader_cache_stmt_vdbe_cast_affinity', 'reader_cache_stmt_vdbe_cast_affinity_must_match_current_stmt_vdbe_cast_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -30292,7 +30292,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext568(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_token', $currentToken, 569, 'reader_cache_stmt_vdbe_permutation_affinity', 'reader_cache_stmt_vdbe_permutation_affinity_must_match_current_stmt_vdbe_permutation_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_token', $currentToken, 569, 'reader_cache_stmt_vdbe_permutation_affinity', 'reader_cache_stmt_vdbe_permutation_affinity_must_match_current_stmt_vdbe_permutation_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -30304,7 +30304,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext569(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_token', $currentToken, 570, 'reader_cache_stmt_vdbe_compare_affinity', 'reader_cache_stmt_vdbe_compare_affinity_must_match_current_stmt_vdbe_compare_affinity_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_token', $currentToken, 570, 'reader_cache_stmt_vdbe_compare_affinity', 'reader_cache_stmt_vdbe_compare_affinity_must_match_current_stmt_vdbe_compare_affinity_state');
     }
 
     /** @return array<string,mixed> */
@@ -30316,7 +30316,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext570(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_token', $currentToken, 571, 'reader_cache_stmt_vdbe_compare_collseq', 'reader_cache_stmt_vdbe_compare_collseq_must_match_current_stmt_vdbe_compare_collseq_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_token', $currentToken, 571, 'reader_cache_stmt_vdbe_compare_collseq', 'reader_cache_stmt_vdbe_compare_collseq_must_match_current_stmt_vdbe_compare_collseq_state');
     }
 
     /** @return array<string,mixed> */
@@ -30328,7 +30328,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext571(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_token', $currentToken, 572, 'reader_cache_stmt_vdbe_jump_destination', 'reader_cache_stmt_vdbe_jump_destination_must_match_current_stmt_vdbe_jump_destination_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_token', $currentToken, 572, 'reader_cache_stmt_vdbe_jump_destination', 'reader_cache_stmt_vdbe_jump_destination_must_match_current_stmt_vdbe_jump_destination_state');
     }
 
     /** @return array<string,mixed> */
@@ -30340,7 +30340,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext572(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_token', $currentToken, 573, 'reader_cache_stmt_vdbe_once_flag', 'reader_cache_stmt_vdbe_once_flag_must_match_current_stmt_vdbe_once_flag_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_token', $currentToken, 573, 'reader_cache_stmt_vdbe_once_flag', 'reader_cache_stmt_vdbe_once_flag_must_match_current_stmt_vdbe_once_flag_state');
     }
 
     /** @return array<string,mixed> */
@@ -30352,7 +30352,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext573(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_token', $currentToken, 574, 'reader_cache_stmt_vdbe_if_branch', 'reader_cache_stmt_vdbe_if_branch_must_match_current_stmt_vdbe_if_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_token', $currentToken, 574, 'reader_cache_stmt_vdbe_if_branch', 'reader_cache_stmt_vdbe_if_branch_must_match_current_stmt_vdbe_if_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30364,7 +30364,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext574(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_token', $currentToken, 575, 'reader_cache_stmt_vdbe_ifnot_branch', 'reader_cache_stmt_vdbe_ifnot_branch_must_match_current_stmt_vdbe_ifnot_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_token', $currentToken, 575, 'reader_cache_stmt_vdbe_ifnot_branch', 'reader_cache_stmt_vdbe_ifnot_branch_must_match_current_stmt_vdbe_ifnot_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30376,7 +30376,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext575(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_token', $currentToken, 576, 'reader_cache_stmt_vdbe_isnull_branch', 'reader_cache_stmt_vdbe_isnull_branch_must_match_current_stmt_vdbe_isnull_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_token', $currentToken, 576, 'reader_cache_stmt_vdbe_isnull_branch', 'reader_cache_stmt_vdbe_isnull_branch_must_match_current_stmt_vdbe_isnull_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30388,7 +30388,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext576(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_token', $currentToken, 577, 'reader_cache_stmt_vdbe_notnull_branch', 'reader_cache_stmt_vdbe_notnull_branch_must_match_current_stmt_vdbe_notnull_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_token', $currentToken, 577, 'reader_cache_stmt_vdbe_notnull_branch', 'reader_cache_stmt_vdbe_notnull_branch_must_match_current_stmt_vdbe_notnull_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30400,7 +30400,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext577(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_token', $currentToken, 578, 'reader_cache_stmt_vdbe_ne_branch', 'reader_cache_stmt_vdbe_ne_branch_must_match_current_stmt_vdbe_ne_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_token', $currentToken, 578, 'reader_cache_stmt_vdbe_ne_branch', 'reader_cache_stmt_vdbe_ne_branch_must_match_current_stmt_vdbe_ne_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30412,7 +30412,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext578(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_token', $currentToken, 579, 'reader_cache_stmt_vdbe_eq_branch', 'reader_cache_stmt_vdbe_eq_branch_must_match_current_stmt_vdbe_eq_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_token', $currentToken, 579, 'reader_cache_stmt_vdbe_eq_branch', 'reader_cache_stmt_vdbe_eq_branch_must_match_current_stmt_vdbe_eq_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30424,7 +30424,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext579(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_token', $currentToken, 580, 'reader_cache_stmt_vdbe_gt_branch', 'reader_cache_stmt_vdbe_gt_branch_must_match_current_stmt_vdbe_gt_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_token', $currentToken, 580, 'reader_cache_stmt_vdbe_gt_branch', 'reader_cache_stmt_vdbe_gt_branch_must_match_current_stmt_vdbe_gt_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30436,7 +30436,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext580(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_token', $currentToken, 581, 'reader_cache_stmt_vdbe_le_branch', 'reader_cache_stmt_vdbe_le_branch_must_match_current_stmt_vdbe_le_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_token', $currentToken, 581, 'reader_cache_stmt_vdbe_le_branch', 'reader_cache_stmt_vdbe_le_branch_must_match_current_stmt_vdbe_le_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30448,7 +30448,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext581(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_token', $currentToken, 582, 'reader_cache_stmt_vdbe_lt_branch', 'reader_cache_stmt_vdbe_lt_branch_must_match_current_stmt_vdbe_lt_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_token', $currentToken, 582, 'reader_cache_stmt_vdbe_lt_branch', 'reader_cache_stmt_vdbe_lt_branch_must_match_current_stmt_vdbe_lt_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30460,7 +30460,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext582(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_token', $currentToken, 583, 'reader_cache_stmt_vdbe_ge_branch', 'reader_cache_stmt_vdbe_ge_branch_must_match_current_stmt_vdbe_ge_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_token', $currentToken, 583, 'reader_cache_stmt_vdbe_ge_branch', 'reader_cache_stmt_vdbe_ge_branch_must_match_current_stmt_vdbe_ge_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30472,7 +30472,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext583(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_token', $currentToken, 584, 'reader_cache_stmt_vdbe_else_eq_branch', 'reader_cache_stmt_vdbe_else_eq_branch_must_match_current_stmt_vdbe_else_eq_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_token', $currentToken, 584, 'reader_cache_stmt_vdbe_else_eq_branch', 'reader_cache_stmt_vdbe_else_eq_branch_must_match_current_stmt_vdbe_else_eq_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30484,7 +30484,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext584(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_token', $currentToken, 585, 'reader_cache_stmt_vdbe_zero_or_null_branch', 'reader_cache_stmt_vdbe_zero_or_null_branch_must_match_current_stmt_vdbe_zero_or_null_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_token', $currentToken, 585, 'reader_cache_stmt_vdbe_zero_or_null_branch', 'reader_cache_stmt_vdbe_zero_or_null_branch_must_match_current_stmt_vdbe_zero_or_null_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30496,7 +30496,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext585(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_token', $currentToken, 586, 'reader_cache_stmt_vdbe_seek_hit_branch', 'reader_cache_stmt_vdbe_seek_hit_branch_must_match_current_stmt_vdbe_seek_hit_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_token', $currentToken, 586, 'reader_cache_stmt_vdbe_seek_hit_branch', 'reader_cache_stmt_vdbe_seek_hit_branch_must_match_current_stmt_vdbe_seek_hit_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30508,7 +30508,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext586(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_token', $currentToken, 587, 'reader_cache_stmt_vdbe_if_not_open_branch', 'reader_cache_stmt_vdbe_if_not_open_branch_must_match_current_stmt_vdbe_if_not_open_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_token', $currentToken, 587, 'reader_cache_stmt_vdbe_if_not_open_branch', 'reader_cache_stmt_vdbe_if_not_open_branch_must_match_current_stmt_vdbe_if_not_open_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30520,7 +30520,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext587(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_token', $currentToken, 588, 'reader_cache_stmt_vdbe_not_open_branch', 'reader_cache_stmt_vdbe_not_open_branch_must_match_current_stmt_vdbe_not_open_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_token', $currentToken, 588, 'reader_cache_stmt_vdbe_not_open_branch', 'reader_cache_stmt_vdbe_not_open_branch_must_match_current_stmt_vdbe_not_open_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30532,7 +30532,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext588(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_token', $currentToken, 589, 'reader_cache_stmt_vdbe_if_open_branch', 'reader_cache_stmt_vdbe_if_open_branch_must_match_current_stmt_vdbe_if_open_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_token', $currentToken, 589, 'reader_cache_stmt_vdbe_if_open_branch', 'reader_cache_stmt_vdbe_if_open_branch_must_match_current_stmt_vdbe_if_open_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30544,7 +30544,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext589(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_token', $currentToken, 590, 'reader_cache_stmt_vdbe_transaction_branch', 'reader_cache_stmt_vdbe_transaction_branch_must_match_current_stmt_vdbe_transaction_branch_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_token', $currentToken, 590, 'reader_cache_stmt_vdbe_transaction_branch', 'reader_cache_stmt_vdbe_transaction_branch_must_match_current_stmt_vdbe_transaction_branch_state');
     }
 
     /** @return array<string,mixed> */
@@ -30556,7 +30556,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext590(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_token', $currentToken, 591, 'reader_cache_stmt_vdbe_auto_commit_branch', 'reader_cache_stmt_vdbe_auto_commit_branch_must_match_current_stmt_vdbe_auto_commit_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_token', $currentToken, 591, 'reader_cache_stmt_vdbe_auto_commit_branch', 'reader_cache_stmt_vdbe_auto_commit_branch_must_match_current_stmt_vdbe_auto_commit_state');
     }
 
     /** @return array<string,mixed> */
@@ -30568,7 +30568,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext591(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_token', $currentToken, 592, 'reader_cache_stmt_vdbe_savepoint_branch', 'reader_cache_stmt_vdbe_savepoint_branch_must_match_current_stmt_vdbe_savepoint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_token', $currentToken, 592, 'reader_cache_stmt_vdbe_savepoint_branch', 'reader_cache_stmt_vdbe_savepoint_branch_must_match_current_stmt_vdbe_savepoint_state');
     }
 
     /** @return array<string,mixed> */
@@ -30580,7 +30580,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext592(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_token', $currentToken, 593, 'reader_cache_stmt_vdbe_checkpoint_branch', 'reader_cache_stmt_vdbe_checkpoint_branch_must_match_current_stmt_vdbe_checkpoint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_token', $currentToken, 593, 'reader_cache_stmt_vdbe_checkpoint_branch', 'reader_cache_stmt_vdbe_checkpoint_branch_must_match_current_stmt_vdbe_checkpoint_state');
     }
 
     /** @return array<string,mixed> */
@@ -30592,7 +30592,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext593(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_token', $currentToken, 594, 'reader_cache_stmt_vdbe_journal_mode_branch', 'reader_cache_stmt_vdbe_journal_mode_branch_must_match_current_stmt_vdbe_journal_mode_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_token', $currentToken, 594, 'reader_cache_stmt_vdbe_journal_mode_branch', 'reader_cache_stmt_vdbe_journal_mode_branch_must_match_current_stmt_vdbe_journal_mode_state');
     }
 
     /** @return array<string,mixed> */
@@ -30604,7 +30604,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext594(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_token', $currentToken, 595, 'reader_cache_stmt_vdbe_vacuum_branch', 'reader_cache_stmt_vdbe_vacuum_branch_must_match_current_stmt_vdbe_vacuum_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_token', $currentToken, 595, 'reader_cache_stmt_vdbe_vacuum_branch', 'reader_cache_stmt_vdbe_vacuum_branch_must_match_current_stmt_vdbe_vacuum_state');
     }
 
     /** @return array<string,mixed> */
@@ -30616,7 +30616,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext595(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_token', $currentToken, 596, 'reader_cache_stmt_vdbe_incr_vacuum_branch', 'reader_cache_stmt_vdbe_incr_vacuum_branch_must_match_current_stmt_vdbe_incr_vacuum_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_token', $currentToken, 596, 'reader_cache_stmt_vdbe_incr_vacuum_branch', 'reader_cache_stmt_vdbe_incr_vacuum_branch_must_match_current_stmt_vdbe_incr_vacuum_state');
     }
 
     /** @return array<string,mixed> */
@@ -30628,7 +30628,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext596(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_token', $currentToken, 597, 'reader_cache_stmt_vdbe_expire_branch', 'reader_cache_stmt_vdbe_expire_branch_must_match_current_stmt_vdbe_expire_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_token', $currentToken, 597, 'reader_cache_stmt_vdbe_expire_branch', 'reader_cache_stmt_vdbe_expire_branch_must_match_current_stmt_vdbe_expire_state');
     }
 
     /** @return array<string,mixed> */
@@ -30640,7 +30640,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext597(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_token', $currentToken, 598, 'reader_cache_stmt_vdbe_table_lock_branch', 'reader_cache_stmt_vdbe_table_lock_branch_must_match_current_stmt_vdbe_table_lock_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_token', $currentToken, 598, 'reader_cache_stmt_vdbe_table_lock_branch', 'reader_cache_stmt_vdbe_table_lock_branch_must_match_current_stmt_vdbe_table_lock_state');
     }
 
     /** @return array<string,mixed> */
@@ -30652,7 +30652,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext598(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_token', $currentToken, 599, 'reader_cache_stmt_vdbe_vbegin_branch', 'reader_cache_stmt_vdbe_vbegin_branch_must_match_current_stmt_vdbe_vbegin_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_token', $currentToken, 599, 'reader_cache_stmt_vdbe_vbegin_branch', 'reader_cache_stmt_vdbe_vbegin_branch_must_match_current_stmt_vdbe_vbegin_state');
     }
 
     /** @return array<string,mixed> */
@@ -30664,7 +30664,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext599(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_token', $currentToken, 600, 'reader_cache_stmt_vdbe_vcreate_branch', 'reader_cache_stmt_vdbe_vcreate_branch_must_match_current_stmt_vdbe_vcreate_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_token', $currentToken, 600, 'reader_cache_stmt_vdbe_vcreate_branch', 'reader_cache_stmt_vdbe_vcreate_branch_must_match_current_stmt_vdbe_vcreate_state');
     }
 
     /** @return array<string,mixed> */
@@ -30676,7 +30676,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext600(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_token', $currentToken, 601, 'reader_cache_stmt_vdbe_vdestroy_branch', 'reader_cache_stmt_vdbe_vdestroy_branch_must_match_current_stmt_vdbe_vdestroy_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_token', $currentToken, 601, 'reader_cache_stmt_vdbe_vdestroy_branch', 'reader_cache_stmt_vdbe_vdestroy_branch_must_match_current_stmt_vdbe_vdestroy_state');
     }
 
     /** @return array<string,mixed> */
@@ -30688,7 +30688,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext601(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_token', $currentToken, 602, 'reader_cache_stmt_vdbe_vopen_branch', 'reader_cache_stmt_vdbe_vopen_branch_must_match_current_stmt_vdbe_vopen_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_token', $currentToken, 602, 'reader_cache_stmt_vdbe_vopen_branch', 'reader_cache_stmt_vdbe_vopen_branch_must_match_current_stmt_vdbe_vopen_state');
     }
 
     /** @return array<string,mixed> */
@@ -30700,7 +30700,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext602(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_token', $currentToken, 603, 'reader_cache_stmt_vdbe_vfilter_branch', 'reader_cache_stmt_vdbe_vfilter_branch_must_match_current_stmt_vdbe_vfilter_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_token', $currentToken, 603, 'reader_cache_stmt_vdbe_vfilter_branch', 'reader_cache_stmt_vdbe_vfilter_branch_must_match_current_stmt_vdbe_vfilter_state');
     }
 
     /** @return array<string,mixed> */
@@ -30712,7 +30712,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext603(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_token', $currentToken, 604, 'reader_cache_stmt_vdbe_vcolumn_branch', 'reader_cache_stmt_vdbe_vcolumn_branch_must_match_current_stmt_vdbe_vcolumn_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_token', $currentToken, 604, 'reader_cache_stmt_vdbe_vcolumn_branch', 'reader_cache_stmt_vdbe_vcolumn_branch_must_match_current_stmt_vdbe_vcolumn_state');
     }
 
     /** @return array<string,mixed> */
@@ -30724,7 +30724,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext604(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_token', $currentToken, 605, 'reader_cache_stmt_vdbe_vnext_branch', 'reader_cache_stmt_vdbe_vnext_branch_must_match_current_stmt_vdbe_vnext_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_token', $currentToken, 605, 'reader_cache_stmt_vdbe_vnext_branch', 'reader_cache_stmt_vdbe_vnext_branch_must_match_current_stmt_vdbe_vnext_state');
     }
 
     /** @return array<string,mixed> */
@@ -30736,7 +30736,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext605(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_token', $currentToken, 606, 'reader_cache_stmt_vdbe_vrename_branch', 'reader_cache_stmt_vdbe_vrename_branch_must_match_current_stmt_vdbe_vrename_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_token', $currentToken, 606, 'reader_cache_stmt_vdbe_vrename_branch', 'reader_cache_stmt_vdbe_vrename_branch_must_match_current_stmt_vdbe_vrename_state');
     }
 
     /** @return array<string,mixed> */
@@ -30748,7 +30748,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext606(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_token', $currentToken, 607, 'reader_cache_stmt_vdbe_pagecount_branch', 'reader_cache_stmt_vdbe_pagecount_must_match_current_stmt_vdbe_pagecount_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_token', $currentToken, 607, 'reader_cache_stmt_vdbe_pagecount_branch', 'reader_cache_stmt_vdbe_pagecount_must_match_current_stmt_vdbe_pagecount_state');
     }
 
     /** @return array<string,mixed> */
@@ -30760,7 +30760,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext607(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_token', $currentToken, 608, 'reader_cache_stmt_vdbe_maxpgcnt_branch', 'reader_cache_stmt_vdbe_maxpgcnt_must_match_current_stmt_vdbe_maxpgcnt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_token', $currentToken, 608, 'reader_cache_stmt_vdbe_maxpgcnt_branch', 'reader_cache_stmt_vdbe_maxpgcnt_must_match_current_stmt_vdbe_maxpgcnt_state');
     }
 
     /** @return array<string,mixed> */
@@ -30772,7 +30772,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext608(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_token', $currentToken, 609, 'reader_cache_stmt_vdbe_opcode_trace_branch', 'reader_cache_stmt_vdbe_opcode_trace_must_match_current_stmt_vdbe_opcode_trace_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_token', $currentToken, 609, 'reader_cache_stmt_vdbe_opcode_trace_branch', 'reader_cache_stmt_vdbe_opcode_trace_must_match_current_stmt_vdbe_opcode_trace_state');
     }
 
     /** @return array<string,mixed> */
@@ -30784,7 +30784,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext609(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_token', $currentToken, 610, 'reader_cache_stmt_vdbe_cursorhint_branch', 'reader_cache_stmt_vdbe_cursorhint_must_match_current_stmt_vdbe_cursorhint_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_token', $currentToken, 610, 'reader_cache_stmt_vdbe_cursorhint_branch', 'reader_cache_stmt_vdbe_cursorhint_must_match_current_stmt_vdbe_cursorhint_state');
     }
 
     /** @return array<string,mixed> */
@@ -30796,7 +30796,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext610(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_token', $currentToken, 611, 'reader_cache_stmt_vdbe_noop_branch', 'reader_cache_stmt_vdbe_noop_must_match_current_stmt_vdbe_noop_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_token', $currentToken, 611, 'reader_cache_stmt_vdbe_noop_branch', 'reader_cache_stmt_vdbe_noop_must_match_current_stmt_vdbe_noop_state');
     }
 
     /** @return array<string,mixed> */
@@ -30808,7 +30808,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext611(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_token', $currentToken, 612, 'reader_cache_stmt_vdbe_init_branch', 'reader_cache_stmt_vdbe_init_must_match_current_stmt_vdbe_init_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_token', $currentToken, 612, 'reader_cache_stmt_vdbe_init_branch', 'reader_cache_stmt_vdbe_init_must_match_current_stmt_vdbe_init_state');
     }
 
     /** @return array<string,mixed> */
@@ -30820,7 +30820,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext612(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_token', $currentToken, 613, 'reader_cache_stmt_vdbe_goto_branch', 'reader_cache_stmt_vdbe_goto_must_match_current_stmt_vdbe_goto_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_token', $currentToken, 613, 'reader_cache_stmt_vdbe_goto_branch', 'reader_cache_stmt_vdbe_goto_must_match_current_stmt_vdbe_goto_state');
     }
 
     /** @return array<string,mixed> */
@@ -30832,7 +30832,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext613(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_token', $currentToken, 614, 'reader_cache_stmt_vdbe_gosub_branch', 'reader_cache_stmt_vdbe_gosub_must_match_current_stmt_vdbe_gosub_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_token', $currentToken, 614, 'reader_cache_stmt_vdbe_gosub_branch', 'reader_cache_stmt_vdbe_gosub_must_match_current_stmt_vdbe_gosub_state');
     }
 
     /** @return array<string,mixed> */
@@ -30844,7 +30844,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext614(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_token', $currentToken, 615, 'reader_cache_stmt_vdbe_return_branch', 'reader_cache_stmt_vdbe_return_must_match_current_stmt_vdbe_return_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_token', $currentToken, 615, 'reader_cache_stmt_vdbe_return_branch', 'reader_cache_stmt_vdbe_return_must_match_current_stmt_vdbe_return_state');
     }
 
     /** @return array<string,mixed> */
@@ -30856,7 +30856,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext615(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_token', $currentToken, 616, 'reader_cache_stmt_vdbe_yield_op_branch', 'reader_cache_stmt_vdbe_yield_op_must_match_current_stmt_vdbe_yield_op_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_token', $currentToken, 616, 'reader_cache_stmt_vdbe_yield_op_branch', 'reader_cache_stmt_vdbe_yield_op_must_match_current_stmt_vdbe_yield_op_state');
     }
 
     /** @return array<string,mixed> */
@@ -30868,7 +30868,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext616(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_token', $currentToken, 617, 'reader_cache_stmt_vdbe_halt_branch', 'reader_cache_stmt_vdbe_halt_must_match_current_stmt_vdbe_halt_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_token', $currentToken, 617, 'reader_cache_stmt_vdbe_halt_branch', 'reader_cache_stmt_vdbe_halt_must_match_current_stmt_vdbe_halt_state');
     }
 
     /** @return array<string,mixed> */
@@ -30880,7 +30880,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext617(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_token', $currentToken, 618, 'reader_cache_stmt_vdbe_halt_if_null_branch', 'reader_cache_stmt_vdbe_halt_if_null_must_match_current_stmt_vdbe_halt_if_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_token', $currentToken, 618, 'reader_cache_stmt_vdbe_halt_if_null_branch', 'reader_cache_stmt_vdbe_halt_if_null_must_match_current_stmt_vdbe_halt_if_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -30892,7 +30892,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext618(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_token', $currentToken, 619, 'reader_cache_stmt_vdbe_must_be_int_branch', 'reader_cache_stmt_vdbe_must_be_int_must_match_current_stmt_vdbe_must_be_int_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_token', $currentToken, 619, 'reader_cache_stmt_vdbe_must_be_int_branch', 'reader_cache_stmt_vdbe_must_be_int_must_match_current_stmt_vdbe_must_be_int_state');
     }
 
     /** @return array<string,mixed> */
@@ -30904,7 +30904,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext619(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_token', $currentToken, 620, 'reader_cache_stmt_vdbe_string_branch', 'reader_cache_stmt_vdbe_string_must_match_current_stmt_vdbe_string_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_token', $currentToken, 620, 'reader_cache_stmt_vdbe_string_branch', 'reader_cache_stmt_vdbe_string_must_match_current_stmt_vdbe_string_state');
     }
 
     /** @return array<string,mixed> */
@@ -30916,7 +30916,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext620(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_token', $currentToken, 621, 'reader_cache_stmt_vdbe_blob_branch', 'reader_cache_stmt_vdbe_blob_must_match_current_stmt_vdbe_blob_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_token', $currentToken, 621, 'reader_cache_stmt_vdbe_blob_branch', 'reader_cache_stmt_vdbe_blob_must_match_current_stmt_vdbe_blob_state');
     }
 
     /** @return array<string,mixed> */
@@ -30928,7 +30928,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext621(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_token', $currentToken, 622, 'reader_cache_stmt_vdbe_null_branch', 'reader_cache_stmt_vdbe_null_must_match_current_stmt_vdbe_null_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_token', $currentToken, 622, 'reader_cache_stmt_vdbe_null_branch', 'reader_cache_stmt_vdbe_null_must_match_current_stmt_vdbe_null_state');
     }
 
     /** @return array<string,mixed> */
@@ -30940,7 +30940,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext622(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_handoff_token', $currentToken, 623, 'reader_cache_stmt_vdbe_soft_null_handoff', 'reader_cache_stmt_vdbe_soft_null_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_handoff_token', $currentToken, 623, 'reader_cache_stmt_vdbe_soft_null_handoff', 'reader_cache_stmt_vdbe_soft_null_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -30952,7 +30952,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext623(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_handoff_token', $currentToken, 624, 'reader_cache_stmt_vdbe_integer_handoff', 'reader_cache_stmt_vdbe_integer_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_handoff_token', $currentToken, 624, 'reader_cache_stmt_vdbe_integer_handoff', 'reader_cache_stmt_vdbe_integer_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -30964,7 +30964,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext624(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_handoff_token', $currentToken, 625, 'reader_cache_stmt_vdbe_int64_handoff', 'reader_cache_stmt_vdbe_int64_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_handoff_token', $currentToken, 625, 'reader_cache_stmt_vdbe_int64_handoff', 'reader_cache_stmt_vdbe_int64_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -30976,7 +30976,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext625(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_handoff_token', $currentToken, 626, 'reader_cache_stmt_vdbe_real_value_handoff', 'reader_cache_stmt_vdbe_real_value_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_handoff_token', $currentToken, 626, 'reader_cache_stmt_vdbe_real_value_handoff', 'reader_cache_stmt_vdbe_real_value_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -30988,7 +30988,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext626(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_handoff_token', $currentToken, 627, 'reader_cache_stmt_vdbe_boolean_handoff', 'reader_cache_stmt_vdbe_boolean_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_handoff_token', $currentToken, 627, 'reader_cache_stmt_vdbe_boolean_handoff', 'reader_cache_stmt_vdbe_boolean_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31000,7 +31000,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext627(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_handoff_token', $currentToken, 628, 'reader_cache_stmt_vdbe_null_row_handoff', 'reader_cache_stmt_vdbe_null_row_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_handoff_token', $currentToken, 628, 'reader_cache_stmt_vdbe_null_row_handoff', 'reader_cache_stmt_vdbe_null_row_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31012,7 +31012,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext628(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_handoff_token', $currentToken, 629, 'reader_cache_stmt_vdbe_row_value_handoff', 'reader_cache_stmt_vdbe_row_value_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_handoff_token', $currentToken, 629, 'reader_cache_stmt_vdbe_row_value_handoff', 'reader_cache_stmt_vdbe_row_value_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31024,7 +31024,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext629(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_handoff_token', $currentToken, 630, 'reader_cache_stmt_vdbe_zeroblob_handoff', 'reader_cache_stmt_vdbe_zeroblob_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_handoff_token', $currentToken, 630, 'reader_cache_stmt_vdbe_zeroblob_handoff', 'reader_cache_stmt_vdbe_zeroblob_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31036,7 +31036,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext630(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_handoff_token', $currentToken, 631, 'reader_cache_stmt_vdbe_string8_handoff', 'reader_cache_stmt_vdbe_string8_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_handoff_token', $currentToken, 631, 'reader_cache_stmt_vdbe_string8_handoff', 'reader_cache_stmt_vdbe_string8_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31048,7 +31048,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext631(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_handoff_token', $currentToken, 632, 'reader_cache_stmt_vdbe_concat_handoff', 'reader_cache_stmt_vdbe_concat_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_handoff_token', $currentToken, 632, 'reader_cache_stmt_vdbe_concat_handoff', 'reader_cache_stmt_vdbe_concat_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31060,7 +31060,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext632(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_handoff_token', $currentToken, 633, 'reader_cache_stmt_vdbe_add_handoff', 'reader_cache_stmt_vdbe_add_handoff_must_match_current_stmt_vdbe_add_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_handoff_token', $currentToken, 633, 'reader_cache_stmt_vdbe_add_handoff', 'reader_cache_stmt_vdbe_add_handoff_must_match_current_stmt_vdbe_add_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31072,7 +31072,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext633(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_handoff_token', $currentToken, 634, 'reader_cache_stmt_vdbe_subtract_handoff', 'reader_cache_stmt_vdbe_subtract_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_handoff_token', $currentToken, 634, 'reader_cache_stmt_vdbe_subtract_handoff', 'reader_cache_stmt_vdbe_subtract_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31084,7 +31084,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext634(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_handoff_token', $currentToken, 635, 'reader_cache_stmt_vdbe_multiply_handoff', 'reader_cache_stmt_vdbe_multiply_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_handoff_token', $currentToken, 635, 'reader_cache_stmt_vdbe_multiply_handoff', 'reader_cache_stmt_vdbe_multiply_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31096,7 +31096,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext635(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_handoff_token', $currentToken, 636, 'reader_cache_stmt_vdbe_divide_handoff', 'reader_cache_stmt_vdbe_divide_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_handoff_token', $currentToken, 636, 'reader_cache_stmt_vdbe_divide_handoff', 'reader_cache_stmt_vdbe_divide_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31108,7 +31108,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext636(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_handoff_token', $currentToken, 637, 'reader_cache_stmt_vdbe_remainder_handoff', 'reader_cache_stmt_vdbe_remainder_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_handoff_token', $currentToken, 637, 'reader_cache_stmt_vdbe_remainder_handoff', 'reader_cache_stmt_vdbe_remainder_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31120,7 +31120,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext637(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_handoff_token', $currentToken, 638, 'reader_cache_stmt_vdbe_bit_and_handoff', 'reader_cache_stmt_vdbe_bit_and_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_handoff_token', $currentToken, 638, 'reader_cache_stmt_vdbe_bit_and_handoff', 'reader_cache_stmt_vdbe_bit_and_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31132,7 +31132,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext638(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_handoff_token', $currentToken, 639, 'reader_cache_stmt_vdbe_bit_or_handoff', 'reader_cache_stmt_vdbe_bit_or_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_handoff_token', $currentToken, 639, 'reader_cache_stmt_vdbe_bit_or_handoff', 'reader_cache_stmt_vdbe_bit_or_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31144,7 +31144,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext639(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_handoff_token', $currentToken, 640, 'reader_cache_stmt_vdbe_shift_left_handoff', 'reader_cache_stmt_vdbe_shift_left_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_handoff_token', $currentToken, 640, 'reader_cache_stmt_vdbe_shift_left_handoff', 'reader_cache_stmt_vdbe_shift_left_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31156,7 +31156,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext640(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_handoff_token', $currentToken, 641, 'reader_cache_stmt_vdbe_shift_right_handoff', 'reader_cache_stmt_vdbe_shift_right_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_handoff_token', $currentToken, 641, 'reader_cache_stmt_vdbe_shift_right_handoff', 'reader_cache_stmt_vdbe_shift_right_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31168,7 +31168,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext641(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_handoff_token', $currentToken, 642, 'reader_cache_stmt_vdbe_add_imm_handoff', 'reader_cache_stmt_vdbe_add_imm_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_handoff_token', $currentToken, 642, 'reader_cache_stmt_vdbe_add_imm_handoff', 'reader_cache_stmt_vdbe_add_imm_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31180,7 +31180,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext642(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_handoff_token', $currentToken, 643, 'reader_cache_stmt_vdbe_bit_not_handoff', 'reader_cache_stmt_vdbe_bit_not_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_handoff_token', $currentToken, 643, 'reader_cache_stmt_vdbe_bit_not_handoff', 'reader_cache_stmt_vdbe_bit_not_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31192,7 +31192,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext643(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_handoff_token', $currentToken, 644, 'reader_cache_stmt_vdbe_real_affinity_value_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_handoff_token', $currentToken, 644, 'reader_cache_stmt_vdbe_real_affinity_value_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31204,7 +31204,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext644(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_handoff_token', $currentToken, 645, 'reader_cache_stmt_vdbe_cast_affinity_handoff', 'reader_cache_stmt_vdbe_cast_affinity_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_handoff_token', $currentToken, 645, 'reader_cache_stmt_vdbe_cast_affinity_handoff', 'reader_cache_stmt_vdbe_cast_affinity_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31216,7 +31216,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext645(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_handoff_token', $currentToken, 646, 'reader_cache_stmt_vdbe_permutation_affinity_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_handoff_token', $currentToken, 646, 'reader_cache_stmt_vdbe_permutation_affinity_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31228,7 +31228,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext646(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_handoff_token', $currentToken, 647, 'reader_cache_stmt_vdbe_compare_affinity_handoff', 'reader_cache_stmt_vdbe_compare_affinity_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_handoff_token', $currentToken, 647, 'reader_cache_stmt_vdbe_compare_affinity_handoff', 'reader_cache_stmt_vdbe_compare_affinity_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31240,7 +31240,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext647(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_handoff_token', $currentToken, 648, 'reader_cache_stmt_vdbe_compare_collseq_handoff', 'reader_cache_stmt_vdbe_compare_collseq_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_handoff_token', $currentToken, 648, 'reader_cache_stmt_vdbe_compare_collseq_handoff', 'reader_cache_stmt_vdbe_compare_collseq_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31252,7 +31252,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext648(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_handoff_token', $currentToken, 649, 'reader_cache_stmt_vdbe_jump_destination_handoff', 'reader_cache_stmt_vdbe_jump_destination_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_handoff_token', $currentToken, 649, 'reader_cache_stmt_vdbe_jump_destination_handoff', 'reader_cache_stmt_vdbe_jump_destination_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31264,7 +31264,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext649(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_handoff_token', $currentToken, 650, 'reader_cache_stmt_vdbe_once_flag_handoff', 'reader_cache_stmt_vdbe_once_flag_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_handoff_token', $currentToken, 650, 'reader_cache_stmt_vdbe_once_flag_handoff', 'reader_cache_stmt_vdbe_once_flag_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31276,7 +31276,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext650(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 651, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 651, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31288,7 +31288,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext651(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_handoff_token', $currentToken, 652, 'reader_cache_stmt_vdbe_ifnot_branch_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_handoff_token', $currentToken, 652, 'reader_cache_stmt_vdbe_ifnot_branch_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31300,7 +31300,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext652(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_handoff_token', $currentToken, 653, 'reader_cache_stmt_vdbe_isnull_branch_handoff', 'reader_cache_stmt_vdbe_isnull_branch_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_handoff_token', $currentToken, 653, 'reader_cache_stmt_vdbe_isnull_branch_handoff', 'reader_cache_stmt_vdbe_isnull_branch_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31312,7 +31312,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext653(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_handoff_token', $currentToken, 654, 'reader_cache_stmt_vdbe_notnull_branch_handoff', 'reader_cache_stmt_vdbe_notnull_branch_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_handoff_token', $currentToken, 654, 'reader_cache_stmt_vdbe_notnull_branch_handoff', 'reader_cache_stmt_vdbe_notnull_branch_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31324,7 +31324,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext654(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 655, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 655, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31336,7 +31336,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext655(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 656, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 656, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31348,7 +31348,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext656(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 657, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 657, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31360,7 +31360,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext657(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 658, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 658, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31372,7 +31372,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext658(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 659, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 659, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31384,7 +31384,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext659(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 660, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 660, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31396,7 +31396,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext660(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_handoff_token', $currentToken, 661, 'reader_cache_stmt_vdbe_else_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_handoff_token', $currentToken, 661, 'reader_cache_stmt_vdbe_else_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31408,7 +31408,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext661(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_token', $currentToken, 662, 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_token', $currentToken, 662, 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31420,7 +31420,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext662(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_token', $currentToken, 663, 'reader_cache_stmt_vdbe_seek_hit_branch_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_token', $currentToken, 663, 'reader_cache_stmt_vdbe_seek_hit_branch_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31432,7 +31432,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext663(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_token', $currentToken, 664, 'reader_cache_stmt_vdbe_if_not_open_branch_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_must_match_current_stmt_vdbe_if_not_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_token', $currentToken, 664, 'reader_cache_stmt_vdbe_if_not_open_branch_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_must_match_current_stmt_vdbe_if_not_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31444,7 +31444,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext664(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_handoff_token', $currentToken, 665, 'reader_cache_stmt_vdbe_not_open_branch_handoff', 'reader_cache_stmt_vdbe_not_open_branch_handoff_must_match_current_stmt_vdbe_not_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_handoff_token', $currentToken, 665, 'reader_cache_stmt_vdbe_not_open_branch_handoff', 'reader_cache_stmt_vdbe_not_open_branch_handoff_must_match_current_stmt_vdbe_not_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31456,7 +31456,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext665(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_handoff_token', $currentToken, 666, 'reader_cache_stmt_vdbe_if_open_branch_handoff', 'reader_cache_stmt_vdbe_if_open_branch_handoff_must_match_current_stmt_vdbe_if_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_handoff_token', $currentToken, 666, 'reader_cache_stmt_vdbe_if_open_branch_handoff', 'reader_cache_stmt_vdbe_if_open_branch_handoff_must_match_current_stmt_vdbe_if_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31468,7 +31468,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext666(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 667, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 667, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31480,7 +31480,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext667(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 668, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 668, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31492,7 +31492,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext668(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 669, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 669, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31504,7 +31504,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext669(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 670, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 670, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31516,7 +31516,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext670(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 671, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 671, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31528,7 +31528,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext671(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 672, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 672, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31540,7 +31540,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext672(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 673, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 673, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31552,7 +31552,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext673(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 674, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 674, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31564,7 +31564,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext674(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 675, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 675, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31576,7 +31576,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext675(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 676, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 676, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31588,7 +31588,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext676(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 677, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 677, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31600,7 +31600,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext677(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 678, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 678, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31612,7 +31612,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext678(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 679, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 679, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31624,7 +31624,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext679(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 680, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 680, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31636,7 +31636,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext680(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 681, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 681, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31648,7 +31648,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext681(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 682, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 682, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31660,7 +31660,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext682(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 683, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 683, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31672,7 +31672,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext683(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 684, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 684, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31684,7 +31684,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext684(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 685, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 685, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31696,7 +31696,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext685(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 686, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 686, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31708,7 +31708,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext686(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 687, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 687, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31720,7 +31720,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext687(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 688, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 688, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31732,7 +31732,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext688(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 689, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 689, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31744,7 +31744,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext689(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 690, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 690, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31756,7 +31756,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext690(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 691, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 691, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31768,7 +31768,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext691(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 692, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 692, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31780,7 +31780,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext692(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 693, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 693, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31792,7 +31792,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext693(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 694, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 694, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31804,7 +31804,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext694(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 695, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 695, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31816,7 +31816,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext695(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 696, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 696, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31828,7 +31828,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext696(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 697, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 697, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31840,7 +31840,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext697(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 698, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 698, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31852,7 +31852,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext698(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 699, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 699, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31864,7 +31864,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext699(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 700, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 700, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31876,7 +31876,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext700(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 701, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 701, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31888,7 +31888,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext701(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 702, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 702, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31900,7 +31900,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext702(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 703, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 703, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31912,7 +31912,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext703(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 704, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 704, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31924,7 +31924,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext704(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 705, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 705, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31936,7 +31936,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext705(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 706, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 706, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31948,7 +31948,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext706(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 707, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 707, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31960,7 +31960,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext707(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 708, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 708, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31972,7 +31972,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext708(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 709, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 709, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31984,7 +31984,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext709(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 710, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 710, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -31996,7 +31996,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext710(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 711, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 711, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32008,7 +32008,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext711(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 712, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 712, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32020,7 +32020,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext712(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 713, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 713, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32032,7 +32032,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext713(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 714, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 714, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32044,7 +32044,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext714(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 715, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 715, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32056,7 +32056,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext715(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 716, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 716, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32068,7 +32068,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext716(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 717, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 717, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32080,7 +32080,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext717(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 718, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 718, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32092,7 +32092,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext718(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 719, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 719, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32104,7 +32104,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext719(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 720, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 720, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32116,7 +32116,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext720(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_token', $currentToken, 721, 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_token', $currentToken, 721, 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32128,7 +32128,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext721(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 722, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 722, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32140,7 +32140,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext722(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 723, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 723, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32152,7 +32152,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext723(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 724, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 724, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32164,7 +32164,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext724(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 725, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 725, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32176,7 +32176,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext725(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 726, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 726, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32188,7 +32188,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext726(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 727, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 727, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32200,7 +32200,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext727(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 728, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 728, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32212,7 +32212,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext728(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_handoff_token', $currentToken, 729, 'reader_cache_stmt_vdbe_ifnot_branch_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_handoff_must_match_current_stmt_vdbe_ifnot_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_handoff_token', $currentToken, 729, 'reader_cache_stmt_vdbe_ifnot_branch_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_handoff_must_match_current_stmt_vdbe_ifnot_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32224,7 +32224,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext729(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_handoff_token', $currentToken, 730, 'reader_cache_stmt_vdbe_isnull_branch_handoff', 'reader_cache_stmt_vdbe_isnull_branch_handoff_must_match_current_stmt_vdbe_isnull_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_handoff_token', $currentToken, 730, 'reader_cache_stmt_vdbe_isnull_branch_handoff', 'reader_cache_stmt_vdbe_isnull_branch_handoff_must_match_current_stmt_vdbe_isnull_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32236,7 +32236,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext730(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_handoff_token', $currentToken, 731, 'reader_cache_stmt_vdbe_notnull_branch_handoff', 'reader_cache_stmt_vdbe_notnull_branch_handoff_must_match_current_stmt_vdbe_notnull_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_handoff_token', $currentToken, 731, 'reader_cache_stmt_vdbe_notnull_branch_handoff', 'reader_cache_stmt_vdbe_notnull_branch_handoff_must_match_current_stmt_vdbe_notnull_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32248,7 +32248,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext731(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 732, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 732, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32260,7 +32260,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext732(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 733, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 733, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32272,7 +32272,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext733(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 734, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 734, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32284,7 +32284,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext734(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 735, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 735, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32296,7 +32296,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext735(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 736, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 736, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32308,7 +32308,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext736(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 737, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 737, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32320,7 +32320,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext737(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_handoff_token', $currentToken, 738, 'reader_cache_stmt_vdbe_else_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_handoff_must_match_current_stmt_vdbe_else_eq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_handoff_token', $currentToken, 738, 'reader_cache_stmt_vdbe_else_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_handoff_must_match_current_stmt_vdbe_else_eq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32332,7 +32332,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext738(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_token', $currentToken, 739, 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_must_match_current_stmt_vdbe_zero_or_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_token', $currentToken, 739, 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_handoff_must_match_current_stmt_vdbe_zero_or_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32344,7 +32344,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext739(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_token', $currentToken, 740, 'reader_cache_stmt_vdbe_seek_hit_branch_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_must_match_current_stmt_vdbe_seek_hit_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_token', $currentToken, 740, 'reader_cache_stmt_vdbe_seek_hit_branch_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_handoff_must_match_current_stmt_vdbe_seek_hit_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32356,7 +32356,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext740(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_token', $currentToken, 741, 'reader_cache_stmt_vdbe_if_not_open_branch_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_must_match_current_stmt_vdbe_if_not_open_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_token', $currentToken, 741, 'reader_cache_stmt_vdbe_if_not_open_branch_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_handoff_must_match_current_stmt_vdbe_if_not_open_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32368,7 +32368,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext741(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_handoff_token', $currentToken, 742, 'reader_cache_stmt_vdbe_not_open_branch_handoff', 'reader_cache_stmt_vdbe_not_open_branch_handoff_must_match_current_stmt_vdbe_not_open_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_handoff_token', $currentToken, 742, 'reader_cache_stmt_vdbe_not_open_branch_handoff', 'reader_cache_stmt_vdbe_not_open_branch_handoff_must_match_current_stmt_vdbe_not_open_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32380,7 +32380,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext742(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_handoff_token', $currentToken, 743, 'reader_cache_stmt_vdbe_if_open_branch_handoff', 'reader_cache_stmt_vdbe_if_open_branch_handoff_must_match_current_stmt_vdbe_if_open_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_handoff_token', $currentToken, 743, 'reader_cache_stmt_vdbe_if_open_branch_handoff', 'reader_cache_stmt_vdbe_if_open_branch_handoff_must_match_current_stmt_vdbe_if_open_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32392,7 +32392,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext743(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 744, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 744, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32404,7 +32404,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext744(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 745, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 745, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32416,7 +32416,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext745(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 746, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 746, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32428,7 +32428,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext746(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 747, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 747, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32440,7 +32440,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext747(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 748, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 748, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32452,7 +32452,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext748(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 749, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 749, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32464,7 +32464,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext749(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 750, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 750, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32476,7 +32476,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext750(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 751, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 751, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32488,7 +32488,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext751(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 752, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 752, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32500,7 +32500,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext752(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 753, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 753, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32512,7 +32512,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext753(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 754, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 754, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32524,7 +32524,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext754(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 755, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 755, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32536,7 +32536,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext755(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 756, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 756, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32548,7 +32548,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext756(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 757, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 757, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32560,7 +32560,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext757(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 758, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 758, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32572,7 +32572,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext758(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 759, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 759, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32584,7 +32584,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext759(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 760, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 760, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32596,7 +32596,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext760(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 761, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 761, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32608,7 +32608,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext761(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 762, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 762, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32620,7 +32620,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext762(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 763, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 763, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32632,7 +32632,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext763(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 764, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 764, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32644,7 +32644,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext764(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 765, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 765, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32656,7 +32656,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext765(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 766, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 766, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32668,7 +32668,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext766(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 767, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 767, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32680,7 +32680,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext767(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 768, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 768, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32692,7 +32692,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext768(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 769, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 769, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32704,7 +32704,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext769(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 770, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 770, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32716,7 +32716,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext770(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 771, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 771, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32728,7 +32728,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext771(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 772, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 772, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32740,7 +32740,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext772(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 773, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 773, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32752,7 +32752,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext773(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 774, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 774, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32764,7 +32764,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext774(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 775, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 775, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32776,7 +32776,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext775(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 776, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 776, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32788,7 +32788,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext776(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 777, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 777, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32800,7 +32800,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext777(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 778, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 778, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32812,7 +32812,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext778(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 779, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 779, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32824,7 +32824,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext779(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 780, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 780, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32836,7 +32836,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext780(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 781, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 781, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32848,7 +32848,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext781(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 782, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 782, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32860,7 +32860,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext782(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 783, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 783, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32872,7 +32872,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext783(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 784, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 784, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32884,7 +32884,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext784(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 785, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 785, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32896,7 +32896,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext785(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 786, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 786, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32908,7 +32908,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext786(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 787, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 787, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32920,7 +32920,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext787(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 788, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 788, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32932,7 +32932,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext788(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 789, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 789, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32944,7 +32944,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext789(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 790, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 790, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32956,7 +32956,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext790(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 791, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 791, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32968,7 +32968,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext791(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 792, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 792, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32980,7 +32980,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext792(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 793, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 793, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -32992,7 +32992,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext793(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 794, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 794, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33004,7 +33004,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext794(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 795, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 795, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33016,7 +33016,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext795(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 796, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 796, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33028,7 +33028,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext796(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 797, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 797, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33040,7 +33040,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext797(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_token', $currentToken, 798, 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_token', $currentToken, 798, 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff', 'reader_cache_stmt_vdbe_real_affinity_value_branch_handoff_must_match_current_stmt_vdbe_real_affinity_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33052,7 +33052,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext798(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_branch_handoff_token', $currentToken, 799, 'reader_cache_stmt_vdbe_cast_branch_handoff', 'reader_cache_stmt_vdbe_cast_branch_handoff_must_match_current_stmt_vdbe_cast_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_branch_handoff_token', $currentToken, 799, 'reader_cache_stmt_vdbe_cast_branch_handoff', 'reader_cache_stmt_vdbe_cast_branch_handoff_must_match_current_stmt_vdbe_cast_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33064,7 +33064,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext799(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 800, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_handoff_token', $currentToken, 800, 'reader_cache_stmt_vdbe_eq_branch_handoff', 'reader_cache_stmt_vdbe_eq_branch_handoff_must_match_current_stmt_vdbe_eq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33076,7 +33076,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext800(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 801, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_handoff_token', $currentToken, 801, 'reader_cache_stmt_vdbe_ne_branch_handoff', 'reader_cache_stmt_vdbe_ne_branch_handoff_must_match_current_stmt_vdbe_ne_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33088,7 +33088,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext801(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 802, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_handoff_token', $currentToken, 802, 'reader_cache_stmt_vdbe_lt_branch_handoff', 'reader_cache_stmt_vdbe_lt_branch_handoff_must_match_current_stmt_vdbe_lt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33100,7 +33100,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext802(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 803, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_handoff_token', $currentToken, 803, 'reader_cache_stmt_vdbe_le_branch_handoff', 'reader_cache_stmt_vdbe_le_branch_handoff_must_match_current_stmt_vdbe_le_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33112,7 +33112,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext803(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 804, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_handoff_token', $currentToken, 804, 'reader_cache_stmt_vdbe_gt_branch_handoff', 'reader_cache_stmt_vdbe_gt_branch_handoff_must_match_current_stmt_vdbe_gt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33124,7 +33124,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext804(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 805, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_handoff_token', $currentToken, 805, 'reader_cache_stmt_vdbe_ge_branch_handoff', 'reader_cache_stmt_vdbe_ge_branch_handoff_must_match_current_stmt_vdbe_ge_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33136,7 +33136,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext805(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff_token', $currentToken, 806, 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff_must_match_current_stmt_vdbe_else_not_eq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff_token', $currentToken, 806, 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff', 'reader_cache_stmt_vdbe_else_not_eq_branch_handoff_must_match_current_stmt_vdbe_else_not_eq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33148,7 +33148,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext806(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_branch_handoff_token', $currentToken, 807, 'reader_cache_stmt_vdbe_permutation_branch_handoff', 'reader_cache_stmt_vdbe_permutation_branch_handoff_must_match_current_stmt_vdbe_permutation_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_branch_handoff_token', $currentToken, 807, 'reader_cache_stmt_vdbe_permutation_branch_handoff', 'reader_cache_stmt_vdbe_permutation_branch_handoff_must_match_current_stmt_vdbe_permutation_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33160,7 +33160,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext807(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_branch_handoff_token', $currentToken, 808, 'reader_cache_stmt_vdbe_compare_branch_handoff', 'reader_cache_stmt_vdbe_compare_branch_handoff_must_match_current_stmt_vdbe_compare_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_branch_handoff_token', $currentToken, 808, 'reader_cache_stmt_vdbe_compare_branch_handoff', 'reader_cache_stmt_vdbe_compare_branch_handoff_must_match_current_stmt_vdbe_compare_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33172,7 +33172,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext808(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_branch_handoff_token', $currentToken, 809, 'reader_cache_stmt_vdbe_jump_branch_handoff', 'reader_cache_stmt_vdbe_jump_branch_handoff_must_match_current_stmt_vdbe_jump_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_branch_handoff_token', $currentToken, 809, 'reader_cache_stmt_vdbe_jump_branch_handoff', 'reader_cache_stmt_vdbe_jump_branch_handoff_must_match_current_stmt_vdbe_jump_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33184,7 +33184,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext809(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_branch_handoff_token', $currentToken, 810, 'reader_cache_stmt_vdbe_once_branch_handoff', 'reader_cache_stmt_vdbe_once_branch_handoff_must_match_current_stmt_vdbe_once_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_branch_handoff_token', $currentToken, 810, 'reader_cache_stmt_vdbe_once_branch_handoff', 'reader_cache_stmt_vdbe_once_branch_handoff_must_match_current_stmt_vdbe_once_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33196,7 +33196,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext810(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 811, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_handoff_token', $currentToken, 811, 'reader_cache_stmt_vdbe_if_branch_handoff', 'reader_cache_stmt_vdbe_if_branch_handoff_must_match_current_stmt_vdbe_if_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33208,7 +33208,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext811(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_branch_handoff_token', $currentToken, 812, 'reader_cache_stmt_vdbe_if_not_branch_handoff', 'reader_cache_stmt_vdbe_if_not_branch_handoff_must_match_current_stmt_vdbe_if_not_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_branch_handoff_token', $currentToken, 812, 'reader_cache_stmt_vdbe_if_not_branch_handoff', 'reader_cache_stmt_vdbe_if_not_branch_handoff_must_match_current_stmt_vdbe_if_not_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33220,7 +33220,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext812(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_branch_handoff_token', $currentToken, 813, 'reader_cache_stmt_vdbe_column_branch_handoff', 'reader_cache_stmt_vdbe_column_branch_handoff_must_match_current_stmt_vdbe_column_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_column_branch_handoff_token', $currentToken, 813, 'reader_cache_stmt_vdbe_column_branch_handoff', 'reader_cache_stmt_vdbe_column_branch_handoff_must_match_current_stmt_vdbe_column_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33232,7 +33232,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext813(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_branch_handoff_token', $currentToken, 814, 'reader_cache_stmt_vdbe_affinity_branch_handoff', 'reader_cache_stmt_vdbe_affinity_branch_handoff_must_match_current_stmt_vdbe_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_branch_handoff_token', $currentToken, 814, 'reader_cache_stmt_vdbe_affinity_branch_handoff', 'reader_cache_stmt_vdbe_affinity_branch_handoff_must_match_current_stmt_vdbe_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33244,7 +33244,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext814(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 815, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 815, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33256,7 +33256,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext815(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 816, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 816, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33268,7 +33268,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext816(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 817, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 817, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33280,7 +33280,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext817(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 818, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 818, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33292,7 +33292,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext818(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 819, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 819, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33304,7 +33304,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext819(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 820, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 820, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33316,7 +33316,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext820(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_condition_handoff_token', $currentToken, 821, 'reader_cache_stmt_vdbe_if_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_condition_handoff_token', $currentToken, 821, 'reader_cache_stmt_vdbe_if_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33328,7 +33328,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext821(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_token', $currentToken, 822, 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_token', $currentToken, 822, 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33340,7 +33340,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext822(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_token', $currentToken, 823, 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_token', $currentToken, 823, 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33352,7 +33352,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext823(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_token', $currentToken, 824, 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_token', $currentToken, 824, 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33364,7 +33364,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext824(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_token', $currentToken, 825, 'reader_cache_stmt_vdbe_ne_branch_condition_handoff', 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_token', $currentToken, 825, 'reader_cache_stmt_vdbe_ne_branch_condition_handoff', 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33376,7 +33376,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext825(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_token', $currentToken, 826, 'reader_cache_stmt_vdbe_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_token', $currentToken, 826, 'reader_cache_stmt_vdbe_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33388,7 +33388,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext826(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_token', $currentToken, 827, 'reader_cache_stmt_vdbe_gt_branch_condition_handoff', 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_token', $currentToken, 827, 'reader_cache_stmt_vdbe_gt_branch_condition_handoff', 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33400,7 +33400,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext827(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_condition_handoff_token', $currentToken, 828, 'reader_cache_stmt_vdbe_le_branch_condition_handoff', 'reader_cache_stmt_vdbe_le_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_condition_handoff_token', $currentToken, 828, 'reader_cache_stmt_vdbe_le_branch_condition_handoff', 'reader_cache_stmt_vdbe_le_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33412,7 +33412,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext828(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_token', $currentToken, 829, 'reader_cache_stmt_vdbe_lt_branch_condition_handoff', 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_token', $currentToken, 829, 'reader_cache_stmt_vdbe_lt_branch_condition_handoff', 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33424,7 +33424,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext829(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_token', $currentToken, 830, 'reader_cache_stmt_vdbe_ge_branch_condition_handoff', 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_token', $currentToken, 830, 'reader_cache_stmt_vdbe_ge_branch_condition_handoff', 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33436,7 +33436,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext830(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_token', $currentToken, 831, 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_token', $currentToken, 831, 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33448,7 +33448,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext831(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_token', $currentToken, 832, 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_token', $currentToken, 832, 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33460,7 +33460,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext832(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_token', $currentToken, 833, 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_token', $currentToken, 833, 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33472,7 +33472,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext833(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff_token', $currentToken, 834, 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff_must_match_current_stmt_vdbe_if_not_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff_token', $currentToken, 834, 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_condition_handoff_must_match_current_stmt_vdbe_if_not_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33484,7 +33484,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext834(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff_token', $currentToken, 835, 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff_must_match_current_stmt_vdbe_not_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff_token', $currentToken, 835, 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_not_open_branch_condition_handoff_must_match_current_stmt_vdbe_not_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33496,7 +33496,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext835(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff_token', $currentToken, 836, 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff_must_match_current_stmt_vdbe_if_open_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff_token', $currentToken, 836, 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_open_branch_condition_handoff_must_match_current_stmt_vdbe_if_open_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33508,7 +33508,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext836(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 837, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_handoff_token', $currentToken, 837, 'reader_cache_stmt_vdbe_transaction_branch_handoff', 'reader_cache_stmt_vdbe_transaction_branch_handoff_must_match_current_stmt_vdbe_transaction_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33520,7 +33520,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext837(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 838, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_token', $currentToken, 838, 'reader_cache_stmt_vdbe_auto_commit_branch_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_handoff_must_match_current_stmt_vdbe_auto_commit_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33532,7 +33532,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext838(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 839, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_handoff_token', $currentToken, 839, 'reader_cache_stmt_vdbe_savepoint_branch_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_handoff_must_match_current_stmt_vdbe_savepoint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33544,7 +33544,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext839(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 840, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_token', $currentToken, 840, 'reader_cache_stmt_vdbe_checkpoint_branch_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_handoff_must_match_current_stmt_vdbe_checkpoint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33556,7 +33556,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext840(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 841, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_token', $currentToken, 841, 'reader_cache_stmt_vdbe_journal_mode_branch_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_handoff_must_match_current_stmt_vdbe_journal_mode_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33568,7 +33568,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext841(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 842, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_handoff_token', $currentToken, 842, 'reader_cache_stmt_vdbe_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_handoff_must_match_current_stmt_vdbe_vacuum_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33580,7 +33580,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext842(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 843, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_token', $currentToken, 843, 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_handoff_must_match_current_stmt_vdbe_incr_vacuum_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33592,7 +33592,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext843(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 844, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_handoff_token', $currentToken, 844, 'reader_cache_stmt_vdbe_expire_branch_handoff', 'reader_cache_stmt_vdbe_expire_branch_handoff_must_match_current_stmt_vdbe_expire_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33604,7 +33604,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext844(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 845, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_handoff_token', $currentToken, 845, 'reader_cache_stmt_vdbe_table_lock_branch_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_handoff_must_match_current_stmt_vdbe_table_lock_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33616,7 +33616,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext845(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 846, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_handoff_token', $currentToken, 846, 'reader_cache_stmt_vdbe_vbegin_branch_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_handoff_must_match_current_stmt_vdbe_vbegin_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33628,7 +33628,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext846(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 847, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_handoff_token', $currentToken, 847, 'reader_cache_stmt_vdbe_vcreate_branch_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_handoff_must_match_current_stmt_vdbe_vcreate_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33640,7 +33640,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext847(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 848, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_token', $currentToken, 848, 'reader_cache_stmt_vdbe_vdestroy_branch_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_handoff_must_match_current_stmt_vdbe_vdestroy_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33652,7 +33652,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext848(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 849, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_handoff_token', $currentToken, 849, 'reader_cache_stmt_vdbe_vopen_branch_handoff', 'reader_cache_stmt_vdbe_vopen_branch_handoff_must_match_current_stmt_vdbe_vopen_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33664,7 +33664,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext849(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 850, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_handoff_token', $currentToken, 850, 'reader_cache_stmt_vdbe_vfilter_branch_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_handoff_must_match_current_stmt_vdbe_vfilter_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33676,7 +33676,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext850(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 851, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_token', $currentToken, 851, 'reader_cache_stmt_vdbe_vcolumn_branch_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_handoff_must_match_current_stmt_vdbe_vcolumn_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33688,7 +33688,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext851(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 852, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_handoff_token', $currentToken, 852, 'reader_cache_stmt_vdbe_vnext_branch_handoff', 'reader_cache_stmt_vdbe_vnext_branch_handoff_must_match_current_stmt_vdbe_vnext_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33700,7 +33700,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext852(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 853, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_handoff_token', $currentToken, 853, 'reader_cache_stmt_vdbe_vrename_branch_handoff', 'reader_cache_stmt_vdbe_vrename_branch_handoff_must_match_current_stmt_vdbe_vrename_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33712,7 +33712,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext853(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 854, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_handoff_token', $currentToken, 854, 'reader_cache_stmt_vdbe_pagecount_branch_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_handoff_must_match_current_stmt_vdbe_pagecount_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33724,7 +33724,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext854(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 855, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_token', $currentToken, 855, 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_handoff_must_match_current_stmt_vdbe_maxpgcnt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33736,7 +33736,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext855(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 856, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_token', $currentToken, 856, 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_handoff_must_match_current_stmt_vdbe_opcode_trace_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33748,7 +33748,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext856(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 857, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_token', $currentToken, 857, 'reader_cache_stmt_vdbe_cursorhint_branch_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_handoff_must_match_current_stmt_vdbe_cursorhint_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33760,7 +33760,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext857(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 858, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_handoff_token', $currentToken, 858, 'reader_cache_stmt_vdbe_noop_branch_handoff', 'reader_cache_stmt_vdbe_noop_branch_handoff_must_match_current_stmt_vdbe_noop_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33772,7 +33772,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext858(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 859, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_handoff_token', $currentToken, 859, 'reader_cache_stmt_vdbe_init_branch_handoff', 'reader_cache_stmt_vdbe_init_branch_handoff_must_match_current_stmt_vdbe_init_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33784,7 +33784,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext859(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 860, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_handoff_token', $currentToken, 860, 'reader_cache_stmt_vdbe_goto_branch_handoff', 'reader_cache_stmt_vdbe_goto_branch_handoff_must_match_current_stmt_vdbe_goto_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33796,7 +33796,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext860(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 861, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_handoff_token', $currentToken, 861, 'reader_cache_stmt_vdbe_gosub_branch_handoff', 'reader_cache_stmt_vdbe_gosub_branch_handoff_must_match_current_stmt_vdbe_gosub_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33808,7 +33808,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext861(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 862, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_handoff_token', $currentToken, 862, 'reader_cache_stmt_vdbe_return_branch_handoff', 'reader_cache_stmt_vdbe_return_branch_handoff_must_match_current_stmt_vdbe_return_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33820,7 +33820,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext862(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 863, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_handoff_token', $currentToken, 863, 'reader_cache_stmt_vdbe_yield_op_branch_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_handoff_must_match_current_stmt_vdbe_yield_op_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33832,7 +33832,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext863(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 864, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_handoff_token', $currentToken, 864, 'reader_cache_stmt_vdbe_halt_branch_handoff', 'reader_cache_stmt_vdbe_halt_branch_handoff_must_match_current_stmt_vdbe_halt_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33844,7 +33844,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext864(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 865, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_token', $currentToken, 865, 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_handoff_must_match_current_stmt_vdbe_halt_if_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33856,7 +33856,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext865(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 866, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_token', $currentToken, 866, 'reader_cache_stmt_vdbe_must_be_int_branch_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_handoff_must_match_current_stmt_vdbe_must_be_int_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33868,7 +33868,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext866(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 867, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_handoff_token', $currentToken, 867, 'reader_cache_stmt_vdbe_string_branch_handoff', 'reader_cache_stmt_vdbe_string_branch_handoff_must_match_current_stmt_vdbe_string_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33880,7 +33880,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext867(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 868, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_handoff_token', $currentToken, 868, 'reader_cache_stmt_vdbe_blob_branch_handoff', 'reader_cache_stmt_vdbe_blob_branch_handoff_must_match_current_stmt_vdbe_blob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33892,7 +33892,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext868(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 869, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_handoff_token', $currentToken, 869, 'reader_cache_stmt_vdbe_null_branch_handoff', 'reader_cache_stmt_vdbe_null_branch_handoff_must_match_current_stmt_vdbe_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33904,7 +33904,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext869(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 870, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_handoff_token', $currentToken, 870, 'reader_cache_stmt_vdbe_soft_null_branch_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_handoff_must_match_current_stmt_vdbe_soft_null_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33916,7 +33916,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext870(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 871, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_handoff_token', $currentToken, 871, 'reader_cache_stmt_vdbe_integer_branch_handoff', 'reader_cache_stmt_vdbe_integer_branch_handoff_must_match_current_stmt_vdbe_integer_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33928,7 +33928,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext871(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 872, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_handoff_token', $currentToken, 872, 'reader_cache_stmt_vdbe_int64_branch_handoff', 'reader_cache_stmt_vdbe_int64_branch_handoff_must_match_current_stmt_vdbe_int64_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33940,7 +33940,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext872(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 873, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_handoff_token', $currentToken, 873, 'reader_cache_stmt_vdbe_real_value_branch_handoff', 'reader_cache_stmt_vdbe_real_value_branch_handoff_must_match_current_stmt_vdbe_real_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33952,7 +33952,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext873(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 874, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_handoff_token', $currentToken, 874, 'reader_cache_stmt_vdbe_boolean_branch_handoff', 'reader_cache_stmt_vdbe_boolean_branch_handoff_must_match_current_stmt_vdbe_boolean_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33964,7 +33964,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext874(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 875, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_handoff_token', $currentToken, 875, 'reader_cache_stmt_vdbe_null_row_branch_handoff', 'reader_cache_stmt_vdbe_null_row_branch_handoff_must_match_current_stmt_vdbe_null_row_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33976,7 +33976,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext875(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 876, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_handoff_token', $currentToken, 876, 'reader_cache_stmt_vdbe_row_value_branch_handoff', 'reader_cache_stmt_vdbe_row_value_branch_handoff_must_match_current_stmt_vdbe_row_value_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -33988,7 +33988,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext876(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 877, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_token', $currentToken, 877, 'reader_cache_stmt_vdbe_zeroblob_branch_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_handoff_must_match_current_stmt_vdbe_zeroblob_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34000,7 +34000,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext877(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 878, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_handoff_token', $currentToken, 878, 'reader_cache_stmt_vdbe_string8_branch_handoff', 'reader_cache_stmt_vdbe_string8_branch_handoff_must_match_current_stmt_vdbe_string8_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34012,7 +34012,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext878(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 879, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_handoff_token', $currentToken, 879, 'reader_cache_stmt_vdbe_concat_branch_handoff', 'reader_cache_stmt_vdbe_concat_branch_handoff_must_match_current_stmt_vdbe_concat_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34024,7 +34024,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext879(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 880, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_handoff_token', $currentToken, 880, 'reader_cache_stmt_vdbe_add_branch_handoff', 'reader_cache_stmt_vdbe_add_branch_handoff_must_match_current_stmt_vdbe_add_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34036,7 +34036,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext880(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 881, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_handoff_token', $currentToken, 881, 'reader_cache_stmt_vdbe_subtract_branch_handoff', 'reader_cache_stmt_vdbe_subtract_branch_handoff_must_match_current_stmt_vdbe_subtract_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34048,7 +34048,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext881(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 882, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_handoff_token', $currentToken, 882, 'reader_cache_stmt_vdbe_multiply_branch_handoff', 'reader_cache_stmt_vdbe_multiply_branch_handoff_must_match_current_stmt_vdbe_multiply_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34060,7 +34060,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext882(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 883, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_handoff_token', $currentToken, 883, 'reader_cache_stmt_vdbe_divide_branch_handoff', 'reader_cache_stmt_vdbe_divide_branch_handoff_must_match_current_stmt_vdbe_divide_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34072,7 +34072,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext883(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 884, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_handoff_token', $currentToken, 884, 'reader_cache_stmt_vdbe_remainder_branch_handoff', 'reader_cache_stmt_vdbe_remainder_branch_handoff_must_match_current_stmt_vdbe_remainder_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34084,7 +34084,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext884(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 885, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_handoff_token', $currentToken, 885, 'reader_cache_stmt_vdbe_bit_and_branch_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_handoff_must_match_current_stmt_vdbe_bit_and_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34096,7 +34096,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext885(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 886, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_handoff_token', $currentToken, 886, 'reader_cache_stmt_vdbe_bit_or_branch_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_handoff_must_match_current_stmt_vdbe_bit_or_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34108,7 +34108,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext886(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 887, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_handoff_token', $currentToken, 887, 'reader_cache_stmt_vdbe_shift_left_branch_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_handoff_must_match_current_stmt_vdbe_shift_left_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34120,7 +34120,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext887(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 888, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_handoff_token', $currentToken, 888, 'reader_cache_stmt_vdbe_shift_right_branch_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_handoff_must_match_current_stmt_vdbe_shift_right_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34132,7 +34132,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext888(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 889, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_handoff_token', $currentToken, 889, 'reader_cache_stmt_vdbe_add_imm_branch_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_handoff_must_match_current_stmt_vdbe_add_imm_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34144,7 +34144,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext889(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 890, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_handoff_token', $currentToken, 890, 'reader_cache_stmt_vdbe_bit_not_branch_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_handoff_must_match_current_stmt_vdbe_bit_not_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34156,7 +34156,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext890(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_branch_handoff_token', $currentToken, 891, 'reader_cache_stmt_vdbe_affinity_branch_handoff', 'reader_cache_stmt_vdbe_affinity_branch_handoff_must_match_current_stmt_vdbe_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_branch_handoff_token', $currentToken, 891, 'reader_cache_stmt_vdbe_affinity_branch_handoff', 'reader_cache_stmt_vdbe_affinity_branch_handoff_must_match_current_stmt_vdbe_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34168,7 +34168,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext891(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 892, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_token', $currentToken, 892, 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_handoff_must_match_current_stmt_vdbe_cast_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34180,7 +34180,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext892(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 893, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_token', $currentToken, 893, 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_handoff_must_match_current_stmt_vdbe_permutation_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34192,7 +34192,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext893(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 894, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_token', $currentToken, 894, 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_handoff_must_match_current_stmt_vdbe_compare_affinity_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34204,7 +34204,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext894(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 895, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_token', $currentToken, 895, 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_handoff_must_match_current_stmt_vdbe_compare_collseq_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34216,7 +34216,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext895(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 896, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_token', $currentToken, 896, 'reader_cache_stmt_vdbe_jump_destination_branch_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_handoff_must_match_current_stmt_vdbe_jump_destination_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34228,7 +34228,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext896(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 897, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_handoff_token', $currentToken, 897, 'reader_cache_stmt_vdbe_once_flag_branch_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_handoff_must_match_current_stmt_vdbe_once_flag_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34240,7 +34240,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext897(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_condition_handoff_token', $currentToken, 898, 'reader_cache_stmt_vdbe_if_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_condition_handoff_token', $currentToken, 898, 'reader_cache_stmt_vdbe_if_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34252,7 +34252,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext898(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_token', $currentToken, 899, 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_token', $currentToken, 899, 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34264,7 +34264,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext899(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_token', $currentToken, 900, 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_token', $currentToken, 900, 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_isnull_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34276,7 +34276,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext900(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_token', $currentToken, 901, 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_token', $currentToken, 901, 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff', 'reader_cache_stmt_vdbe_notnull_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34288,7 +34288,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext901(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_token', $currentToken, 902, 'reader_cache_stmt_vdbe_ne_branch_condition_handoff', 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_token', $currentToken, 902, 'reader_cache_stmt_vdbe_ne_branch_condition_handoff', 'reader_cache_stmt_vdbe_ne_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34300,7 +34300,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext902(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_token', $currentToken, 903, 'reader_cache_stmt_vdbe_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_token', $currentToken, 903, 'reader_cache_stmt_vdbe_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_eq_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34312,7 +34312,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext903(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_token', $currentToken, 904, 'reader_cache_stmt_vdbe_gt_branch_condition_handoff', 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_token', $currentToken, 904, 'reader_cache_stmt_vdbe_gt_branch_condition_handoff', 'reader_cache_stmt_vdbe_gt_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34324,7 +34324,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext904(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_condition_handoff_token', $currentToken, 905, 'reader_cache_stmt_vdbe_le_branch_condition_handoff', 'reader_cache_stmt_vdbe_le_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_condition_handoff_token', $currentToken, 905, 'reader_cache_stmt_vdbe_le_branch_condition_handoff', 'reader_cache_stmt_vdbe_le_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34336,7 +34336,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext905(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_token', $currentToken, 906, 'reader_cache_stmt_vdbe_lt_branch_condition_handoff', 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_token', $currentToken, 906, 'reader_cache_stmt_vdbe_lt_branch_condition_handoff', 'reader_cache_stmt_vdbe_lt_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34348,7 +34348,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext906(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_token', $currentToken, 907, 'reader_cache_stmt_vdbe_ge_branch_condition_handoff', 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_token', $currentToken, 907, 'reader_cache_stmt_vdbe_ge_branch_condition_handoff', 'reader_cache_stmt_vdbe_ge_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34360,7 +34360,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext907(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_token', $currentToken, 908, 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_token', $currentToken, 908, 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34372,7 +34372,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext908(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_token', $currentToken, 909, 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_token', $currentToken, 909, 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34384,7 +34384,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext909(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_token', $currentToken, 910, 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_token', $currentToken, 910, 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34396,7 +34396,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext910(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff_token', $currentToken, 911, 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff', 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff_must_match_current_stmt_vdbe_transaction_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff_token', $currentToken, 911, 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff', 'reader_cache_stmt_vdbe_transaction_branch_condition_handoff_must_match_current_stmt_vdbe_transaction_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34408,7 +34408,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext911(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff_token', $currentToken, 912, 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff_must_match_current_stmt_vdbe_auto_commit_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff_token', $currentToken, 912, 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_condition_handoff_must_match_current_stmt_vdbe_auto_commit_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34420,7 +34420,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext912(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff_token', $currentToken, 913, 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff_must_match_current_stmt_vdbe_savepoint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff_token', $currentToken, 913, 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_condition_handoff_must_match_current_stmt_vdbe_savepoint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34432,7 +34432,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext913(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff_token', $currentToken, 914, 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff_must_match_current_stmt_vdbe_checkpoint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff_token', $currentToken, 914, 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff', 'reader_cache_stmt_vdbe_checkpoint_branch_condition_handoff_must_match_current_stmt_vdbe_checkpoint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34444,7 +34444,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext914(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff_token', $currentToken, 915, 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff_token', $currentToken, 915, 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff', 'reader_cache_stmt_vdbe_journal_mode_branch_condition_handoff_must_match_current_stmt_vdbe_journal_mode_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34456,7 +34456,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext915(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff_token', $currentToken, 916, 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff_token', $currentToken, 916, 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff', 'reader_cache_stmt_vdbe_vacuum_branch_condition_handoff_must_match_current_stmt_vdbe_vacuum_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34468,7 +34468,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext916(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff_token', $currentToken, 917, 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff_token', $currentToken, 917, 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff', 'reader_cache_stmt_vdbe_incr_vacuum_branch_condition_handoff_must_match_current_stmt_vdbe_incr_vacuum_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34480,7 +34480,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext917(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_condition_handoff_token', $currentToken, 918, 'reader_cache_stmt_vdbe_expire_branch_condition_handoff', 'reader_cache_stmt_vdbe_expire_branch_condition_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_expire_branch_condition_handoff_token', $currentToken, 918, 'reader_cache_stmt_vdbe_expire_branch_condition_handoff', 'reader_cache_stmt_vdbe_expire_branch_condition_handoff_must_match_current_stmt_vdbe_expire_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34492,7 +34492,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext918(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff_token', $currentToken, 919, 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff_token', $currentToken, 919, 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff', 'reader_cache_stmt_vdbe_table_lock_branch_condition_handoff_must_match_current_stmt_vdbe_table_lock_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34504,7 +34504,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext919(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff_token', $currentToken, 920, 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff_token', $currentToken, 920, 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff', 'reader_cache_stmt_vdbe_vbegin_branch_condition_handoff_must_match_current_stmt_vdbe_vbegin_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34516,7 +34516,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext920(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff_token', $currentToken, 921, 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff_token', $currentToken, 921, 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff', 'reader_cache_stmt_vdbe_vcreate_branch_condition_handoff_must_match_current_stmt_vdbe_vcreate_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34528,7 +34528,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext921(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff_token', $currentToken, 922, 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff_token', $currentToken, 922, 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff', 'reader_cache_stmt_vdbe_vdestroy_branch_condition_handoff_must_match_current_stmt_vdbe_vdestroy_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34540,7 +34540,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext922(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff_token', $currentToken, 923, 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff', 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff_token', $currentToken, 923, 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff', 'reader_cache_stmt_vdbe_vopen_branch_condition_handoff_must_match_current_stmt_vdbe_vopen_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34552,7 +34552,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext923(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff_token', $currentToken, 924, 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff_token', $currentToken, 924, 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff', 'reader_cache_stmt_vdbe_vfilter_branch_condition_handoff_must_match_current_stmt_vdbe_vfilter_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34564,7 +34564,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext924(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff_token', $currentToken, 925, 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff_token', $currentToken, 925, 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff', 'reader_cache_stmt_vdbe_vcolumn_branch_condition_handoff_must_match_current_stmt_vdbe_vcolumn_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34576,7 +34576,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext925(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff_token', $currentToken, 926, 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff', 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff_token', $currentToken, 926, 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff', 'reader_cache_stmt_vdbe_vnext_branch_condition_handoff_must_match_current_stmt_vdbe_vnext_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34588,7 +34588,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext926(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff_token', $currentToken, 927, 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff', 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff_token', $currentToken, 927, 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff', 'reader_cache_stmt_vdbe_vrename_branch_condition_handoff_must_match_current_stmt_vdbe_vrename_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34600,7 +34600,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext927(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff_token', $currentToken, 928, 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff_token', $currentToken, 928, 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff', 'reader_cache_stmt_vdbe_pagecount_branch_condition_handoff_must_match_current_stmt_vdbe_pagecount_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34612,7 +34612,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext928(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff_token', $currentToken, 929, 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff_token', $currentToken, 929, 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff', 'reader_cache_stmt_vdbe_maxpgcnt_branch_condition_handoff_must_match_current_stmt_vdbe_maxpgcnt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34624,7 +34624,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext929(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff_token', $currentToken, 930, 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff_token', $currentToken, 930, 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff', 'reader_cache_stmt_vdbe_opcode_trace_branch_condition_handoff_must_match_current_stmt_vdbe_opcode_trace_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34636,7 +34636,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext930(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff_token', $currentToken, 931, 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff_must_match_current_stmt_vdbe_cursorhint_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff_token', $currentToken, 931, 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff', 'reader_cache_stmt_vdbe_cursorhint_branch_condition_handoff_must_match_current_stmt_vdbe_cursorhint_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34648,7 +34648,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext931(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_condition_handoff_token', $currentToken, 932, 'reader_cache_stmt_vdbe_noop_branch_condition_handoff', 'reader_cache_stmt_vdbe_noop_branch_condition_handoff_must_match_current_stmt_vdbe_noop_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_noop_branch_condition_handoff_token', $currentToken, 932, 'reader_cache_stmt_vdbe_noop_branch_condition_handoff', 'reader_cache_stmt_vdbe_noop_branch_condition_handoff_must_match_current_stmt_vdbe_noop_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34660,7 +34660,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext932(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_condition_handoff_token', $currentToken, 933, 'reader_cache_stmt_vdbe_init_branch_condition_handoff', 'reader_cache_stmt_vdbe_init_branch_condition_handoff_must_match_current_stmt_vdbe_init_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_init_branch_condition_handoff_token', $currentToken, 933, 'reader_cache_stmt_vdbe_init_branch_condition_handoff', 'reader_cache_stmt_vdbe_init_branch_condition_handoff_must_match_current_stmt_vdbe_init_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34672,7 +34672,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext933(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_condition_handoff_token', $currentToken, 934, 'reader_cache_stmt_vdbe_goto_branch_condition_handoff', 'reader_cache_stmt_vdbe_goto_branch_condition_handoff_must_match_current_stmt_vdbe_goto_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_goto_branch_condition_handoff_token', $currentToken, 934, 'reader_cache_stmt_vdbe_goto_branch_condition_handoff', 'reader_cache_stmt_vdbe_goto_branch_condition_handoff_must_match_current_stmt_vdbe_goto_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34684,7 +34684,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext934(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff_token', $currentToken, 935, 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff', 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff_must_match_current_stmt_vdbe_gosub_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff_token', $currentToken, 935, 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff', 'reader_cache_stmt_vdbe_gosub_branch_condition_handoff_must_match_current_stmt_vdbe_gosub_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34696,7 +34696,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext935(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_condition_handoff_token', $currentToken, 936, 'reader_cache_stmt_vdbe_return_branch_condition_handoff', 'reader_cache_stmt_vdbe_return_branch_condition_handoff_must_match_current_stmt_vdbe_return_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_return_branch_condition_handoff_token', $currentToken, 936, 'reader_cache_stmt_vdbe_return_branch_condition_handoff', 'reader_cache_stmt_vdbe_return_branch_condition_handoff_must_match_current_stmt_vdbe_return_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34708,7 +34708,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext936(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff_token', $currentToken, 937, 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff_must_match_current_stmt_vdbe_yield_op_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff_token', $currentToken, 937, 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff', 'reader_cache_stmt_vdbe_yield_op_branch_condition_handoff_must_match_current_stmt_vdbe_yield_op_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34720,7 +34720,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext937(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_condition_handoff_token', $currentToken, 938, 'reader_cache_stmt_vdbe_halt_branch_condition_handoff', 'reader_cache_stmt_vdbe_halt_branch_condition_handoff_must_match_current_stmt_vdbe_halt_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_branch_condition_handoff_token', $currentToken, 938, 'reader_cache_stmt_vdbe_halt_branch_condition_handoff', 'reader_cache_stmt_vdbe_halt_branch_condition_handoff_must_match_current_stmt_vdbe_halt_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34732,7 +34732,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext938(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff_token', $currentToken, 939, 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff_must_match_current_stmt_vdbe_halt_if_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff_token', $currentToken, 939, 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_halt_if_null_branch_condition_handoff_must_match_current_stmt_vdbe_halt_if_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34744,7 +34744,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext939(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff_token', $currentToken, 940, 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff_must_match_current_stmt_vdbe_must_be_int_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff_token', $currentToken, 940, 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff', 'reader_cache_stmt_vdbe_must_be_int_branch_condition_handoff_must_match_current_stmt_vdbe_must_be_int_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34756,7 +34756,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext940(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_condition_handoff_token', $currentToken, 941, 'reader_cache_stmt_vdbe_string_branch_condition_handoff', 'reader_cache_stmt_vdbe_string_branch_condition_handoff_must_match_current_stmt_vdbe_string_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string_branch_condition_handoff_token', $currentToken, 941, 'reader_cache_stmt_vdbe_string_branch_condition_handoff', 'reader_cache_stmt_vdbe_string_branch_condition_handoff_must_match_current_stmt_vdbe_string_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34768,7 +34768,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext941(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_condition_handoff_token', $currentToken, 942, 'reader_cache_stmt_vdbe_blob_branch_condition_handoff', 'reader_cache_stmt_vdbe_blob_branch_condition_handoff_must_match_current_stmt_vdbe_blob_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_blob_branch_condition_handoff_token', $currentToken, 942, 'reader_cache_stmt_vdbe_blob_branch_condition_handoff', 'reader_cache_stmt_vdbe_blob_branch_condition_handoff_must_match_current_stmt_vdbe_blob_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34780,7 +34780,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext942(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_condition_handoff_token', $currentToken, 943, 'reader_cache_stmt_vdbe_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_null_branch_condition_handoff_must_match_current_stmt_vdbe_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_branch_condition_handoff_token', $currentToken, 943, 'reader_cache_stmt_vdbe_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_null_branch_condition_handoff_must_match_current_stmt_vdbe_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34792,7 +34792,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext943(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff_token', $currentToken, 944, 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff_must_match_current_stmt_vdbe_soft_null_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff_token', $currentToken, 944, 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff', 'reader_cache_stmt_vdbe_soft_null_branch_condition_handoff_must_match_current_stmt_vdbe_soft_null_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34804,7 +34804,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext944(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_condition_handoff_token', $currentToken, 945, 'reader_cache_stmt_vdbe_integer_branch_condition_handoff', 'reader_cache_stmt_vdbe_integer_branch_condition_handoff_must_match_current_stmt_vdbe_integer_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_integer_branch_condition_handoff_token', $currentToken, 945, 'reader_cache_stmt_vdbe_integer_branch_condition_handoff', 'reader_cache_stmt_vdbe_integer_branch_condition_handoff_must_match_current_stmt_vdbe_integer_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34816,7 +34816,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext945(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_condition_handoff_token', $currentToken, 946, 'reader_cache_stmt_vdbe_int64_branch_condition_handoff', 'reader_cache_stmt_vdbe_int64_branch_condition_handoff_must_match_current_stmt_vdbe_int64_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_int64_branch_condition_handoff_token', $currentToken, 946, 'reader_cache_stmt_vdbe_int64_branch_condition_handoff', 'reader_cache_stmt_vdbe_int64_branch_condition_handoff_must_match_current_stmt_vdbe_int64_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34828,7 +34828,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext946(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff_token', $currentToken, 947, 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff', 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff_must_match_current_stmt_vdbe_real_value_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff_token', $currentToken, 947, 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff', 'reader_cache_stmt_vdbe_real_value_branch_condition_handoff_must_match_current_stmt_vdbe_real_value_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34840,7 +34840,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext947(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff_token', $currentToken, 948, 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff', 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff_must_match_current_stmt_vdbe_boolean_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff_token', $currentToken, 948, 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff', 'reader_cache_stmt_vdbe_boolean_branch_condition_handoff_must_match_current_stmt_vdbe_boolean_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34852,7 +34852,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext948(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff_token', $currentToken, 949, 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff', 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff_must_match_current_stmt_vdbe_null_row_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff_token', $currentToken, 949, 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff', 'reader_cache_stmt_vdbe_null_row_branch_condition_handoff_must_match_current_stmt_vdbe_null_row_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34864,7 +34864,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext949(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff_token', $currentToken, 950, 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff', 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff_must_match_current_stmt_vdbe_row_value_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff_token', $currentToken, 950, 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff', 'reader_cache_stmt_vdbe_row_value_branch_condition_handoff_must_match_current_stmt_vdbe_row_value_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34876,7 +34876,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext950(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff_token', $currentToken, 951, 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff_must_match_current_stmt_vdbe_zeroblob_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff_token', $currentToken, 951, 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff', 'reader_cache_stmt_vdbe_zeroblob_branch_condition_handoff_must_match_current_stmt_vdbe_zeroblob_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34888,7 +34888,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext951(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_condition_handoff_token', $currentToken, 952, 'reader_cache_stmt_vdbe_string8_branch_condition_handoff', 'reader_cache_stmt_vdbe_string8_branch_condition_handoff_must_match_current_stmt_vdbe_string8_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_string8_branch_condition_handoff_token', $currentToken, 952, 'reader_cache_stmt_vdbe_string8_branch_condition_handoff', 'reader_cache_stmt_vdbe_string8_branch_condition_handoff_must_match_current_stmt_vdbe_string8_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34900,7 +34900,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext952(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_condition_handoff_token', $currentToken, 953, 'reader_cache_stmt_vdbe_concat_branch_condition_handoff', 'reader_cache_stmt_vdbe_concat_branch_condition_handoff_must_match_current_stmt_vdbe_concat_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_concat_branch_condition_handoff_token', $currentToken, 953, 'reader_cache_stmt_vdbe_concat_branch_condition_handoff', 'reader_cache_stmt_vdbe_concat_branch_condition_handoff_must_match_current_stmt_vdbe_concat_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34912,7 +34912,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext953(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_condition_handoff_token', $currentToken, 954, 'reader_cache_stmt_vdbe_add_branch_condition_handoff', 'reader_cache_stmt_vdbe_add_branch_condition_handoff_must_match_current_stmt_vdbe_add_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_branch_condition_handoff_token', $currentToken, 954, 'reader_cache_stmt_vdbe_add_branch_condition_handoff', 'reader_cache_stmt_vdbe_add_branch_condition_handoff_must_match_current_stmt_vdbe_add_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34924,7 +34924,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext954(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff_token', $currentToken, 955, 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff', 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff_must_match_current_stmt_vdbe_subtract_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff_token', $currentToken, 955, 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff', 'reader_cache_stmt_vdbe_subtract_branch_condition_handoff_must_match_current_stmt_vdbe_subtract_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34936,7 +34936,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext955(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff_token', $currentToken, 956, 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff', 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff_must_match_current_stmt_vdbe_multiply_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff_token', $currentToken, 956, 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff', 'reader_cache_stmt_vdbe_multiply_branch_condition_handoff_must_match_current_stmt_vdbe_multiply_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34948,7 +34948,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext956(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_condition_handoff_token', $currentToken, 957, 'reader_cache_stmt_vdbe_divide_branch_condition_handoff', 'reader_cache_stmt_vdbe_divide_branch_condition_handoff_must_match_current_stmt_vdbe_divide_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_divide_branch_condition_handoff_token', $currentToken, 957, 'reader_cache_stmt_vdbe_divide_branch_condition_handoff', 'reader_cache_stmt_vdbe_divide_branch_condition_handoff_must_match_current_stmt_vdbe_divide_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
@@ -34960,408 +34960,84 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         }
         $base = self::variantNext957(...$args);
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff_token', $currentToken, 958, 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff', 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff_must_match_current_stmt_vdbe_remainder_branch_handoff_state');
+        return self::applyReaderCacheFence($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff_token', $currentToken, 958, 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff', 'reader_cache_stmt_vdbe_remainder_branch_condition_handoff_must_match_current_stmt_vdbe_remainder_branch_handoff_state');
     }
 
     /** @return array<string,mixed> */
-    public static function variantNext959(mixed ...$args): array
+    public static function currentSourceVdbeArithmeticBranchConditionFence(mixed ...$args): array
     {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next959 requires stmt-vdbe-bit-and-branch-condition-handoff token');
-        }
-        $base = self::variantNext958(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff_token', $currentToken, 959, 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff', 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff_must_match_current_stmt_vdbe_bit_and_branch_handoff_state');
+        return self::applyReaderCacheFenceSequence(self::variantNext958(...array_slice($args, 0, -16)), $args, self::vdbeArithmeticBranchConditionFenceSpecs());
     }
-
-    /** @return array<string,mixed> */
-    public static function variantNext960(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next960 requires stmt-vdbe-bit-or-branch-condition-handoff token');
-        }
-        $base = self::variantNext959(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff_token', $currentToken, 960, 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff', 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff_must_match_current_stmt_vdbe_bit_or_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext961(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next961 requires stmt-vdbe-shift-left-branch-condition-handoff token');
-        }
-        $base = self::variantNext960(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff_token', $currentToken, 961, 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff', 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff_must_match_current_stmt_vdbe_shift_left_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext962(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next962 requires stmt-vdbe-shift-right-branch-condition-handoff token');
-        }
-        $base = self::variantNext961(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff_token', $currentToken, 962, 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff', 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff_must_match_current_stmt_vdbe_shift_right_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext963(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next963 requires stmt-vdbe-add-imm-branch-condition-handoff token');
-        }
-        $base = self::variantNext962(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff_token', $currentToken, 963, 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff', 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff_must_match_current_stmt_vdbe_add_imm_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext964(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next964 requires stmt-vdbe-bit-not-branch-condition-handoff token');
-        }
-        $base = self::variantNext963(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff_token', $currentToken, 964, 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff', 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff_must_match_current_stmt_vdbe_bit_not_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext965(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next965 requires stmt-vdbe-affinity-branch-condition-handoff token');
-        }
-        $base = self::variantNext964(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff_token', $currentToken, 965, 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff', 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_affinity_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext966(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next966 requires stmt-vdbe-cast-affinity-branch-condition-handoff token');
-        }
-        $base = self::variantNext965(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff_token', $currentToken, 966, 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff', 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_cast_affinity_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext967(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next967 requires stmt-vdbe-permutation-affinity-branch-condition-handoff token');
-        }
-        $base = self::variantNext966(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff_token', $currentToken, 967, 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff', 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_permutation_affinity_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext968(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next968 requires stmt-vdbe-compare-affinity-branch-condition-handoff token');
-        }
-        $base = self::variantNext967(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff_token', $currentToken, 968, 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff', 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_compare_affinity_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext969(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next969 requires stmt-vdbe-compare-collseq-branch-condition-handoff token');
-        }
-        $base = self::variantNext968(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff_token', $currentToken, 969, 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff', 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff_must_match_current_stmt_vdbe_compare_collseq_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext970(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next970 requires stmt-vdbe-jump-destination-branch-condition-handoff token');
-        }
-        $base = self::variantNext969(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff_token', $currentToken, 970, 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff', 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff_must_match_current_stmt_vdbe_jump_destination_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext971(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next971 requires stmt-vdbe-once-flag-branch-condition-handoff token');
-        }
-        $base = self::variantNext970(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff_token', $currentToken, 971, 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff', 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff_must_match_current_stmt_vdbe_once_flag_branch_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext972(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next972 requires stmt-vdbe-if-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::variantNext971(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff_token', $currentToken, 972, 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_condition_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext973(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next973 requires stmt-vdbe-ifnot-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::variantNext972(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff_token', $currentToken, 973, 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_condition_handoff_state');
-    }
-
-    /** @return array<string,mixed> */
-    public static function variantNext974(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next974 requires stmt-vdbe-isnull-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::variantNext973(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_token', $currentToken, 974, 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_condition_handoff_state');
-    }
-
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeNotNullBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next975 requires stmt-vdbe-notnull-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::variantNext974(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff_token', $currentToken, 975, 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeNeBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next976 requires stmt-vdbe-ne-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeNotNullBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff_token', $currentToken, 976, 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeEqBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next977 requires stmt-vdbe-eq-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeNeBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff_token', $currentToken, 977, 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeGtBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next978 requires stmt-vdbe-gt-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeEqBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff_token', $currentToken, 978, 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeLeBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next979 requires stmt-vdbe-le-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeGtBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff_token', $currentToken, 979, 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeLtBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next980 requires stmt-vdbe-lt-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeLeBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff_token', $currentToken, 980, 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeGeBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next981 requires stmt-vdbe-ge-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeLtBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff_token', $currentToken, 981, 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeElseEqBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next982 requires stmt-vdbe-else-eq-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeGeBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff_token', $currentToken, 982, 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeZeroOrNullBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next983 requires stmt-vdbe-zero-or-null-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeElseEqBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff_token', $currentToken, 983, 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeSeekHitBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next984 requires stmt-vdbe-seek-hit-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeZeroOrNullBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff_token', $currentToken, 984, 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeIfNotOpenBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next985 requires stmt-vdbe-if-not-open-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeSeekHitBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff_token', $currentToken, 985, 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_not_open_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeNotOpenBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next986 requires stmt-vdbe-not-open-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeIfNotOpenBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff_token', $currentToken, 986, 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_not_open_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeIfOpenBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next987 requires stmt-vdbe-if-open-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeNotOpenBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff_token', $currentToken, 987, 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_open_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeTransactionBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next988 requires stmt-vdbe-transaction-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeIfOpenBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff_token', $currentToken, 988, 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_transaction_branch_condition_handoff_state');
-    }
-
-
-    /** @return array<string,mixed> */
-    public static function currentSourceVdbeAutoCommitBranchConditionFence(mixed ...$args): array
-    {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next989 requires stmt-vdbe-auto-commit-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeTransactionBranchConditionFence(...$args);
-
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff_token', $currentToken, 989, 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_auto_commit_branch_condition_handoff_state');
-    }
-
 
     /** @return array<string,mixed> */
     public static function currentSourceVdbeSavepointBranchConditionFence(mixed ...$args): array
     {
-        $currentToken = array_pop($args);
-        if (!is_string($currentToken)) {
-            throw new \InvalidArgumentException('SQLite pager master-journal reader-cache next990 requires stmt-vdbe-savepoint-branch-condition-branch-condition-handoff token');
-        }
-        $base = self::currentSourceVdbeAutoCommitBranchConditionFence(...$args);
+        return self::applyReaderCacheFenceSequence(self::variantNext958(...array_slice($args, 0, -32)), $args, array_merge(
+            self::vdbeArithmeticBranchConditionFenceSpecs(),
+            self::vdbeControlFlowBranchConditionFenceSpecs(),
+        ));
+    }
 
-        return self::applyReaderCacheFenceNext271274($base, $args[6], $args[7], 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token', $currentToken, 990, 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff', 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_savepoint_branch_condition_handoff_state');
+    /** @return list<array{field:string,label:string,ordinal:int,reason:string}> */
+    private static function vdbeArithmeticBranchConditionFenceSpecs(): array
+    {
+        return [
+            ['field' => 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff', 'ordinal' => 959, 'reason' => 'reader_cache_stmt_vdbe_bit_and_branch_condition_handoff_must_match_current_stmt_vdbe_bit_and_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff', 'ordinal' => 960, 'reason' => 'reader_cache_stmt_vdbe_bit_or_branch_condition_handoff_must_match_current_stmt_vdbe_bit_or_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff', 'ordinal' => 961, 'reason' => 'reader_cache_stmt_vdbe_shift_left_branch_condition_handoff_must_match_current_stmt_vdbe_shift_left_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff', 'ordinal' => 962, 'reason' => 'reader_cache_stmt_vdbe_shift_right_branch_condition_handoff_must_match_current_stmt_vdbe_shift_right_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff', 'ordinal' => 963, 'reason' => 'reader_cache_stmt_vdbe_add_imm_branch_condition_handoff_must_match_current_stmt_vdbe_add_imm_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff', 'ordinal' => 964, 'reason' => 'reader_cache_stmt_vdbe_bit_not_branch_condition_handoff_must_match_current_stmt_vdbe_bit_not_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff', 'ordinal' => 965, 'reason' => 'reader_cache_stmt_vdbe_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_affinity_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff', 'ordinal' => 966, 'reason' => 'reader_cache_stmt_vdbe_cast_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_cast_affinity_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff', 'ordinal' => 967, 'reason' => 'reader_cache_stmt_vdbe_permutation_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_permutation_affinity_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff', 'ordinal' => 968, 'reason' => 'reader_cache_stmt_vdbe_compare_affinity_branch_condition_handoff_must_match_current_stmt_vdbe_compare_affinity_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff', 'ordinal' => 969, 'reason' => 'reader_cache_stmt_vdbe_compare_collseq_branch_condition_handoff_must_match_current_stmt_vdbe_compare_collseq_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff', 'ordinal' => 970, 'reason' => 'reader_cache_stmt_vdbe_jump_destination_branch_condition_handoff_must_match_current_stmt_vdbe_jump_destination_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff', 'ordinal' => 971, 'reason' => 'reader_cache_stmt_vdbe_once_flag_branch_condition_handoff_must_match_current_stmt_vdbe_once_flag_branch_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff', 'ordinal' => 972, 'reason' => 'reader_cache_stmt_vdbe_if_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff', 'ordinal' => 973, 'reason' => 'reader_cache_stmt_vdbe_ifnot_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ifnot_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff', 'ordinal' => 974, 'reason' => 'reader_cache_stmt_vdbe_isnull_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_isnull_branch_condition_handoff_state'],
+        ];
+    }
+
+    /** @return list<array{field:string,label:string,ordinal:int,reason:string}> */
+    private static function vdbeControlFlowBranchConditionFenceSpecs(): array
+    {
+        return [
+            ['field' => 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff', 'ordinal' => 975, 'reason' => 'reader_cache_stmt_vdbe_notnull_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_notnull_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff', 'ordinal' => 976, 'reason' => 'reader_cache_stmt_vdbe_ne_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ne_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff', 'ordinal' => 977, 'reason' => 'reader_cache_stmt_vdbe_eq_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_eq_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff', 'ordinal' => 978, 'reason' => 'reader_cache_stmt_vdbe_gt_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_gt_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff', 'ordinal' => 979, 'reason' => 'reader_cache_stmt_vdbe_le_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_le_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff', 'ordinal' => 980, 'reason' => 'reader_cache_stmt_vdbe_lt_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_lt_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff', 'ordinal' => 981, 'reason' => 'reader_cache_stmt_vdbe_ge_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_ge_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff', 'ordinal' => 982, 'reason' => 'reader_cache_stmt_vdbe_else_eq_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_else_eq_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff', 'ordinal' => 983, 'reason' => 'reader_cache_stmt_vdbe_zero_or_null_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_zero_or_null_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff', 'ordinal' => 984, 'reason' => 'reader_cache_stmt_vdbe_seek_hit_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_seek_hit_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff', 'ordinal' => 985, 'reason' => 'reader_cache_stmt_vdbe_if_not_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_not_open_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff', 'ordinal' => 986, 'reason' => 'reader_cache_stmt_vdbe_not_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_not_open_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff', 'ordinal' => 987, 'reason' => 'reader_cache_stmt_vdbe_if_open_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_if_open_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff', 'ordinal' => 988, 'reason' => 'reader_cache_stmt_vdbe_transaction_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_transaction_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff', 'ordinal' => 989, 'reason' => 'reader_cache_stmt_vdbe_auto_commit_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_auto_commit_branch_condition_handoff_state'],
+            ['field' => 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_token', 'label' => 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff', 'ordinal' => 990, 'reason' => 'reader_cache_stmt_vdbe_savepoint_branch_condition_branch_condition_handoff_must_match_current_stmt_vdbe_savepoint_branch_condition_handoff_state'],
+        ];
+    }
+
+    /** @param list<array{field:string,label:string,ordinal:int,reason:string}> $specs @return array<string,mixed> */
+    private static function applyReaderCacheFenceSequence(array $base, array $args, array $specs): array
+    {
+        $tokens = array_slice($args, -count($specs));
+        foreach ($specs as $index => $spec) {
+            $currentToken = $tokens[$index] ?? null;
+            if (!is_string($currentToken)) {
+                throw new \InvalidArgumentException('SQLite pager master-journal reader-cache requires ' . str_replace('_', '-', $spec['label']) . ' token');
+            }
+
+            $base = self::applyReaderCacheFence($base, $args[6], $args[7], $spec['field'], $currentToken, $spec['ordinal'], $spec['label'], $spec['reason']);
+        }
+
+        return $base;
     }
 
     /** @param array<int,array<string,mixed>> $cache @return array<int,array<string,mixed>> */
@@ -35387,7 +35063,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @param array<string,mixed> $base @param array<int,array<string,mixed>> $readerCache @param list<array<string,mixed>> $nextReads @return array<string,mixed> */
-    private static function applyReaderCacheFenceNext271274(array $base, array $readerCache, array $nextReads, string $field, string $currentToken, int $next, string $label, string $reason): array
+    private static function applyReaderCacheFence(array $base, array $readerCache, array $nextReads, string $field, string $currentToken, int $next, string $label, string $reason): array
     {
         if ($currentToken === '') {
             throw new \InvalidArgumentException("SQLite pager master-journal reader-cache next{$next} requires {$label} token");
@@ -35433,8 +35109,8 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
             ];
         }
 
-        $invalidated = self::sortedUniqueNext271274($invalidated);
-        $base['invalidated_cache_page_numbers'] = self::sortedUniqueNext271274(array_merge($base['invalidated_cache_page_numbers'], $invalidated));
+        $invalidated = self::sortedUniqueIntegers($invalidated);
+        $base['invalidated_cache_page_numbers'] = self::sortedUniqueIntegers(array_merge($base['invalidated_cache_page_numbers'], $invalidated));
         $base['retained_cache_page_numbers'] = array_values(array_diff($base['retained_cache_page_numbers'], $invalidated));
         $base['refreshed_cache_page_numbers'] = array_values(array_diff($base['refreshed_cache_page_numbers'], $invalidated));
         $base['requires_reader_reopen'] = $base['invalidated_cache_page_numbers'] !== [];
@@ -35462,7 +35138,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
         $base['reader_rows'] = $rows;
         $base["{$label}_invalidated_cache_page_numbers"] = $invalidated;
         $base['read_cache_hits'] = array_column($base['next_reads'], 'cache_hit', 'reader_id');
-        $base['reopen_reader_ids'] = self::sortReaderIdsNext271274(array_keys($reopenReaders));
+        $base['reopen_reader_ids'] = self::sortReaderIds(array_keys($reopenReaders));
         $base['source_digest'] = hash('sha256', $base['source_digest'] . '|' . $label . '|' . $currentToken . '|' . implode(',', $invalidated));
         $base['dependencies'][] = "sqlite-pager-master-journal-reader-cache-current-source-next{$next}";
         $base['dependencies'][] = "sqlite-pager-reader-cache-{$label}-fence";
@@ -35472,7 +35148,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @param list<int> $values @return list<int> */
-    private static function sortedUniqueNext271274(array $values): array
+    private static function sortedUniqueIntegers(array $values): array
     {
         $values = array_values(array_unique($values));
         sort($values, SORT_NUMERIC);
@@ -35481,7 +35157,7 @@ final class SQLitePagerMasterJournalReaderCacheCurrentSourceNextPlan
     }
 
     /** @param list<string> $values @return list<string> */
-    private static function sortReaderIdsNext271274(array $values): array
+    private static function sortReaderIds(array $values): array
     {
         $values = array_values(array_unique($values));
         sort($values, SORT_NATURAL);

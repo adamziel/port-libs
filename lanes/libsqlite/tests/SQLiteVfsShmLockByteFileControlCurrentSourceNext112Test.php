@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
 
 $tests = [];
 
-$run112 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext112($ops, $options + [
+$run112 = static fn (array $ops, array $options = []): array => SQLiteVfsLockByteUriShmCurrentSourceNext::planShmLockByteFileControl($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20options.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -133,7 +133,7 @@ $tests['vfs shm lockbyte filecontrol current source next112 nolock byte lock blo
 $tests['vfs shm lockbyte filecontrol current source next112 nolock write control blocked'] = static fn (TestRunner $t) => $t->same('blocked', $nolock()['events'][2]['status']);
 $tests['vfs shm lockbyte filecontrol current source next112 nolock data version one'] = static fn (TestRunner $t) => $t->same(1, $nolock()['events'][3]['value']);
 
-$tests['vfs shm lockbyte filecontrol current source next112 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::currentSourceNext112([]));
+$tests['vfs shm lockbyte filecontrol current source next112 rejects empty operations'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsLockByteUriShmCurrentSourceNext::planShmLockByteFileControl([]));
 $tests['vfs shm lockbyte filecontrol current source next112 rejects bad file control value'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run112(['open(main)', 'lock reserved wp 1', ['op' => 'filecontrol', 'control' => 'reserve_bytes', 'value' => -1]]));
 $tests['vfs shm lockbyte filecontrol current source next112 rejects bad file control name'] = static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run112(['open(main)', ['op' => 'filecontrol', 'control' => '']]));
 

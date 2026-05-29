@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run99 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext99($ops, $options + [
+$run99 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planGeneratedSourceFileControls($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix',
 ]);
 
@@ -117,5 +117,5 @@ return [
     'vfs open lock filecontrol current source next99 readonly persist ignored' => static fn (TestRunner $t) => $t->same('ignored', $readonly()['events'][2]['status']),
     'vfs open lock filecontrol current source next99 readonly generation unchanged' => static fn (TestRunner $t) => $t->same(1, $readonly()['events'][3]['value']),
     'vfs open lock filecontrol current source next99 readonly data version fresh' => static fn (TestRunner $t) => $t->same(false, $readonly()['events'][3]['stale_current_source']),
-    'vfs open lock filecontrol current source next99 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext99([])),
+    'vfs open lock filecontrol current source next99 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planGeneratedSourceFileControls([])),
 ];

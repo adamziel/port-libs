@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
 
-$run94 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext94($ops, $options + [
+$run94 = static fn (array $ops, array $options = []): array => SQLiteVfsOpenLockFileControlCurrentSource::planPersistWalLockFileControl($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared&vfs=unix',
 ]);
 
@@ -128,6 +128,6 @@ return [
     'vfs filecontrol persistwal lock current source next94 explicit current persist false' => static fn (TestRunner $t) => $t->same(false, $explicitCurrent()['events'][1]['next']['persistent_controls']['/srv/www/wp-content/database/current.sqlite']['persist_wal']),
     'vfs filecontrol persistwal lock current source next94 explicit current data version continues' => static fn (TestRunner $t) => $t->same(7, $explicitCurrent()['events'][1]['next']['persistent_controls']['/srv/www/wp-content/database/current.sqlite']['data_version']),
 
-    'vfs filecontrol persistwal lock current source next94 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::currentSourceNext94([])),
+    'vfs filecontrol persistwal lock current source next94 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsOpenLockFileControlCurrentSource::planPersistWalLockFileControl([])),
     'vfs filecontrol persistwal lock current source next94 coerces persist integer true' => static fn (TestRunner $t) => $t->same(true, $run94(['open', 'lock(reserved)', 'file_control(persist_wal, 2)'])['events'][2]['value']),
 ];

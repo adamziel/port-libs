@@ -28,7 +28,7 @@ $statements = [
     ['name' => 'temp-notice-reader', 'sql' => 'SELECT notice_id FROM temp.wp_theme_stage_publish_notice_next896 WHERE cache_key = ?'],
 ];
 
-$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::currentSourceNext893908($schemas, $statements, [
+$plan = SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan::schemaCacheArchiveWindow($schemas, $statements, [
     ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 894, 'table' => 'wp_navigation_rule_locale_publish_delta_next894', 'indexes' => ['wp_navigation_rule_locale_publish_delta_key_next894'], 'commit' => true],
     ['op' => 'schema_write', 'schema' => 'temp', 'schema_cookie' => 896, 'table' => 'wp_theme_stage_publish_notice_next896', 'commit' => true],
     ['op' => 'rename_index', 'schema' => 'audit', 'from' => 'wp_schema_audit_seal_key_next901', 'to' => 'wp_schema_audit_seal_key_next902'],
@@ -60,7 +60,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['archive-reader']['schema_transitions'][0]['next_schema'] === 'archive');
     assert($plan['stable_statements'] === ['temp-notice-reader']);
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next893-908 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-archive-window self-test passed\n";
     return;
 }
 

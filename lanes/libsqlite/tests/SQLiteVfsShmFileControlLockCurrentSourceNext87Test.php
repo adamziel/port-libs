@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$run87 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext87($ops, $options + [
+$run87 = static fn (array $ops, array $options = []): array => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmFileControlLock($ops, $options + [
     'filename' => 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared',
 ]);
 
@@ -122,7 +122,7 @@ return [
     'vfs shm filecontrol lock current source next87 missing source switch' => static fn (TestRunner $t) => $t->same('missing-handle', $run87(['source(shm)'])['status']),
     'vfs shm filecontrol lock current source next87 missing filecontrol without main' => static fn (TestRunner $t) => $t->same('missing-handle', $run87([['op' => 'filecontrol', 'source' => 'shm', 'control' => 'mmap_size', 'value' => 1]])['status']),
     'vfs shm filecontrol lock current source next87 missing shm lock before open' => static fn (TestRunner $t) => $t->same('missing-handle', $run87([['op' => 'shmlock', 'lock' => 'read0', 'mode' => 'shared']])['status']),
-    'vfs shm filecontrol lock current source next87 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext87([])),
+    'vfs shm filecontrol lock current source next87 rejects empty operations' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmFileControlLock([])),
     'vfs shm filecontrol lock current source next87 rejects bad source' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run87([['op' => 'open', 'source' => 'temp']])),
     'vfs shm filecontrol lock current source next87 rejects bad operation' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run87(['checkpoint'])),
     'vfs shm filecontrol lock current source next87 rejects bad shm lock' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $run87(['open(shm)', 'shm_lock(bogus, shared)'])),

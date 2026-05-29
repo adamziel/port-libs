@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
 
-$plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138([
+$plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression([
     'open(main, file:/srv/www/wp-content/database/bad-source.sqlite?mode=rw&cache=shared)',
     'open(shm, file:/srv/www/wp-content/database/bad-source.sqlite-shm?mode=rw&cache=shared)',
     ['op' => 'shmlock', 'source' => 'shm', 'lock' => 'read0', 'mode' => 'shared', 'connection' => 'wp-reader'],
@@ -18,7 +18,7 @@ $plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138([
 
 $badSourceRejected = false;
 try {
-    SQLiteVfsShmFileControlLockCurrentSourcePlan::currentSourceNext138([
+    SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmBadSourceRegression([
         'open(main, file:/srv/www/wp-content/database/bad-source.sqlite?mode=rw&cache=shared)',
         ['op' => 'xShmLock', 'source' => 'temp', 'lock' => 'read0', 'mode' => 'shared'],
     ]);

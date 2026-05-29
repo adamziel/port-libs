@@ -11,7 +11,7 @@ final class SQLiteVfsShmOpenFileControlCurrentSourcePlan
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext91(array $operations, array $options = []): array
+    public static function planShmOpenFileControl(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS SHM file-control open current-source next91 requires operations');

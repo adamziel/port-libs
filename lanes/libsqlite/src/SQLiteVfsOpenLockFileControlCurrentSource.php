@@ -11,7 +11,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext82(array $operations, array $options = []): array
+    public static function planOpenLockFileControl(array $operations, array $options = []): array
     {
         return self::run($operations, $options, false, 'vfs-open-lock-filecontrol-current-source-next82');
     }
@@ -21,7 +21,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext86(array $operations, array $options = []): array
+    public static function planUriOpenLock(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-open-uri-lock-current-source-next86');
     }
@@ -31,7 +31,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext90(array $operations, array $options = []): array
+    public static function planLockingFileControlPersistence(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-filecontrol-locking-persistence-current-source-next90', true);
     }
@@ -41,7 +41,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext94(array $operations, array $options = []): array
+    public static function planPersistWalLockFileControl(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-filecontrol-persistwal-lock-current-source-next94', true, true);
     }
@@ -51,7 +51,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext99(array $operations, array $options = []): array
+    public static function planGeneratedSourceFileControls(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-current-source-next99', true, true, true);
     }
@@ -61,7 +61,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext103(array $operations, array $options = []): array
+    public static function planOpenDeviceCharacteristics(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-xopen-device-characteristics-current-source-next103', true, true, true, true);
     }
@@ -71,7 +71,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext105(array $operations, array $options = []): array
+    public static function planUriFileControls(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-uri-current-source-next105', true, true, true, true, true);
     }
@@ -81,7 +81,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
      * @param array<string,mixed> $options
      * @return array{status:string,current:array<string,mixed>,next:array<string,mixed>,events:list<array<string,mixed>>,dependencies:list<string>}
      */
-    public static function currentSourceNext109(array $operations, array $options = []): array
+    public static function planSqliteUriFileControls(array $operations, array $options = []): array
     {
         return self::run($operations, $options, true, 'vfs-open-lock-filecontrol-uri-current-source-next109', true, true, true, true, true, true);
     }

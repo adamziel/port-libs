@@ -2384,7 +2384,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext877892(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheReviewWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next877-892', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next877',
@@ -2432,7 +2432,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext893908(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheArchiveWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next893-908', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next893',
@@ -2480,7 +2480,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext909924(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheMetricsWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next909-924', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next909',
@@ -2528,7 +2528,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext925940(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheAuditWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next925-940', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next925',
@@ -2576,7 +2576,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext941956(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheReportWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next941-956', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next941',
@@ -2624,7 +2624,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext957972(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCachePublishHandoffWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next957-972', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next957',
@@ -2672,7 +2672,7 @@ final class SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan
      * @param list<array{op:string, schema?:string, schema_cookie?:int, tables?:list<string>, indexes?:list<string>, table?:string, index?:string, object?:string, from?:string, to?:string, file?:string|null, commit?:bool}> $events
      * @return array<string,mixed>
      */
-    public static function currentSourceNext973988(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
+    public static function schemaCacheFinalHandoffWindow(array $schemas, array $statements, array $events, string $sourceSchema = 'main'): array
     {
         return self::buildPlan($schemas, $statements, self::currentSourceNext118120Events($events), $sourceSchema, 'attach-wal-temp-schema-cache-current-source-next973-988', [
             'sqlite-attach-temp-wal-schema-cache-current-source-next973',
