@@ -1,0 +1,12 @@
+# SQLite VFS current-source next514-529
+
+This slice adds `SQLiteVfsCurrentSourceNext514529Plan` as the direct successor to merged next498-513. It requires the latest `shared-cache-next513` publish receipt before snapshotting `reader-ready-next529`, records a reuse claim, and only publishes `shared-cache-next529` when the source handle/path/owner/data version, publish count, receipt digest, and dirty-page state still match the captured snapshot.
+
+Validation:
+
+- `php -l lanes/libsqlite/src/SQLiteVfsCurrentSourceNext514529Plan.php`
+- `php -l lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext514529Test.php`
+- `php -l lanes/libsqlite/examples/wordpress-vfs-current-source-next514-529.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteVfsCurrentSourceNext514529Test.php`
+- `php lanes/libsqlite/examples/wordpress-vfs-current-source-next514-529.php --self-test`
+- `git diff --check`
