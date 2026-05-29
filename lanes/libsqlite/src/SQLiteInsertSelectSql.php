@@ -10,7 +10,7 @@ final class SQLiteInsertSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @param array<int|string,mixed> $parameters
      * @param list<list<string>> $uniqueColumns
-     * @return array{target:string,conflict_action:string,columns:list<string>,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,deleted_rows:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,changes:int}
+     * @return array{target:string,conflict_action:string,columns:list<string>,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,deleted_rows:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,returning_sql:?string,returning_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,changes:int}
      */
     public static function execute(string $sql, array $tables, array $parameters = [], array $uniqueColumns = []): array
     {
@@ -42,6 +42,10 @@ final class SQLiteInsertSelectSql
             $inserted[] = $row;
         }
 
+        $returningRows = $plan['returning_sql'] === null
+            ? []
+            : self::returningRows($plan['returning_sql'], $target, $inserted);
+
         return [
             'target' => $target,
             'conflict_action' => $plan['conflict_action'],
@@ -50,6 +54,8 @@ final class SQLiteInsertSelectSql
             'inserted_rows' => $inserted,
             'deleted_rows' => $deleted,
             'ignored_rows' => $ignored,
+            'returning_sql' => $plan['returning_sql'],
+            'returning_rows' => $returningRows,
             'before' => $before,
             'after' => $after,
             'changes' => count($inserted),
@@ -59,7 +65,7 @@ final class SQLiteInsertSelectSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param array<int|string,mixed> $parameters
-     * @return array{target:string,conflict_action:string,columns:list<string>,select_sql:string,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>}
+     * @return array{target:string,conflict_action:string,columns:list<string>,select_sql:string,returning_sql:?string,source_rows:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>}
      */
     public static function plan(string $sql, array $tables, array $parameters = []): array
     {
@@ -92,9 +98,15 @@ final class SQLiteInsertSelectSql
             $offset = self::skipWhitespace($sql, $offset);
         }
 
-        $selectSql = trim(substr($sql, $offset));
+        $tailSql = trim(substr($sql, $offset));
+        $returningOffset = self::keywordOffset($tailSql, 'RETURNING');
+        $selectSql = $returningOffset === null ? $tailSql : trim(substr($tailSql, 0, $returningOffset));
+        $returningSql = $returningOffset === null ? null : trim(substr($tailSql, $returningOffset + strlen('RETURNING')));
         if ($selectSql === '' || preg_match('/^select\s+|^with\s+/i', $selectSql) !== 1) {
             throw new \InvalidArgumentException('SQLite INSERT SELECT requires a SELECT source');
+        }
+        if ($returningSql === '') {
+            throw new \InvalidArgumentException('SQLite INSERT SELECT RETURNING projection cannot be empty');
         }
 
         $sourceRows = SQLiteSelectSql::execute($selectSql, $tables, $parameters);
@@ -123,9 +135,26 @@ final class SQLiteInsertSelectSql
             'conflict_action' => $conflictAction,
             'columns' => $columns,
             'select_sql' => $selectSql,
+            'returning_sql' => $returningSql,
             'source_rows' => $sourceRows,
             'inserted_rows' => $insertedRows,
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $insertedRows
+     * @return list<array<string,mixed>>
+     */
+    private static function returningRows(string $returningSql, string $target, array $insertedRows): array
+    {
+        if ($insertedRows === []) {
+            return [];
+        }
+
+        return SQLiteSelectSql::execute(
+            'SELECT ' . $returningSql . ' FROM ' . $target,
+            [$target => $insertedRows],
+        );
     }
 
     private static function readIdentifier(string $sql, int $offset, string $label): string
@@ -210,6 +239,45 @@ final class SQLiteInsertSelectSql
         }
 
         return $offset;
+    }
+
+    private static function keywordOffset(string $sql, string $keyword, int $offset = 0): ?int
+    {
+        $depth = 0;
+        $quote = false;
+        $length = strlen($sql);
+        $keywordLength = strlen($keyword);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && strcasecmp(substr($sql, $i, $keywordLength), $keyword) === 0) {
+                $before = $sql[$i - 1] ?? ' ';
+                $after = $sql[$i + $keywordLength] ?? ' ';
+                if (!preg_match('/[A-Za-z0-9_]/', $before) && !preg_match('/[A-Za-z0-9_]/', $after)) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
