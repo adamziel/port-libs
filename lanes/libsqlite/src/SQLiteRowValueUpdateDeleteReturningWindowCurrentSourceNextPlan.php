@@ -5466,7 +5466,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<string>|null $acknowledgedNextRowTickets
      * @return array<string,mixed>
      */
-    public static function executeNextRowAdmission(
+    public static function executeWindowRowAdmission(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -6405,7 +6405,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedCurrentFrameTickets = null,
         bool $requirePreviousFrameClose = true,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNextRowAdmission(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -6716,7 +6716,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         ?array $acknowledgedNextRowTickets = null,
         ?array $acknowledgedBoundaryTickets = null,
     ): array {
-        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNextRowAdmission(
+        $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission(
             $tables,
             $yieldStatements,
             $attemptStatements,
@@ -8129,7 +8129,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<list<string>> $uniqueConstraints
      * @return array<string,mixed>
      */
-    public static function executeNextSourcePackage(
+    public static function executePublicationSourcePackage(
         array $tables,
         array $yieldStatements,
         array $attemptStatements,
@@ -8178,7 +8178,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         string $savepoint = 'wp_options_rowvalue_window_current_next276',
         string $rowIdColumn = 'option_id',
     ): array {
-        $base = self::executeNextSourcePackage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
+        $base = self::executePublicationSourcePackage($tables, $yieldStatements, $attemptStatements, $retryStatements, $uniqueConstraints, $savepoint, $rowIdColumn);
         $handoff = [
             'savepoint' => $savepoint,
             'after_current_receipt_next272' => $base['after_current_summary_next272']['after_current_receipt_next272'],
@@ -11230,79 +11230,76 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param list<array<string,mixed>> $readyCandidates
      * @return array<string,mixed>
      */
-    public static function prepareAfterReadyWindowMetadata(array $readyCandidates, string $sourceToken = 'rowvalue-window-current-source-next298-301'): array
+    public static function prepareReadyWindowPublicationMetadata(array $readyCandidates, string $sourceToken = 'rowvalue-window-ready-publication-metadata'): array
     {
         if (count($readyCandidates) !== 4) {
-            throw new \InvalidArgumentException('SQLite row-value returning window next298-301 requires exactly four next294-297 ready candidates');
+            throw new \InvalidArgumentException('SQLite row-value returning window ready publication metadata requires exactly four ready candidates');
         }
         if ($sourceToken === '') {
-            throw new \InvalidArgumentException('SQLite row-value returning window next298-301 source token must be non-empty');
+            throw new \InvalidArgumentException('SQLite row-value returning window ready publication metadata source token must be non-empty');
         }
 
-        $expected = [294, 295, 296, 297];
         $validated = [];
         $rowCounts = [];
         $retryRowids = [];
 
         foreach ($readyCandidates as $index => $candidate) {
-            $next = $expected[$index];
-            $validated[] = self::validateAfterReadyCandidate($candidate, $next);
-            $rowCounts[$next] = count($candidate['retry_window_rows']);
-            $retryRowids[$next] = array_column($candidate['retry_window_rows'], 'current_rowid');
+            $ordinal = $index + 1;
+            $validated[] = self::validateAfterReadyCandidate($candidate, $ordinal);
+            $rowCounts[$ordinal] = count($candidate['retry_window_rows']);
+            $retryRowids[$ordinal] = array_column($candidate['retry_window_rows'], 'current_rowid');
         }
 
-        $receipt298 = self::hashAfterReadyWindowMetadata(['next' => 298, 'source' => $sourceToken, 'ready' => $validated, 'rowids' => $retryRowids]);
-        $ledger299 = self::hashAfterReadyWindowMetadata(['next' => 299, 'receipt' => $receipt298, 'rows' => $rowCounts]);
-        $handoff300 = self::hashAfterReadyWindowMetadata(['next' => 300, 'ledger' => $ledger299, 'statuses' => array_column($validated, 'status')]);
-        $seal301 = self::hashAfterReadyWindowMetadata(['next' => 301, 'handoff' => $handoff300, 'source' => $sourceToken]);
+        $receipt = self::hashAfterReadyWindowMetadata(['stage' => 'receipt', 'source' => $sourceToken, 'ready' => $validated, 'rowids' => $retryRowids]);
+        $ledger = self::hashAfterReadyWindowMetadata(['stage' => 'ledger', 'receipt' => $receipt, 'rows' => $rowCounts]);
+        $handoff = self::hashAfterReadyWindowMetadata(['stage' => 'handoff', 'ledger' => $ledger, 'statuses' => array_column($validated, 'status')]);
+        $seal = self::hashAfterReadyWindowMetadata(['stage' => 'seal', 'handoff' => $handoff, 'source' => $sourceToken]);
 
         return [
-            'status' => 'rowvalue-update-delete-returning-window-current-source-next298-301-after-ready',
+            'status' => 'rowvalue-update-delete-returning-window-ready-publication-metadata',
             'source_token' => $sourceToken,
             'ready_candidate_statuses' => array_column($validated, 'status'),
-            'ready_candidate_nexts' => $expected,
+            'ready_candidate_ordinals' => array_column($validated, 'ordinal'),
             'retry_window_row_counts' => $rowCounts,
             'retry_window_rowids' => $retryRowids,
-            'next298_receipt' => $receipt298,
-            'next299_ledger' => $ledger299,
-            'next300_handoff' => $handoff300,
-            'next301_seal' => $seal301,
-            'next301_ready' => true,
-            'dependency_closure_next298_301' => 'no new support component needed; next298-301 prepares after-ready row-value UPDATE/DELETE RETURNING window current-source metadata from next294-297 ready candidates',
-            'non_overlap_next298_301' => 'prepares only post-ready receipts for row-value UPDATE/DELETE RETURNING window current-source next294-297 candidates; avoids suite, JSON table, WAL/VFS, planner, PRAGMA, ATTACH, B-tree, and unrelated window slices',
+            'publication_receipt' => $receipt,
+            'publication_ledger' => $ledger,
+            'publication_handoff' => $handoff,
+            'publication_seal' => $seal,
+            'publication_ready' => true,
+            'dependency_closure' => 'no new support component needed; ready publication metadata reuses row-value UPDATE/DELETE RETURNING window candidates',
+            'non_overlap' => 'prepares only post-ready receipts for row-value UPDATE/DELETE RETURNING window current-source candidates; avoids suite, JSON table, WAL/VFS, planner, PRAGMA, ATTACH, B-tree, and unrelated window slices',
             'dependencies' => [
-                'sqlite-rowvalue-update-delete-returning-window-current-source-next294-ready',
-                'sqlite-rowvalue-update-delete-returning-window-current-source-next295-ready',
-                'sqlite-rowvalue-update-delete-returning-window-current-source-next296-ready',
-                'sqlite-rowvalue-update-delete-returning-window-current-source-next297-ready',
+                'sqlite-rowvalue-update-delete-returning-window-ready-publication-metadata',
+                'wordpress-rowvalue-returning-window-ready-publication-metadata',
             ],
         ];
     }
 
     /**
      * @param array<string,mixed> $candidate
-     * @return array{next:int,status:string}
+     * @return array{ordinal:int,status:string}
      */
-    private static function validateAfterReadyCandidate(array $candidate, int $next): array
+    private static function validateAfterReadyCandidate(array $candidate, int $ordinal): array
     {
         $status = $candidate['status'] ?? null;
-        $expectedStatus = "rowvalue-update-delete-returning-window-current-source-next{$next}-ready";
+        $expectedStatus = 'rowvalue-update-delete-returning-window-ready-publication-candidate';
         if ($status !== $expectedStatus) {
-            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 expected {$expectedStatus}");
+            throw new \InvalidArgumentException("SQLite row-value returning window ready publication metadata candidate {$ordinal} expected {$expectedStatus}");
         }
         if (($candidate['after_ready'] ?? null) !== true) {
-            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} is not after-ready");
+            throw new \InvalidArgumentException("SQLite row-value returning window ready publication metadata candidate {$ordinal} is not after-ready");
         }
         if (!isset($candidate['retry_window_rows']) || !is_array($candidate['retry_window_rows']) || !array_is_list($candidate['retry_window_rows'])) {
-            throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} needs retry window rows");
+            throw new \InvalidArgumentException("SQLite row-value returning window ready publication metadata candidate {$ordinal} needs retry window rows");
         }
         foreach ($candidate['retry_window_rows'] as $row) {
             if (!is_array($row) || !array_key_exists('current_rowid', $row) || !array_key_exists('row_number', $row)) {
-                throw new \InvalidArgumentException("SQLite row-value returning window next298-301 next{$next} retry rows need row_number and current_rowid");
+                throw new \InvalidArgumentException("SQLite row-value returning window ready publication metadata candidate {$ordinal} retry rows need row_number and current_rowid");
             }
         }
 
-        return ['next' => $next, 'status' => $expectedStatus];
+        return ['ordinal' => $ordinal, 'status' => $expectedStatus];
     }
 
     /**

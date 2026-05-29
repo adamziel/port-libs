@@ -23,7 +23,7 @@ $retryStatements = [
 $args = [['wp_options' => $rows], $yieldStatements, $attemptStatements, $retryStatements, [['blog_id', 'option_name']]];
 $next273 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentSourceAdmission(...$args);
 $next274 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReturningBalance(...$args);
-$next275 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNextSourcePackage(...$args);
+$next275 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePublicationSourcePackage(...$args);
 $next276 = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeAfterCurrentHandoff(...$args);
 
 $statuses = [$next273['status'], $next274['status'], $next275['status'], $next276['status']];

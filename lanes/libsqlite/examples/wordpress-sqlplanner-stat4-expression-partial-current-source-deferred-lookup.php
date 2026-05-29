@@ -18,13 +18,13 @@ $range = static fn (array $left, string $operator, mixed $value): array => ['ope
 $isNotNull = static fn (string $column): array => ['operator' => 'IS NOT NULL', 'left' => ['column' => $column]];
 $and = static fn (array ...$terms): array => ['operator' => 'AND', 'terms' => $terms];
 
-$indexSql = "CREATE INDEX idx_wp_options_lower_autoload_partial_next156 ON wp_options(lower(option_name), autoload) WHERE autoload = 'yes' AND option_name IS NOT NULL";
+$indexSql = "CREATE INDEX idx_wp_options_lower_autoload_partial_deferredLookup ON wp_options(lower(option_name), autoload) WHERE autoload = 'yes' AND option_name IS NOT NULL";
 $prepared = [
     'name' => 'prepared-wp-options-copy',
     'schemaCookie' => 1560,
     'stat4Generation' => 20,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_autoload_partial_next156',
+        'name' => 'idx_wp_options_lower_autoload_partial_deferredLookup',
         'rootPage' => 15601,
         'estimatedRows' => 240,
         'stat4Samples' => [
@@ -44,7 +44,7 @@ $current = [
     'schemaCookie' => 1562,
     'stat4Generation' => 23,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_autoload_partial_next156',
+        'name' => 'idx_wp_options_lower_autoload_partial_deferredLookup',
         'rootPage' => 15631,
         'estimatedRows' => 180,
         'stat4Samples' => [
@@ -65,7 +65,7 @@ $current = [
 ];
 
 $lowerName = $expr('lower', 'option_name');
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext156(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceDeferredLookup(
     $prepared,
     $current,
     $and(
@@ -79,11 +79,11 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['status'] === 'stat4-expression-partial-current-source-next156-ready');
+    assert($plan['status'] === 'stat4-expression-partial-current-source-deferredLookup-ready');
     assert($plan['selectedSource'] === 'current');
     assert($plan['selectedPlan']['partialRowids'] === [11, 12, 13, 14]);
     assert($plan['selectedPlan']['tableLookupRequired'] === true);
-    echo "wordpress-stat4-expression-partial-current-source-next156 self-test passed\n";
+    echo "wordpress-stat4-expression-partial-current-source-deferredLookup self-test passed\n";
 
     return;
 }

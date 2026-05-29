@@ -5,7 +5,7 @@ the 255-262 block inside
 `SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan` into stable
 descriptive method names:
 
-- `executeNextRowAdmission`
+- `executeWindowRowAdmission`
 - `executeRetryCommitWatermark`
 - `executeDeleteRetryPublication`
 - `executePublicationTransitionAdmission`

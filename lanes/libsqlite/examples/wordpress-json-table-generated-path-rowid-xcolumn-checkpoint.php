@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-196-b',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext196(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXColumnCheckpoint(
     'json_tree',
     $current,
     $next,
@@ -42,7 +42,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next196',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-xcolumn-checkpoint',
     'wordpressUse' => 'Copied wp_options JSON inspectors can reuse a generated-path rowid xColumn cache only while the pinned current-source xFilter checkpoint remains valid.',
     'currentReaderPolicy' => $plan['currentReaderPolicy'],
     'nextReaderPolicy' => $plan['nextReaderPolicy'],
@@ -55,11 +55,11 @@ $payload = [
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    if ($payload['currentOpcode'] !== 'OP_JsonTableXColumnCachePointNext196') {
+    if ($payload['currentOpcode'] !== 'OP_JsonTableXColumnCacheRangeNext196') {
         fwrite(STDERR, "unexpected next196 current opcode\n");
         exit(1);
     }
-    if (($payload['currentCachedColumns']['fullkey'] ?? null) !== '$.rules[2].slug') {
+    if (($payload['currentCachedColumns']['fullkey'] ?? null) !== '$.rules[2].priority') {
         fwrite(STDERR, "unexpected next196 cached fullkey\n");
         exit(1);
     }
@@ -76,7 +76,7 @@ if (($argv[1] ?? '') === '--self-test') {
         exit(1);
     }
 
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next196 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-xcolumn-checkpoint self-test passed\n";
     return;
 }
 

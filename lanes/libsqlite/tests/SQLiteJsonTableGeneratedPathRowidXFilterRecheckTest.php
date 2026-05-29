@@ -30,7 +30,7 @@ $plan191 = static fn (
     ?int $lastYieldedRowid = 9,
     ?int $yieldBatchSize = 1,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext191(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXFilterRecheck(
     'json_tree',
     $current ?? $current191,
     $next ?? $next191,
@@ -111,8 +111,10 @@ $paths191 = [
     'transition count' => ['generatedPathRowidXFilterRecheck191Transitions', 15],
 ];
 
+$tests = [];
+
 foreach ($paths191 as $name => [$path, $expected]) {
-    $tests['json table generated path rowid cost current source next191 ' . $name] = static function (TestRunner $t) use ($plan191, $valueAt191, $path, $expected): void {
+    $tests['json table generated path rowid xfilter recheck ' . $name] = static function (TestRunner $t) use ($plan191, $valueAt191, $path, $expected): void {
         $actual = $valueAt191($plan191(), $path);
         if ($path === 'dependencies') {
             $t->true(in_array($expected, $actual, true));
@@ -126,70 +128,70 @@ foreach ($paths191 as $name => [$path, $expected]) {
     };
 }
 
-$tests['json table generated path rowid cost current source next191 current fingerprint is sha256'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck current fingerprint is sha256'] = static function (TestRunner $t) use ($plan191): void {
     $t->same(64, strlen($plan191()['currentGeneratedPathRowidXFilterRecheck191']['filterFingerprint']));
 };
-$tests['json table generated path rowid cost current source next191 next fingerprint is sha256'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck next fingerprint is sha256'] = static function (TestRunner $t) use ($plan191): void {
     $t->same(64, strlen($plan191()['nextGeneratedPathRowidXFilterRecheck191']['filterFingerprint']));
 };
-$tests['json table generated path rowid cost current source next191 fingerprints differ'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck fingerprints differ'] = static function (TestRunner $t) use ($plan191): void {
     $t->same(false, $plan191()['currentGeneratedPathRowidXFilterRecheck191']['filterFingerprint'] === $plan191()['nextGeneratedPathRowidXFilterRecheck191']['filterFingerprint']);
 };
-$tests['json table generated path rowid cost current source next191 reasons include source'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck reasons include source'] = static function (TestRunner $t) use ($plan191): void {
     $t->true(in_array('json-table-generated-path-rowid-xfilter-source-changed-next191', $plan191()['next191ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next191 reasons include rowset'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck reasons include rowset'] = static function (TestRunner $t) use ($plan191): void {
     $t->true(in_array('json-table-generated-path-rowid-xfilter-rowset-changed-next191', $plan191()['next191ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next191 reasons include reuse'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck reasons include reuse'] = static function (TestRunner $t) use ($plan191): void {
     $t->true(in_array('json-table-generated-path-rowid-xfilter-reuse-changed-next191', $plan191()['next191ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next191 reasons include cost'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck reasons include cost'] = static function (TestRunner $t) use ($plan191): void {
     $t->true(in_array('json-table-generated-path-rowid-xfilter-cost-changed-next191', $plan191()['next191ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next191 preserves next188 reason'] = static function (TestRunner $t) use ($plan191): void {
+$tests['json table generated path rowid xfilter recheck preserves next188 reason'] = static function (TestRunner $t) use ($plan191): void {
     $t->true(in_array('json-table-generated-path-rowid-deleted-rowid-next188', $plan191()['next191ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next191 stable reuses'] = static function (TestRunner $t) use ($stable191): void {
+$tests['json table generated path rowid xfilter recheck stable reuses'] = static function (TestRunner $t) use ($stable191): void {
     $t->same('reuse-xfilter-current-json-table-generated-path-rowid-next191', $stable191()['nextReaderPolicy']);
 };
-$tests['json table generated path rowid cost current source next191 stable next accepted rowid'] = static function (TestRunner $t) use ($stable191): void {
+$tests['json table generated path rowid xfilter recheck stable next accepted rowid'] = static function (TestRunner $t) use ($stable191): void {
     $t->same([8], $stable191()['nextGeneratedPathRowidXFilterRecheck191']['acceptedRowids']);
 };
-$tests['json table generated path rowid cost current source next191 stable next reusable'] = static function (TestRunner $t) use ($stable191): void {
+$tests['json table generated path rowid xfilter recheck stable next reusable'] = static function (TestRunner $t) use ($stable191): void {
     $t->same(true, $stable191()['nextGeneratedPathRowidXFilterRecheck191']['checkpointReusable']);
 };
-$tests['json table generated path rowid cost current source next191 stable reasons empty'] = static function (TestRunner $t) use ($stable191): void {
+$tests['json table generated path rowid xfilter recheck stable reasons empty'] = static function (TestRunner $t) use ($stable191): void {
     $t->same([], $stable191()['next191ReplanReasons']);
 };
-$tests['json table generated path rowid cost current source next191 generation change rejects checkpoint'] = static function (TestRunner $t) use ($changedGeneration191): void {
+$tests['json table generated path rowid xfilter recheck generation change rejects checkpoint'] = static function (TestRunner $t) use ($changedGeneration191): void {
     $t->same(false, $changedGeneration191()['nextGeneratedPathRowidXFilterRecheck191']['checkpointReusable']);
 };
-$tests['json table generated path rowid cost current source next191 generation change preserves rowid tape'] = static function (TestRunner $t) use ($changedGeneration191): void {
+$tests['json table generated path rowid xfilter recheck generation change preserves rowid tape'] = static function (TestRunner $t) use ($changedGeneration191): void {
     $t->same([8], $changedGeneration191()['nextGeneratedPathRowidXFilterRecheck191']['checkpointRowids']);
 };
-$tests['json table generated path rowid cost current source next191 final batch range cost'] = static function (TestRunner $t) use ($final191): void {
+$tests['json table generated path rowid xfilter recheck final batch range cost'] = static function (TestRunner $t) use ($final191): void {
     $t->same('json-table-generated-path-rowid-xfilter-range-next191', $final191()['currentGeneratedPathRowidXFilterRecheck191']['costClass']);
 };
-$tests['json table generated path rowid cost current source next191 final batch accepts two rowids'] = static function (TestRunner $t) use ($final191): void {
+$tests['json table generated path rowid xfilter recheck final batch accepts two rowids'] = static function (TestRunner $t) use ($final191): void {
     $t->same([6, 5], $final191()['currentGeneratedPathRowidXFilterRecheck191']['acceptedRowids']);
 };
-$tests['json table generated path rowid cost current source next191 narrowed projection keeps filter rowid'] = static function (TestRunner $t) use ($projection191): void {
+$tests['json table generated path rowid xfilter recheck narrowed projection keeps filter rowid'] = static function (TestRunner $t) use ($projection191): void {
     $t->same([8], $projection191()['currentGeneratedPathRowidXFilterRecheck191']['checkpointRowids']);
 };
-$tests['json table generated path rowid cost current source next191 narrowed projection keeps point cost'] = static function (TestRunner $t) use ($projection191): void {
+$tests['json table generated path rowid xfilter recheck narrowed projection keeps point cost'] = static function (TestRunner $t) use ($projection191): void {
     $t->same('json-table-generated-path-rowid-xfilter-point-next191', $projection191()['currentGeneratedPathRowidXFilterRecheck191']['costClass']);
 };
-$tests['json table generated path rowid cost current source next191 malformed generated path rejected'] = static function (TestRunner $t) use ($plan191, $current191): void {
+$tests['json table generated path rowid xfilter recheck malformed generated path rejected'] = static function (TestRunner $t) use ($plan191, $current191): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan191(array_replace($current191, ['generated_path' => '$.rules[']), $current191));
 };
-$tests['json table generated path rowid cost current source next191 bad root rejected'] = static function (TestRunner $t) use ($plan191, $current191): void {
+$tests['json table generated path rowid xfilter recheck bad root rejected'] = static function (TestRunner $t) use ($plan191, $current191): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan191(array_replace($current191, ['scan_root' => 191]), $current191));
 };
-$tests['json table generated path rowid cost current source next191 bad function rejected'] = static function (TestRunner $t) use ($current191): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext191('json_bad', $current191, $current191, 'option_value', 'generated_path'));
+$tests['json table generated path rowid xfilter recheck bad function rejected'] = static function (TestRunner $t) use ($current191): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXFilterRecheck('json_bad', $current191, $current191, 'option_value', 'generated_path'));
 };
-$tests['json table generated path rowid cost current source next191 dependency closure'] = static function (TestRunner $t): void {
+$tests['json table generated path rowid xfilter recheck dependency closure'] = static function (TestRunner $t): void {
     $t->same('no-new-support-component', 'no-new-support-component');
 };
 

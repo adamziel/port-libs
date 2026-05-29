@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-active-plugins-next191',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext191(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidXFilterRecheck(
     'json_tree',
     $current,
     $next,
@@ -46,12 +46,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['nextGeneratedPathRowidXFilterRecheck191']['rejectedRowids'] === [8]);
     assert($plan['nextGeneratedPathRowidXFilterRecheck191']['checkpointReusable'] === false);
     assert($plan['nextReaderPolicy'] === 'restart-xfilter-next-json-table-generated-path-rowid-next191');
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next191 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-xfilter-recheck self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next191',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-xfilter-recheck',
     'wordpressUse' => 'Copied wp_options active_plugins diagnostics recheck generated-path rowid checkpoint rows before reusing a json_tree cursor after plugin settings change.',
     'currentPolicy' => $plan['currentReaderPolicy'],
     'nextPolicy' => $plan['nextReaderPolicy'],

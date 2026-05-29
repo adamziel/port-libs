@@ -46,7 +46,7 @@ SELECT option_id AS id,
  LIMIT 6 OFFSET 1
 SQL;
 
-$summary = SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compareNext163(
+$summary = SQLiteCompoundMultiAnchorRecursiveWindowLimitCurrentSourceNextPlan::compare(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],
@@ -63,7 +63,7 @@ $smoke = [
 
 if (in_array('--self-test', $argv, true)) {
     $expected = [
-        'status' => 'compound-multi-anchor-recursive-window-limit-current-source-next163-ready',
+        'status' => 'compound-multi-anchor-recursive-window-limit-current-source-ready',
         'currentLabels' => ['seed-b', 'home', 'seed-a:3', 'blogname', 'seed-b:4', 'seed-a:3:5'],
         'nextLabels' => ['rewrite_rules', 'siteurl', 'seed-a:3', 'home', 'seed-b:4', 'seed-a:3:5'],
         'currentRecursiveLabels' => ['seed-b', 'seed-a:3', 'seed-b:4', 'seed-a:3:5', 'seed-b:4:6'],
@@ -80,7 +80,7 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
-    echo "wordpress-compound-multi-anchor-recursive-window-limit-current-source-next163 self-test passed\n";
+    echo "wordpress-compound-multi-anchor-recursive-window-limit-current-source self-test passed\n";
     exit(0);
 }
 

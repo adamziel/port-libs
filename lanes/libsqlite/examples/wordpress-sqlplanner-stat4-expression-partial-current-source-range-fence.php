@@ -16,12 +16,12 @@ $predicate = [
     ],
 ];
 $preparedSource = [
-    'name' => 'prepared-wp-options-expression-partial-next158',
+    'name' => 'prepared-wp-options-expression-partial-rangeFence',
     'schemaCookie' => 1580,
     'stat4Generation' => 90,
     'rowGeneration' => 20,
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_partial_stat4_next158',
+        'name' => 'idx_wp_options_lower_partial_stat4_rangeFence',
         'rootPage' => 15801,
         'estimatedRows' => 420,
         'coveringColumns' => ['option_name', 'autoload', 'option_value', 'option_id', 'blog_id'],
@@ -31,11 +31,11 @@ $preparedSource = [
             ['neq' => '2 1', 'nlt' => '1 1', 'ndlt' => '1 1', 'sample' => ['plugin_forms', 20]],
             ['neq' => '1 1', 'nlt' => '3 2', 'ndlt' => '2 2', 'sample' => ['plugin_seo', 30]],
         ],
-        'sql' => "CREATE INDEX idx_wp_options_lower_partial_stat4_next158 ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes' AND lower(option_name) >= 'plugin_'",
+        'sql' => "CREATE INDEX idx_wp_options_lower_partial_stat4_rangeFence ON wp_options(lower(option_name), option_id, option_value, blog_id) WHERE autoload = 'yes' AND lower(option_name) >= 'plugin_'",
     ]],
 ];
 $currentSource = $preparedSource;
-$currentSource['name'] = 'current-wp-options-expression-partial-next158';
+$currentSource['name'] = 'current-wp-options-expression-partial-rangeFence';
 $currentSource['schemaCookie'] = 1586;
 $currentSource['stat4Generation'] = 99;
 $currentSource['rowGeneration'] = 27;
@@ -65,7 +65,7 @@ $currentRows = [
     ['rowid' => 71, 'option_name' => 'theme_mods', 'autoload' => 'yes', 'option_value' => 'theme', 'option_id' => 71, 'blog_id' => 1],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext158(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceRangeFence(
     $preparedSource,
     $currentSource,
     $predicate,
@@ -77,7 +77,7 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
 );
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next158',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-rangeFence',
     'wordpressUse' => 'Preview copied wp_options plugin-option scans using a partial lower(option_name) STAT4 expression index after ANALYZE/source changes, blocking stale prepared rows while reading only the current covering range window.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,

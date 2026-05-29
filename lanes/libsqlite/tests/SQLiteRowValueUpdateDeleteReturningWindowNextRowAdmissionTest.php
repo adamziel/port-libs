@@ -26,7 +26,7 @@ $attemptDelete255 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((3,
 $retryUpdate255 = "UPDATE wp_options SET (status, option_value, bytes) = ('retry255', option_value || ':retry255', bytes + 20) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (4, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 $retryDelete255 = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_timeout_feed'), (4, 'home')) RETURNING option_id, blog_id, option_name, status, bytes ORDER BY option_id";
 
-$plan255 = static fn (?array $ackYield = null, ?string $resume = null, ?array $ackNext = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNextRowAdmission(
+$plan255 = static fn (?array $ackYield = null, ?string $resume = null, ?array $ackNext = null): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission(
     $tables255,
     [$yieldUpdate255, $yieldDelete255],
     [$attemptUpdate255, $attemptDelete255],
@@ -109,7 +109,7 @@ $cases255 = [
     'bad resume ticket rejected' => [static fn (): mixed => $plan255(null, 'missing-ticket-next255'), InvalidArgumentException::class],
     'bad ready resume ticket rejected' => [static fn (): mixed => $plan255(null, $tickets255()[1], $ackGap255()), InvalidArgumentException::class],
     'empty acknowledged ticket rejected' => [static fn (): mixed => $plan255(null, null, ['']), InvalidArgumentException::class],
-    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeNextRowAdmission($tables255, [$yieldUpdate255], [$attemptUpdate255], [$retryUpdate255], $unique255, 'bad-name'), InvalidArgumentException::class],
+    'bad savepoint rejected by base' => [static fn (): mixed => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeWindowRowAdmission($tables255, [$yieldUpdate255], [$attemptUpdate255], [$retryUpdate255], $unique255, 'bad-name'), InvalidArgumentException::class],
 ];
 
 $tests = [];

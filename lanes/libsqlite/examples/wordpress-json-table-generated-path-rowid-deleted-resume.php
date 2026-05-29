@@ -23,7 +23,7 @@ $next = [
     'source_generation' => 'next-active-plugins-next188',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext188(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidDeletedResume(
     'json_tree',
     $current,
     $next,
@@ -46,12 +46,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['generatedPathRowidDeletedResume188']['deletedRowids'] === [5, 6, 7, 8]);
     assert($plan['generatedPathRowidDeletedResume188']['restartRequired'] === true);
     assert($plan['generatedPathRowidDeletedResume188']['costClass'] === 'json-table-generated-path-rowid-deleted-resume-restart-next188');
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next188 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-deleted-resume self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next188',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-deleted-resume',
     'wordpressUse' => 'Copied wp_options active_plugins diagnostics can preserve the current json_tree resume checkpoint while forcing a restart when generated-path rowids disappear from the next source.',
     'currentPolicy' => $plan['currentReaderPolicy'],
     'nextPolicy' => $plan['nextReaderPolicy'],

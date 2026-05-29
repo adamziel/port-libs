@@ -31,7 +31,7 @@ $plan170 = static fn (
     ?array $next = null,
     ?array $constraints = null,
     ?array $orderBy = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext170(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost(
     'json_tree',
     $current ?? $current170,
     $next ?? $next170,
@@ -114,13 +114,13 @@ $tests = [
     'jsonb next remains point cost' => static fn (TestRunner $t) => $t->same('json-table-generated-path-rowid-current-source-point', $jsonb170()['nextGeneratedPathRowidCurrentSourceNext170']['costClass']),
     'unrunnable next cost class sentinel' => static fn (TestRunner $t) => $t->same('unrunnable-json-table', $unrunnable170()['nextGeneratedPathRowidCurrentSourceNext170']['costClass']),
     'unrunnable next mode is fresh' => static fn (TestRunner $t) => $t->same('fresh-json-table-xfilter', $unrunnable170()['nextGeneratedPathRowidCurrentSourceNext170']['cursorMode']),
-    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext170('json_tree', $current170, $next170, '', 'generated_path', $constraints170)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext170('json_tree', $current170, $next170, 'option_value', '', $constraints170)),
+    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost('json_tree', $current170, $next170, '', 'generated_path', $constraints170)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost('json_tree', $current170, $next170, 'option_value', '', $constraints170)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost current source next170 ' . $name] = $case;
+    $tests['json table generated path rowid current source cost ' . $name] = $case;
     unset($tests[$name]);
 }
 

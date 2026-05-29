@@ -30,7 +30,7 @@ $plan188 = static fn (
     ?int $lastYieldedRowid = 9,
     ?int $yieldBatchSize = 1,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext188(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidDeletedResume(
     'json_tree',
     $current ?? $current188,
     $next ?? $next188,
@@ -88,97 +88,99 @@ $paths188 = [
     'next resume ordinal' => ['generatedPathRowidDeletedResume188.nextResumeOrdinal', 2],
 ];
 
+$tests = [];
+
 foreach ($paths188 as $name => [$path, $expected]) {
-    $tests['json table generated path rowid cost current source next188 ' . $name] = static function (TestRunner $t) use ($plan188, $valueAt188, $path, $expected): void {
+    $tests['json table generated path rowid deleted resume ' . $name] = static function (TestRunner $t) use ($plan188, $valueAt188, $path, $expected): void {
         $t->same($expected, $valueAt188($plan188(), $path));
     };
 }
 
-$tests['json table generated path rowid cost current source next188 records dependency'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume records dependency'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next188', $plan188()['dependencies'], true));
 };
-$tests['json table generated path rowid cost current source next188 preserves path constraint dependency'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume preserves path constraint dependency'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('sqlite-json-table-path-constraint-pushdown-current-source-next123', $plan188()['dependencies'], true));
 };
-$tests['json table generated path rowid cost current source next188 preserves next185 dependency'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume preserves next185 dependency'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('sqlite-json-table-generated-path-rowid-cost-current-source-next185', $plan188()['dependencies'], true));
 };
-$tests['json table generated path rowid cost current source next188 current fingerprint is sha256'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume current fingerprint is sha256'] = static function (TestRunner $t) use ($plan188): void {
     $t->same(64, strlen($plan188()['generatedPathRowidDeletedResume188']['currentSourceFingerprint']));
 };
-$tests['json table generated path rowid cost current source next188 next fingerprint is sha256'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume next fingerprint is sha256'] = static function (TestRunner $t) use ($plan188): void {
     $t->same(64, strlen($plan188()['generatedPathRowidDeletedResume188']['nextSourceFingerprint']));
 };
-$tests['json table generated path rowid cost current source next188 fingerprints differ'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume fingerprints differ'] = static function (TestRunner $t) use ($plan188): void {
     $t->same(false, $plan188()['generatedPathRowidDeletedResume188']['currentSourceFingerprint'] === $plan188()['generatedPathRowidDeletedResume188']['nextSourceFingerprint']);
 };
-$tests['json table generated path rowid cost current source next188 resume token preserved'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume resume token preserved'] = static function (TestRunner $t) use ($plan188): void {
     $t->same($plan188()['currentGeneratedPathRowidCurrentSourceResume185']['resumeToken'], $plan188()['generatedPathRowidDeletedResume188']['resumeToken']);
 };
-$tests['json table generated path rowid cost current source next188 projected row still comes from current checkpoint'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume projected row still comes from current checkpoint'] = static function (TestRunner $t) use ($plan188): void {
     $t->same('forms', $plan188()['currentGeneratedPathRowidCurrentSourceResume185']['projectedRows'][0]['value']);
 };
-$tests['json table generated path rowid cost current source next188 projection survives narrowed checkpoint'] = static function (TestRunner $t) use ($projection188): void {
+$tests['json table generated path rowid deleted resume projection survives narrowed checkpoint'] = static function (TestRunner $t) use ($projection188): void {
     $t->same(['value', 'atom', 'id'], $projection188()['currentGeneratedPathRowidCurrentSourceResume185']['projection']);
 };
-$tests['json table generated path rowid cost current source next188 narrowed projection atom'] = static function (TestRunner $t) use ($projection188): void {
+$tests['json table generated path rowid deleted resume narrowed projection atom'] = static function (TestRunner $t) use ($projection188): void {
     $t->same('forms', $projection188()['currentGeneratedPathRowidCurrentSourceResume185']['projectedRows'][0]['atom']);
 };
-$tests['json table generated path rowid cost current source next188 reasons include deleted rowid'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume reasons include deleted rowid'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-deleted-rowid-next188', $plan188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 reasons include inserted rowid'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume reasons include inserted rowid'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-inserted-rowid-next188', $plan188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 reasons include fingerprint'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume reasons include fingerprint'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-source-fingerprint-next188', $plan188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 reasons include stale next source'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume reasons include stale next source'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-next-source-stale-next188', $plan188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 reasons include checkpoint restart'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume reasons include checkpoint restart'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-checkpoint-restart-next188', $plan188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 top-level reasons include deleted rowid'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume top-level reasons include deleted rowid'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-deleted-rowid-next188', $plan188()['next188ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 top-level reasons include checkpoint restart'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume top-level reasons include checkpoint restart'] = static function (TestRunner $t) use ($plan188): void {
     $t->true(in_array('json-table-generated-path-rowid-checkpoint-restart-next188', $plan188()['next188ReplanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 stable resumes'] = static function (TestRunner $t) use ($stable188): void {
+$tests['json table generated path rowid deleted resume stable resumes'] = static function (TestRunner $t) use ($stable188): void {
     $t->same('resume-current-json-table-generated-path-rowid-deleted-resume-next188', $stable188()['nextReaderPolicy']);
 };
-$tests['json table generated path rowid cost current source next188 stable checkpoint reusable'] = static function (TestRunner $t) use ($stable188): void {
+$tests['json table generated path rowid deleted resume stable checkpoint reusable'] = static function (TestRunner $t) use ($stable188): void {
     $t->same(true, $stable188()['generatedPathRowidDeletedResume188']['checkpointReusable']);
 };
-$tests['json table generated path rowid cost current source next188 stable deleted rowids empty'] = static function (TestRunner $t) use ($stable188): void {
+$tests['json table generated path rowid deleted resume stable deleted rowids empty'] = static function (TestRunner $t) use ($stable188): void {
     $t->same([], $stable188()['generatedPathRowidDeletedResume188']['deletedRowids']);
 };
-$tests['json table generated path rowid cost current source next188 stable cost reusable'] = static function (TestRunner $t) use ($stable188): void {
+$tests['json table generated path rowid deleted resume stable cost reusable'] = static function (TestRunner $t) use ($stable188): void {
     $t->same('json-table-generated-path-rowid-deleted-resume-reusable-next188', $stable188()['generatedPathRowidDeletedResume188']['costClass']);
 };
-$tests['json table generated path rowid cost current source next188 stable estimated rows retained'] = static function (TestRunner $t) use ($stable188): void {
+$tests['json table generated path rowid deleted resume stable estimated rows retained'] = static function (TestRunner $t) use ($stable188): void {
     $t->same(4, $stable188()['generatedPathRowidDeletedResume188']['estimatedRows']);
 };
-$tests['json table generated path rowid cost current source next188 generation only restarts by source'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
+$tests['json table generated path rowid deleted resume generation only restarts by source'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
     $t->same('json-table-generated-path-rowid-inserted-resume-restart-next188', $sameRowsNewGeneration188()['generatedPathRowidDeletedResume188']['costClass']);
 };
-$tests['json table generated path rowid cost current source next188 generation only keeps rowids'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
+$tests['json table generated path rowid deleted resume generation only keeps rowids'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
     $t->same([], $sameRowsNewGeneration188()['generatedPathRowidDeletedResume188']['deletedRowids']);
 };
-$tests['json table generated path rowid cost current source next188 generation only has fingerprint reason'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
+$tests['json table generated path rowid deleted resume generation only has fingerprint reason'] = static function (TestRunner $t) use ($sameRowsNewGeneration188): void {
     $t->true(in_array('json-table-generated-path-rowid-source-fingerprint-next188', $sameRowsNewGeneration188()['generatedPathRowidDeletedResume188']['replanReasons'], true));
 };
-$tests['json table generated path rowid cost current source next188 bad projection rejected'] = static function (TestRunner $t) use ($plan188): void {
+$tests['json table generated path rowid deleted resume bad projection rejected'] = static function (TestRunner $t) use ($plan188): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan188(null, null, null, null, 5, 9, 1, ['missing_column']));
 };
-$tests['json table generated path rowid cost current source next188 bad root rejected'] = static function (TestRunner $t) use ($plan188, $current188): void {
+$tests['json table generated path rowid deleted resume bad root rejected'] = static function (TestRunner $t) use ($plan188, $current188): void {
     $t->throws(InvalidArgumentException::class, static fn () => $plan188(array_replace($current188, ['scan_root' => 12]), $current188));
 };
-$tests['json table generated path rowid cost current source next188 bad function rejected'] = static function (TestRunner $t) use ($current188): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext188('json_bad', $current188, $current188, 'option_value', 'generated_path'));
+$tests['json table generated path rowid deleted resume bad function rejected'] = static function (TestRunner $t) use ($current188): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidDeletedResume('json_bad', $current188, $current188, 'option_value', 'generated_path'));
 };
-$tests['json table generated path rowid cost current source next188 dependency closure'] = static function (TestRunner $t): void {
+$tests['json table generated path rowid deleted resume dependency closure'] = static function (TestRunner $t): void {
     $t->same('no-new-support-component', 'no-new-support-component');
 };
 

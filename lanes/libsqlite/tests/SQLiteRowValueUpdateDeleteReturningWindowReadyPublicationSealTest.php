@@ -5,15 +5,15 @@ declare(strict_types=1);
 $examplesDir = __DIR__ . '/../examples';
 
 $cases = [
-    'combined next990-1005 current-source handoff seal' => static function (TestRunner $t) use ($examplesDir): void {
-        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-current-source-next990-1005.php';
+    'ready publication handoff seal' => static function (TestRunner $t) use ($examplesDir): void {
+        $result = require $examplesDir . '/wordpress-rowvalue-returning-window-ready-publication-seal.php';
 
         $expectedStatuses = [];
         for ($next = 990; $next <= 1005; $next++) {
             $expectedStatuses[] = 'rowvalue-update-delete-returning-window-current-source-next' . $next;
         }
 
-        $t->same('rowvalue-update-delete-returning-window-current-source-next990-1005', $result['status']);
+        $t->same('rowvalue-update-delete-returning-window-ready-publication-seal', $result['status']);
         $t->same($expectedStatuses, $result['candidateStatuses']);
         $t->same(64, strlen($result['next990Handoff']));
         $t->same('next986-989', $result['next990AfterReadyRange']);
@@ -35,7 +35,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['rowvalue update delete returning window current source next990-1005 ' . $name] = $callback;
+    $tests['rowvalue update delete returning window ready publication seal ' . $name] = $callback;
 }
 
 return $tests;

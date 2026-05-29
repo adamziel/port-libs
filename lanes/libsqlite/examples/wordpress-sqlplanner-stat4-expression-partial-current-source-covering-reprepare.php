@@ -14,9 +14,9 @@ $predicate = [
         ['operator' => 'IN', 'left' => $lowerName, 'values' => ['plugin_beta', 'plugin_stable']],
     ],
 ];
-$indexSql = "CREATE INDEX idx_wp_options_lower_name_autoload_stat4_partial_next157 ON wp_options(lower(option_name), autoload, site_id, option_value) WHERE autoload = 'yes'";
+$indexSql = "CREATE INDEX idx_wp_options_lower_name_autoload_stat4_partial_coveringReprepare ON wp_options(lower(option_name), autoload, site_id, option_value) WHERE autoload = 'yes'";
 $prepared = [
-    'name' => 'prepared-main.wp_options@next157',
+    'name' => 'prepared-main.wp_options@coveringReprepare',
     'schemaCookie' => 1570,
     'stat4Generation' => 70,
     'rows' => [
@@ -25,7 +25,7 @@ $prepared = [
         ['rowid' => 5, 'autoload' => 'yes', 'option_name' => 'plugin_stable', 'option_value' => 'stable-old', 'site_id' => 1],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_name_autoload_stat4_partial_next157',
+        'name' => 'idx_wp_options_lower_name_autoload_stat4_partial_coveringReprepare',
         'rootPage' => 15701,
         'estimatedRows' => 240,
         'coveringColumns' => ['option_name', 'option_value', 'autoload', 'site_id'],
@@ -39,7 +39,7 @@ $prepared = [
     ]],
 ];
 $current = [
-    'name' => 'current-main.wp_options@next157',
+    'name' => 'current-main.wp_options@coveringReprepare',
     'schemaCookie' => 1571,
     'stat4Generation' => 71,
     'rows' => [
@@ -51,7 +51,7 @@ $current = [
         ['rowid' => 8, 'autoload' => 'yes', 'option_name' => 'plugin_stable', 'option_value' => 'stable-new', 'site_id' => 2],
     ],
     'indexes' => [[
-        'name' => 'idx_wp_options_lower_name_autoload_stat4_partial_next157',
+        'name' => 'idx_wp_options_lower_name_autoload_stat4_partial_coveringReprepare',
         'rootPage' => 15711,
         'estimatedRows' => 180,
         'coveringColumns' => ['option_name', 'option_value', 'autoload', 'site_id'],
@@ -65,7 +65,7 @@ $current = [
     ]],
 ];
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext157(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeCurrentSourceCoveringReprepare(
     $prepared,
     $current,
     $predicate,
@@ -74,15 +74,15 @@ $plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNex
     [$lowerName],
 );
 
-$rowids = $plan['selectedPlan']['next157Rowids'] ?? [];
-$names = $plan['selectedPlan']['next157CoveringNames'] ?? [];
-if ($plan['status'] !== 'stat4-expression-partial-current-source-next157-ready' || $rowids !== [2, 7, 5, 8]) {
-    fwrite(STDERR, "wordpress planner stat4 expression partial current-source next157 failed\n");
+$rowids = $plan['selectedPlan']['coveringReprepareRowids'] ?? [];
+$names = $plan['selectedPlan']['coveringReprepareCoveringNames'] ?? [];
+if ($plan['status'] !== 'stat4-expression-partial-current-source-coveringReprepare-ready' || $rowids !== [2, 7, 5, 8]) {
+    fwrite(STDERR, "wordpress planner stat4 expression partial current-source coveringReprepare failed\n");
     exit(1);
 }
 
 printf(
-    "wordpress planner stat4 expression partial current-source next157: %s rows=%d rowids=%s names=%s\n",
+    "wordpress planner stat4 expression partial current-source coveringReprepare: %s rows=%d rowids=%s names=%s\n",
     (string) ($plan['selectedPlan']['name'] ?? 'no-index'),
     count($rowids),
     implode(',', $rowids),

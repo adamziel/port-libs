@@ -671,68 +671,68 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        public static function materializeNext156(
+        public static function materializeCurrentSourceDeferredLookup(
             array $preparedSource,
             array $currentSource,
             array $predicate,
             array $orderBy,
             array $neededColumns
         ): array {
-            self::validateNeededColumnsNext156($neededColumns);
+            self::validateNeededColumnsCurrentSourceDeferredLookup($neededColumns);
 
-            $preparedPlan = self::sourcePlanNext156($preparedSource, $predicate, $orderBy, $neededColumns);
-            $currentPlan = self::sourcePlanNext156($currentSource, $predicate, $orderBy, $neededColumns);
-            $preparedSignature = self::sourceSignatureNext156($preparedSource);
-            $currentSignature = self::sourceSignatureNext156($currentSource);
-            $preparedCookie = self::sourceIntNext156($preparedSource, 'schemaCookie');
-            $currentCookie = self::sourceIntNext156($currentSource, 'schemaCookie');
-            $preparedStat4 = self::sourceIntNext156($preparedSource, 'stat4Generation');
-            $currentStat4 = self::sourceIntNext156($currentSource, 'stat4Generation');
+            $preparedPlan = self::sourcePlanCurrentSourceDeferredLookup($preparedSource, $predicate, $orderBy, $neededColumns);
+            $currentPlan = self::sourcePlanCurrentSourceDeferredLookup($currentSource, $predicate, $orderBy, $neededColumns);
+            $preparedSignature = self::sourceSignatureCurrentSourceDeferredLookup($preparedSource);
+            $currentSignature = self::sourceSignatureCurrentSourceDeferredLookup($currentSource);
+            $preparedCookie = self::sourceIntCurrentSourceDeferredLookup($preparedSource, 'schemaCookie');
+            $currentCookie = self::sourceIntCurrentSourceDeferredLookup($currentSource, 'schemaCookie');
+            $preparedStat4 = self::sourceIntCurrentSourceDeferredLookup($preparedSource, 'stat4Generation');
+            $currentStat4 = self::sourceIntCurrentSourceDeferredLookup($currentSource, 'stat4Generation');
             $stale = $preparedCookie !== $currentCookie
                 || $preparedStat4 !== $currentStat4
                 || $preparedSignature !== $currentSignature;
             $selectedPlan = $stale ? $currentPlan : $preparedPlan;
             $selectedSource = $stale ? $currentSource : $preparedSource;
-            $rows = self::rowStreamNext156($selectedSource, $selectedPlan, $predicate, $neededColumns);
+            $rows = self::rowStreamCurrentSourceDeferredLookup($selectedSource, $selectedPlan, $predicate, $neededColumns);
             $ready = $selectedPlan !== null
                 && ($selectedPlan['partial'] ?? false) === true
                 && ($selectedPlan['stat4Used'] ?? false) === true
                 && $rows !== [];
 
             return [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next156-ready' : 'requires-next-stage',
+                'status' => $ready ? 'stat4-expression-partial-current-source-deferredLookup-ready' : 'requires-next-stage',
                 'selectedSource' => $stale ? 'current' : 'prepared',
                 'stalePreparedStatement' => $stale,
                 'reprepareRequired' => $stale,
                 'schemaCookieChanged' => $preparedCookie !== $currentCookie,
                 'stat4GenerationChanged' => $preparedStat4 !== $currentStat4,
                 'indexSignatureChanged' => $preparedSignature !== $currentSignature,
-                'preparedSource' => self::sourceSummaryNext156($preparedSource, $preparedPlan, $preparedSignature),
-                'currentSource' => self::sourceSummaryNext156($currentSource, $currentPlan, $currentSignature),
+                'preparedSource' => self::sourceSummaryCurrentSourceDeferredLookup($preparedSource, $preparedPlan, $preparedSignature),
+                'currentSource' => self::sourceSummaryCurrentSourceDeferredLookup($currentSource, $currentPlan, $currentSignature),
                 'selectedPlan' => ($selectedPlan ?? ['usable' => false]) + [
                     'partialRowCount' => count($rows),
                     'partialRowids' => array_column($rows, 'rowid'),
                     'tableLookupRequired' => true,
                 ],
                 'partialRows' => $rows,
-                'currentNextRows' => self::currentNextRowsNext156($rows),
-                'cursorTape' => self::cursorTapeNext156($selectedPlan, $selectedSource, $rows, $orderBy, $neededColumns, $stale ? 'current' : 'prepared'),
+                'currentNextRows' => self::currentNextRowsCurrentSourceDeferredLookup($rows),
+                'cursorTape' => self::cursorTapeCurrentSourceDeferredLookup($selectedPlan, $selectedSource, $rows, $orderBy, $neededColumns, $stale ? 'current' : 'prepared'),
                 'currentSourceFence' => [
-                    'schemaCookie' => self::sourceIntNext156($selectedSource, 'schemaCookie'),
-                    'stat4Generation' => self::sourceIntNext156($selectedSource, 'stat4Generation'),
+                    'schemaCookie' => self::sourceIntCurrentSourceDeferredLookup($selectedSource, 'schemaCookie'),
+                    'stat4Generation' => self::sourceIntCurrentSourceDeferredLookup($selectedSource, 'stat4Generation'),
                     'indexSignature' => $stale ? $currentSignature : $preparedSignature,
-                    'orderSignature' => self::orderSignatureNext156($orderBy),
+                    'orderSignature' => self::orderSignatureCurrentSourceDeferredLookup($orderBy),
                     'rowStreamSignature' => hash('sha256', json_encode(array_column($rows, 'rowid'), JSON_THROW_ON_ERROR)),
                 ],
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT156 '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE DEFERRED LOOKUP '
                     . (string) ($selectedPlan['name'] ?? 'NO INDEX')
                     . ($ready ? ' WITH DEFERRED TABLE LOOKUP' : ' FALLBACK TABLE SCAN'),
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan::chooseLowestCost',
-                    'sqlite-sqlplanner-stat4-expression-partial-current-source-next156',
+                    'sqlite-sqlplanner-stat4-expression-partial-current-source-deferredLookup',
                 ],
-                'dependency_closure' => 'no new support component needed; next156 reuses native expression-index parsing, partial predicate proof, STAT4 estimates, and bounded table row materialization',
+                'dependency_closure' => 'no new support component needed; deferredLookup reuses native expression-index parsing, partial predicate proof, STAT4 estimates, and bounded table row materialization',
                 'non_overlap' => 'avoids accepted STAT4 expression covering current-source, partial collation STAT4, expression partial covering, expression ORDER BY, range-cost, JSON, WAL/VFS, and B-tree clusters; this slice covers non-covering partial expression STAT4 current-source selection with deferred table lookup',
             ];
         }
@@ -744,15 +744,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>|null
          */
-        private static function sourcePlanNext156(array $source, array $predicate, array $orderBy, array $neededColumns): ?array
+        private static function sourcePlanCurrentSourceDeferredLookup(array $source, array $predicate, array $orderBy, array $neededColumns): ?array
         {
             return SQLiteSelectExpressionIndexPlan::chooseBoundedRangeCost(
-                self::listNext156($source, 'indexes'),
+                self::listCurrentSourceDeferredLookup($source, 'indexes'),
                 $predicate,
                 $orderBy,
                 $neededColumns,
             ) ?? SQLiteSelectExpressionIndexPlan::chooseLowestCost(
-                self::listNext156($source, 'indexes'),
+                self::listCurrentSourceDeferredLookup($source, 'indexes'),
                 $predicate,
                 $orderBy,
                 $neededColumns,
@@ -766,31 +766,31 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function rowStreamNext156(array $source, ?array $plan, array $predicate, array $neededColumns): array
+        private static function rowStreamCurrentSourceDeferredLookup(array $source, ?array $plan, array $predicate, array $neededColumns): array
         {
             if ($plan === null || ($plan['partial'] ?? false) !== true || ($plan['stat4Used'] ?? false) !== true) {
                 return [];
             }
 
             $rows = [];
-            foreach (self::listNext156($source, 'rows') as $offset => $row) {
+            foreach (self::listCurrentSourceDeferredLookup($source, 'rows') as $offset => $row) {
                 if (!is_array($row)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source rows must be arrays');
                 }
-                if (!self::rowMatchesNext156($row, $predicate)) {
+                if (!self::rowMatchesCurrentSourceDeferredLookup($row, $predicate)) {
                     continue;
                 }
 
                 $rows[] = [
                     'sourceOffset' => $offset,
                     'rowid' => $row['rowid'] ?? $row['_rowid_'] ?? null,
-                    'expressionKey' => self::expressionValueNext156((string) ($plan['type'] ?? ''), (string) ($plan['column'] ?? ''), $row),
-                    'payload' => self::payloadNext156($row, $neededColumns),
+                    'expressionKey' => self::expressionValueCurrentSourceDeferredLookup((string) ($plan['type'] ?? ''), (string) ($plan['column'] ?? ''), $row),
+                    'payload' => self::payloadCurrentSourceDeferredLookup($row, $neededColumns),
                 ];
             }
 
             usort($rows, static function (array $left, array $right) use ($plan): int {
-                $comparison = self::compareNext156($left['expressionKey'] ?? null, $right['expressionKey'] ?? null);
+                $comparison = self::compareCurrentSourceDeferredLookup($left['expressionKey'] ?? null, $right['expressionKey'] ?? null);
                 if (($plan['descending'] ?? false) === true) {
                     $comparison *= -1;
                 }
@@ -808,7 +808,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,mixed>> $rows
          * @return list<array{current:array<string,mixed>,next:?array<string,mixed>}>
          */
-        private static function currentNextRowsNext156(array $rows): array
+        private static function currentNextRowsCurrentSourceDeferredLookup(array $rows): array
         {
             $pairs = [];
             foreach ($rows as $offset => $row) {
@@ -826,7 +826,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function cursorTapeNext156(?array $plan, array $source, array $rows, array $orderBy, array $neededColumns, string $sourceName): array
+        private static function cursorTapeCurrentSourceDeferredLookup(?array $plan, array $source, array $rows, array $orderBy, array $neededColumns, string $sourceName): array
         {
             if ($plan === null || $rows === []) {
                 return [
@@ -854,9 +854,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'status' => 'partial-stat4-current-source',
                 'indexName' => $plan['name'] ?? null,
                 'rootPage' => $plan['rootPage'] ?? null,
-                'schemaCookie' => self::sourceIntNext156($source, 'schemaCookie'),
-                'stat4Generation' => self::sourceIntNext156($source, 'stat4Generation'),
-                'orderSignature' => self::orderSignatureNext156($orderBy),
+                'schemaCookie' => self::sourceIntCurrentSourceDeferredLookup($source, 'schemaCookie'),
+                'stat4Generation' => self::sourceIntCurrentSourceDeferredLookup($source, 'stat4Generation'),
+                'orderSignature' => self::orderSignatureCurrentSourceDeferredLookup($orderBy),
                 'expressionKeys' => array_column($rows, 'expressionKey'),
                 'rowids' => array_column($rows, 'rowid'),
                 'neededColumns' => $neededColumns,
@@ -875,12 +875,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed>|null $plan
          * @return array<string,mixed>
          */
-        private static function sourceSummaryNext156(array $source, ?array $plan, string $signature): array
+        private static function sourceSummaryCurrentSourceDeferredLookup(array $source, ?array $plan, string $signature): array
         {
             return [
-                'name' => self::stringNext156($source, 'name'),
-                'schemaCookie' => self::sourceIntNext156($source, 'schemaCookie'),
-                'stat4Generation' => self::sourceIntNext156($source, 'stat4Generation'),
+                'name' => self::stringCurrentSourceDeferredLookup($source, 'name'),
+                'schemaCookie' => self::sourceIntCurrentSourceDeferredLookup($source, 'schemaCookie'),
+                'stat4Generation' => self::sourceIntCurrentSourceDeferredLookup($source, 'stat4Generation'),
                 'indexSignature' => $signature,
                 'indexName' => $plan['name'] ?? null,
                 'rootPage' => $plan['rootPage'] ?? null,
@@ -894,10 +894,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function sourceSignatureNext156(array $source): string
+        private static function sourceSignatureCurrentSourceDeferredLookup(array $source): string
         {
             $indexes = [];
-            foreach (self::listNext156($source, 'indexes') as $index) {
+            foreach (self::listCurrentSourceDeferredLookup($source, 'indexes') as $index) {
                 if (!is_array($index)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source indexes must be arrays');
                 }
@@ -918,7 +918,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $row
          * @param array<string,mixed> $predicate
          */
-        private static function rowMatchesNext156(array $row, array $predicate): bool
+        private static function rowMatchesCurrentSourceDeferredLookup(array $row, array $predicate): bool
         {
             $operator = strtoupper((string) ($predicate['operator'] ?? ''));
             if ($operator === 'AND') {
@@ -927,7 +927,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source AND predicate needs list terms');
                 }
                 foreach ($terms as $term) {
-                    if (!is_array($term) || !self::rowMatchesNext156($row, $term)) {
+                    if (!is_array($term) || !self::rowMatchesCurrentSourceDeferredLookup($row, $term)) {
                         return false;
                     }
                 }
@@ -940,17 +940,17 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source predicate needs left expression');
             }
             $value = isset($left['function'], $left['column'])
-                ? self::expressionValueNext156((string) $left['function'], (string) $left['column'], $row)
+                ? self::expressionValueCurrentSourceDeferredLookup((string) $left['function'], (string) $left['column'], $row)
                 : ($row[(string) ($left['column'] ?? '')] ?? null);
 
             return match ($operator) {
-                '=' => self::compareNext156($value, $predicate['right'] ?? null) === 0,
-                '>' => self::compareNext156($value, $predicate['right'] ?? null) > 0,
-                '>=' => self::compareNext156($value, $predicate['right'] ?? null) >= 0,
-                '<' => self::compareNext156($value, $predicate['right'] ?? null) < 0,
-                '<=' => self::compareNext156($value, $predicate['right'] ?? null) <= 0,
-                'BETWEEN' => self::compareNext156($value, $predicate['lower'] ?? null) >= 0
-                    && self::compareNext156($value, $predicate['upper'] ?? null) <= 0,
+                '=' => self::compareCurrentSourceDeferredLookup($value, $predicate['right'] ?? null) === 0,
+                '>' => self::compareCurrentSourceDeferredLookup($value, $predicate['right'] ?? null) > 0,
+                '>=' => self::compareCurrentSourceDeferredLookup($value, $predicate['right'] ?? null) >= 0,
+                '<' => self::compareCurrentSourceDeferredLookup($value, $predicate['right'] ?? null) < 0,
+                '<=' => self::compareCurrentSourceDeferredLookup($value, $predicate['right'] ?? null) <= 0,
+                'BETWEEN' => self::compareCurrentSourceDeferredLookup($value, $predicate['lower'] ?? null) >= 0
+                    && self::compareCurrentSourceDeferredLookup($value, $predicate['upper'] ?? null) <= 0,
                 'IN' => in_array($value, $predicate['values'] ?? [], true),
                 'IS NOT NULL' => $value !== null,
                 default => throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source unsupported predicate operator ' . $operator),
@@ -960,7 +960,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $row
          */
-        private static function expressionValueNext156(string $function, string $column, array $row): mixed
+        private static function expressionValueCurrentSourceDeferredLookup(string $function, string $column, array $row): mixed
         {
             $value = $row[$column] ?? null;
             return match (strtolower($function)) {
@@ -976,7 +976,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $columns
          * @return array<string,mixed>
          */
-        private static function payloadNext156(array $row, array $columns): array
+        private static function payloadCurrentSourceDeferredLookup(array $row, array $columns): array
         {
             $payload = [];
             foreach ($columns as $column) {
@@ -986,7 +986,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return $payload;
         }
 
-        private static function compareNext156(mixed $left, mixed $right): int
+        private static function compareCurrentSourceDeferredLookup(mixed $left, mixed $right): int
         {
             if (is_numeric($left) && is_numeric($right)) {
                 return (float) $left <=> (float) $right;
@@ -998,7 +998,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<array<string,string>> $orderBy
          */
-        private static function orderSignatureNext156(array $orderBy): string
+        private static function orderSignatureCurrentSourceDeferredLookup(array $orderBy): string
         {
             if ($orderBy === []) {
                 return 'rowid ASC';
@@ -1021,7 +1021,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<mixed>
          */
-        private static function listNext156(array $source, string $key): array
+        private static function listCurrentSourceDeferredLookup(array $source, string $key): array
         {
             $value = $source[$key] ?? null;
             if (!is_array($value) || !array_is_list($value)) {
@@ -1034,7 +1034,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param list<string> $columns
          */
-        private static function validateNeededColumnsNext156(array $columns): void
+        private static function validateNeededColumnsCurrentSourceDeferredLookup(array $columns): void
         {
             if ($columns === []) {
                 throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source needs at least one output column');
@@ -1049,7 +1049,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function sourceIntNext156(array $source, string $key): int
+        private static function sourceIntCurrentSourceDeferredLookup(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {
@@ -1062,7 +1062,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function stringNext156(array $source, string $key): string
+        private static function stringCurrentSourceDeferredLookup(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
@@ -1084,7 +1084,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed>|null $nextSource
          * @return array<string,mixed>
          */
-        public static function materializeNext157(
+        public static function materializeCurrentSourceCoveringReprepare(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -1093,63 +1093,63 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             array $neededExpressions = [],
             ?array $nextSource = null
         ): array {
-            $prepared = self::sourcePlanNext157($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-            $current = self::sourcePlanNext157($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
-            $preparedSignature = self::sourceSignatureNext157($preparedSource);
-            $currentSignature = self::sourceSignatureNext157($currentSource);
+            $prepared = self::sourcePlanCurrentSourceCoveringReprepare($preparedSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+            $current = self::sourcePlanCurrentSourceCoveringReprepare($currentSource, $predicate, $orderBy, $neededColumns, $neededExpressions);
+            $preparedSignature = self::sourceSignatureCurrentSourceCoveringReprepare($preparedSource);
+            $currentSignature = self::sourceSignatureCurrentSourceCoveringReprepare($currentSource);
             $stale = $preparedSignature !== $currentSignature;
             $selected = $stale ? $current : $prepared;
             $selectedSource = $stale ? $currentSource : $preparedSource;
-            $nextSummary = $nextSource === null ? null : self::nextSourceSummaryNext157($currentSource, $nextSource);
+            $nextSummary = $nextSource === null ? null : self::nextSourceSummaryCurrentSourceCoveringReprepare($currentSource, $nextSource);
             $nextAdmitted = $nextSummary === null || $nextSummary['replanReasons'] === [];
             $ready = $selected !== null && $nextAdmitted;
             $rows = is_array($selected['currentNextRows'] ?? null) ? array_column($selected['currentNextRows'], 'current') : [];
 
             return [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next157-ready' : 'requires-current-source-reprepare',
+                'status' => $ready ? 'stat4-expression-partial-current-source-coveringReprepare-ready' : 'requires-current-source-reprepare',
                 'selectedSource' => $stale ? 'current' : 'prepared',
                 'stalePreparedStatement' => $stale,
                 'reprepareRequired' => $stale || !$nextAdmitted,
-                'schemaCookieChanged' => self::sourceIntNext157($preparedSource, 'schemaCookie') !== self::sourceIntNext157($currentSource, 'schemaCookie'),
-                'stat4GenerationChanged' => self::sourceIntNext157($preparedSource, 'stat4Generation') !== self::sourceIntNext157($currentSource, 'stat4Generation'),
-                'indexSignatureChanged' => self::indexSignatureNext157($preparedSource) !== self::indexSignatureNext157($currentSource),
-                'rowSignatureChanged' => self::rowSignatureNext157(self::sourceRowsNext157($preparedSource)) !== self::rowSignatureNext157(self::sourceRowsNext157($currentSource)),
-                'stat4SignatureChanged' => self::stat4SignatureNext157($preparedSource) !== self::stat4SignatureNext157($currentSource),
+                'schemaCookieChanged' => self::sourceIntCurrentSourceCoveringReprepare($preparedSource, 'schemaCookie') !== self::sourceIntCurrentSourceCoveringReprepare($currentSource, 'schemaCookie'),
+                'stat4GenerationChanged' => self::sourceIntCurrentSourceCoveringReprepare($preparedSource, 'stat4Generation') !== self::sourceIntCurrentSourceCoveringReprepare($currentSource, 'stat4Generation'),
+                'indexSignatureChanged' => self::indexSignatureCurrentSourceCoveringReprepare($preparedSource) !== self::indexSignatureCurrentSourceCoveringReprepare($currentSource),
+                'rowSignatureChanged' => self::rowSignatureCurrentSourceCoveringReprepare(self::sourceRowsCurrentSourceCoveringReprepare($preparedSource)) !== self::rowSignatureCurrentSourceCoveringReprepare(self::sourceRowsCurrentSourceCoveringReprepare($currentSource)),
+                'stat4SignatureChanged' => self::stat4SignatureCurrentSourceCoveringReprepare($preparedSource) !== self::stat4SignatureCurrentSourceCoveringReprepare($currentSource),
                 'nextSourceAdmitted' => $nextAdmitted,
                 'nextSource' => $nextSummary,
                 'preparedPlan' => $prepared,
                 'currentPlan' => $current,
                 'selectedPlan' => $selected === null ? null : array_replace($selected, [
-                    'next157Ready' => $ready,
-                    'next157Source' => $stale ? 'current-stat4-expression-partial' : 'prepared-stat4-expression-partial',
-                    'next157Rowids' => array_column($rows, 'rowid'),
-                    'next157Keys' => array_column($rows, 'key'),
-                    'next157CoveringNames' => array_map(
+                    'coveringReprepareReady' => $ready,
+                    'coveringReprepareSource' => $stale ? 'current-stat4-expression-partial' : 'prepared-stat4-expression-partial',
+                    'coveringReprepareRowids' => array_column($rows, 'rowid'),
+                    'coveringReprepareKeys' => array_column($rows, 'key'),
+                    'coveringReprepareCoveringNames' => array_map(
                         static fn (array $row): mixed => $row['covering']['option_name'] ?? null,
                         $rows,
                     ),
-                    'next157CursorProgram' => self::cursorProgramNext157($selected, $neededColumns, $neededExpressions),
+                    'coveringReprepareCursorProgram' => self::cursorProgramCurrentSourceCoveringReprepare($selected, $neededColumns, $neededExpressions),
                 ]),
                 'coveredRows' => $rows,
                 'currentNextRows' => is_array($selected['currentNextRows'] ?? null) ? $selected['currentNextRows'] : [],
                 'currentSourceFence' => [
-                    'name' => self::sourceStringNext157($selectedSource, 'name'),
-                    'schemaCookie' => self::sourceIntNext157($selectedSource, 'schemaCookie'),
-                    'stat4Generation' => self::sourceIntNext157($selectedSource, 'stat4Generation'),
+                    'name' => self::sourceStringCurrentSourceCoveringReprepare($selectedSource, 'name'),
+                    'schemaCookie' => self::sourceIntCurrentSourceCoveringReprepare($selectedSource, 'schemaCookie'),
+                    'stat4Generation' => self::sourceIntCurrentSourceCoveringReprepare($selectedSource, 'stat4Generation'),
                     'sourceSignature' => $stale ? $currentSignature : $preparedSignature,
-                    'indexSignature' => self::indexSignatureNext157($selectedSource),
+                    'indexSignature' => self::indexSignatureCurrentSourceCoveringReprepare($selectedSource),
                     'rowStreamSignature' => hash('sha256', json_encode(array_column($rows, 'rowid'), JSON_THROW_ON_ERROR)),
                     'matchedKeySignature' => hash('sha256', json_encode(array_column($rows, 'key'), JSON_THROW_ON_ERROR)),
                 ],
                 'detail' => ($stale ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT157 '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE COVERING REPREPARE '
                     . (string) ($selected['name'] ?? 'NO INDEX')
                     . ' rows=' . count($rows),
                 'dependencies' => [
                     'SQLiteSelectExpressionIndexPlan::stat4ExpressionCoveringCurrentSourcePlan',
-                    'sqlite-sqlplanner-stat4-expression-partial-current-source-next157',
+                    'sqlite-sqlplanner-stat4-expression-partial-current-source-coveringReprepare',
                 ],
-                'dependency_closure' => 'no new support component needed; next157 reuses native expression-index parsing, partial predicate proof, STAT4 samples, and current-source covering row materialization',
+                'dependency_closure' => 'no new support component needed; coveringReprepare reuses native expression-index parsing, partial predicate proof, STAT4 samples, and current-source covering row materialization',
                 'non_overlap' => 'avoids accepted STAT4 partial covering order, expression partial skip-scan, range-cost ranking, expression ORDER BY, JSON table, WAL, VFS, and B-tree clusters; this slice fences STAT4 expression partial current-source row materialization and next-source admission',
             ];
         }
@@ -1162,12 +1162,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>|null
          */
-        private static function sourcePlanNext157(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): ?array
+        private static function sourcePlanCurrentSourceCoveringReprepare(array $source, array $predicate, array $orderBy, array $neededColumns, array $neededExpressions): ?array
         {
             return SQLiteSelectExpressionIndexPlan::stat4ExpressionCoveringCurrentSourcePlan(
-                self::sourceIndexesNext157($source),
+                self::sourceIndexesCurrentSourceCoveringReprepare($source),
                 $predicate,
-                self::sourceRowsNext157($source),
+                self::sourceRowsCurrentSourceCoveringReprepare($source),
                 $orderBy,
                 $neededColumns,
                 $neededExpressions,
@@ -1180,7 +1180,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext157(array $plan, array $neededColumns, array $neededExpressions): array
+        private static function cursorProgramCurrentSourceCoveringReprepare(array $plan, array $neededColumns, array $neededExpressions): array
         {
             $program = [[
                 'opcode' => 'OpenRead',
@@ -1196,7 +1196,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $program[] = ['opcode' => 'Column', 'source' => 'covering-expression-index', 'column' => $column];
             }
             foreach ($neededExpressions as $expression) {
-                $program[] = ['opcode' => 'Column', 'source' => 'covering-expression-index', 'expression' => self::expressionNameNext157($expression)];
+                $program[] = ['opcode' => 'Column', 'source' => 'covering-expression-index', 'expression' => self::expressionNameCurrentSourceCoveringReprepare($expression)];
             }
             $program[] = ['opcode' => 'Next', 'target' => 'index'];
 
@@ -1206,7 +1206,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,string> $expression
          */
-        private static function expressionNameNext157(array $expression): string
+        private static function expressionNameCurrentSourceCoveringReprepare(array $expression): string
         {
             if (($expression['function'] ?? null) === 'lower') {
                 return 'lower(' . (string) ($expression['column'] ?? '') . ')';
@@ -1223,30 +1223,30 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $nextSource
          * @return array<string,mixed>
          */
-        private static function nextSourceSummaryNext157(array $currentSource, array $nextSource): array
+        private static function nextSourceSummaryCurrentSourceCoveringReprepare(array $currentSource, array $nextSource): array
         {
             $reasons = [];
-            if (self::sourceIntNext157($currentSource, 'schemaCookie') !== self::sourceIntNext157($nextSource, 'schemaCookie')) {
+            if (self::sourceIntCurrentSourceCoveringReprepare($currentSource, 'schemaCookie') !== self::sourceIntCurrentSourceCoveringReprepare($nextSource, 'schemaCookie')) {
                 $reasons[] = 'schema-cookie';
             }
-            if (self::sourceIntNext157($currentSource, 'stat4Generation') !== self::sourceIntNext157($nextSource, 'stat4Generation')) {
+            if (self::sourceIntCurrentSourceCoveringReprepare($currentSource, 'stat4Generation') !== self::sourceIntCurrentSourceCoveringReprepare($nextSource, 'stat4Generation')) {
                 $reasons[] = 'stat4-generation';
             }
-            if (self::indexSignatureNext157($currentSource) !== self::indexSignatureNext157($nextSource)) {
+            if (self::indexSignatureCurrentSourceCoveringReprepare($currentSource) !== self::indexSignatureCurrentSourceCoveringReprepare($nextSource)) {
                 $reasons[] = 'index-signature';
             }
-            if (self::rowSignatureNext157(self::sourceRowsNext157($currentSource)) !== self::rowSignatureNext157(self::sourceRowsNext157($nextSource))) {
+            if (self::rowSignatureCurrentSourceCoveringReprepare(self::sourceRowsCurrentSourceCoveringReprepare($currentSource)) !== self::rowSignatureCurrentSourceCoveringReprepare(self::sourceRowsCurrentSourceCoveringReprepare($nextSource))) {
                 $reasons[] = 'row-signature';
             }
-            if (self::stat4SignatureNext157($currentSource) !== self::stat4SignatureNext157($nextSource)) {
+            if (self::stat4SignatureCurrentSourceCoveringReprepare($currentSource) !== self::stat4SignatureCurrentSourceCoveringReprepare($nextSource)) {
                 $reasons[] = 'stat4-signature';
             }
 
             return [
-                'name' => self::sourceStringNext157($nextSource, 'name'),
-                'schemaCookie' => self::sourceIntNext157($nextSource, 'schemaCookie'),
-                'stat4Generation' => self::sourceIntNext157($nextSource, 'stat4Generation'),
-                'sourceSignature' => self::sourceSignatureNext157($nextSource),
+                'name' => self::sourceStringCurrentSourceCoveringReprepare($nextSource, 'name'),
+                'schemaCookie' => self::sourceIntCurrentSourceCoveringReprepare($nextSource, 'schemaCookie'),
+                'stat4Generation' => self::sourceIntCurrentSourceCoveringReprepare($nextSource, 'stat4Generation'),
+                'sourceSignature' => self::sourceSignatureCurrentSourceCoveringReprepare($nextSource),
                 'replanReasons' => $reasons,
             ];
         }
@@ -1255,15 +1255,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function sourceIndexesNext157(array $source): array
+        private static function sourceIndexesCurrentSourceCoveringReprepare(array $source): array
         {
             $indexes = $source['indexes'] ?? null;
             if (!is_array($indexes) || !array_is_list($indexes) || $indexes === []) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next157 needs index list');
+                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source coveringReprepare needs index list');
             }
             foreach ($indexes as $index) {
                 if (!is_array($index)) {
-                    throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next157 indexes must be arrays');
+                    throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source coveringReprepare indexes must be arrays');
                 }
             }
 
@@ -1274,15 +1274,15 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $source
          * @return list<array<string,mixed>>
          */
-        private static function sourceRowsNext157(array $source): array
+        private static function sourceRowsCurrentSourceCoveringReprepare(array $source): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next157 needs row list');
+                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source coveringReprepare needs row list');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next157 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source coveringReprepare rows must be arrays');
                 }
             }
 
@@ -1292,30 +1292,30 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function sourceSignatureNext157(array $source): string
+        private static function sourceSignatureCurrentSourceCoveringReprepare(array $source): string
         {
             return hash('sha256', implode('|', [
-                self::sourceStringNext157($source, 'name'),
-                (string) self::sourceIntNext157($source, 'schemaCookie'),
-                (string) self::sourceIntNext157($source, 'stat4Generation'),
-                self::indexSignatureNext157($source),
-                self::rowSignatureNext157(self::sourceRowsNext157($source)),
-                self::stat4SignatureNext157($source),
+                self::sourceStringCurrentSourceCoveringReprepare($source, 'name'),
+                (string) self::sourceIntCurrentSourceCoveringReprepare($source, 'schemaCookie'),
+                (string) self::sourceIntCurrentSourceCoveringReprepare($source, 'stat4Generation'),
+                self::indexSignatureCurrentSourceCoveringReprepare($source),
+                self::rowSignatureCurrentSourceCoveringReprepare(self::sourceRowsCurrentSourceCoveringReprepare($source)),
+                self::stat4SignatureCurrentSourceCoveringReprepare($source),
             ]));
         }
 
         /**
          * @param array<string,mixed> $source
          */
-        private static function indexSignatureNext157(array $source): string
+        private static function indexSignatureCurrentSourceCoveringReprepare(array $source): string
         {
-            return hash('sha256', json_encode(self::sourceIndexesNext157($source), JSON_THROW_ON_ERROR));
+            return hash('sha256', json_encode(self::sourceIndexesCurrentSourceCoveringReprepare($source), JSON_THROW_ON_ERROR));
         }
 
         /**
          * @param list<array<string,mixed>> $rows
          */
-        private static function rowSignatureNext157(array $rows): string
+        private static function rowSignatureCurrentSourceCoveringReprepare(array $rows): string
         {
             return hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR));
         }
@@ -1323,10 +1323,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function stat4SignatureNext157(array $source): string
+        private static function stat4SignatureCurrentSourceCoveringReprepare(array $source): string
         {
             $samples = [];
-            foreach (self::sourceIndexesNext157($source) as $index) {
+            foreach (self::sourceIndexesCurrentSourceCoveringReprepare($source) as $index) {
                 $samples[] = $index['stat4Samples'] ?? [];
             }
 
@@ -1336,11 +1336,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function sourceStringNext157(array $source, string $key): string
+        private static function sourceStringCurrentSourceCoveringReprepare(array $source, string $key): string
         {
             $value = $source[$key] ?? null;
             if (!is_string($value) || $value === '') {
-                throw new \InvalidArgumentException("SQLite STAT4 expression partial current-source next157 needs {$key}");
+                throw new \InvalidArgumentException("SQLite STAT4 expression partial current-source coveringReprepare needs {$key}");
             }
 
             return $value;
@@ -1349,11 +1349,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         /**
          * @param array<string,mixed> $source
          */
-        private static function sourceIntNext157(array $source, string $key): int
+        private static function sourceIntCurrentSourceCoveringReprepare(array $source, string $key): int
         {
             $value = $source[$key] ?? null;
             if (!is_int($value) || $value < 0) {
-                throw new \InvalidArgumentException("SQLite STAT4 expression partial current-source next157 needs non-negative integer {$key}");
+                throw new \InvalidArgumentException("SQLite STAT4 expression partial current-source coveringReprepare needs non-negative integer {$key}");
             }
 
             return $value;
@@ -1372,7 +1372,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<array<string,string>> $neededExpressions
          * @return array<string,mixed>
          */
-        public static function materializeNext158(
+        public static function materializeCurrentSourceRangeFence(
             array $preparedSource,
             array $currentSource,
             array $predicate,
@@ -1393,21 +1393,21 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 $neededExpressions,
             );
 
-            $selected = self::arrayValueNext158($base, 'selectedPlan');
-            $cursor = self::arrayValueNext158($base, 'cursorTape');
-            $matchedRows = self::currentRowsNext158($cursor);
-            $rangeFence = self::rangeFenceNext158($selected);
+            $selected = self::arrayValueCurrentSourceRangeFence($base, 'selectedPlan');
+            $cursor = self::arrayValueCurrentSourceRangeFence($base, 'cursorTape');
+            $matchedRows = self::currentRowsCurrentSourceRangeFence($cursor);
+            $rangeFence = self::rangeFenceCurrentSourceRangeFence($selected);
             $ready = ($base['status'] ?? null) === 'partial-expression-stat4-current-source-next-ready'
                 && ($selected['operator'] ?? null) === 'range-bounded'
                 && ($selected['partial'] ?? false) === true
                 && ($selected['stat4Used'] ?? false) === true
                 && ($cursor['deletedRowidsBlocked'] ?? []) !== []
                 && $matchedRows !== [];
-            $windows = self::rangeWindowsNext158($matchedRows, $selected);
-            $cursorProgram = self::cursorProgramNext158($cursor, $rangeFence, $ready);
+            $windows = self::rangeWindowsCurrentSourceRangeFence($matchedRows, $selected);
+            $cursorProgram = self::cursorProgramCurrentSourceRangeFence($cursor, $rangeFence, $ready);
 
             return array_replace($base, [
-                'status' => $ready ? 'stat4-expression-partial-current-source-next158-ready' : 'requires-next-stage',
+                'status' => $ready ? 'stat4-expression-partial-current-source-rangeFence-ready' : 'requires-next-stage',
                 'rangeFence' => $rangeFence,
                 'rangeWindowRows' => $matchedRows,
                 'rangeWindowRowids' => array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $matchedRows),
@@ -1427,16 +1427,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'covering' => $row['covering'] ?? [],
                 ], $matchedRows), JSON_THROW_ON_ERROR)),
                 'selectedPlan' => array_replace($selected, [
-                    'next158Ready' => $ready,
-                    'next158RangeWindowCount' => count($matchedRows),
-                    'next158RangeWindowRowids' => array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $matchedRows),
-                    'next158RangeWindowKeys' => array_map(static fn (array $row): mixed => $row['key'] ?? null, $matchedRows),
-                    'next158RangeFenceExactLower' => (bool) ($rangeFence['lower']['exact'] ?? false),
-                    'next158RangeFenceExactUpper' => (bool) ($rangeFence['upper']['exact'] ?? false),
-                    'next158UsesCurrentSourceOnly' => $ready,
+                    'rangeFenceReady' => $ready,
+                    'rangeFenceRangeWindowCount' => count($matchedRows),
+                    'rangeFenceRangeWindowRowids' => array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $matchedRows),
+                    'rangeFenceRangeWindowKeys' => array_map(static fn (array $row): mixed => $row['key'] ?? null, $matchedRows),
+                    'rangeFenceRangeFenceExactLower' => (bool) ($rangeFence['lower']['exact'] ?? false),
+                    'rangeFenceRangeFenceExactUpper' => (bool) ($rangeFence['upper']['exact'] ?? false),
+                    'rangeFenceUsesCurrentSourceOnly' => $ready,
                 ]),
                 'cursorTape' => array_replace($cursor, [
-                    'next158Program' => $cursorProgram,
+                    'rangeFenceProgram' => $cursorProgram,
                     'rangeFenceLower' => $rangeFence['lower']['value'] ?? null,
                     'rangeFenceUpper' => $rangeFence['upper']['value'] ?? null,
                     'rangeWindowKeys' => array_map(static fn (array $row): mixed => $row['key'] ?? null, $matchedRows),
@@ -1444,24 +1444,24 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     'tableLookupElidedForRangeWindow' => $ready,
                 ]),
                 'currentSourceFence' => array_replace(
-                    self::arrayValueNext158($base, 'currentSourceFence'),
+                    self::arrayValueCurrentSourceRangeFence($base, 'currentSourceFence'),
                     [
-                        'next158RangeWindowSignature' => hash('sha256', json_encode(array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $matchedRows), JSON_THROW_ON_ERROR)),
-                        'next158RangeFenceSignature' => hash('sha256', json_encode($rangeFence, JSON_THROW_ON_ERROR)),
+                        'rangeFenceRangeWindowSignature' => hash('sha256', json_encode(array_map(static fn (array $row): mixed => $row['rowid'] ?? null, $matchedRows), JSON_THROW_ON_ERROR)),
+                        'rangeFenceRangeFenceSignature' => hash('sha256', json_encode($rangeFence, JSON_THROW_ON_ERROR)),
                     ],
                 ),
                 'detail' => (($base['reprepareRequired'] ?? false) ? 'REPREPARE' : 'REUSE')
-                    . ' STAT4 EXPRESSION PARTIAL CURRENT-SOURCE NEXT158 '
+                    . ' STAT4 EXPRESSION PARTIAL CURRENT-SOURCE RANGE FENCE '
                     . (string) ($selected['name'] ?? 'NO INDEX')
                     . ($ready ? ' RANGE WINDOW CURRENT SOURCE' : ' REQUIRES TABLE SEEK'),
                 'dependencies' => array_values(array_unique(array_merge(
                     is_array($base['dependencies'] ?? null) ? $base['dependencies'] : [],
                     [
                         'SQLitePlannerStat4PartialExpressionCurrentSourceNextPlan',
-                        'sqlite-sqlplanner-stat4-expression-partial-current-source-next158',
+                        'sqlite-sqlplanner-stat4-expression-partial-current-source-rangeFence',
                     ],
                 ))),
-                'dependency_closure' => 'no new support component needed; next158 composes native STAT4 partial expression current-source range fences with existing covering row streams',
+                'dependency_closure' => 'no new support component needed; rangeFence composes native STAT4 partial expression current-source range fences with existing covering row streams',
                 'non_overlap' => 'avoids accepted next133 row-generation fences, next142 partial-covering ORDER blocks, next144 point replacement, next149 skip-scan expression ranges, expression ORDER BY, JSON table, WAL, VFS, and B-tree clusters; this slice covers stale prepared row exclusion across STAT4 partial expression range windows',
             ]);
         }
@@ -1470,11 +1470,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $base
          * @return array<string,mixed>
          */
-        private static function arrayValueNext158(array $base, string $key): array
+        private static function arrayValueCurrentSourceRangeFence(array $base, string $key): array
         {
             $value = $base[$key] ?? null;
             if (!is_array($value)) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next158 needs array ' . $key);
+                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source rangeFence needs array ' . $key);
             }
 
             return $value;
@@ -1484,12 +1484,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $cursor
          * @return list<array<string,mixed>>
          */
-        private static function currentRowsNext158(array $cursor): array
+        private static function currentRowsCurrentSourceRangeFence(array $cursor): array
         {
             $rows = [];
             $pairs = $cursor['currentNextRows'] ?? [];
             if (!is_array($pairs)) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source next158 cursor rows must be a list');
+                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source rangeFence cursor rows must be a list');
             }
             foreach ($pairs as $pair) {
                 if (!is_array($pair) || !is_array($pair['current'] ?? null)) {
@@ -1505,7 +1505,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $selected
          * @return array<string,mixed>
          */
-        private static function rangeFenceNext158(array $selected): array
+        private static function rangeFenceCurrentSourceRangeFence(array $selected): array
         {
             $fence = $selected['stat4RangeCurrentNext'] ?? null;
             if (!is_array($fence)) {
@@ -1526,7 +1526,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $selected
          * @return list<array{anchor:mixed,rowids:list<mixed>,firstRowid:mixed,lastRowid:mixed,nextAnchor:mixed}>
          */
-        private static function rangeWindowsNext158(array $rows, array $selected): array
+        private static function rangeWindowsCurrentSourceRangeFence(array $rows, array $selected): array
         {
             $anchors = [];
             foreach (($selected['stat4MatchedCurrentNext'] ?? []) as $pair) {
@@ -1560,7 +1560,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param array<string,mixed> $rangeFence
          * @return list<array<string,mixed>>
          */
-        private static function cursorProgramNext158(array $cursor, array $rangeFence, bool $ready): array
+        private static function cursorProgramCurrentSourceRangeFence(array $cursor, array $rangeFence, bool $ready): array
         {
             $program = [
                 ['opcode' => 'OpenRead', 'source' => 'partial-expression-index', 'rootPage' => $cursor['rootPage'] ?? null],
@@ -1634,7 +1634,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT161 OR-SPLIT ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next161'],
                 'dependency_closure' => 'no new support component needed; next161 reuses lane-local expression term matching, partial predicate proof, STAT4 sample fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row stream and next158 range-window stale-row exclusion by covering OR-split partial expression probes whose every arm must imply the current partial predicate before STAT4 admission',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row stream and rangeFence range-window stale-row exclusion by covering OR-split partial expression probes whose every arm must imply the current partial predicate before STAT4 admission',
             ];
         }
 
@@ -2549,7 +2549,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT164 RANGE ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next164'],
                 'dependency_closure' => 'no new support component needed; next164 reuses native PHP expression normalization, range implication, STAT4 fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, next158 stale-row range exclusion, and next161 OR-split probes by proving a partial expression index from current range bounds and rejecting prepared STAT4 fences after source changes',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range exclusion, and next161 OR-split probes by proving a partial expression index from current range bounds and rejecting prepared STAT4 fences after source changes',
             ];
         }
 
@@ -3585,7 +3585,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     ],
                 ))),
                 'dependency_closure' => 'no new support component needed; next167 reuses native STAT4 expression partial current-source planning and adds post-ANALYZE sample-window fencing',
-                'non_overlap' => 'avoids accepted next164 range-implies-partial proof, next158 stale-row range exclusion, next161 OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only fences post-ANALYZE STAT4 sample-window drift for a current partial expression index',
+                'non_overlap' => 'avoids accepted next164 range-implies-partial proof, rangeFence stale-row range exclusion, next161 OR probes, expression ORDER BY, JSON, WAL, VFS, and B-tree clusters; this slice only fences post-ANALYZE STAT4 sample-window drift for a current partial expression index',
             ]);
         }
 
@@ -3879,7 +3879,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'detail' => (($stale ? 'REPREPARE' : 'REUSE') . ' STAT4 EXPRESSION PARTIAL CURRENT SOURCE NEXT168 LIKE PREFIX ' . (string) ($selected['name'] ?? 'NO INDEX')),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next168'],
                 'dependency_closure' => 'no new support component needed; next168 reuses native expression normalization, LIKE prefix range derivation, partial-index proof, STAT4 fences, and current-source row diagnostics',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, next158 stale-row range exclusion, next161 OR-split probes, and next164 explicit range bounds by proving LIKE-prefix partial expression admission from current STAT4 samples',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range exclusion, next161 OR-split probes, and next164 explicit range bounds by proving LIKE-prefix partial expression admission from current STAT4 samples',
             ];
         }
 
@@ -4359,7 +4359,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                     . (string) ($selected['name'] ?? 'NO INDEX'),
                 'dependencies' => ['sqlite-sqlplanner-stat4-expression-partial-current-source-next169'],
                 'dependency_closure' => 'no new support component needed; next169 reuses current-source STAT4 range admission and adds lane-local cost fencing between partial and full expression indexes',
-                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, next158 stale-row range windows, next161 OR-split probes, next164 range implication, next165 partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
+                'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare equality/IN/BETWEEN row streams, rangeFence stale-row range windows, next161 OR-split probes, next164 range implication, next165 partial-range planning, and expression-index range-cost ranking by proving current-source STAT4 re-costing prefers a partial expression index over a competing full expression index',
             ]);
         }
 
@@ -26818,7 +26818,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'sqlite-sqlplanner-stat4-expression-partial-current-source-next160',
             ],
             'dependency_closure' => 'no new support component needed; next160 reuses native OR partial-expression planning, STAT4 estimates, partial predicate proof, and current-source row materialization',
-            'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare non-covering range row streams, next156 bounded range deferred seeks, next157 IN covering materialization, next145 skip-scan, expression ORDER BY, range-cost, JSON, VFS/WAL, and B-tree clusters; this slice covers OR-rowid-union current-source row dedupe for STAT4 partial expression indexes',
+            'non_overlap' => 'avoids accepted stat4-expression-partial-reprepare non-covering range row streams, deferredLookup bounded range deferred seeks, coveringReprepare IN covering materialization, next145 skip-scan, expression ORDER BY, range-cost, JSON, VFS/WAL, and B-tree clusters; this slice covers OR-rowid-union current-source row dedupe for STAT4 partial expression indexes',
         ];
     }
 

@@ -39,7 +39,7 @@ assert($plans[1001]['next1001_ready'] === true);
 assert($plans[1005]['next1005_ready'] === true);
 
 $summary = [
-    'status' => 'rowvalue-update-delete-returning-window-current-source-next990-1005',
+    'status' => 'rowvalue-update-delete-returning-window-ready-publication-seal',
     'candidateStatuses' => array_values($statuses),
     'next990Handoff' => $plans[990]['next990_handoff']['next990_handoff'],
     'next990AfterReadyRange' => $plans[990]['next990_handoff']['after_ready_range'],
@@ -56,11 +56,11 @@ $summary = [
     'next1001Ready' => $plans[1001]['next1001_ready'],
     'next1005Final' => $plans[1005]['next1005_final']['next1005_final'],
     'next1005Ready' => $plans[1005]['next1005_ready'],
-    'wordpressUse' => 'Copied wp_options imports validate the next990-1005 row-value UPDATE/DELETE RETURNING window current-source continuation as the direct handoff from next989_ready.',
+    'wordpressUse' => 'Copied wp_options imports validate the ready-publication row-value UPDATE/DELETE RETURNING window continuation as the direct handoff from the preceding ready receipt.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    echo "wordpress-rowvalue-returning-window-current-source-next990-1005 self-test passed\n";
+    echo "wordpress-rowvalue-returning-window-ready-publication-seal self-test passed\n";
     return;
 }
 

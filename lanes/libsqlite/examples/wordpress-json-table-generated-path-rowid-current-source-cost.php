@@ -21,7 +21,7 @@ $next = [
     'scan_root' => '$.rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext170(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCurrentSourceCost(
     'json_tree',
     $current,
     $next,
@@ -36,7 +36,7 @@ $plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNex
 );
 
 $payload = [
-    'scenario' => 'wordpress-json-table-generated-path-rowid-cost-current-source-next170',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-current-source-cost',
     'wordpressUse' => 'Copied wp_options JSON rule diagnostics can keep a generated-path and rowid-constrained json_tree cursor pinned to the current source until xFilter reset, while a changed generated path prepares a fresh virtual-table filter.',
     'currentMode' => $plan['currentGeneratedPathRowidCurrentSourceNext170']['cursorMode'],
     'currentIdxStr' => $plan['currentGeneratedPathRowidCurrentSourceNext170']['idxStr'],
@@ -67,7 +67,7 @@ if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE
     }
 
     echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
-    echo "wordpress-json-table-generated-path-rowid-cost-current-source-next170 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-current-source-cost self-test passed\n";
 }
 
 return $payload;
