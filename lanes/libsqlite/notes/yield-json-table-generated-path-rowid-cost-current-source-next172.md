@@ -4,7 +4,7 @@ Status: focused PHP behavior growth for current-source `json_tree()` generated-p
 
 Behavior:
 
-- Adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext172()`.
+- Uses the consolidated `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence()` entry point.
 - Builds on the accepted next166 generated-path rowid yield profile, but adds a current-source fence token and stable yield key derived from the current JSON source fingerprint, generated path, rowid/path rowset, and yield decision.
 - A pinned current-source cursor can keep yielding rowid `[6]` while a changed next source gets `sourceResetRequired=true`, `staleYieldBlocked=true`, and a distinct fence token.
 - Residual/non-pinned rowid scans preserve rowset evidence but require a reset instead of advertising stale current-source reuse.

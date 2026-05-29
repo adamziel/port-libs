@@ -30,7 +30,7 @@ $nextView = array_replace($view, [
     'trigger_source' => 'main@trigger-cookie-157-next',
 ]);
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext157(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewSourceHandoff(
     $rows,
     [['root_name' => 'siteurl']],
     [['root_name' => 'plugin_beta']],

@@ -30,7 +30,7 @@ $next = [
     'scan_root' => '$.rules',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext163(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostBestIndex(
     'json_tree',
     $current,
     $next,

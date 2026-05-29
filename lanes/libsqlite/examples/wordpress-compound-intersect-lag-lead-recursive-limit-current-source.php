@@ -47,9 +47,9 @@ SELECT option_id AS id,
  LIMIT 3 OFFSET 1
 SQL;
 
-$plan = SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareNext176($sql, $currentTables, $nextTables);
+$plan = SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compareIntersectLagLeadRecursiveLimit($sql, $currentTables, $nextTables);
 $result = [
-    'scenario' => 'wordpress-compound-intersect-lag-lead-recursive-limit-current-source-next176',
+    'scenario' => 'wordpress-compound-intersect-lag-lead-recursive-limit-current-source-recursive-limit',
     'sqlShape' => 'WITH RECURSIVE LIMIT/OFFSET feeding lag-window INTERSECT arms with final ORDER BY/LIMIT/OFFSET',
     'wordpressUse' => 'Copied wp_options import previews can skip a recursive seed source, intersect lag-window current rows with copied option rows, and admit the next plugin option at the final compound LIMIT boundary.',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
@@ -78,7 +78,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
         fwrite(STDERR, "next-source plugin option did not cross the final LIMIT boundary\n");
         exit(1);
     }
-    echo "wordpress-compound-intersect-lag-lead-recursive-limit-current-source-next176 self-test passed\n";
+    echo "wordpress-compound-intersect-lag-lead-recursive-limit-current-source-recursive-limit self-test passed\n";
 }
 
 return $result;

@@ -29,7 +29,7 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
 );
 
 $summary = [
-    'scenario' => 'wordpress-rowvalue-abort-savepoint-current-source-next169',
+    'scenario' => 'wordpress-rowvalue-abort-rollback-retry-savepoint',
     'wordpressUse' => 'A copied wp_options import can catch an UPDATE OR ABORT duplicate row-value key statement, keep earlier savepoint UPDATE/DELETE RETURNING effects, then retry cleanup from that current source before release.',
     'status' => $plan['status'],
     'statementAborted' => $plan['statement_aborted'],
@@ -43,7 +43,7 @@ $summary = [
 ];
 
 if (
-    $summary['status'] !== 'statement-aborted-savepoint-preserved-retried-current-source-next169'
+    $summary['status'] !== 'statement-aborted-savepoint-preserved-retried-current-source'
     || $summary['statementAborted'] !== true
     || $summary['transactionRolledBack'] !== false
     || $summary['yieldedBeforeAbortCount'] !== 3
@@ -52,9 +52,9 @@ if (
     || $summary['finalOptionIds'] !== [1, 7, 9]
     || $summary['finalRowSevenValue'] !== 'theme:stage:retry'
 ) {
-    fwrite(STDERR, "wordpress-rowvalue-abort-savepoint-current-source-next169 self-test failed\n");
+    fwrite(STDERR, "wordpress-rowvalue-abort-rollback-retry-savepoint self-test failed\n");
     exit(1);
 }
 
-echo "wordpress-rowvalue-abort-savepoint-current-source-next169 self-test passed\n";
+echo "wordpress-rowvalue-abort-rollback-retry-savepoint self-test passed\n";
 echo json_encode($summary, JSON_PRETTY_PRINT) . "\n";

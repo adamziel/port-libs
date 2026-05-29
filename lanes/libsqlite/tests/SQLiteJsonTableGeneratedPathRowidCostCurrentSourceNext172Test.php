@@ -29,7 +29,7 @@ $plan172 = static fn (
     ?array $next = null,
     ?array $constraints = null,
     ?array $orderBy = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext172(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence(
     'json_tree',
     $current ?? $current172,
     $next ?? $next172,
@@ -107,8 +107,8 @@ $tests = [
     'residual current keeps rowset evidence' => static fn (TestRunner $t) => $t->same([4, 7, 5, 6, 8, 9], $residual172()['currentGeneratedPathRowidSourceFence172']['yieldRowids']),
     'moved root next source root recorded' => static fn (TestRunner $t) => $t->same('$', $movedRoot172()['nextGeneratedPathRowidSourceFence172']['sourceRoot']),
     'moved root next token changes' => static fn (TestRunner $t) => $t->true($movedRoot172()['currentGeneratedPathRowidSourceFence172']['sourceFenceToken'] !== $movedRoot172()['nextGeneratedPathRowidSourceFence172']['sourceFenceToken']),
-    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext172('json_tree', $current172, $next172, '', 'generated_path', $constraints172)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext172('json_tree', $current172, $next172, 'option_value', '', $constraints172)),
+    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence('json_tree', $current172, $next172, '', 'generated_path', $constraints172)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidSourceFence('json_tree', $current172, $next172, 'option_value', '', $constraints172)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

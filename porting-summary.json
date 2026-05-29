@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-29 14:27:46 UTC",
-    "sourceCommit": "0fcdf6b01e9944e78ded0be8709d22f0d78c0872",
-    "sourceCommitShort": "0fcdf6b01e99",
+    "generated": "2026-05-29 14:33:56 UTC",
+    "sourceCommit": "de434b8fa93bc55ff37a8a6dac6ac1d25c38d266",
+    "sourceCommitShort": "de434b8fa93b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0fcdf6b01e9944e78ded0be8709d22f0d78c0872",
-    "dashboardCommitShort": "0fcdf6b01e99",
+    "dashboardCommit": "de434b8fa93bc55ff37a8a6dac6ac1d25c38d266",
+    "dashboardCommitShort": "de434b8fa93b",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "154019 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "second current functional batch plus broad numeric suff...",
-            "audit": "Accepted five AS/AT-wave consolidation ha...",
-            "currentWork": "Consolidated five safe AS/AT-wave numbered method/helper cleanup handoffs across upstream...",
-            "nextTarget": "Continue consolidating remaining numbered production method/helper wrappers, prioritizing...",
+            "audit": "Accepted thirteen clean AU/AT/AS/AK/AQ co...",
+            "currentWork": "Consolidated thirteen clean numbered method/helper cleanup handoffs across planner/STAT4,...",
+            "nextTarget": "Continue consolidating remaining numbered production helper methods, prioritizing the lar...",
             "blocker": "No blocker for this reduced consolidation slice.",
             "commit": "thirty-"
         },

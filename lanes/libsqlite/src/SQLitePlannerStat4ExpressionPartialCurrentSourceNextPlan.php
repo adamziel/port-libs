@@ -31748,7 +31748,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext574589(
+    public static function materializePreparedHandoffPenultimateSeed(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -31764,7 +31764,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $limit,
             $offset,
         );
-        $fence = self::handoffFenceNext574589($base, $currentSource, $neededColumns);
+        $fence = self::handoffFencePreparedHandoffPenultimateSeed($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next558-573-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -31784,7 +31784,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next574589Prepared" => $ready,
                 "next574589HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext574589($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramPreparedHandoffPenultimateSeed($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next574-589-prep"],
@@ -31801,7 +31801,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function handoffFenceNext574589(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFencePreparedHandoffPenultimateSeed(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next574-589 needs projected columns");
@@ -31817,10 +31817,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next574-589 needs next558-573 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext574589($currentSource);
+        $currentRows = self::rowsByRowidPreparedHandoffPenultimateSeed($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext574589($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListPreparedHandoffPenultimateSeed($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(574, 589) as $slice) {
             $ordinal = $slice - 574;
@@ -31829,12 +31829,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next574-589 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext574589($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValuePreparedHandoffPenultimateSeed($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext574589($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsPreparedHandoffPenultimateSeed($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext574589($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValuePreparedHandoffPenultimateSeed($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -31879,7 +31879,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext574589(array $source): array
+    private static function rowsByRowidPreparedHandoffPenultimateSeed(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next574-589 needs current rows");
@@ -31890,7 +31890,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next574-589 current rows must be arrays");
             }
-            $rowid = self::intValueNext574589($row["rowid"] ?? null, "current rowid");
+            $rowid = self::intValuePreparedHandoffPenultimateSeed($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
@@ -31900,19 +31900,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function intListNext574589(mixed $value, string $label): array
+    private static function intListPreparedHandoffPenultimateSeed(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next574-589 needs " . $label);
         }
 
         return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueNext574589($rowid, $label),
+            static fn (mixed $rowid): int => self::intValuePreparedHandoffPenultimateSeed($rowid, $label),
             $value,
         ));
     }
 
-    private static function intValueNext574589(mixed $value, string $label): int
+    private static function intValuePreparedHandoffPenultimateSeed(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -31929,7 +31929,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function projectedColumnsNext574589(array $row, array $neededColumns): array
+    private static function projectedColumnsPreparedHandoffPenultimateSeed(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -31947,7 +31947,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramNext574589(array $program, bool $ready, array $fence): array
+    private static function cursorProgramPreparedHandoffPenultimateSeed(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -31974,7 +31974,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    public static function materializeNext590605(
+    public static function materializePreparedHandoffFinalSeed(
         array $preparedSource,
         array $currentSource,
         array $queryTerms,
@@ -31982,7 +31982,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext574589(
+        $base = self::materializePreparedHandoffPenultimateSeed(
             $preparedSource,
             $currentSource,
             $queryTerms,
@@ -31990,7 +31990,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $limit,
             $offset,
         );
-        $fence = self::handoffFenceNext590605($base, $currentSource, $neededColumns);
+        $fence = self::handoffFencePreparedHandoffFinalSeed($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next574-589-prepared"
             && $fence["allSlicesPrepared"]
             && $fence["previousFenceReady"];
@@ -32010,7 +32010,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "next590605Prepared" => $ready,
                 "next590605HandoffSignature" => $fence["handoffSignature"],
             ],
-            "cursorProgram" => self::cursorProgramNext590605($base["cursorProgram"] ?? [], $ready, $fence),
+            "cursorProgram" => self::cursorProgramPreparedHandoffFinalSeed($base["cursorProgram"] ?? [], $ready, $fence),
             "dependencies" => array_values(array_unique(array_merge(
                 $base["dependencies"] ?? [],
                 ["sqlite-sqlplanner-stat4-expression-partial-current-source-next590-605-prep"],
@@ -32027,7 +32027,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function handoffFenceNext590605(array $base, array $currentSource, array $neededColumns): array
+    private static function handoffFencePreparedHandoffFinalSeed(array $base, array $currentSource, array $neededColumns): array
     {
         if ($neededColumns === []) {
             throw new \InvalidArgumentException("SQLite next590-605 needs projected columns");
@@ -32043,10 +32043,10 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             throw new \InvalidArgumentException("SQLite next590-605 needs next574-589 handoff windows");
         }
 
-        $currentRows = self::rowsByRowidNext590605($currentSource);
+        $currentRows = self::rowsByRowidPreparedHandoffFinalSeed($currentSource);
         $windows = [];
         $blocked = [];
-        $priorPrepared = self::intListNext590605($prior["preparedSlices"] ?? null, "prior prepared slices");
+        $priorPrepared = self::intListPreparedHandoffFinalSeed($prior["preparedSlices"] ?? null, "prior prepared slices");
 
         foreach (range(590, 605) as $slice) {
             $ordinal = $slice - 590;
@@ -32055,12 +32055,12 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 throw new \InvalidArgumentException("SQLite next590-605 prior handoff windows must be arrays");
             }
 
-            $rowid = self::intValueNext590605($priorWindow["rowid"] ?? null, "prior rowid");
+            $rowid = self::intValuePreparedHandoffFinalSeed($priorWindow["rowid"] ?? null, "prior rowid");
             $row = $currentRows[$rowid] ?? null;
-            $projected = is_array($row) ? self::projectedColumnsNext590605($row, $neededColumns) : [];
+            $projected = is_array($row) ? self::projectedColumnsPreparedHandoffFinalSeed($row, $neededColumns) : [];
             $priorProjected = $priorWindow["projectedColumns"] ?? [];
             $projectionMatches = is_array($priorProjected) && $projected === $priorProjected;
-            $priorSlice = self::intValueNext590605($priorWindow["slice"] ?? null, "prior slice");
+            $priorSlice = self::intValuePreparedHandoffFinalSeed($priorWindow["slice"] ?? null, "prior slice");
             $ready = is_array($row)
                 && in_array($priorSlice, $priorPrepared, true)
                 && ($priorWindow["prepared"] ?? null) === true
@@ -32105,7 +32105,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return array<int,array<string,mixed>>
      */
-    private static function rowsByRowidNext590605(array $source): array
+    private static function rowsByRowidPreparedHandoffFinalSeed(array $source): array
     {
         if (!isset($source["rows"]) || !is_array($source["rows"])) {
             throw new \InvalidArgumentException("SQLite next590-605 needs current rows");
@@ -32116,7 +32116,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             if (!is_array($row)) {
                 throw new \InvalidArgumentException("SQLite next590-605 current rows must be arrays");
             }
-            $rowid = self::intValueNext590605($row["rowid"] ?? null, "current rowid");
+            $rowid = self::intValuePreparedHandoffFinalSeed($row["rowid"] ?? null, "current rowid");
             $rows[$rowid] = $row;
         }
 
@@ -32126,19 +32126,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
     /**
      * @return list<int>
      */
-    private static function intListNext590605(mixed $value, string $label): array
+    private static function intListPreparedHandoffFinalSeed(mixed $value, string $label): array
     {
         if (!is_array($value)) {
             throw new \InvalidArgumentException("SQLite next590-605 needs " . $label);
         }
 
         return array_values(array_map(
-            static fn (mixed $rowid): int => self::intValueNext590605($rowid, $label),
+            static fn (mixed $rowid): int => self::intValuePreparedHandoffFinalSeed($rowid, $label),
             $value,
         ));
     }
 
-    private static function intValueNext590605(mixed $value, string $label): int
+    private static function intValuePreparedHandoffFinalSeed(mixed $value, string $label): int
     {
         if (is_int($value)) {
             return $value;
@@ -32155,7 +32155,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param list<string> $neededColumns
      * @return array<string,mixed>
      */
-    private static function projectedColumnsNext590605(array $row, array $neededColumns): array
+    private static function projectedColumnsPreparedHandoffFinalSeed(array $row, array $neededColumns): array
     {
         $projected = [];
         foreach ($neededColumns as $column) {
@@ -32173,7 +32173,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      * @param array<string,mixed> $fence
      * @return list<array<string,mixed>>
      */
-    private static function cursorProgramNext590605(array $program, bool $ready, array $fence): array
+    private static function cursorProgramPreparedHandoffFinalSeed(array $program, bool $ready, array $fence): array
     {
         if (!$ready) {
             return $program;
@@ -32207,7 +32207,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         int $limit,
         int $offset = 0
     ): array {
-        $base = self::materializeNext590605($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
+        $base = self::materializePreparedHandoffFinalSeed($preparedSource, $currentSource, $queryTerms, $neededColumns, $limit, $offset);
         $fence = self::handoffFencePreparedContinuationBase($base, $currentSource, $neededColumns);
         $ready = ($base["status"] ?? null) === "stat4-expression-partial-current-source-next590-605-prepared"
             && $fence["allSlicesPrepared"]

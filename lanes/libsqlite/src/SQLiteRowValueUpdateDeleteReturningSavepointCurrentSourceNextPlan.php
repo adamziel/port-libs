@@ -2183,24 +2183,24 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $outerStatements,
         array $retryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_import_next166',
-        string $innerSavepoint = 'wp_options_inner_cleanup_next166',
+        string $outerSavepoint = 'wp_options_outer_import_nested_retry',
+        string $innerSavepoint = 'wp_options_inner_cleanup_nested_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($innerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs inner statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs inner statements');
         }
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs outer statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs outer statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs unique constraints');
         }
         if ($outerSavepoint === '' || $innerSavepoint === '' || $outerSavepoint === $innerSavepoint) {
-            throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 needs distinct savepoint names');
+            throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry needs distinct savepoint names');
         }
 
         $outerImage = self::normalizeTablesNestedRetrySavepointBatch($tables);
@@ -2259,9 +2259,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'row_counts' => self::rowCountsNestedRetrySavepointBatch($retryCurrent),
             'changed_tables_after_retry' => self::changedTablesNestedRetrySavepointBatch($outerImage, $retryCurrent),
             'dependencies' => [
-                'sqlite-release-inner-savepoint-merges-rowvalue-returning-into-outer-savepoint-next166',
-                'sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-next166',
-                'sqlite-rowvalue-update-delete-retry-after-outer-rollback-reads-original-current-source-next166',
+                'sqlite-release-inner-savepoint-merges-rowvalue-returning-into-outer-savepoint-nested-retry',
+                'sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-nested-retry',
+                'sqlite-rowvalue-update-delete-retry-after-outer-rollback-reads-original-current-source-nested-retry',
             ],
         ];
     }
@@ -2328,11 +2328,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value nested savepoint next166 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value nested savepoint nested-retry rows must be arrays');
                 }
             }
         }
@@ -2355,11 +2355,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next166 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint nested-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value nested savepoint next166 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value nested savepoint nested-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -2445,21 +2445,21 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $innerAttemptStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_rowvalue_next168',
-        string $innerSavepoint = 'wp_options_inner_rowvalue_next168',
+        string $outerSavepoint = 'wp_options_outer_rowvalue_nested_ignore_retry',
+        string $innerSavepoint = 'wp_options_inner_rowvalue_nested_ignore_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerStatements === []) {
-            throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 needs outer statements');
+            throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry needs outer statements');
         }
         if ($innerAttemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 needs inner attempt statements');
+            throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry needs inner attempt statements');
         }
         if ($innerRetryStatements === []) {
-            throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 needs inner retry statements');
+            throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry needs inner retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry needs unique constraints');
         }
 
         $outerImage = self::normalizeTablesNestedIgnoreRetrySavepointBatch($tables);
@@ -2492,7 +2492,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return [
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
-            'status' => 'outer-released-after-inner-rollback-to-retry-current-source-next168',
+            'status' => 'outer-released-after-inner-rollback-to-retry-current-source-nested-ignore-retry',
             'rolled_back_to_inner_savepoint' => true,
             'inner_savepoint_preserved_after_rollback_to' => true,
             'inner_released_after_retry' => true,
@@ -2519,9 +2519,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_release' => self::changedTablesNestedIgnoreRetrySavepointBatch($outerImage, $afterRetry),
             'row_counts' => self::rowCountsNestedIgnoreRetrySavepointBatch($afterRetry),
             'dependencies' => [
-                'sqlite-nested-savepoint-rollback-to-preserves-outer-rowvalue-returning-next168',
-                'sqlite-rowvalue-update-delete-returning-discards-inner-rollback-stream-next168',
-                'sqlite-rowvalue-retry-after-inner-rollback-reads-inner-savepoint-image-next168',
+                'sqlite-nested-savepoint-rollback-to-preserves-outer-rowvalue-returning-nested-ignore-retry',
+                'sqlite-rowvalue-update-delete-returning-discards-inner-rollback-stream-nested-ignore-retry',
+                'sqlite-rowvalue-retry-after-inner-rollback-reads-inner-savepoint-image-nested-ignore-retry',
             ],
         ];
     }
@@ -2592,11 +2592,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite nested row-value savepoint next168 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite nested row-value savepoint nested-ignore-retry rows must be arrays');
                 }
             }
         }
@@ -2619,11 +2619,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite nested row-value savepoint next168 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite nested row-value savepoint nested-ignore-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite nested row-value savepoint next168 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite nested row-value savepoint nested-ignore-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -2711,13 +2711,13 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         string $rowIdColumn = 'option_id',
     ): array {
         if ($attemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next169 needs attempt statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry needs attempt statements');
         }
         if ($retryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next169 needs retry statements');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry needs retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next169 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry needs unique constraints');
         }
 
         $savepointImage = self::normalizeTablesAbortRollbackRetrySavepoint($tables);
@@ -2737,7 +2737,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
 
         return [
             'savepoint' => $savepoint,
-            'status' => $statementAborted ? 'statement-aborted-savepoint-preserved-retried-current-source-next169' : 'released-without-abort-current-source-next169',
+            'status' => $statementAborted ? 'statement-aborted-savepoint-preserved-retried-current-source' : 'released-without-abort-current-source-abort-retry',
             'statement_aborted' => $statementAborted,
             'transaction_rolled_back' => false,
             'rolled_back_to_savepoint' => false,
@@ -2767,7 +2767,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'dependencies' => [
                 'sqlite-update-or-abort-rowvalue-conflict-rolls-back-current-statement-only',
                 'sqlite-abort-conflict-preserves-savepoint-and-prior-returning-streams',
-                'sqlite-rowvalue-update-delete-returning-retry-continues-from-abort-current-source-next169',
+                'sqlite-rowvalue-update-delete-returning-retry-continues-from-abort-current-source-abort-retry',
             ],
         ];
     }
@@ -2874,11 +2874,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next169 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value ABORT savepoint next169 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value ABORT savepoint abort-retry rows must be arrays');
                 }
             }
         }
@@ -2901,11 +2901,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next169 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint abort-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint next169 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value ABORT savepoint abort-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;
@@ -5131,21 +5131,21 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         array $innerAttemptStatements,
         array $innerRetryStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_outer_delete_next183',
-        string $innerSavepoint = 'wp_options_inner_retry_next183',
+        string $outerSavepoint = 'wp_options_outer_delete_inner_retry',
+        string $innerSavepoint = 'wp_options_inner_delete_inner_retry',
         string $rowIdColumn = 'option_id',
     ): array {
         if ($outerDeleteStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested delete next183 needs outer delete statements');
+            throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry needs outer delete statements');
         }
         if ($innerAttemptStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested delete next183 needs inner attempt statements');
+            throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry needs inner attempt statements');
         }
         if ($innerRetryStatements === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested delete next183 needs inner retry statements');
+            throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry needs inner retry statements');
         }
         if ($uniqueConstraints === []) {
-            throw new \InvalidArgumentException('SQLite row-value nested delete next183 needs unique constraints');
+            throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry needs unique constraints');
         }
 
         $outerImage = self::normalizeTablesDeleteInnerRollbackRetrySavepoint($tables);
@@ -5178,7 +5178,7 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         return [
             'outer_savepoint' => $outerSavepoint,
             'inner_savepoint' => $innerSavepoint,
-            'status' => 'outer-delete-preserved-inner-rowvalue-rollback-retry-next183',
+            'status' => 'outer-delete-preserved-inner-rowvalue-rollback-retry',
             'rolled_back_to_inner_savepoint' => true,
             'outer_delete_preserved_after_inner_rollback_to' => true,
             'inner_savepoint_preserved_after_rollback_to' => true,
@@ -5208,9 +5208,9 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
             'changed_tables_after_inner_retry' => self::changedTablesDeleteInnerRollbackRetrySavepoint($outerImage, $afterInnerRetry),
             'row_counts' => self::rowCountsDeleteInnerRollbackRetrySavepoint($afterInnerRetry),
             'dependencies' => [
-                'sqlite-outer-delete-returning-current-source-preserved-next183',
-                'sqlite-inner-rowvalue-update-delete-returning-rollback-discards-stream-next183',
-                'sqlite-inner-retry-reads-post-delete-current-source-next183',
+                'sqlite-outer-delete-returning-current-source-preserved-delete-inner-retry',
+                'sqlite-inner-rowvalue-update-delete-returning-rollback-discards-stream-delete-inner-retry',
+                'sqlite-inner-retry-reads-post-delete-current-source-delete-inner-retry',
             ],
         ];
     }
@@ -5277,11 +5277,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
     {
         foreach ($tables as $name => $rows) {
             if (!is_string($name) || $name === '' || !is_array($rows) || !array_is_list($rows)) {
-                throw new \InvalidArgumentException('SQLite row-value nested delete next183 tables must be named row lists');
+                throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry tables must be named row lists');
             }
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite row-value nested delete next183 rows must be arrays');
+                    throw new \InvalidArgumentException('SQLite row-value nested delete delete-inner-retry rows must be arrays');
                 }
             }
         }
@@ -5304,11 +5304,11 @@ final class SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan
         $matched = [];
         foreach ($rows as $row) {
             if (!array_key_exists($rowIdColumn, $row)) {
-                throw new \InvalidArgumentException("SQLite row-value nested delete next183 rowid column {$rowIdColumn} is missing");
+                throw new \InvalidArgumentException("SQLite row-value nested delete delete-inner-retry rowid column {$rowIdColumn} is missing");
             }
             $id = $row[$rowIdColumn];
             if (!is_int($id) && !is_string($id)) {
-                throw new \InvalidArgumentException("SQLite row-value nested delete next183 rowid column {$rowIdColumn} must be int or string");
+                throw new \InvalidArgumentException("SQLite row-value nested delete delete-inner-retry rowid column {$rowIdColumn} must be int or string");
             }
             if (isset($wanted[(string) $id])) {
                 $matched[] = $row;

@@ -1,0 +1,23 @@
+# B-tree Vacuum Numbered Method Consolidation Forty-First Pass
+
+This pass consolidates the final `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan`
+freelist handoff range tests/examples into stable descriptive files:
+
+- `SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
+- `wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff.php`
+
+The test still covers every handoff slice from 1151 through 1182 through the
+canonical `tableLeafFromDeleteResultForCurrentSourceFreelistHandoff()` entrypoint.
+No numbered production class, file, or helper was added.
+
+Verification:
+
+- `php -l lanes/libsqlite/src/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceFreelistHandoffTest.php`
+  - `1 test files, 672 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff.php --self-test`
+  - `wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff self-test passed`
+- `git diff --check -- lanes/libsqlite`
+  - passed

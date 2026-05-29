@@ -31,7 +31,7 @@ $plan163 = static fn (
     ?array $next = null,
     ?array $constraints = null,
     ?array $orderBy = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext163(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostBestIndex(
     'json_tree',
     $current ?? $current163,
     $next ?? $next163,
@@ -118,8 +118,8 @@ $tests = [
     'unrunnable next estimates no rows' => static fn (TestRunner $t) => $t->same(0, $unrunnable163()['nextGeneratedPathRowidBestIndex']['estimatedRows']),
     'unrunnable next estimates sentinel cost' => static fn (TestRunner $t) => $t->same(1000000, $unrunnable163()['nextGeneratedPathRowidBestIndex']['estimatedCost']),
     'unrunnable next prepares cursor' => static fn (TestRunner $t) => $t->same('prepare-json-table-cursor', $unrunnable163()['nextGeneratedPathRowidBestIndex']['cursorAdmission']),
-    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext163('json_tree', $current163, $next163, '', 'generated_path', $constraints163)),
-    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext163('json_tree', $current163, $next163, 'option_value', '', $constraints163)),
+    'bad json source column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostBestIndex('json_tree', $current163, $next163, '', 'generated_path', $constraints163)),
+    'bad generated path column rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostBestIndex('json_tree', $current163, $next163, 'option_value', '', $constraints163)),
     'dependency scenario has no new support component' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 

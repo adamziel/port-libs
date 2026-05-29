@@ -22,7 +22,7 @@ $base = [
     'dependencies' => ['sqlite-wal-hot-journal-savepoint-checkpoint-current-source-next298'],
 ];
 
-return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next299AfterCurrentCheckpoint($base, [[
+return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::afterReadyCheckpointVerification($base, [[
     'name' => 'wp-next299-current-source-seal',
     'source_token' => $base['source_token'],
     'database_digest' => $base['database_digest'],
@@ -34,4 +34,4 @@ return SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next299After
     'wal_index_salt_synced' => true,
     'reader_marks_released' => true,
     'hot_journal_visible' => false,
-]]);
+]], 299, 'seal_after_ready_checkpoint_current_source_next296_299');

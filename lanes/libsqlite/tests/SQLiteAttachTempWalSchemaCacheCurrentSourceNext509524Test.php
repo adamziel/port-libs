@@ -57,7 +57,7 @@ $plan509524 = static fn (array $events, ?array $statements = null, ?array $schem
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next509-524 extends next493-508'] = static function (TestRunner $t) use ($plan509524): void {
+$tests['attach temp wal schema cache current source next509-524 extends rewrite shadow window'] = static function (TestRunner $t) use ($plan509524): void {
     $result = $plan509524([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 509, 'table' => 'wp_navigation_redirect_next509', 'indexes' => ['wp_navigation_redirect_slug_next509'], 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_errors_key_next505', 'to' => 'wp_theme_stage_publish_errors_key_next510'],

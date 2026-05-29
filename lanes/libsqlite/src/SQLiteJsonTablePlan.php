@@ -2172,7 +2172,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext163(
+    public static function currentSourceGeneratedPathRowidCostBestIndex(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2233,7 +2233,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext166(
+    public static function currentSourceGeneratedPathRowidYieldPlan(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2243,7 +2243,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext163(
+        $plan = self::currentSourceGeneratedPathRowidCostBestIndex(
             $function,
             $currentSource,
             $nextSource,
@@ -2292,7 +2292,7 @@ final class SQLiteJsonTablePlan
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext172(
+    public static function currentSourceGeneratedPathRowidSourceFence(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -2302,7 +2302,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext166(
+        $plan = self::currentSourceGeneratedPathRowidYieldPlan(
             $function,
             $currentSource,
             $nextSource,
@@ -2680,7 +2680,7 @@ final class SQLiteJsonTablePlan
         ?string $rootColumn = null,
         array $orderBy = [],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext166(
+        $plan = self::currentSourceGeneratedPathRowidYieldPlan(
             $function,
             $currentSource,
             $nextSource,

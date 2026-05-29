@@ -63,7 +63,7 @@ if (($argv[1] ?? '') === '--self-test') {
     assert($plan['statements']['inventory-reader']['schema_transitions'][0]['next_schema'] === '__detached__');
     assert($plan['statements']['metrics-writer']['schema_transitions'][0]['next_schema'] === '__detached__');
 
-    echo "wordpress-attach-temp-wal-schema-cache-current-source-next493-508 self-test passed\n";
+    echo "wordpress-attach-temp-wal-schema-cache-rewrite-shadow-window self-test passed\n";
     return;
 }
 

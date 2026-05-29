@@ -25,25 +25,25 @@ $plan = SQLiteRowValueUpdateDeleteReturningSavepointCurrentSourceNextPlan::execu
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, blog_id, option_name, status, (blog_id, option_name) IS DISTINCT FROM (1, 'siteurl') AS not_siteurl ORDER BY option_id",
     ],
     [
-        "UPDATE wp_options SET (status, option_value, bytes) = ('inner183', option_value || ':inner183', bytes + 3) WHERE (blog_id, option_name) BETWEEN (2, 'pending_theme') AND (3, 'zzzz') RETURNING option_id, blog_id, option_name, status, option_value, bytes, (blog_id, status) IS (3, 'inner183') AS blog_three_inner ORDER BY option_id",
+        "UPDATE wp_options SET (status, option_value, bytes) = ('inner_delete_attempt', option_value || ':inner_delete_attempt', bytes + 3) WHERE (blog_id, option_name) BETWEEN (2, 'pending_theme') AND (3, 'zzzz') RETURNING option_id, blog_id, option_name, status, option_value, bytes, (blog_id, status) IS (3, 'inner_delete_attempt') AS blog_three_inner ORDER BY option_id",
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((2, 'home'), (4, 'siteurl')) RETURNING option_id, blog_id, option_name, status ORDER BY option_id",
     ],
     [
-        "UPDATE wp_options SET (status, option_value, bytes) = ('retry183', option_value || ':retry183', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (3, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, option_value, bytes, (status, option_name) IS ('retry183', 'rewrite_rules') AS rewrite_retry ORDER BY option_id",
+        "UPDATE wp_options SET (status, option_value, bytes) = ('retry_delete_inner', option_value || ':retry_delete_inner', bytes + 5) WHERE (blog_id, option_name) IN ((2, 'pending_theme'), (3, 'rewrite_rules'), (3, 'plugin_batch')) RETURNING option_id, blog_id, option_name, status, option_value, bytes, (status, option_name) IS ('retry_delete_inner', 'rewrite_rules') AS rewrite_retry ORDER BY option_id",
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((2, 'home'), (4, 'siteurl')) RETURNING option_id, blog_id, option_name, status ORDER BY option_id LIMIT 1",
     ],
     [['blog_id', 'option_name']],
 );
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($plan['status'] === 'outer-delete-preserved-inner-rowvalue-rollback-retry-next183');
+    assert($plan['status'] === 'outer-delete-preserved-inner-rowvalue-rollback-retry');
     assert($plan['outer_yielded_returning_count'] === 2);
     assert($plan['inner_suppressed_by_rollback_count'] === 6);
     assert($plan['inner_yielded_after_retry_count'] === 4);
     assert(array_column($plan['current_source_tables']['wp_options'], 'option_id') === [1, 2, 5, 7, 8, 9, 10]);
-    assert(array_column($plan['current_source_tables']['wp_options'], 'status', 'option_id')[8] === 'retry183');
+    assert(array_column($plan['current_source_tables']['wp_options'], 'status', 'option_id')[8] === 'retry_delete_inner');
 
-    echo "wordpress-rowvalue-delete-savepoint-current-source-next183 self-test passed\n";
+    echo "wordpress-rowvalue-delete-inner-rollback-retry-savepoint self-test passed\n";
     return;
 }
 

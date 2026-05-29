@@ -1,6 +1,6 @@
 # SQLite attach TEMP WAL schema cache current-source next509-524
 
-Prepares the direct follow-on to merged next493-508:
+Prepares the direct follow-on to the consolidated rewrite shadow window:
 
 - extends the established `SQLiteAttachWalTempSchemaCacheCurrentSourceNextPlan` canonical source class with `currentSourceNext509524()`;
 - avoids a new numbered source class because the local attach/TEMP/WAL schema-cache pattern keeps this domain in the existing next92 canonical planner;
@@ -18,4 +18,4 @@ php lanes/libsqlite/examples/wordpress-attach-temp-wal-schema-cache-current-sour
 git diff --check
 ```
 
-Non-overlap: this follows next493-508 and stays inside attached schema-cache source planning. It avoids PRAGMA integrity/rootpage, trigger RETURNING/savepoint, pager master-journal, WAL checkpoint reader-pin, VFS locking/file-control, B-tree, JSON, encoding, SELECT planner, and unrelated WAL hot-journal clusters.
+Non-overlap: this follows the consolidated rewrite shadow window and stays inside attached schema-cache source planning. It avoids PRAGMA integrity/rootpage, trigger RETURNING/savepoint, pager master-journal, WAL checkpoint reader-pin, VFS locking/file-control, B-tree, JSON, encoding, SELECT planner, and unrelated WAL hot-journal clusters.

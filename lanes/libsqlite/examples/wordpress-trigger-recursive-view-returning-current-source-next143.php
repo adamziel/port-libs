@@ -6,7 +6,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan;
 
-$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::insertThroughViewSourcesNext143(
+$plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::insertThroughViewSources(
     [['option_id' => 10, 'option_name' => 'siteurl', 'depth' => 0, 'autoload' => 'yes']],
     [['option_id' => 20, 'option_name' => 'plugin_current', 'depth' => 1, 'autoload' => 'yes']],
     [['option_id' => 30, 'option_name' => 'plugin_next', 'depth' => 1, 'autoload' => 'no']],

@@ -42,7 +42,7 @@ $databaseForSlice = static function (int $sliceNumber) use ($makeFirstPage, $put
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test'])),
-        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_next{$sliceNumber}", str_repeat('cache:', 42)])),
+        SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, "_transient_freelist_handoff_{$sliceNumber}", str_repeat('cache:', 42)])),
         SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'rewrite_rules', str_repeat('rewrite:', 8)])),
     ]);
     $pages[105] = str_repeat("\0", 512);
@@ -65,7 +65,7 @@ $databaseForSlice = static function (int $sliceNumber) use ($makeFirstPage, $put
 };
 
 $rows = [];
-foreach (range(1151, 1166) as $sliceNumber) {
+foreach (range(1151, 1182) as $sliceNumber) {
     $database = $databaseForSlice($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
     $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFromDeleteResultForCurrentSourceFreelistHandoff(
@@ -78,7 +78,7 @@ foreach (range(1151, 1166) as $sliceNumber) {
             'obsolete_overflow_page_numbers' => [106, 107, 108, 109, 110],
         ],
         2,
-        str_repeat("next1151-current-source-followon-handoff-", 36),
+        str_repeat("current-source-freelist-handoff-", 44),
         3,
     );
     $summary = $plan->currentSourceSummary();
@@ -94,3 +94,17 @@ foreach (range(1151, 1166) as $sliceNumber) {
 }
 
 echo json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
+
+if (in_array('--self-test', $argv, true)) {
+    if (count($rows) !== 32) {
+        fwrite(STDERR, "wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff self-test failed\n");
+        exit(1);
+    }
+    foreach ($rows as $row) {
+        if ($row['errors'] !== [] || $row['matches_freelist'] !== true || $row['tail_pages_excluded'] !== true) {
+            fwrite(STDERR, "wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff self-test failed\n");
+            exit(1);
+        }
+    }
+    fwrite(STDOUT, "wordpress-btree-vacuum-pointermap-freeblock-current-source-freelist-handoff self-test passed\n");
+}

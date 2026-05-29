@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteAttachWalTempSchemaCachePlan;
 
-$schemas493508 = [
+$rewriteShadowSchemas = [
     'main' => [
         'schema_cookie' => 477,
         'tables' => ['wp_options', 'wp_navigation_rewrite_next477'],
@@ -39,7 +39,7 @@ $schemas493508 = [
     ],
 ];
 
-$statements493508 = [
+$rewriteShadowStatements = [
     ['name' => 'rewrite-reader', 'sql' => 'SELECT rule_id FROM main.wp_navigation_rewrite_next477 INDEXED BY wp_navigation_rewrite_slug_next477 WHERE slug = ?', 'active' => true],
     ['name' => 'lock-reader', 'sql' => 'SELECT lock_id FROM temp.wp_theme_stage_publish_locks_next489 INDEXED BY wp_theme_stage_publish_locks_key_next489 WHERE cache_key = ?', 'active' => true],
     ['name' => 'capacity-window-reader', 'sql' => 'SELECT window_id FROM analytics.wp_event_capacity_window_next486 INDEXED BY wp_event_capacity_window_day_next486 WHERE day = ?'],
@@ -49,16 +49,16 @@ $statements493508 = [
     ['name' => 'metrics-writer', 'sql' => 'UPDATE metrics.wp_metric_rollups_next501 INDEXED BY wp_metric_rollups_slug_next501 SET enabled = ? WHERE slug = ?'],
 ];
 
-$plan493508 = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
-    $schemas ?? $schemas493508,
-    $statements ?? $statements493508,
+$rewriteShadowPlan = static fn (array $events, ?array $statements = null, ?array $schemas = null): array => SQLiteAttachWalTempSchemaCachePlan::schemaCacheConsolidatedPlan(
+    $schemas ?? $rewriteShadowSchemas,
+    $statements ?? $rewriteShadowStatements,
     $events,
 );
 
 $tests = [];
 
-$tests['attach temp wal schema cache current source next493-508 extends next477-492'] = static function (TestRunner $t) use ($plan493508): void {
-    $result = $plan493508([
+$tests['attach temp wal schema cache rewrite shadow window expires changed schemas'] = static function (TestRunner $t) use ($rewriteShadowPlan): void {
+    $result = $rewriteShadowPlan([
         ['op' => 'wal_commit', 'schema' => 'main', 'schema_cookie' => 493, 'table' => 'wp_navigation_rewrite_meta_next493', 'indexes' => ['wp_navigation_rewrite_meta_key_next493'], 'commit' => true],
         ['op' => 'rename_index', 'schema' => 'temp', 'from' => 'wp_theme_stage_publish_locks_key_next489', 'to' => 'wp_theme_stage_publish_locks_key_next494'],
         ['op' => 'drop_index', 'schema' => 'analytics', 'index' => 'wp_event_capacity_window_day_next486'],
@@ -99,8 +99,8 @@ $tests['attach temp wal schema cache current source next493-508 extends next477-
     $t->same('__detached__', $result['statements']['metrics-writer']['schema_transitions'][0]['next_schema']);
 };
 
-$tests['attach temp wal schema cache current source next493-508 ignores detached uncommitted sidecar'] = static function (TestRunner $t) use ($plan493508): void {
-    $result = $plan493508([
+$tests['attach temp wal schema cache rewrite shadow window ignores detached uncommitted sidecar'] = static function (TestRunner $t) use ($rewriteShadowPlan): void {
+    $result = $rewriteShadowPlan([
         ['op' => 'attach', 'schema' => 'preview', 'schema_cookie' => 9, 'tables' => ['wp_preview_cache'], 'indexes' => ['wp_preview_cache_key'], 'file' => '/srv/wp/preview-next493.sqlite'],
         ['op' => 'wal_commit', 'schema' => 'preview', 'schema_cookie' => 494, 'table' => 'wp_preview_pending', 'indexes' => ['wp_preview_pending_key'], 'commit' => false],
         ['op' => 'detach', 'schema' => 'preview'],

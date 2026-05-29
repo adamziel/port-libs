@@ -20,7 +20,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{view?:string,savepoint?:string,current_source?:string,next_source?:string,current_rollback_to?:bool,next_rollback_to?:bool,recursive_triggers?:bool,max_depth?:int,conflict_action?:string} $options
      * @return array<string,mixed>
      */
-    public static function insertThroughViewSourcesNext143(
+    public static function insertThroughViewSources(
         array $initialRows,
         array $currentRows,
         array $nextRows,
@@ -29,10 +29,10 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning = ['*'],
         array $options = [],
     ): array {
-        $view = self::identifierNext143((string) ($options['view'] ?? 'wp_option_import_view'), 'view');
-        $savepoint = self::identifierNext143((string) ($options['savepoint'] ?? 'wp_recursive_view_import'), 'savepoint');
-        $currentSource = self::sourceTokenNext143((string) ($options['current_source'] ?? 'current-recursive-view-returning'));
-        $nextSource = self::sourceTokenNext143((string) ($options['next_source'] ?? 'next-recursive-view-returning'));
+        $view = self::recursiveViewReturningIdentifier((string) ($options['view'] ?? 'wp_option_import_view'), 'view');
+        $savepoint = self::recursiveViewReturningIdentifier((string) ($options['savepoint'] ?? 'wp_recursive_view_import'), 'savepoint');
+        $currentSource = self::recursiveViewReturningSourceToken((string) ($options['current_source'] ?? 'current-recursive-view-returning'));
+        $nextSource = self::recursiveViewReturningSourceToken((string) ($options['next_source'] ?? 'next-recursive-view-returning'));
         $currentRollback = (bool) ($options['current_rollback_to'] ?? true);
         $nextRollback = (bool) ($options['next_rollback_to'] ?? false);
 
@@ -75,8 +75,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             ],
         );
 
-        $currentStream = self::streamNext143($current['yielded'], 'current', $currentSource, $view, !$currentRollback);
-        $nextStream = self::streamNext143($next['yielded'], 'next', $nextSource, $view, !$nextRollback);
+        $currentStream = self::recursiveViewReturningStream($current['yielded'], 'current', $currentSource, $view, !$currentRollback);
+        $nextStream = self::recursiveViewReturningStream($next['yielded'], 'next', $nextSource, $view, !$nextRollback);
         $admittedCurrent = array_values(array_filter($currentStream, static fn (array $row): bool => $row['admitted']));
         $admittedNext = array_values(array_filter($nextStream, static fn (array $row): bool => $row['admitted']));
         $suppressedCurrent = array_values(array_filter($currentStream, static fn (array $row): bool => !$row['admitted']));
@@ -86,7 +86,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return [
             'view' => $view,
             'savepoint' => $savepoint,
-            'status' => self::statusNext143($currentRollback, $nextRollback),
+            'status' => self::recursiveViewReturningSourceStatus($currentRollback, $nextRollback),
             'current_source' => $currentSource,
             'next_source' => $nextSource,
             'source_transition' => [
@@ -107,8 +107,8 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             'admitted_next_source_stream' => $admittedNext,
             'suppressed_current_source_stream' => $suppressedCurrent,
             'suppressed_next_source_stream' => $suppressedNext,
-            'returning_rows' => self::rowsNext143(array_merge($admittedCurrent, $admittedNext)),
-            'suppressed_returning_rows' => self::rowsNext143(array_merge($suppressedCurrent, $suppressedNext)),
+            'returning_rows' => self::recursiveViewReturningRows(array_merge($admittedCurrent, $admittedNext)),
+            'suppressed_returning_rows' => self::recursiveViewReturningRows(array_merge($suppressedCurrent, $suppressedNext)),
             'final_rows' => array_values($finalRows),
             'current_source_admitted' => !$currentRollback,
             'next_source_admitted' => !$nextRollback,
@@ -126,7 +126,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function statusNext143(bool $currentRollback, bool $nextRollback): string
+    private static function recursiveViewReturningSourceStatus(bool $currentRollback, bool $nextRollback): string
     {
         if ($currentRollback && !$nextRollback) {
             return 'current-recursive-view-rollback-next-source-admitted';
@@ -145,7 +145,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $yielded
      * @return list<array<string,mixed>>
      */
-    private static function streamNext143(array $yielded, string $phase, string $source, string $view, bool $admitted): array
+    private static function recursiveViewReturningStream(array $yielded, string $phase, string $source, string $view, bool $admitted): array
     {
         $stream = [];
         foreach ($yielded as $ordinal => $row) {
@@ -168,12 +168,12 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $stream
      * @return list<array<string,mixed>>
      */
-    private static function rowsNext143(array $stream): array
+    private static function recursiveViewReturningRows(array $stream): array
     {
         return array_values(array_map(static fn (array $row): array => (array) $row['returning'], $stream));
     }
 
-    private static function identifierNext143(string $identifier, string $label): string
+    private static function recursiveViewReturningIdentifier(string $identifier, string $label): string
     {
         if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
             throw new InvalidArgumentException("SQLite recursive view RETURNING {$label} is malformed");
@@ -182,7 +182,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $identifier;
     }
 
-    private static function sourceTokenNext143(string $token): string
+    private static function recursiveViewReturningSourceToken(string $token): string
     {
         if (!preg_match('/^[A-Za-z0-9_.:@-]+$/', $token)) {
             throw new InvalidArgumentException('SQLite recursive view RETURNING source token is malformed');
@@ -203,7 +203,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{admit_next_source?:bool,max_depth?:int,savepoint?:string} $options
      * @return array<string,mixed>
      */
-    public static function executeNext157(
+    public static function executeRecursiveViewSourceHandoff(
         array $rows,
         array $currentRoots,
         array $nextRoots,
@@ -216,25 +216,25 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite trigger recursive view RETURNING next157 projection cannot be empty');
         }
 
-        $baseRows = self::normalizeRowsNext157($rows);
-        $currentView = self::normalizeViewNext157($currentView, 'current view');
-        $nextView = self::normalizeViewNext157($nextView, 'next view');
-        $maxDepth = self::positiveIntNext157($options['max_depth'] ?? 8, 'max depth');
-        $savepoint = self::tokenNext157((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next157'), 'savepoint');
+        $baseRows = self::normalizeRecursiveViewSourceRows($rows);
+        $currentView = self::normalizeRecursiveViewSource($currentView, 'current view');
+        $nextView = self::normalizeRecursiveViewSource($nextView, 'next view');
+        $maxDepth = self::positiveRecursiveViewSourceInt($options['max_depth'] ?? 8, 'max depth');
+        $savepoint = self::recursiveViewSourceToken((string) ($options['savepoint'] ?? 'wp_recursive_view_returning_next157'), 'savepoint');
         $admitNext = (bool) ($options['admit_next_source'] ?? false);
 
-        $current = self::runViewSourceNext157($baseRows, $currentRoots, $currentView, $returning, $maxDepth, 'current');
+        $current = self::runRecursiveViewSource($baseRows, $currentRoots, $currentView, $returning, $maxDepth, 'current');
         $nextBaseRows = $admitNext ? $current['rows'] : $baseRows;
-        $next = self::runViewSourceNext157($nextBaseRows, $nextRoots, $nextView, $returning, $maxDepth, 'next');
+        $next = self::runRecursiveViewSource($nextBaseRows, $nextRoots, $nextView, $returning, $maxDepth, 'next');
 
         return [
             'status' => $admitNext
                 ? 'trigger-recursive-view-returning-next-source-admitted-next157'
                 : 'trigger-recursive-view-returning-current-source-pinned-next157',
             'savepoint' => $savepoint,
-            'current_view' => self::viewSummaryNext157($currentView),
-            'next_view' => self::viewSummaryNext157($nextView),
-            'visible_view' => self::viewSummaryNext157($admitNext ? $nextView : $currentView),
+            'current_view' => self::recursiveViewSourceSummary($currentView),
+            'next_view' => self::recursiveViewSourceSummary($nextView),
+            'visible_view' => self::recursiveViewSourceSummary($admitNext ? $nextView : $currentView),
             'before_rows' => $baseRows,
             'current_rows' => $current['rows'],
             'after_savepoint' => $admitNext ? $next['rows'] : $baseRows,
@@ -276,7 +276,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function normalizeRowsNext157(array $rows): array
+    private static function normalizeRecursiveViewSourceRows(array $rows): array
     {
         if (!array_is_list($rows)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next157 rows must be a list');
@@ -301,7 +301,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $view
      * @return array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,where:callable(array<string,mixed>,string,int):bool,order_by:?string}
      */
-    private static function normalizeViewNext157(array $view, string $label): array
+    private static function normalizeRecursiveViewSource(array $view, string $label): array
     {
         $columns = $view['columns'] ?? null;
         if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
@@ -314,15 +314,15 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         }
 
         return [
-            'name' => self::identifierNext157((string) ($view['name'] ?? ''), $label . ' name'),
-            'source' => self::tokenNext157((string) ($view['source'] ?? ''), $label . ' source'),
-            'trigger' => self::identifierNext157((string) ($view['trigger'] ?? ''), $label . ' trigger'),
-            'trigger_source' => self::tokenNext157((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
-            'root_key' => self::identifierNext157((string) ($view['root_key'] ?? ''), $label . ' root key'),
-            'parent_key' => self::identifierNext157((string) ($view['parent_key'] ?? ''), $label . ' parent key'),
-            'columns' => array_map(static fn (mixed $column): string => self::identifierNext157((string) $column, $label . ' column'), $columns),
+            'name' => self::recursiveViewSourceIdentifier((string) ($view['name'] ?? ''), $label . ' name'),
+            'source' => self::recursiveViewSourceToken((string) ($view['source'] ?? ''), $label . ' source'),
+            'trigger' => self::recursiveViewSourceIdentifier((string) ($view['trigger'] ?? ''), $label . ' trigger'),
+            'trigger_source' => self::recursiveViewSourceToken((string) ($view['trigger_source'] ?? ''), $label . ' trigger source'),
+            'root_key' => self::recursiveViewSourceIdentifier((string) ($view['root_key'] ?? ''), $label . ' root key'),
+            'parent_key' => self::recursiveViewSourceIdentifier((string) ($view['parent_key'] ?? ''), $label . ' parent key'),
+            'columns' => array_map(static fn (mixed $column): string => self::recursiveViewSourceIdentifier((string) $column, $label . ' column'), $columns),
             'where' => $where,
-            'order_by' => isset($view['order_by']) ? self::identifierNext157((string) $view['order_by'], $label . ' order column') : null,
+            'order_by' => isset($view['order_by']) ? self::recursiveViewSourceIdentifier((string) $view['order_by'], $label . ' order column') : null,
         ];
     }
 
@@ -333,17 +333,17 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string,int):mixed> $returning
      * @return array{rows:list<array<string,mixed>>,recursive_rows:list<array<string,mixed>>,yield_stream:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int,statement_rows:int,depths:list<int>}
      */
-    private static function runViewSourceNext157(array $rows, array $roots, array $view, array $returning, int $maxDepth, string $phase): array
+    private static function runRecursiveViewSource(array $rows, array $roots, array $view, array $returning, int $maxDepth, string $phase): array
     {
-        $recursiveRows = self::recursiveRowsNext157($rows, $roots, $view, $maxDepth);
+        $recursiveRows = self::recursiveViewSourceRows($rows, $roots, $view, $maxDepth);
         $yield = [];
         $returningRows = [];
         $depths = [];
 
         foreach ($recursiveRows as $ordinal => $viewRow) {
-            $incoming = self::triggerRowNext157($viewRow, $view, $phase);
-            $rows = self::upsertOptionNext157($rows, $incoming);
-            $returningRow = self::returningRowNext157($returning, $incoming, $viewRow, $view['trigger_source'], $ordinal);
+            $incoming = self::recursiveViewSourceTriggerRow($viewRow, $view, $phase);
+            $rows = self::upsertRecursiveViewSourceOption($rows, $incoming);
+            $returningRow = self::recursiveViewSourceReturningRow($returning, $incoming, $viewRow, $view['trigger_source'], $ordinal);
             $returningRows[] = [
                 'phase' => $phase,
                 'source' => $view['source'],
@@ -388,7 +388,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,where:callable(array<string,mixed>,string,int):bool,order_by:?string} $view
      * @return list<array<string,mixed>>
      */
-    private static function recursiveRowsNext157(array $rows, array $roots, array $view, int $maxDepth): array
+    private static function recursiveViewSourceRows(array $rows, array $roots, array $view, int $maxDepth): array
     {
         if (!array_is_list($roots)) {
             throw new InvalidArgumentException('SQLite trigger recursive view next157 roots must be a list');
@@ -453,7 +453,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,where:callable(array<string,mixed>,string,int):bool,order_by:?string} $view
      * @return array<string,mixed>
      */
-    private static function triggerRowNext157(array $viewRow, array $view, string $phase): array
+    private static function recursiveViewSourceTriggerRow(array $viewRow, array $view, string $phase): array
     {
         return [
             'option_name' => 'audit:' . $phase . ':' . $viewRow['_root'] . ':' . $viewRow['option_name'],
@@ -468,7 +468,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function upsertOptionNext157(array $rows, array $incoming): array
+    private static function upsertRecursiveViewSourceOption(array $rows, array $incoming): array
     {
         foreach ($rows as $index => $row) {
             if (($row['option_name'] ?? null) === $incoming['option_name']) {
@@ -485,7 +485,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,array<string,mixed>,string,int):mixed> $returning
      * @return array<string,mixed>
      */
-    private static function returningRowNext157(array $returning, array $incoming, array $viewRow, string $triggerSource, int $ordinal): array
+    private static function recursiveViewSourceReturningRow(array $returning, array $incoming, array $viewRow, string $triggerSource, int $ordinal): array
     {
         $out = [];
         foreach ($returning as $index => $projection) {
@@ -515,7 +515,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array{name:string,source:string,trigger:string,trigger_source:string,root_key:string,parent_key:string,columns:list<string>,where:callable(array<string,mixed>,string,int):bool,order_by:?string} $view
      * @return array<string,mixed>
      */
-    private static function viewSummaryNext157(array $view): array
+    private static function recursiveViewSourceSummary(array $view): array
     {
         return [
             'name' => $view['name'],
@@ -529,7 +529,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         ];
     }
 
-    private static function positiveIntNext157(mixed $value, string $label): int
+    private static function positiveRecursiveViewSourceInt(mixed $value, string $label): int
     {
         $value = (int) $value;
         if ($value < 1) {
@@ -539,7 +539,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function identifierNext157(string $value, string $label): string
+    private static function recursiveViewSourceIdentifier(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next157 {$label} is malformed");
@@ -548,7 +548,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         return $value;
     }
 
-    private static function tokenNext157(string $value, string $label): string
+    private static function recursiveViewSourceToken(string $value, string $label): string
     {
         if (preg_match('/^[A-Za-z0-9_.:@-]+$/', $value) !== 1) {
             throw new InvalidArgumentException("SQLite trigger recursive view next157 {$label} is malformed");
@@ -1018,7 +1018,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         $nextGeneration = self::sourceTokenNext160((string) ($options['next_generation'] ?? 'next-source-next160'));
         $releaseNext = (bool) ($options['release_next_source'] ?? false);
 
-        $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext157(
+        $plan = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewSourceHandoff(
             $rows,
             $currentRoots,
             $nextRoots,

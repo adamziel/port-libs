@@ -47,8 +47,8 @@ $customPlan = static fn (): array => SQLiteRowValueUpdateDeleteReturningSavepoin
     [$outerDeleteSql],
     [$retryUpdateSql],
     $unique,
-    'outer_custom_next166',
-    'inner_custom_next166',
+    'outer_custom_nested_retry',
+    'inner_custom_nested_retry',
 );
 
 $cases = [
@@ -64,8 +64,8 @@ $cases = [
     'inner delete after update returns transient ids' => [static fn (): mixed => array_column($innerDeleteAfterUpdate()['returning'], 'option_id'), [3, 4]],
 
     'plan status' => [static fn (): mixed => $plan()['status'], 'inner-release-discarded-by-outer-rollback-retried'],
-    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_options_outer_import_next166'],
-    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_options_inner_cleanup_next166'],
+    'plan outer savepoint' => [static fn (): mixed => $plan()['outer_savepoint'], 'wp_options_outer_import_nested_retry'],
+    'plan inner savepoint' => [static fn (): mixed => $plan()['inner_savepoint'], 'wp_options_inner_cleanup_nested_retry'],
     'plan inner released true' => [static fn (): mixed => $plan()['inner_released'], true],
     'plan outer rolled back true' => [static fn (): mixed => $plan()['outer_rolled_back_to_savepoint'], true],
     'plan outer savepoint preserved' => [static fn (): mixed => $plan()['outer_savepoint_preserved_after_rollback_to'], true],
@@ -117,11 +117,11 @@ $cases = [
     'plan outer image equals original' => [static fn (): mixed => $plan()['outer_savepoint_image_tables'], $tables],
     'plan row count seven' => [static fn (): mixed => $plan()['row_counts']['wp_options'], 7],
     'plan changed tables after retry' => [static fn (): mixed => $plan()['changed_tables_after_retry'], ['wp_options']],
-    'plan dependency inner release merge' => [static fn (): mixed => in_array('sqlite-release-inner-savepoint-merges-rowvalue-returning-into-outer-savepoint-next166', $plan()['dependencies'], true), true],
-    'plan dependency outer rollback discards released inner' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-next166', $plan()['dependencies'], true), true],
-    'plan dependency retry original source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-after-outer-rollback-reads-original-current-source-next166', $plan()['dependencies'], true), true],
+    'plan dependency inner release merge' => [static fn (): mixed => in_array('sqlite-release-inner-savepoint-merges-rowvalue-returning-into-outer-savepoint-nested-retry', $plan()['dependencies'], true), true],
+    'plan dependency outer rollback discards released inner' => [static fn (): mixed => in_array('sqlite-rollback-to-outer-savepoint-discards-released-inner-returning-nested-retry', $plan()['dependencies'], true), true],
+    'plan dependency retry original source' => [static fn (): mixed => in_array('sqlite-rowvalue-update-delete-retry-after-outer-rollback-reads-original-current-source-nested-retry', $plan()['dependencies'], true), true],
 
-    'custom savepoints accepted' => [static fn (): mixed => [$customPlan()['outer_savepoint'], $customPlan()['inner_savepoint']], ['outer_custom_next166', 'inner_custom_next166']],
+    'custom savepoints accepted' => [static fn (): mixed => [$customPlan()['outer_savepoint'], $customPlan()['inner_savepoint']], ['outer_custom_nested_retry', 'inner_custom_nested_retry']],
     'custom plan discards inner update and outer delete' => [static fn (): mixed => array_column($customPlan()['discarded_returning'], 'action'), ['update', 'delete']],
     'custom plan retry starts from original row seven' => [static fn (): mixed => array_column($customPlan()['retry_statements'][0]['source_rows'], 'option_name'), ['pending_theme', 'rewrite_rules', 'orphaned_cache']],
     'custom plan final row nine retry' => [static fn (): mixed => array_column($customPlan()['current_source_tables']['wp_options'], 'option_name', 'option_id')[9], 'orphaned_cache:retry'],
@@ -136,7 +136,7 @@ $cases = [
 
 $tests = [];
 foreach ($cases as $name => [$callback, $expected]) {
-    $tests['rowvalue update delete returning savepoint current source next166 ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+    $tests['rowvalue update delete returning savepoint current source nested retry ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
         if (is_string($expected) && is_a($expected, Throwable::class, true)) {
             $t->throws($expected, $callback);
             return;

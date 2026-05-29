@@ -1,6 +1,6 @@
 # JSON table generated path rowid cost current-source next166
 
-Behavior slice: adds `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext166()`.
+Behavior slice: now uses the consolidated `SQLiteJsonTablePlan::currentSourceGeneratedPathRowidYieldPlan()` entry point.
 
 The new profile sits above the accepted next163 generated-path/rowid xBestIndex planner and records whether a current `json_tree()` / `json_each()` cursor can keep yielding a generated-path rowid result set through `xFilter` while a changed next source is prepared separately. It tracks argv bindings, omitted/residual constraints, rowset fingerprints, current-source pinning, covering/order consumption, and yield cost class.
 

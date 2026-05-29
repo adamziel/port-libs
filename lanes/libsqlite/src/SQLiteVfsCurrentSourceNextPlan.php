@@ -15,7 +15,7 @@ final class SQLiteVfsCurrentSourceNextPlan
     {
         $slice = self::slice($operations, $options);
         return match ($slice) {
-            'next146-149' => self::run146149($operations, $options),
+            'next146-149' => self::runCurrentSourceHandleReuse($operations, $options),
             'close-reopen-current-source' => self::runCloseReopenCurrentSource($operations, $options),
             'next158-161' => self::run158161($operations, $options),
             'next162-165' => self::run162165($operations, $options),
@@ -167,38 +167,38 @@ final class SQLiteVfsCurrentSourceNextPlan
     }
 
     // Consolidated behavior from next146-149.
-private static function run146149(array $operations, array $options = []): array
+    private static function runCurrentSourceHandleReuse(array $operations, array $options = []): array
     {
         if ($operations === []) {
             throw new \InvalidArgumentException('SQLite VFS current-source next146-149 requires operations');
         }
 
-        $state = self::hydrate146149($options['current'] ?? []);
-        $current = self::summary146149($state);
+        $state = self::hydrateCurrentSourceHandleReuse($options['current'] ?? []);
+        $current = self::summaryCurrentSourceHandleReuse($state);
         $events = [];
 
         foreach ($operations as $operation) {
-            $op = self::operation146149($operation);
-            $before = self::snapshot146149($state);
+            $op = self::operationCurrentSourceHandleReuse($operation);
+            $before = self::snapshotCurrentSourceHandleReuse($state);
 
             if ($op['kind'] === 'source') {
-                $source = self::sourceName146149((string) $op['source']);
+                $source = self::sourceNameCurrentSourceHandleReuse((string) $op['source']);
                 if (!isset($state['sources'][$source])) {
-                    $events[] = self::event146149('source', 'missing-source', $source, $before, self::snapshot146149($state), []);
+                    $events[] = self::eventCurrentSourceHandleReuse('source', 'missing-source', $source, $before, self::snapshotCurrentSourceHandleReuse($state), []);
                     continue;
                 }
                 $state['current_source'] = $source;
-                $events[] = self::event146149('source', 'ok', $source, $before, self::snapshot146149($state), [
+                $events[] = self::eventCurrentSourceHandleReuse('source', 'ok', $source, $before, self::snapshotCurrentSourceHandleReuse($state), [
                     'handle' => $state['sources'][$source]['handle'],
                 ]);
                 continue;
             }
 
             if ($op['kind'] === 'open') {
-                $source = self::sourceName146149((string) $op['source']);
+                $source = self::sourceNameCurrentSourceHandleReuse((string) $op['source']);
                 if (isset($state['sources'][$source])) {
                     $state['current_source'] = $source;
-                    $events[] = self::event146149('open', 'reused-current-source', $source, $before, self::snapshot146149($state), [
+                    $events[] = self::eventCurrentSourceHandleReuse('open', 'reused-current-source', $source, $before, self::snapshotCurrentSourceHandleReuse($state), [
                         'handle' => $state['sources'][$source]['handle'],
                         'owner' => $state['sources'][$source]['owner'],
                     ]);
@@ -206,10 +206,10 @@ private static function run146149(array $operations, array $options = []): array
                 }
 
                 $state['sequence']++;
-                $path = self::pathName146149((string) ($op['path'] ?? ''));
+                $path = self::pathNameCurrentSourceHandleReuse((string) ($op['path'] ?? ''));
                 $sourceState = [
                     'handle' => 'vfs146149-' . $state['sequence'],
-                    'owner' => self::owner146149($path),
+                    'owner' => self::ownerCurrentSourceHandleReuse($path),
                     'path' => $path,
                     'readonly' => (bool) ($op['readonly'] ?? false),
                     'locks' => [],
@@ -217,20 +217,20 @@ private static function run146149(array $operations, array $options = []): array
                 ];
                 $state['sources'][$source] = $sourceState;
                 $state['current_source'] = $source;
-                $events[] = self::event146149('open', 'open', $source, $before, self::snapshot146149($state), $sourceState);
+                $events[] = self::eventCurrentSourceHandleReuse('open', 'open', $source, $before, self::snapshotCurrentSourceHandleReuse($state), $sourceState);
                 continue;
             }
 
-            $source = self::sourceFor146149($state, $op['source'] ?? null);
+            $source = self::sourceForCurrentSourceHandleReuse($state, $op['source'] ?? null);
             if (!isset($state['sources'][$source])) {
-                $events[] = self::event146149($op['kind'], 'missing-source', $source, $before, self::snapshot146149($state), []);
+                $events[] = self::eventCurrentSourceHandleReuse($op['kind'], 'missing-source', $source, $before, self::snapshotCurrentSourceHandleReuse($state), []);
                 continue;
             }
 
             if ($op['kind'] === 'filecontrol') {
-                $control = self::controlName146149((string) $op['control']);
+                $control = self::controlNameCurrentSourceHandleReuse((string) $op['control']);
                 $state['sources'][$source]['file_controls'][$control] = $op['value'];
-                $events[] = self::event146149('file_control', 'ok', $source, $before, self::snapshot146149($state), [
+                $events[] = self::eventCurrentSourceHandleReuse('file_control', 'ok', $source, $before, self::snapshotCurrentSourceHandleReuse($state), [
                     'file_control' => $control,
                     'value' => $op['value'],
                     'handle' => $state['sources'][$source]['handle'],
@@ -239,10 +239,10 @@ private static function run146149(array $operations, array $options = []): array
             }
 
             if ($op['kind'] === 'lock') {
-                $level = self::lockLevel146149((string) $op['level']);
-                $connection = self::connectionName146149($op['connection'] ?? null);
+                $level = self::lockLevelCurrentSourceHandleReuse((string) $op['level']);
+                $connection = self::connectionNameCurrentSourceHandleReuse($op['connection'] ?? null);
                 if ($state['sources'][$source]['readonly'] && in_array($level, ['reserved', 'pending', 'exclusive'], true)) {
-                    $events[] = self::event146149('lock', 'blocked', $source, $before, self::snapshot146149($state), [
+                    $events[] = self::eventCurrentSourceHandleReuse('lock', 'blocked', $source, $before, self::snapshotCurrentSourceHandleReuse($state), [
                         'level' => $level,
                         'connection' => $connection,
                         'reason' => 'readonly current-source cannot take writer lock',
@@ -250,7 +250,7 @@ private static function run146149(array $operations, array $options = []): array
                     continue;
                 }
                 $state['sources'][$source]['locks'][$level] = $connection;
-                $events[] = self::event146149('lock', 'ok', $source, $before, self::snapshot146149($state), [
+                $events[] = self::eventCurrentSourceHandleReuse('lock', 'ok', $source, $before, self::snapshotCurrentSourceHandleReuse($state), [
                     'level' => $level,
                     'connection' => $connection,
                     'owner' => $state['sources'][$source]['owner'],
@@ -264,7 +264,7 @@ private static function run146149(array $operations, array $options = []): array
         return [
             'status' => (string) ($events[array_key_last($events)]['status'] ?? 'ok'),
             'current' => $current,
-            'next' => self::summary146149($state),
+            'next' => self::summaryCurrentSourceHandleReuse($state),
             'events' => $events,
             'dependencies' => [
                 'vfs-current-source-hydration',
@@ -274,7 +274,7 @@ private static function run146149(array $operations, array $options = []): array
         ];
     }
 
-    private static function hydrate146149(mixed $current): array
+    private static function hydrateCurrentSourceHandleReuse(mixed $current): array
     {
         $state = ['sequence' => 0, 'current_source' => null, 'sources' => []];
         if (!is_array($current)) {
@@ -286,15 +286,15 @@ private static function run146149(array $operations, array $options = []): array
             if (!is_array($source)) {
                 continue;
             }
-            $sourceName = self::sourceName146149((string) $name);
-            $path = self::pathName146149((string) ($source['path'] ?? ''));
+            $sourceName = self::sourceNameCurrentSourceHandleReuse((string) $name);
+            $path = self::pathNameCurrentSourceHandleReuse((string) ($source['path'] ?? ''));
             $handle = trim((string) ($source['handle'] ?? ''));
             if ($handle === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $handle) !== 1) {
                 throw new \InvalidArgumentException('SQLite VFS hydrated handle name is unsupported');
             }
             $state['sources'][$sourceName] = [
                 'handle' => $handle,
-                'owner' => self::owner146149($path),
+                'owner' => self::ownerCurrentSourceHandleReuse($path),
                 'path' => $path,
                 'readonly' => (bool) ($source['readonly'] ?? false),
                 'locks' => is_array($source['locks'] ?? null) ? $source['locks'] : [],
@@ -303,7 +303,7 @@ private static function run146149(array $operations, array $options = []): array
         }
 
         if (isset($current['current_source'])) {
-            $currentSource = self::sourceName146149((string) $current['current_source']);
+            $currentSource = self::sourceNameCurrentSourceHandleReuse((string) $current['current_source']);
             if (!isset($state['sources'][$currentSource])) {
                 throw new \InvalidArgumentException('SQLite VFS hydrated current source has no handle');
             }
@@ -314,7 +314,7 @@ private static function run146149(array $operations, array $options = []): array
         return $state;
     }
 
-    private static function operation146149(string|array $operation): array
+    private static function operationCurrentSourceHandleReuse(string|array $operation): array
     {
         if (is_array($operation)) {
             $kind = strtolower(str_replace(['_', '-'], '', (string) ($operation['op'] ?? $operation['kind'] ?? '')));
@@ -347,10 +347,10 @@ private static function run146149(array $operations, array $options = []): array
         throw new \InvalidArgumentException('SQLite VFS current-source next146-149 operation is unsupported');
     }
 
-    private static function sourceFor146149(array $state, mixed $source): string
+    private static function sourceForCurrentSourceHandleReuse(array $state, mixed $source): string
     {
         if ($source !== null && $source !== '') {
-            return self::sourceName146149((string) $source);
+            return self::sourceNameCurrentSourceHandleReuse((string) $source);
         }
         if (!is_string($state['current_source'])) {
             throw new \InvalidArgumentException('SQLite VFS current-source next146-149 has no selected source');
@@ -358,7 +358,7 @@ private static function run146149(array $operations, array $options = []): array
         return $state['current_source'];
     }
 
-    private static function sourceName146149(string $source): string
+    private static function sourceNameCurrentSourceHandleReuse(string $source): string
     {
         $source = strtolower(trim($source));
         if ($source === '' || preg_match('/^[a-z0-9_.:-]+$/', $source) !== 1) {
@@ -367,7 +367,7 @@ private static function run146149(array $operations, array $options = []): array
         return $source;
     }
 
-    private static function pathName146149(string $path): string
+    private static function pathNameCurrentSourceHandleReuse(string $path): string
     {
         $path = trim($path);
         if ($path === '' || str_contains($path, "\0")) {
@@ -376,12 +376,12 @@ private static function run146149(array $operations, array $options = []): array
         return $path;
     }
 
-    private static function owner146149(string $path): string
+    private static function ownerCurrentSourceHandleReuse(string $path): string
     {
         return preg_replace('/-(?:wal|shm|journal)$/', '', $path) ?? $path;
     }
 
-    private static function controlName146149(string $control): string
+    private static function controlNameCurrentSourceHandleReuse(string $control): string
     {
         $control = strtolower(str_replace('-', '_', trim($control)));
         if ($control === '') {
@@ -390,7 +390,7 @@ private static function run146149(array $operations, array $options = []): array
         return $control;
     }
 
-    private static function lockLevel146149(string $level): string
+    private static function lockLevelCurrentSourceHandleReuse(string $level): string
     {
         $level = strtolower(trim($level));
         if (!in_array($level, ['shared', 'reserved', 'pending', 'exclusive'], true)) {
@@ -399,7 +399,7 @@ private static function run146149(array $operations, array $options = []): array
         return $level;
     }
 
-    private static function connectionName146149(mixed $connection): string
+    private static function connectionNameCurrentSourceHandleReuse(mixed $connection): string
     {
         $connection = $connection === null || $connection === '' ? 'default' : trim((string) $connection);
         if ($connection === '' || preg_match('/^[A-Za-z0-9_.:-]+$/', $connection) !== 1) {
@@ -408,7 +408,7 @@ private static function run146149(array $operations, array $options = []): array
         return $connection;
     }
 
-    private static function summary146149(array $state): array
+    private static function summaryCurrentSourceHandleReuse(array $state): array
     {
         return [
             'current_source' => $state['current_source'],
@@ -417,13 +417,13 @@ private static function run146149(array $operations, array $options = []): array
         ];
     }
 
-    private static function snapshot146149(array $state): array
+    private static function snapshotCurrentSourceHandleReuse(array $state): array
     {
         ksort($state['sources']);
         return $state;
     }
 
-    private static function event146149(string $op, string $status, string $source, array $current, array $next, array $extra): array
+    private static function eventCurrentSourceHandleReuse(string $op, string $status, string $source, array $current, array $next, array $extra): array
     {
         return ['op' => $op, 'status' => $status, 'source' => $source, 'current' => $current, 'next' => $next] + $extra;
     }

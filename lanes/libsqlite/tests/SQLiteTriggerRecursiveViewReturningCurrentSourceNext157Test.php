@@ -45,7 +45,7 @@ $returning157 = [
     static fn (array $incoming, array $viewRow, string $triggerSource, int $ordinal): string => $triggerSource . ':' . $viewRow['_root'] . ':' . $ordinal . ':' . $incoming['option_name'],
 ];
 
-$plan157 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext157(
+$plan157 = static fn (array $options = [], ?array $currentRoots = null, ?array $nextRoots = null, ?array $currentView = null, ?array $nextView = null, ?array $returning = null): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewSourceHandoff(
     $rows157,
     $currentRoots ?? [['root_name' => 'siteurl']],
     $nextRoots ?? [['root_name' => 'plugin_beta']],
@@ -119,7 +119,7 @@ $cases157 = [
     'empty columns throws' => [static fn (): mixed => $plan157([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'root_key' => 'root_name', 'parent_key' => 'parent_name', 'columns' => []]), InvalidArgumentException::class],
     'bad where throws' => [static fn (): mixed => $plan157([], null, null, ['name' => 'v', 'source' => 'ok', 'trigger' => 'trg', 'trigger_source' => 'ok', 'root_key' => 'root_name', 'parent_key' => 'parent_name', 'columns' => ['option_name'], 'where' => 'nope']), InvalidArgumentException::class],
     'missing root key throws' => [static fn (): mixed => $plan157([], [['missing' => 'siteurl']]), InvalidArgumentException::class],
-    'duplicate option throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext157(array_merge($rows157, [['option_name' => 'siteurl']]), [], [], $currentView157, $nextView157, $returning157), InvalidArgumentException::class],
+    'duplicate option throws' => [static fn (): mixed => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeRecursiveViewSourceHandoff(array_merge($rows157, [['option_name' => 'siteurl']]), [], [], $currentView157, $nextView157, $returning157), InvalidArgumentException::class],
 ];
 
 $tests = [];

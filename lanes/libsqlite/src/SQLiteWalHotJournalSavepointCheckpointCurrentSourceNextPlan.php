@@ -28414,26 +28414,6 @@ final class SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 295, 'seal_after_ready_checkpoint_current_source_next292_295');
     }
 
-    public static function next296AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 296, 'verify_after_ready_checkpoint_wal_header_generation');
-    }
-
-    public static function next297AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 297, 'verify_after_ready_checkpoint_savepoint_cache_epoch');
-    }
-
-    public static function next298AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 298, 'verify_after_ready_checkpoint_hot_journal_delete_receipt');
-    }
-
-    public static function next299AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
-    {
-        return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 299, 'seal_after_ready_checkpoint_current_source_next296_299');
-    }
-
     public static function next300AfterCurrentCheckpoint(array $checkpointPlan, array $checkpointReceipts): array
     {
         return self::afterCurrentCheckpoint($checkpointPlan, $checkpointReceipts, 300, 'verify_after_ready_checkpoint_wal_index_epoch');
