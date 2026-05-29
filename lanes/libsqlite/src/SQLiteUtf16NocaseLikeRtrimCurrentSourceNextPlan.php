@@ -13643,4 +13643,853 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
 
         return $values;
     }
+
+    /* Consolidated into stable UTF-16 NOCASE LIKE RTRIM current-source helper. */
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameNullPatternRebindPlan(
+        array $currentRows,
+        array $nextRows,
+        ?string $currentPattern = 'plugin!_cache%',
+        ?string $nextPattern = null,
+        ?string $escape = '!',
+        string $currentSource = 'main.wp_options@200',
+        string $nextSource = 'main.wp_options@201',
+        int $currentSchemaCookie = 200,
+        int $nextSchemaCookie = 201,
+    ): array {
+        $current = self::v201_scan($currentRows, $currentPattern, $escape);
+        $next = self::v201_scan($nextRows, $nextPattern, $escape);
+        $currentMatched = self::v201_rowids($current['matched']);
+        $nextMatched = self::v201_rowids($next['matched']);
+        $currentCandidates = self::v201_rowids($current['candidates']);
+        $nextCandidates = self::v201_rowids($next['candidates']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        if ($currentPattern !== $nextPattern) {
+            $reasons[] = 'pattern-rebound';
+        }
+        if ($currentPattern !== $nextPattern && ($currentPattern === null || $nextPattern === null)) {
+            $reasons[] = 'null-like-pattern';
+        }
+        if (($current['likePlan']['range'] ?? null) !== ($next['likePlan']['range'] ?? null)) {
+            $reasons[] = 'like-range';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($currentCandidates !== $nextCandidates) {
+            $reasons[] = 'candidate-rowset';
+        }
+        if ($currentMatched !== $nextMatched) {
+            $reasons[] = 'matched-rowset';
+        }
+        $reasons = array_values(array_unique($reasons));
+
+        return [
+            'status' => 'utf16-nocase-like-rtrim-current-source-next201',
+            'operator' => 'LIKE',
+            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* NULL pattern rebind */',
+            'currentPattern' => $currentPattern,
+            'nextPattern' => $nextPattern,
+            'escape' => $escape,
+            'collation' => 'NOCASE',
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentPatternIsSqlNull' => $currentPattern === null,
+            'nextPatternIsSqlNull' => $nextPattern === null,
+            'currentLikeResultIsNull' => $currentPattern === null,
+            'nextLikeResultIsNull' => $nextPattern === null,
+            'currentPrefix' => $current['likePlan']['prefix'],
+            'nextPrefix' => $next['likePlan']['prefix'],
+            'currentRangeLowerInclusive' => $current['likePlan']['range']['lowerInclusive'] ?? null,
+            'currentRangeUpperBound' => $current['likePlan']['range']['upperBound'] ?? null,
+            'nextRangeLowerInclusive' => $next['likePlan']['range']['lowerInclusive'] ?? null,
+            'nextRangeUpperBound' => $next['likePlan']['range']['upperBound'] ?? null,
+            'currentIndexUsable' => $current['likePlan']['indexUsable'],
+            'nextIndexUsable' => $next['likePlan']['indexUsable'],
+            'currentCandidateRowids' => $currentCandidates,
+            'nextCandidateRowids' => $nextCandidates,
+            'candidateExitedRowids' => array_values(array_diff($currentCandidates, $nextCandidates)),
+            'candidateEnteredRowids' => array_values(array_diff($nextCandidates, $currentCandidates)),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'matchedExitedRowids' => array_values(array_diff($currentMatched, $nextMatched)),
+            'matchedEnteredRowids' => array_values(array_diff($nextMatched, $currentMatched)),
+            'currentFalsePositiveRowids' => self::v201_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::v201_rowids($next['falsePositive']),
+            'currentExcludedDecodedRowids' => array_values(array_diff(self::v201_rowids($current['decoded']), $currentCandidates)),
+            'nextExcludedDecodedRowids' => array_values(array_diff(self::v201_rowids($next['decoded']), $nextCandidates)),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentRtrimTexts' => self::v201_map($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::v201_map($next['decoded'], 'rtrimText'),
+            'currentNocaseKeys' => self::v201_map($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::v201_map($next['decoded'], 'nocaseKey'),
+            'currentMatchedTexts' => self::v201_selectMap(self::v201_map($current['decoded'], 'rtrimText'), $currentMatched),
+            'nextMatchedTexts' => self::v201_selectMap(self::v201_map($next['decoded'], 'rtrimText'), $nextMatched),
+            'mustReprepareForNullPattern' => $currentPattern !== $nextPattern && ($currentPattern === null || $nextPattern === null),
+            'nullPatternDisablesPrefixRange' => $currentPattern === null || $nextPattern === null,
+            'nullPatternMatchesNoRows' => $currentPattern === null || $nextPattern === null,
+            'cursorInvalidated' => $reasons !== [],
+            'cursorReusable' => $reasons === [],
+            'staleRangeCursorRisk' => $nextPattern === null && $currentCandidates !== [],
+            'invalidationReasons' => $reasons,
+            'rtrimTrimsOnlyAsciiSpace' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'dependencies' => [
+                'sqlite-utf16-decode',
+                'sqlite-like-null-pattern-rebind',
+                'sqlite-rtrim-expression-key',
+                'sqlite-current-source-next201',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, LIKE NULL-result semantics, RTRIM keys, and current-source cursor invalidation diagnostics',
+            'non_overlap' => 'next201 adds prepared LIKE pattern SQL NULL rebind fencing for UTF-16 RTRIM/NOCASE current-source cursors; avoids accepted escape rebind next200, escaped wildcard next194, prepared byte rebind next191, Unicode GLOB ranges, malformed UTF-16 insert guards, and storage/planner clusters',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{likePlan:array<string,mixed>,decoded:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function v201_scan(array $rows, ?string $pattern, ?string $escape): array
+    {
+        $like = $pattern === null
+            ? [
+                'prefix' => null,
+                'range' => null,
+                'indexUsable' => false,
+                'rejectedReason' => 'null_like_pattern',
+            ]
+            : SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
+        $decoded = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $row) {
+            self::v201_assertRow($row);
+            try {
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $rtrim = rtrim($text, ' ');
+                $decoded[] = [
+                    'rowid' => $row['option_id'],
+                    'text' => $text,
+                    'rtrimText' => $rtrim,
+                    'nocaseKey' => self::v201_asciiLower($rtrim),
+                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $row['option_id'];
+                $errors[$row['option_id']] = $exception->getMessage();
+            }
+        }
+
+        usort($decoded, self::v201_sortRows(...));
+        sort($malformed);
+        ksort($errors);
+
+        $candidates = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($decoded as $entry) {
+            if ($pattern === null || !self::v201_inRange($entry['nocaseKey'], $like['range'])) {
+                continue;
+            }
+            $entry['residualMatch'] = SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false);
+            $candidates[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'likePlan' => $like,
+            'decoded' => $decoded,
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function v201_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next201 rows require integer option_id');
+        }
+        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next201 rows require option_name_bytes');
+        }
+        if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next201 rows require integer text_encoding');
+        }
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function v201_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
+    private static function v201_sortRows(array $left, array $right): int
+    {
+        $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
+
+        return $comparison !== 0 ? $comparison : $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array{rowid:int}> $rows @return list<int> */
+    private static function v201_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function v201_map(array $rows, string $key): array
+    {
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[$row['rowid']] = $row[$key];
+        }
+
+        return $mapped;
+    }
+
+    /** @param array<int,string> $values @param list<int> $rowids @return array<int,string> */
+    private static function v201_selectMap(array $values, array $rowids): array
+    {
+        $selected = [];
+        foreach ($rowids as $rowid) {
+            if (array_key_exists($rowid, $values)) {
+                $selected[$rowid] = $values[$rowid];
+            }
+        }
+
+        return $selected;
+    }
+
+    private static function v201_asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+
+    /* Consolidated into stable UTF-16 NOCASE LIKE RTRIM current-source helper. */
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameNonAsciiPrefixFullScanPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_é%',
+        ?string $escape = '!',
+        string $currentSource = 'main.wp_options@203',
+        string $nextSource = 'main.wp_options@204',
+        int $currentSchemaCookie = 203,
+        int $nextSchemaCookie = 204,
+    ): array {
+        $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
+        if ($like['rejectedReason'] !== 'nocase_like_prefix_must_be_ascii_for_range') {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next204 expects a non-ASCII NOCASE LIKE prefix');
+        }
+
+        $current = self::v204_scan($currentRows, $pattern, $escape);
+        $next = self::v204_scan($nextRows, $pattern, $escape);
+        $currentMatched = self::v204_rowids($current['matched']);
+        $nextMatched = self::v204_rowids($next['matched']);
+        $changes = self::v204_changes($current['decoded'], $next['decoded']);
+
+        $reasons = [];
+        if ($currentSource !== $nextSource) {
+            $reasons[] = 'source-name';
+        }
+        if ($currentSchemaCookie !== $nextSchemaCookie) {
+            $reasons[] = 'schema-cookie';
+        }
+        $reasons[] = 'non-ascii-nocase-prefix-full-scan';
+        foreach ([
+            'decoded-text' => $changes['textChangedRowids'],
+            'rtrim-expression' => $changes['rtrimChangedRowids'],
+            'nocase-key' => $changes['nocaseKeyChangedRowids'],
+            'encoded-bytes' => $changes['bytesChangedRowids'],
+        ] as $reason => $rowids) {
+            if ($rowids !== []) {
+                $reasons[] = $reason;
+            }
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $reasons[] = 'malformed-text';
+        }
+        if ($currentMatched !== $nextMatched) {
+            $reasons[] = 'matched-rowset';
+        }
+
+        return [
+            'status' => 'utf16-nocase-like-rtrim-current-source-next204',
+            'operator' => 'LIKE',
+            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* non-ASCII prefix full scan */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => 'NOCASE',
+            'caseSensitiveLike' => false,
+            'likePlan' => $like,
+            'prefix' => $like['prefix'],
+            'prefixIsAscii' => $like['prefixIsAscii'],
+            'rangeLowerInclusive' => null,
+            'rangeUpperBound' => null,
+            'indexUsable' => false,
+            'usesPrefixRangeCursor' => false,
+            'usesFullScanFallback' => true,
+            'rejectedReason' => $like['rejectedReason'],
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'currentDecodedRowids' => self::v204_rowids($current['decoded']),
+            'nextDecodedRowids' => self::v204_rowids($next['decoded']),
+            'currentCandidateRowids' => self::v204_rowids($current['decoded']),
+            'nextCandidateRowids' => self::v204_rowids($next['decoded']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'currentFullScanRejectedRowids' => self::v204_rowids($current['rejected']),
+            'nextFullScanRejectedRowids' => self::v204_rowids($next['rejected']),
+            'matchedRetainedRowids' => self::v204_retained($currentMatched, $nextMatched),
+            'matchedExitedRowids' => self::v204_exited($currentMatched, $nextMatched),
+            'matchedEnteredRowids' => self::v204_entered($currentMatched, $nextMatched),
+            'currentTexts' => self::v204_map($current['decoded'], 'text'),
+            'nextTexts' => self::v204_map($next['decoded'], 'text'),
+            'currentRtrimTexts' => self::v204_map($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::v204_map($next['decoded'], 'rtrimText'),
+            'currentNocaseKeys' => self::v204_map($current['decoded'], 'nocaseKey'),
+            'nextNocaseKeys' => self::v204_map($next['decoded'], 'nocaseKey'),
+            'currentMatchedTexts' => self::v204_map($current['matched'], 'rtrimText'),
+            'nextMatchedTexts' => self::v204_map($next['matched'], 'rtrimText'),
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'changedTextRowids' => $changes['textChangedRowids'],
+            'changedRtrimRowids' => $changes['rtrimChangedRowids'],
+            'changedNocaseKeyRowids' => $changes['nocaseKeyChangedRowids'],
+            'changedBytesRowids' => $changes['bytesChangedRowids'],
+            'cursorInvalidated' => true,
+            'cursorReusable' => false,
+            'invalidationReasons' => array_values(array_unique($reasons)),
+            'likeResidualAppliesAfterRtrim' => true,
+            'nonAsciiPrefixRequiresFullScan' => true,
+            'asciiNocaseOnlyKeepsAccentCaseDistinct' => true,
+            'malformedRowsDoNotAbortFullScan' => true,
+            'rtrimTrimsOnlyAsciiSpace' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'dependencies' => [
+                'sqlite-utf16-decode',
+                'sqlite-like-nocase-non-ascii-prefix-full-scan',
+                'sqlite-rtrim-residual-match',
+                'sqlite-current-source-next204',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, ASCII-only NOCASE LIKE residual matching, RTRIM keys, and current-source diagnostics',
+            'non_overlap' => 'next204 covers non-ASCII fixed-prefix NOCASE LIKE fallback over UTF-16 RTRIM rows; avoids next203 no-fixed-prefix fallback, next202 source-row patterns, next200 ESCAPE rebinds, Unicode GLOB ranges, and malformed UTF-16 insert guards',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{decoded:list<array<string,mixed>>,matched:list<array<string,mixed>>,rejected:list<array<string,mixed>>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function v204_scan(array $rows, string $pattern, ?string $escape): array
+    {
+        $decoded = [];
+        $malformed = [];
+        $errors = [];
+        foreach ($rows as $row) {
+            self::v204_assertRow($row);
+            try {
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $rtrim = rtrim($text, ' ');
+                $decoded[] = [
+                    'rowid' => $row['option_id'],
+                    'text' => $text,
+                    'rtrimText' => $rtrim,
+                    'nocaseKey' => self::v204_asciiLower($rtrim),
+                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $row['option_id'];
+                $errors[$row['option_id']] = $exception->getMessage();
+            }
+        }
+
+        usort($decoded, self::v204_sortRows(...));
+        sort($malformed);
+        ksort($errors);
+
+        $matched = [];
+        $rejected = [];
+        foreach ($decoded as $entry) {
+            if (SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false)) {
+                $matched[] = $entry;
+            } else {
+                $rejected[] = $entry;
+            }
+        }
+
+        return [
+            'decoded' => $decoded,
+            'matched' => $matched,
+            'rejected' => $rejected,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function v204_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next204 rows require integer option_id');
+        }
+        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next204 rows require option_name_bytes');
+        }
+        if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next204 rows require integer text_encoding');
+        }
+    }
+
+    /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
+    private static function v204_sortRows(array $left, array $right): int
+    {
+        $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
+
+        return $comparison !== 0 ? $comparison : $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array{rowid:int}> $rows @return list<int> */
+    private static function v204_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function v204_map(array $rows, string $key): array
+    {
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[$row['rowid']] = $row[$key];
+        }
+
+        return $mapped;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $current
+     * @param list<array<string,mixed>> $next
+     * @return array<string,list<int>>
+     */
+    private static function v204_changes(array $current, array $next): array
+    {
+        $currentByRowid = self::v204_byRowid($current);
+        $nextByRowid = self::v204_byRowid($next);
+
+        return [
+            'textChangedRowids' => self::v204_changed($currentByRowid, $nextByRowid, 'text'),
+            'rtrimChangedRowids' => self::v204_changed($currentByRowid, $nextByRowid, 'rtrimText'),
+            'nocaseKeyChangedRowids' => self::v204_changed($currentByRowid, $nextByRowid, 'nocaseKey'),
+            'bytesChangedRowids' => self::v204_changed($currentByRowid, $nextByRowid, 'bytesHex'),
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private static function v204_byRowid(array $rows): array
+    {
+        $byRowid = [];
+        foreach ($rows as $row) {
+            $byRowid[$row['rowid']] = $row;
+        }
+
+        return $byRowid;
+    }
+
+    /** @param array<int,array<string,mixed>> $current @param array<int,array<string,mixed>> $next @return list<int> */
+    private static function v204_changed(array $current, array $next, string $key): array
+    {
+        $rowids = array_values(array_intersect(array_keys($current), array_keys($next)));
+        sort($rowids);
+        $changed = [];
+        foreach ($rowids as $rowid) {
+            if (($current[$rowid][$key] ?? null) !== ($next[$rowid][$key] ?? null)) {
+                $changed[] = (int) $rowid;
+            }
+        }
+
+        return $changed;
+    }
+
+    /** @param list<int> $current @param list<int> $next @return list<int> */
+    private static function v204_retained(array $current, array $next): array
+    {
+        return array_values(array_intersect($current, $next));
+    }
+
+    /** @param list<int> $current @param list<int> $next @return list<int> */
+    private static function v204_exited(array $current, array $next): array
+    {
+        return array_values(array_diff($current, $next));
+    }
+
+    /** @param list<int> $current @param list<int> $next @return list<int> */
+    private static function v204_entered(array $current, array $next): array
+    {
+        return array_values(array_diff($next, $current));
+    }
+
+    private static function v204_asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
+
+    /* Consolidated into stable UTF-16 NOCASE LIKE RTRIM current-source helper. */
+    /**
+     * @param list<array<string,mixed>> $currentRows
+     * @param list<array<string,mixed>> $nextRows
+     * @param array{key:string,rowid:int}|null $resumeToken
+     * @return array<string,mixed>
+     */
+    public static function wordpressOptionNameEmbeddedNulTokenPlan(
+        array $currentRows,
+        array $nextRows,
+        string $pattern = 'plugin!_cache%',
+        ?string $escape = '!',
+        ?array $resumeToken = ['key' => "plugin_cache\0shadow", 'rowid' => 4],
+        string $currentSource = 'main.wp_options@214',
+        string $nextSource = 'main.wp_options@215',
+        int $currentSchemaCookie = 214,
+        int $nextSchemaCookie = 215,
+    ): array {
+        $current = self::v215_scan($currentRows, $pattern, $escape);
+        $next = self::v215_scan($nextRows, $pattern, $escape);
+        $token = self::v215_normalizeToken($resumeToken);
+
+        $currentMatched = self::v215_rowids($current['matched']);
+        $nextMatched = self::v215_rowids($next['matched']);
+        $matchedExited = array_values(array_diff($currentMatched, $nextMatched));
+        $matchedEntered = array_values(array_diff($nextMatched, $currentMatched));
+        sort($matchedExited);
+        sort($matchedEntered);
+
+        $currentBefore = self::v215_beforeOrAtToken($current['candidates'], $token);
+        $nextBefore = self::v215_beforeOrAtToken($next['candidates'], $token);
+        $currentAfter = self::v215_afterToken($current['candidates'], $token);
+        $nextAfter = self::v215_afterToken($next['candidates'], $token);
+        $currentMatchedBefore = self::v215_beforeOrAtToken($current['matched'], $token);
+        $nextMatchedBefore = self::v215_beforeOrAtToken($next['matched'], $token);
+        $truncatedCollisions = self::v215_truncatedKeyCollisions($current['decoded'], $next['decoded']);
+
+        $unsafe = [];
+        if ($currentSource !== $nextSource || $currentSchemaCookie !== $nextSchemaCookie) {
+            $unsafe[] = 'source-or-schema-changed';
+        }
+        if ($current['malformedRowids'] !== [] || $next['malformedRowids'] !== []) {
+            $unsafe[] = 'malformed-text';
+        }
+        if (self::v215_rowids($currentBefore) !== self::v215_rowids($nextBefore)) {
+            $unsafe[] = 'candidate-before-token-changed';
+        }
+        if (self::v215_rowids($currentMatchedBefore) !== self::v215_rowids($nextMatchedBefore)) {
+            $unsafe[] = 'matched-before-token-changed';
+        }
+        if ($truncatedCollisions !== []) {
+            $unsafe[] = 'embedded-nul-truncated-key-collision';
+        }
+        if (($token['normalizationReasons'] ?? []) !== []) {
+            $unsafe[] = 'yield-token-not-canonical';
+        }
+        $unsafe = array_values(array_unique($unsafe));
+
+        return [
+            'status' => 'utf16-nocase-like-rtrim-current-source-next215',
+            'operator' => 'LIKE',
+            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded NUL token fence */',
+            'pattern' => $pattern,
+            'escape' => $escape,
+            'collation' => 'NOCASE',
+            'currentSource' => $currentSource,
+            'nextSource' => $nextSource,
+            'currentSchemaCookie' => $currentSchemaCookie,
+            'nextSchemaCookie' => $nextSchemaCookie,
+            'prefix' => $current['likePlan']['prefix'],
+            'rangeLowerInclusive' => $current['likePlan']['range']['lowerInclusive'] ?? null,
+            'rangeUpperBound' => $current['likePlan']['range']['upperBound'] ?? null,
+            'currentCandidateRowids' => self::v215_rowids($current['candidates']),
+            'nextCandidateRowids' => self::v215_rowids($next['candidates']),
+            'currentMatchedRowids' => $currentMatched,
+            'nextMatchedRowids' => $nextMatched,
+            'matchedExitedRowids' => $matchedExited,
+            'matchedEnteredRowids' => $matchedEntered,
+            'currentFalsePositiveRowids' => self::v215_rowids($current['falsePositive']),
+            'nextFalsePositiveRowids' => self::v215_rowids($next['falsePositive']),
+            'currentCandidateBeforeOrAtTokenRowids' => self::v215_rowids($currentBefore),
+            'nextCandidateBeforeOrAtTokenRowids' => self::v215_rowids($nextBefore),
+            'currentReplayAfterTokenRowids' => self::v215_rowids($currentAfter),
+            'nextReplayAfterTokenRowids' => self::v215_rowids($nextAfter),
+            'currentMatchedBeforeTokenRowids' => self::v215_rowids($currentMatchedBefore),
+            'nextMatchedBeforeTokenRowids' => self::v215_rowids($nextMatchedBefore),
+            'currentEmbeddedNulRowids' => $current['embeddedNulRowids'],
+            'nextEmbeddedNulRowids' => $next['embeddedNulRowids'],
+            'embeddedNulTruncatedKeyCollisionRowids' => $truncatedCollisions,
+            'currentMalformedRowids' => $current['malformedRowids'],
+            'nextMalformedRowids' => $next['malformedRowids'],
+            'currentErrors' => $current['errors'],
+            'nextErrors' => $next['errors'],
+            'currentRtrimTexts' => self::v215_map($current['decoded'], 'rtrimText'),
+            'nextRtrimTexts' => self::v215_map($next['decoded'], 'rtrimText'),
+            'currentNocaseKeysHex' => self::v215_map($current['decoded'], 'nocaseKeyHex'),
+            'nextNocaseKeysHex' => self::v215_map($next['decoded'], 'nocaseKeyHex'),
+            'currentTruncatedNocaseKeys' => self::v215_map($current['decoded'], 'truncatedNocaseKey'),
+            'nextTruncatedNocaseKeys' => self::v215_map($next['decoded'], 'truncatedNocaseKey'),
+            'resumeToken' => $token,
+            'candidateTokenUnsafeReasons' => $unsafe,
+            'candidateTokenResumeSafe' => $unsafe === [],
+            'mustReprepareBeforeCandidateTokenResume' => $unsafe !== [],
+            'replayPlanMode' => $unsafe === [] ? 'continue-after-embedded-nul-safe-token' : 'reprepare-from-range-start',
+            'replayPlanRowids' => $unsafe === [] ? self::v215_rowids($nextAfter) : self::v215_rowids($next['candidates']),
+            'embeddedNulPreservedInTextKeys' => true,
+            'embeddedNulNotCStringTerminator' => true,
+            'likeResidualChecksFullSqlText' => true,
+            'rtrimTrimsOnlyAsciiSpace' => true,
+            'nocaseFoldsAsciiOnly' => true,
+            'dependencies' => [
+                'sqlite-utf16-decode',
+                'sqlite-like-nocase-prefix-range',
+                'sqlite-rtrim-expression-key',
+                'sqlite-embedded-nul-text-token',
+                'sqlite-current-source-next215',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, NOCASE LIKE range planning, RTRIM expression keys, and current-source token replay diagnostics while preserving embedded NUL bytes as SQLite text',
+            'non_overlap' => 'next215 covers embedded-NUL UTF-16 RTRIM/NOCASE LIKE current-source replay token fencing; avoids accepted Unicode GLOB ranges, UTF-16 malformed insert guards, ESCAPE/rtrim rebind slices, JSON/VFS/WAL/B-tree clusters, and storage durability work',
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{likePlan:array<string,mixed>,decoded:list<array<string,mixed>>,candidates:list<array<string,mixed>>,matched:list<array<string,mixed>>,falsePositive:list<array<string,mixed>>,embeddedNulRowids:list<int>,malformedRowids:list<int>,errors:array<int,string>}
+     */
+    private static function v215_scan(array $rows, string $pattern, ?string $escape): array
+    {
+        $like = SQLiteLikeCollationPlan::plan($pattern, 'NOCASE', $escape, false);
+        $decoded = [];
+        $malformed = [];
+        $errors = [];
+        $embedded = [];
+
+        foreach ($rows as $row) {
+            self::v215_assertRow($row);
+            try {
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $rtrim = rtrim($text, ' ');
+                $key = self::v215_asciiLower($rtrim);
+                if (str_contains($key, "\0")) {
+                    $embedded[] = $row['option_id'];
+                }
+                $decoded[] = [
+                    'rowid' => $row['option_id'],
+                    'text' => $text,
+                    'rtrimText' => $rtrim,
+                    'nocaseKey' => $key,
+                    'nocaseKeyHex' => bin2hex($key),
+                    'truncatedNocaseKey' => self::v215_truncateAtNul($key),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $malformed[] = $row['option_id'];
+                $errors[$row['option_id']] = $exception->getMessage();
+            }
+        }
+
+        usort($decoded, self::v215_sortRows(...));
+        sort($embedded);
+        sort($malformed);
+        ksort($errors);
+
+        $candidates = [];
+        $matched = [];
+        $falsePositive = [];
+        foreach ($decoded as $entry) {
+            if (!self::v215_inRange($entry['nocaseKey'], $like['range'])) {
+                continue;
+            }
+            $entry['residualMatch'] = SQLiteDatabase::likeMatches($entry['rtrimText'], $pattern, $escape, false);
+            $candidates[] = $entry;
+            if ($entry['residualMatch']) {
+                $matched[] = $entry;
+            } else {
+                $falsePositive[] = $entry;
+            }
+        }
+
+        return [
+            'likePlan' => $like,
+            'decoded' => $decoded,
+            'candidates' => $candidates,
+            'matched' => $matched,
+            'falsePositive' => $falsePositive,
+            'embeddedNulRowids' => $embedded,
+            'malformedRowids' => $malformed,
+            'errors' => $errors,
+        ];
+    }
+
+    /** @param array<string,mixed> $row */
+    private static function v215_assertRow(array $row): void
+    {
+        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next215 rows require integer option_id');
+        }
+        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next215 rows require option_name_bytes');
+        }
+        if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM next215 rows require integer text_encoding');
+        }
+    }
+
+    /** @param array{key:string,rowid:int}|null $token @return array{key:string,rowid:int,normalizationReasons:list<string>}|null */
+    private static function v215_normalizeToken(?array $token): ?array
+    {
+        if ($token === null) {
+            return null;
+        }
+        $key = self::v215_asciiLower(rtrim($token['key'], ' '));
+        $reasons = [];
+        if ($key !== $token['key']) {
+            $reasons[] = 'token-key-not-canonical';
+        }
+
+        return ['key' => $key, 'rowid' => $token['rowid'], 'normalizationReasons' => $reasons];
+    }
+
+    /** @param list<array<string,mixed>> $rows @param array{key:string,rowid:int,normalizationReasons:list<string>}|null $token @return list<array<string,mixed>> */
+    private static function v215_beforeOrAtToken(array $rows, ?array $token): array
+    {
+        if ($token === null) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, static fn (array $row): bool => self::v215_compareToken($row, $token) <= 0));
+    }
+
+    /** @param list<array<string,mixed>> $rows @param array{key:string,rowid:int,normalizationReasons:list<string>}|null $token @return list<array<string,mixed>> */
+    private static function v215_afterToken(array $rows, ?array $token): array
+    {
+        if ($token === null) {
+            return $rows;
+        }
+
+        return array_values(array_filter($rows, static fn (array $row): bool => self::v215_compareToken($row, $token) > 0));
+    }
+
+    /** @param array<string,mixed> $row @param array{key:string,rowid:int,normalizationReasons:list<string>} $token */
+    private static function v215_compareToken(array $row, array $token): int
+    {
+        $comparison = strcmp($row['nocaseKey'], $token['key']);
+
+        return $comparison !== 0 ? $comparison : $row['rowid'] <=> $token['rowid'];
+    }
+
+    /** @param list<array<string,mixed>> $current @param list<array<string,mixed>> $next @return list<int> */
+    private static function v215_truncatedKeyCollisions(array $current, array $next): array
+    {
+        $byTruncated = [];
+        foreach (array_merge($current, $next) as $row) {
+            if ($row['truncatedNocaseKey'] === $row['nocaseKey']) {
+                continue;
+            }
+            $byTruncated[$row['truncatedNocaseKey']][] = $row['rowid'];
+        }
+
+        $collisions = [];
+        foreach ($byTruncated as $rowids) {
+            if (count(array_unique($rowids)) > 1) {
+                array_push($collisions, ...$rowids);
+            }
+        }
+        $collisions = array_values(array_unique($collisions));
+        sort($collisions);
+
+        return $collisions;
+    }
+
+    /** @param ?array{lowerInclusive:string,upperBound:?string} $range */
+    private static function v215_inRange(string $key, ?array $range): bool
+    {
+        if ($range === null || strcmp($key, $range['lowerInclusive']) < 0) {
+            return false;
+        }
+
+        return $range['upperBound'] === null || strcmp($key, $range['upperBound']) < 0;
+    }
+
+    /** @param array{nocaseKey:string,rowid:int} $left @param array{nocaseKey:string,rowid:int} $right */
+    private static function v215_sortRows(array $left, array $right): int
+    {
+        $comparison = strcmp($left['nocaseKey'], $right['nocaseKey']);
+
+        return $comparison !== 0 ? $comparison : $left['rowid'] <=> $right['rowid'];
+    }
+
+    /** @param list<array{rowid:int}> $rows @return list<int> */
+    private static function v215_rowids(array $rows): array
+    {
+        return array_map(static fn (array $row): int => $row['rowid'], $rows);
+    }
+
+    /** @param list<array<string,mixed>> $rows @return array<int,mixed> */
+    private static function v215_map(array $rows, string $key): array
+    {
+        $mapped = [];
+        foreach ($rows as $row) {
+            $mapped[$row['rowid']] = $row[$key];
+        }
+
+        return $mapped;
+    }
+
+    private static function v215_truncateAtNul(string $value): string
+    {
+        $position = strpos($value, "\0");
+
+        return $position === false ? $value : substr($value, 0, $position);
+    }
+
+    private static function v215_asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
+    }
+
 }

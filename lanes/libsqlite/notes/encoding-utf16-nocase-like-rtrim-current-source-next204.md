@@ -11,7 +11,7 @@ Focused verification:
   - `68` PASS lines
 - `php lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next204.php --self-test`
   - `wordpress-utf16-nocase-like-rtrim-current-source-next204 self-test passed`
-- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan.php`
+- `php -l lanes/libsqlite/src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Test.php`
 - `php -l lanes/libsqlite/examples/wordpress-utf16-nocase-like-rtrim-current-source-next204.php`
 - `git diff --check -- lanes/libsqlite`

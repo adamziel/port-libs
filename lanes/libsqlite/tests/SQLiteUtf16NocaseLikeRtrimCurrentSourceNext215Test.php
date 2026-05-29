@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -53,7 +53,7 @@ $plan215 = static fn (
     string $nextSource = 'main.wp_options@215',
     int $currentCookie = 214,
     int $nextCookie = 215,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan::wordpressOptionNameEmbeddedNulTokenPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan(
     $current ?? $current215,
     $next ?? $next215,
     'plugin!_cache%',
@@ -153,7 +153,7 @@ $tests['utf16 nocase like rtrim current source next215 stable embedded nul token
         $row215(2, "plugin_cache\0shadow", 'UTF-16BE'),
         $row215(3, 'plugin_cache_extra', 'UTF-16LE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan::wordpressOptionNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -177,7 +177,7 @@ $tests['utf16 nocase like rtrim current source next215 canonicalizes resume toke
         $row215(1, "Plugin_Cache\0Shadow", 'UTF-16LE'),
         $row215(2, 'plugin_cache_zip', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan::wordpressOptionNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -201,7 +201,7 @@ $tests['utf16 nocase like rtrim current source next215 null token replays full n
         $row215(2, "plugin_cache\0later", 'UTF-16BE'),
         $row215(3, 'theme_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan::wordpressOptionNameEmbeddedNulTokenPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -220,7 +220,7 @@ $tests['utf16 nocase like rtrim current source next215 null token replays full n
 };
 
 $tests['utf16 nocase like rtrim current source next215 rejects missing option bytes'] = static function (TestRunner $t) use ($next215): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext215Plan::wordpressOptionNameEmbeddedNulTokenPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameEmbeddedNulTokenPlan([
         ['option_id' => 1, 'text_encoding' => 1],
     ], $next215));
 };

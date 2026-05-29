@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -52,7 +52,7 @@ $plan201 = static fn (
     string $nextSource = 'main.wp_options@201',
     int $currentCookie = 200,
     int $nextCookie = 201,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan(
     $current ?? $currentRows201,
     $next ?? $nextRows201,
     $currentPattern,
@@ -160,7 +160,7 @@ $tests['utf16 nocase like rtrim current source next201 stable non null pattern c
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row201(3, 'theme_cache', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan(
         $rows,
         $rows,
         'plugin!_cache%',
@@ -187,7 +187,7 @@ $tests['utf16 nocase like rtrim current source next201 null to non null pattern 
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
         $row201(3, 'plugin_config', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan(
         $rows,
         $rows,
         null,
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source next201 both null patterns are re
         $row201(1, 'plugin_cache', 'UTF-16LE'),
         $row201(2, 'Plugin_Cache  ', 'UTF-16BE'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan(
         $rows,
         $rows,
         null,
@@ -235,11 +235,11 @@ $tests['utf16 nocase like rtrim current source next201 both null patterns are re
 };
 
 $tests['utf16 nocase like rtrim current source next201 rejects invalid escape length before scan'] = static function (TestRunner $t) use ($currentRows201, $nextRows201): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan($currentRows201, $nextRows201, 'plugin!_cache%', null, '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan($currentRows201, $nextRows201, 'plugin!_cache%', null, '!!'));
 };
 
 $tests['utf16 nocase like rtrim current source next201 rejects missing option id'] = static function (TestRunner $t) use ($nextRows201): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext201Plan::wordpressOptionNameNullPatternRebindPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNullPatternRebindPlan([
         ['option_name_bytes' => 'plugin_cache', 'text_encoding' => 1],
     ], $nextRows201));
 };

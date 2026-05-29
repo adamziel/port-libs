@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
-use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan;
+use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
@@ -56,7 +56,7 @@ $plan204 = static fn (
     string $nextSource = 'main.wp_options@204',
     int $currentCookie = 203,
     int $nextCookie = 204,
-): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan(
+): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan(
     $current ?? $current204,
     $next ?? $next204,
     $pattern,
@@ -168,7 +168,7 @@ $tests['utf16 nocase like rtrim current source next204 stable non ascii still ca
         $row204(2, 'Plugin_éTAG  ', 'UTF-16BE'),
         $row204(3, 'plugin_Éclair', 'UTF-8'),
     ];
-    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan(
+    $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan(
         $rows,
         $rows,
         'plugin!_é%',
@@ -188,28 +188,28 @@ $tests['utf16 nocase like rtrim current source next204 stable non ascii still ca
 
 $tests['utf16 nocase like rtrim current source next204 rejects ascii prefix pattern'] = static function (TestRunner $t) use ($row204): void {
     $rows = [$row204(1, 'plugin_cache', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan($rows, $rows, 'plugin_%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan($rows, $rows, 'plugin_%'));
 };
 
 $tests['utf16 nocase like rtrim current source next204 rejects no fixed prefix pattern'] = static function (TestRunner $t) use ($row204): void {
     $rows = [$row204(1, 'plugin_éclair', 'UTF-16LE')];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan($rows, $rows, '%é%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan($rows, $rows, '%é%'));
 };
 
 $tests['utf16 nocase like rtrim current source next204 rejects missing option id'] = static function (TestRunner $t) use ($next204): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan([
         ['option_name_bytes' => 'plugin_éclair', 'text_encoding' => 1],
     ], $next204));
 };
 
 $tests['utf16 nocase like rtrim current source next204 rejects missing bytes'] = static function (TestRunner $t) use ($next204): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan([
         ['option_id' => 1, 'text_encoding' => 1],
     ], $next204));
 };
 
 $tests['utf16 nocase like rtrim current source next204 rejects missing encoding'] = static function (TestRunner $t) use ($next204): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNext204Plan::wordpressOptionNameNonAsciiPrefixPlan([
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::wordpressOptionNameNonAsciiPrefixFullScanPlan([
         ['option_id' => 1, 'option_name_bytes' => 'plugin_éclair'],
     ], $next204));
 };
