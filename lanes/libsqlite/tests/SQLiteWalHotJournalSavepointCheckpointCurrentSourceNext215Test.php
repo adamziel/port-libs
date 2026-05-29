@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan;
+use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan;
 
-require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan.php';
+require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan.php';
 require_once __DIR__ . '/../src/SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext215Plan.php';
 
 $tests = [];
@@ -66,7 +66,7 @@ $reopenRows = [
     ],
 ];
 
-$pinnedPassive = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNext212Plan::passiveCheckpoint($base, $passiveReaders, 215);
+$pinnedPassive = static fn (): array => SQLiteWalHotJournalSavepointCheckpointCurrentSourceNextPlan::next212PassiveCheckpoint($base, $passiveReaders, 215);
 $drainedPassive = static function () use ($pinnedPassive): array {
     $plan = $pinnedPassive();
     $plan['active_reader_names'] = [];
