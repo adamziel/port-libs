@@ -3183,7 +3183,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+        $plan = self::currentSourceGeneratedPathRowidRangeConstraint(
             $function,
             $currentSource,
             $nextSource,
@@ -4013,7 +4013,7 @@ final class SQLiteJsonTablePlan
             throw new \InvalidArgumentException('JSON table generated-path rowid OFFSET must be non-negative');
         }
 
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+        $plan = self::currentSourceGeneratedPathRowidRangeConstraint(
             $function,
             $currentSource,
             $nextSource,
@@ -4083,7 +4083,7 @@ final class SQLiteJsonTablePlan
         ?int $yieldBatchSize = null,
         array $projection = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
     ): array {
-        $plan = self::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+        $plan = self::currentSourceGeneratedPathRowidRangeConstraint(
             $function,
             $currentSource,
             $nextSource,
@@ -4734,7 +4734,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+    public static function currentSourceGeneratedPathRowidRangeConstraint(
         string $function,
         array $currentSource,
         array $nextSource,
@@ -5013,7 +5013,7 @@ final class SQLiteJsonTablePlan
      * @param list<string> $projection
      * @return array<string,mixed>
      */
-    public static function currentSourceGeneratedPathRowidCostCurrentSourceNext195(
+    public static function currentSourceGeneratedPathRowidAnchorRemap(
         string $function,
         array $currentSource,
         array $nextSource,

@@ -43,7 +43,7 @@ SELECT option_name AS name, sort_key, 0 AS depth, 'direct' AS source
  LIMIT 6
 SQL;
 
-$plan = SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140(
+$plan = SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareRecursiveAffinityOrder(
     $sql,
     ['wp_options' => $currentOptions],
     ['wp_options' => $nextOptions],

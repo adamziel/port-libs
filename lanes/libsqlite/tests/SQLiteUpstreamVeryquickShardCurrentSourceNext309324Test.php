@@ -60,7 +60,7 @@ function libsqlite_suite_next309324_record(
     ?int $expected = 160,
     string $snapshot = ''
 ): array {
-    return libsqlite_suite_next309324_evidence()->upstreamVeryquickShardCurrentSourceNext309324(
+    return libsqlite_suite_next309324_evidence()->upstreamVeryquickShardPreparedOpeningWindowEvidence(
         $rows,
         703,
         138380,

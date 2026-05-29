@@ -84,7 +84,7 @@ $current['rows'] = [
 ];
 $current['indexes'][0]['stat4ExpressionPayloads'] = array_map($payload, $current['rows']);
 
-$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeNext446461(
+$plan = SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan::materializeStat4ExpressionPartialPreparedBridgeCurrentSourceHandoff(
     $prepared,
     $current,
     [
@@ -102,12 +102,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($plan['status'] === 'stat4-expression-partial-current-source-next446-461-prepared');
     assert($plan['stat4Next446461PreparationFence']['preparedSlices'] === range(446, 461));
     assert($plan['stat4Next446461PreparationFence']['handoffWindows'][0]['continuesSlice'] === 430);
-    echo "wordpress-sqlplanner-stat4-expression-partial-current-source-next446-461 self-test passed\n";
+    echo "wordpress-sqlplanner-stat4-expression-partial-prepared-bridge-current-source-handoff self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-current-source-next446-461',
+    'scenario' => 'wordpress-sqlplanner-stat4-expression-partial-prepared-bridge-current-source-handoff',
     'wordpressUse' => 'Copied wp_options plugin-admin pagination carries the next430-445 current-source STAT4 handoff into next446-461 only when projected current rows still match.',
     'status' => $plan['status'],
     'selectedIndex' => $plan['selectedPlan']['name'] ?? null,

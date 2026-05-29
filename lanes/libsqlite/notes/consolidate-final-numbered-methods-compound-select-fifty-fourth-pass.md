@@ -1,4 +1,4 @@
-# compound-select-affinity-recursive-order-current-source-next140
+# consolidate-final-numbered-methods-compound-select-fifty-fourth-pass
 
 ## Behavior
 
@@ -8,7 +8,10 @@ instead of comparing mixed numeric/text values as strings, which fixes compound
 SELECT results that read from a recursive CTE before applying the final compound
 `ORDER BY`/`LIMIT`.
 
-The focused WordPress smoke models copied `wp_options` hierarchy rows where
+This consolidation pass keeps the existing behavior but removes the remaining
+worker-numbered production method/helper names from
+`SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan`. The focused
+WordPress smoke models copied `wp_options` hierarchy rows where
 current and next source snapshots contain mixed numeric and text sort keys. The
 new `plugin_beta` branch changes the recursive queue boundary and final
 compound rowset without requiring ext/sqlite.
@@ -18,7 +21,7 @@ compound rowset without requiring ext/sqlite.
 Focused command:
 
 ```text
-php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Test.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderTest.php
 Focused test run: 1 selected test files (root lock skipped)
 44 PASS lines
 1 test files, 170 assertions, 0 failures
@@ -27,7 +30,7 @@ Focused test run: 1 selected test files (root lock skipped)
 Example smoke:
 
 ```text
-php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order-current-source-next140.php
+php lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order.php
 ```
 
 PHP lint:
@@ -35,8 +38,8 @@ PHP lint:
 ```text
 php -l lanes/libsqlite/src/SQLiteSelectSql.php
 php -l lanes/libsqlite/src/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan.php
-php -l lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNext140Test.php
-php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order-current-source-next140.php
+php -l lanes/libsqlite/tests/SQLiteCompoundSelectAffinityRecursiveOrderTest.php
+php -l lanes/libsqlite/examples/wordpress-compound-recursive-affinity-order.php
 ```
 
 Diff hygiene:

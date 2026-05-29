@@ -12,7 +12,7 @@ $current = [
     'option_value' => '{"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}],"meta":{"autoload":"yes"}}',
     'generated_path' => '$.rules',
     'scan_root' => '$',
-    'source_generation' => 'active-plugins-anchor-next195',
+    'source_generation' => 'active-plugins-anchor-remap',
 ];
 $next = [
     'option_id' => 195,
@@ -20,12 +20,11 @@ $next = [
     'option_value' => '{"meta":{"autoload":"no"},"rules":[{"slug":"seo","priority":2},{"slug":"cache","priority":7},{"slug":"forms","priority":4}]}',
     'generated_path' => '$.rules',
     'scan_root' => '$',
-    'source_generation' => 'active-plugins-anchor-next195',
+    'source_generation' => 'active-plugins-anchor-remap',
 ];
 
-$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostSelectionAlias(
+$plan = SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAnchorRemap(
     'json_tree',
-    195,
     $current,
     $next,
     'option_value',
@@ -47,12 +46,12 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($plan['nextGeneratedPathRowidAnchorRemap195']['remappedRowids'] === [11]);
     assert($plan['nextGeneratedPathRowidAnchorRemap195']['resumeByFullkey'] === true);
     assert($plan['nextReaderPolicy'] === 'reseek-fullkey-anchor-json-table-generated-path-rowid-next195');
-    echo "wordpress-json-table-generated-path-rowid-anchor-next195 self-test passed\n";
+    echo "wordpress-json-table-generated-path-rowid-anchor-remap self-test passed\n";
     return;
 }
 
 echo json_encode([
-    'scenario' => 'wordpress-json-table-generated-path-rowid-anchor-next195',
+    'scenario' => 'wordpress-json-table-generated-path-rowid-anchor-remap',
     'wordpressUse' => 'Copied wp_options active_plugins diagnostics can detect when a json_tree rowid checkpoint still points at the same fullkey after object layout changes shifted rowids.',
     'currentPolicy' => $plan['currentReaderPolicy'],
     'nextPolicy' => $plan['nextReaderPolicy'],

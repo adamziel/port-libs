@@ -44,12 +44,12 @@ SELECT option_name AS name, sort_key, 0 AS depth, 'direct' AS source
  LIMIT 6
 SQL;
 
-$summary = static fn (): array => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140($sql, $currentTables, $nextTables);
+$summary = static fn (): array => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareRecursiveAffinityOrder($sql, $currentTables, $nextTables);
 $tests = [];
 
-$tests['compound select affinity recursive order current source next140 status dependencies'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order status dependencies'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
-    $t->same('compound-select-affinity-recursive-order-current-source-next140-ready', $plan['status']);
+    $t->same('compound-select-affinity-recursive-order-ready', $plan['status']);
     $t->same([
         'sqlite-recursive-cte-queue-order-storage-class',
         'sqlite-compound-select-final-order-after-recursive-source',
@@ -57,7 +57,7 @@ $tests['compound select affinity recursive order current source next140 status d
     ], $plan['dependencies']);
 };
 
-$tests['compound select affinity recursive order current source next140 compound metadata'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order compound metadata'] = static function (TestRunner $t) use ($summary): void {
     $compound = $summary()['compound'];
     $t->same(['UNION ALL'], $compound['operators']);
     $t->same(2, $compound['currentArms']);
@@ -66,35 +66,35 @@ $tests['compound select affinity recursive order current source next140 compound
     $t->same(6, $compound['limit']);
 };
 
-$tests['compound select affinity recursive order current source next140 recursive current queue uses storage class order'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order recursive current queue uses storage class order'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same(['siteurl', 'home', 'theme_child', 'string_child', 'plugin_alpha'], $recursive['currentVisitedNames']);
     $t->same(['string:10', 'numeric:2', 'numeric:3', 'string:0', 'string:1'], $recursive['currentSortClasses']);
     $t->same([['home', 'plugin_alpha'], ['theme_child', 'string_child'], [], [], []], $recursive['currentAcceptedNextNames']);
 };
 
-$tests['compound select affinity recursive order current source next140 recursive next queue uses storage class order'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order recursive next queue uses storage class order'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same(['siteurl', 'plugin_beta', 'home', 'theme_child', 'string_child', 'plugin_alpha', 'plugin_beta_child'], $recursive['nextVisitedNames']);
     $t->same(['string:10', 'numeric:1.5', 'numeric:2', 'numeric:3', 'string:0', 'string:1', 'string:2'], $recursive['nextSortClasses']);
     $t->same([['home', 'plugin_alpha', 'plugin_beta'], ['plugin_beta_child'], ['theme_child', 'string_child']], array_slice($recursive['nextAcceptedNextNames'], 0, 3));
 };
 
-$tests['compound select affinity recursive order current source next140 final compound order current rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order final compound order current rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same(['direct_numeric', 'home', 'theme_child', 'string_child', 'plugin_alpha', 'siteurl'], array_column($rows, 'name'));
     $t->same([1.25, 2, 3, '0', '1', '10'], array_column($rows, 'sort_key'));
     $t->same(['direct', 'walk', 'walk', 'walk', 'walk', 'walk'], array_column($rows, 'source'));
 };
 
-$tests['compound select affinity recursive order current source next140 final compound order next rows'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order final compound order next rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same(['direct_numeric', 'plugin_beta', 'home', 'theme_child', 'string_child', 'plugin_alpha'], array_column($rows, 'name'));
     $t->same([1.25, 1.5, 2, 3, '0', '1'], array_column($rows, 'sort_key'));
     $t->same(['direct', 'walk', 'walk', 'walk', 'walk', 'walk'], array_column($rows, 'source'));
 };
 
-$tests['compound select affinity recursive order current source next140 changed signatures and replan reasons'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound select affinity recursive order changed signatures and replan reasons'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $changed = implode("\n", $plan['changedSignatures']);
     $t->true(str_contains($changed, 'plugin_beta'));
@@ -105,8 +105,8 @@ $tests['compound select affinity recursive order current source next140 changed 
     $t->true(in_array('compound-final-order-after-recursive-source', $plan['replanReasons'], true));
 };
 
-$tests['compound select affinity recursive order current source next140 rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareNext140(
+$tests['compound select affinity recursive order rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectAffinityRecursiveOrderCurrentSourceNextPlan::compareRecursiveAffinityOrder(
         'SELECT option_name AS name, sort_key FROM wp_options UNION ALL SELECT option_name AS name, sort_key FROM wp_options ORDER BY sort_key',
         $currentTables,
         $currentTables,
@@ -114,7 +114,7 @@ $tests['compound select affinity recursive order current source next140 rejects 
 };
 
 foreach (range(1, 36) as $case) {
-    $tests['compound select affinity recursive order current source next140 generated storage queue ' . $case] = static function (TestRunner $t) use ($case): void {
+    $tests['compound select affinity recursive order generated storage queue ' . $case] = static function (TestRunner $t) use ($case): void {
         $numeric = 2 + ($case % 5);
         $text = (string) (1 + ($case % 3));
         $tables = [

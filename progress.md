@@ -48,6 +48,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-29 supervisor continuation (shell samples 15:55 UTC):
+  Forty-seventh reduced consolidation follow-up is staged and validated in the
+  rolling libsqlite integration worktree. The batch accepts 7 ready-marked BG
+  handoffs on top of `aba943094` while excluding stale worker status/progress
+  edits: B-tree vacuum final freelist splice cleanup, compound recursive
+  affinity order cleanup, JSON generated path rowid anchor/range cleanup,
+  pager-master method consolidation guard cleanup, planner STAT4
+  prepared-bridge current-source handoff cleanup, upstream-suite grouped
+  veryquick shard evidence cleanup, and trigger next192 current-source cleanup.
+  Attach BG, rowvalue-save BG, rowvalue-window BG, WAL/VFS BG, and suffix BG
+  are deferred because they overlap files already renamed in the forty-sixth
+  or this forty-seventh batch. Validation passed `24` PHP lints, changed tests
+  `12 test files / 936 assertions / 0 failures`, `6` changed WordPress
+  examples/self-tests, git diff --check, exact user-named 150 suffix scan clean
+  in `src`/`tests`/`examples`, production `CurrentSourceNextNNN` file/class
+  audits at `0`, and broad numbered production helper-method audit `2896`.
+  Public pass/mapped counters remain `154019 pass / 0 fail` and `830 / 1589`
+  because this is another suffix/helper consolidation slice.
+
 - 2026-05-29 supervisor continuation (shell samples 15:49 UTC):
   Forty-sixth reduced consolidation follow-up is staged and validated in the
   rolling libsqlite integration worktree. The batch accepts 9 ready-marked BF

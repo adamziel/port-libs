@@ -54,7 +54,7 @@ $returning192 = [
     ['expr' => 'trigger_source', 'as' => 'trigger_source_alias'],
 ];
 
-$plan192 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext192(
+$plan192 = static fn (array $options = []): array => SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingCurrentAfterNextCursorClose(
     $rows192,
     $currentInput192,
     $nextInput192,

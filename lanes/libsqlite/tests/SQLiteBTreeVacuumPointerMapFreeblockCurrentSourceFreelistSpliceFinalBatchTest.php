@@ -9,7 +9,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 
-$makeFirstPage975990 = static function (int $pageCount): string {
+$makeFirstPageFinalBatch = static function (int $pageCount): string {
     $page = str_repeat("\0", 512);
     $page = substr_replace($page, "SQLite format 3\0", 0, 16);
     $page = substr_replace($page, pack('n', 512), 16, 2);
@@ -25,7 +25,7 @@ $makeFirstPage975990 = static function (int $pageCount): string {
     return $page;
 };
 
-$putPointerMapEntry975990 = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
+$putPointerMapEntryFinalBatch = static function (array &$pages, int $pageNumber, int $type, int $parentPageNumber): void {
     if ($pageNumber === 2 || $pageNumber === 105) {
         return;
     }
@@ -34,9 +34,9 @@ $putPointerMapEntry975990 = static function (array &$pages, int $pageNumber, int
     $pages[$pointerMapPage] = substr_replace($pages[$pointerMapPage], chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - $pointerMapPage - 1), 5);
 };
 
-$database975990 = static function (int $sliceNumber) use ($makeFirstPage975990, $putPointerMapEntry975990): SQLiteDatabase {
+$databaseFinalBatch = static function (int $sliceNumber) use ($makeFirstPageFinalBatch, $putPointerMapEntryFinalBatch): SQLiteDatabase {
     $pages = array_fill(1, 110, str_repeat("\0", 512));
-    $pages[1] = $makeFirstPage975990(110);
+    $pages[1] = $makeFirstPageFinalBatch(110);
     $pages[2] = str_repeat("\0", 512);
     $pages[3] = SQLiteTableLeafPage::assemble([
         SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'home', 'https://example.test'])),
@@ -56,18 +56,18 @@ $database975990 = static function (int $sliceNumber) use ($makeFirstPage975990, 
         109 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 108],
         110 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 109],
     ] as $pageNumber => [$type, $parent]) {
-        $putPointerMapEntry975990($pages, $pageNumber, $type, $parent);
+        $putPointerMapEntryFinalBatch($pages, $pageNumber, $type, $parent);
     }
 
     return SQLiteDatabase::fromBytes(implode('', $pages));
 };
 
-$plan975990 = static function (int $sliceNumber, int $batchSize = 2) use ($database975990): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
-    $database = $database975990($sliceNumber);
+$planFinalBatch = static function (int $sliceNumber, int $batchSize = 2) use ($databaseFinalBatch): SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan {
+    $database = $databaseFinalBatch($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
 
-    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    return SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistSpliceFromDeleteResult(
+        $sliceNumber,
         $database,
         3,
         [
@@ -86,32 +86,32 @@ $plan975990 = static function (int $sliceNumber, int $batchSize = 2) use ($datab
 $tests = [];
 
 foreach (range(975, 990) as $sliceNumber) {
-    $tests["btree vacuum pointermap freeblock current source next{$sliceNumber} extends next975-990 handoff receipts"] = static function (TestRunner $t) use ($plan975990, $sliceNumber): void {
-        $plan = $plan975990($sliceNumber);
-        $summary = $plan->currentSourceSummary();
-        $rows = $plan->currentSourceRows();
+    $tests["btree vacuum pointermap freeblock final freelist splice slice {$sliceNumber} preserves handoff receipts"] = static function (TestRunner $t) use ($planFinalBatch, $sliceNumber): void {
+        $plan = $planFinalBatch($sliceNumber);
+        $summary = $plan->freelistSummary();
+        $rows = $plan->freelistRows();
 
         $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}", $plan->toArray()['action']);
         $t->same("btree-vacuum-pointermap-freeblock-current-source-next{$sliceNumber}-ready", $summary['status']);
-        $t->same(7, $summary['current_source_row_count']);
-        $t->same([2, 3, 105, 106, 105, 107, 108], $summary['current_source_pages']);
-        $t->same([3, 106, 107, 108], $summary['current_source_leaf_pages']);
+        $t->same(7, $summary['freelist_row_count']);
         $t->same([2, 3, 105, 106, 105, 107, 108], $summary['freelist_pages']);
-        $t->same([], $summary['current_source_errors']);
-        $t->same(true, $summary['current_source_pages_match_freelist_pages']);
-        $t->same(true, $summary['current_source_leaf_pages_match_freelist_leaf_pages']);
-        $t->same(true, $summary['all_freelist_tokens_preserved']);
-        $t->same(true, $summary['all_trunk_receipts_publish_before_leaf_receipts']);
-        $t->same(true, $summary['all_leaf_receipts_current_at_source']);
-        $t->same(true, $summary['all_tail_pages_remain_excluded_from_source']);
-        $t->same(true, $summary['all_current_source_links_valid']);
-        $t->same("current-source-next{$sliceNumber}-handoff-ready", $rows[0]['current_source_state']);
-        $t->same(null, $rows[0]['previous_current_source_token']);
-        $t->same($rows[0]['current_source_token'], $rows[1]['previous_current_source_token']);
+        $t->same([2, 105], $summary['trunk_anchor_pages']);
+        $t->same([3, 106, 107, 108], $summary['leaf_slot_pages']);
+        $t->same([], $summary['freelist_errors']);
+        $t->same(true, $summary['freelist_leaf_pages_match_vacuum']);
+        $t->same(true, $summary['all_vacuum_tokens_preserved']);
+        $t->same(true, $summary['all_trunks_seen_before_leaf_slots']);
+        $t->same(true, $summary['all_leaf_slots_ordered']);
+        $t->same(true, $summary['all_offsets_match_vacuum_finalization']);
+        $t->same(true, $summary['all_tail_pages_rejected_from_freelist']);
+        $t->same(true, $summary['all_freelist_links_valid']);
+        $t->same("current-source-next{$sliceNumber}-freelist-splice-ready", $rows[0]['freelist_state']);
+        $t->same(null, $rows[0]['previous_freelist_token']);
+        $t->same($rows[0]['freelist_token'], $rows[1]['previous_freelist_token']);
         $t->same(true, isset($summary["current_source_next{$sliceNumber}_token"]));
-        $t->contains('next431-446 freelist splice shape', $summary['dependency_closure']);
+        $t->contains('freelist splice receipts', $summary['dependency_closure']);
         $t->contains('does not repeat', $summary['non_overlap']);
-        $t->same(6, $plan975990($sliceNumber, 3)->currentSourceSummary()['current_source_row_count']);
+        $t->same(6, $planFinalBatch($sliceNumber, 3)->freelistSummary()['freelist_row_count']);
     };
 }
 

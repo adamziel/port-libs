@@ -7825,7 +7825,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
      * @param array<string,mixed> $options
      * @return array<string,mixed>
      */
-    public static function executeNext192(
+    public static function executeFollowingCurrentAfterNextCursorClose(
         array $baseRows,
         array $currentInput,
         array $nextInput,
@@ -8996,7 +8996,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeNext192(
+        $base = SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan::executeFollowingCurrentAfterNextCursorClose(
             $baseRows,
             $currentInput,
             $nextInput,

@@ -30,7 +30,7 @@ $plan209 = static fn (
     ?int $lastYieldedRowid = null,
     ?int $yieldBatchSize = 3,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext209(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidRangeConstraint(
     'json_tree',
     $current ?? $current209,
     $next ?? $next209,
@@ -125,12 +125,12 @@ $tests = [
     'unusable range bypassed' => static fn (TestRunner $t) => $t->same('OP_JsonTableRowidRangeBypassNext209', $unusableRange209()['currentGeneratedPathRowidRangeConstraint209']['rangeOpcode']),
     'unusable range constraints empty' => static fn (TestRunner $t) => $t->same([], $unusableRange209()['currentGeneratedPathRowidRangeConstraint209']['rangeConstraints']),
     'malformed generated path rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => $plan209(array_replace($current209, ['generated_path' => '$.rules[']), $current209)),
-    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext209('json_bad', $current209, $current209, 'option_value', 'generated_path')),
+    'bad function rejected' => static fn (TestRunner $t) => $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidRangeConstraint('json_bad', $current209, $current209, 'option_value', 'generated_path')),
     'dependency closure' => static fn (TestRunner $t) => $t->same('no-new-support-component', 'no-new-support-component'),
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost current source next209 ' . $name] = $case;
+    $tests['json table generated path rowid range constraint ' . $name] = $case;
     unset($tests[$name]);
 }
 

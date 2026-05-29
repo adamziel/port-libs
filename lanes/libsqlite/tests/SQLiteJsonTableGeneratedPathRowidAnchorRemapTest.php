@@ -30,7 +30,7 @@ $plan195 = static fn (
     ?int $lastYieldedRowid = 10,
     ?int $yieldBatchSize = 1,
     ?array $projection = null,
-): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidCostCurrentSourceNext195(
+): array => SQLiteJsonTablePlan::currentSourceGeneratedPathRowidAnchorRemap(
     'json_tree',
     $current ?? $current195,
     $next ?? $next195,
@@ -120,7 +120,7 @@ $tests = [
 ];
 
 foreach ($tests as $name => $case) {
-    $tests['json table generated path rowid cost current source next195 ' . $name] = $case;
+    $tests['json table generated path rowid anchor remap ' . $name] = $case;
     unset($tests[$name]);
 }
 

@@ -68,8 +68,8 @@ $rows = [];
 foreach (range(975, 990) as $sliceNumber) {
     $database = $databaseForSlice($sliceNumber);
     $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($database->page(3), 2, secureDelete: true);
-    $method = "tableLeafFromDeleteResultNext{$sliceNumber}";
-    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::{$method}(
+    $plan = SQLiteBTreeVacuumPointerMapFreeblockCurrentSourceNextPlan::tableLeafFreelistSpliceFromDeleteResult(
+        $sliceNumber,
         $database,
         3,
         [
@@ -81,15 +81,16 @@ foreach (range(975, 990) as $sliceNumber) {
         str_repeat("next{$sliceNumber}-current-source-followon-handoff-", 36),
         3,
     );
-    $summary = $plan->currentSourceSummary();
+    $summary = $plan->freelistSummary();
     $rows[] = [
         'slice' => $sliceNumber,
         'status' => $summary['status'],
-        'current_source_pages' => $summary['current_source_pages'],
-        'current_source_leaf_pages' => $summary['current_source_leaf_pages'],
-        'matches_freelist' => $summary['current_source_pages_match_freelist_pages'],
-        'tail_pages_excluded' => $summary['all_tail_pages_remain_excluded_from_source'],
-        'errors' => $summary['current_source_errors'],
+        'freelist_pages' => $summary['freelist_pages'],
+        'trunk_anchor_pages' => $summary['trunk_anchor_pages'],
+        'leaf_slot_pages' => $summary['leaf_slot_pages'],
+        'matches_vacuum' => $summary['freelist_leaf_pages_match_vacuum'],
+        'tail_pages_rejected' => $summary['all_tail_pages_rejected_from_freelist'],
+        'errors' => $summary['freelist_errors'],
     ];
 }
 

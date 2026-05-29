@@ -6987,7 +6987,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext309324(
+    public function upstreamVeryquickShardPreparedOpeningWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -7143,7 +7143,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext325340(
+    public function upstreamVeryquickShardPreparedLowerMidWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -7299,7 +7299,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext341356(
+    public function upstreamVeryquickShardPreparedMidWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -7455,7 +7455,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext357372(
+    public function upstreamVeryquickShardPreparedUpperMidWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -7611,7 +7611,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext373388(
+    public function upstreamVeryquickShardPreparedLateWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
@@ -7767,7 +7767,7 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<array<string, mixed>> $rows
      * @return array<string, mixed>
      */
-    public function upstreamVeryquickShardCurrentSourceNext389404(
+    public function upstreamVeryquickShardPreparedFinalWindowEvidence(
         array $rows,
         int $currentMapped,
         int $currentPhpPass,
